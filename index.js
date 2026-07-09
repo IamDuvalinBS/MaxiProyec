@@ -21,12 +21,12 @@ http
     const segundos = codeTime ? Math.floor((Date.now() - codeTime) / 1000) : null;
     res.end(`
       <html>
-        <head><meta http-equiv="refresh" content="2"></head>
+        <head><meta http-equiv="refresh" content="3"></head>
         <body style="font-family:sans-serif;text-align:center;margin-top:50px;">
           <h1>Codigo de vinculacion</h1>
           <h2 style="font-size:48px;letter-spacing:5px;">${currentCode}</h2>
           ${segundos !== null ? `<p>Generado hace ${segundos} segundos</p>` : ""}
-          <p>Esta pagina se actualiza sola cada 2 segundos.</p>
+          <p>Esta pagina se actualiza sola cada 3 segundos.</p>
         </body>
       </html>
     `);
@@ -42,7 +42,10 @@ async function startBot() {
     version: version,
     logger: pino({ level: "silent" }),
     printQRInTerminal: false,
-    browser: ["Ubuntu", "Chrome", "20.0.04"]
+    browser: ["Ubuntu", "Chrome", "20.0.04"],
+    keepAliveIntervalMs: 10000,
+    connectTimeoutMs: 60000,
+    defaultQueryTimeoutMs: 60000
   });
 
   sock.ev.on("connection.update", async (update) => {
@@ -50,8 +53,7 @@ async function startBot() {
     const lastDisconnect = update.lastDisconnect;
     const qr = update.qr;
 
-    // Pedimos el codigo justo cuando WhatsApp esta listo para darlo (no antes)
-    if ((connection === "connecting" || qr) && !sock.authState.creds.registered && !pairingRequested) {
+    if (qr && !sock.authState.creds.registered && !pairingRequested) {
       pairingRequested = true;
       try {
         const code = await sock.requestPairingCode(PHONE_NUMBER);
@@ -60,6 +62,7 @@ async function startBot() {
         console.log("CODIGO GENERADO: " + code);
       } catch (e) {
         console.log("Error pidiendo el codigo: " + e.message);
+        currentCode = "Error, esperando reintento...";
         pairingRequested = false;
       }
     }
@@ -70,13 +73,8 @@ async function startBot() {
         : "sin codigo";
       const reason = lastDisconnect && lastDisconnect.error ? lastDisconnect.error.message : "desconocido";
       console.log("Conexion cerrada. Codigo: " + statusCode + ". Motivo: " + reason);
-
-      if (statusCode !== DisconnectReason.loggedOut) {
-        pairingRequested = false;
-        setTimeout(startBot, 5000);
-      } else {
-        console.log("Sesion cerrada.");
-      }
+      pairingRequested = false;
+      setTimeout(startBot, 10000);
     } else if (connection === "open") {
       currentCode = "CONECTADO";
       console.log("Bot conectado a WhatsApp");
@@ -99,3 +97,4 @@ async function startBot() {
 }
 
 startBot();
+             
