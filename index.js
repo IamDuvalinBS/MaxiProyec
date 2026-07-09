@@ -1,4 +1,9 @@
-import { makeWASocket, useMultiFileAuthState, DisconnectReason } from "@whiskeysockets/baileys";
+import {
+  makeWASocket,
+  useMultiFileAuthState,
+  DisconnectReason,
+  fetchLatestBaileysVersion
+} from "@whiskeysockets/baileys";
 import qrcode from "qrcode-terminal";
 import pino from "pino";
 import http from "http";
@@ -14,11 +19,14 @@ http
 
 async function startBot() {
   const { state, saveCreds } = await useMultiFileAuthState("auth_info");
+  const { version } = await fetchLatestBaileysVersion();
 
   const sock = makeWASocket({
     auth: state,
+    version,
     logger: pino({ level: "silent" }),
-    printQRInTerminal: false
+    printQRInTerminal: false,
+    browser: ["Ubuntu", "Chrome", "20.0.04"]
   });
 
   sock.ev.on("connection.update", (update) => {
@@ -30,10 +38,17 @@ async function startBot() {
     }
 
     if (connection === "close") {
-      const shouldReconnect =
-        lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
-      console.log("Conexión cerrada. Reconectando:", shouldReconnect);
-      if (shouldReconnect) startBot();
+      const statusCode = lastDisconnect?.error?.output?.statusCode;
+      const reason = lastDisconnect?.error?.message || "desconocido";
+      const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+
+      console.log(`❌ Conexión cerrada. Código: ${statusCode}. Motivo: ${reason}. Reconectando: ${shouldReconnect}`);
+
+      if (shouldReconnect) {
+        setTimeout(startBot, 5000);
+      } else {
+        console.log("Sesión cerrada (logout). Borra la carpeta auth_info y volvé a escanear el QR.");
+      }
     } else if (connection === "open") {
       console.log("✅ Bot conectado a WhatsApp");
     }
