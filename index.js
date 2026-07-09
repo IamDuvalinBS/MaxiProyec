@@ -7,15 +7,28 @@ import {
 import pino from "pino";
 import http from "http";
 
-// CAMBIA ESTO por tu número completo con código de país, sin +, sin espacios
-// Ejemplo Argentina: 5491122334455 | Ejemplo México: 5215512345678
+// Tu número completo con código de país, sin +, sin espacios, sin guiones
 const PHONE_NUMBER = "529616050619";
+
+let currentCode = "Todavia no generado, esperando...";
+let codeTime = null;
 
 const PORT = process.env.PORT || 3000;
 http
   .createServer((req, res) => {
-    res.writeHead(200, { "Content-Type": "text/plain" });
-    res.end("Bot activo");
+    res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+    const segundos = codeTime ? Math.floor((Date.now() - codeTime) / 1000) : null;
+    res.end(`
+      <html>
+        <head><meta http-equiv="refresh" content="2"></head>
+        <body style="font-family:sans-serif;text-align:center;margin-top:50px;">
+          <h1>Codigo de vinculacion</h1>
+          <h2 style="font-size:48px;letter-spacing:5px;">${currentCode}</h2>
+          ${segundos !== null ? `<p>Generado hace ${segundos} segundos</p>` : ""}
+          <p>Esta pagina se actualiza sola cada 2 segundos.</p>
+        </body>
+      </html>
+    `);
   })
   .listen(PORT, () => console.log("Servidor web escuchando en el puerto " + PORT));
 
@@ -31,18 +44,17 @@ async function startBot() {
     browser: ["Ubuntu", "Chrome", "20.0.04"]
   });
 
-  // Si todavía no está registrado, pedimos el código de emparejamiento
   if (!sock.authState.creds.registered) {
     setTimeout(async () => {
       try {
         const code = await sock.requestPairingCode(PHONE_NUMBER);
-        console.log("=========================================");
-        console.log("TU CODIGO DE VINCULACION ES: " + code);
-        console.log("=========================================");
+        currentCode = code;
+        codeTime = Date.now();
+        console.log("CODIGO GENERADO: " + code);
       } catch (e) {
         console.log("Error pidiendo el codigo: " + e.message);
       }
-    }, 3000);
+    }, 1500);
   }
 
   sock.ev.on("connection.update", (update) => {
@@ -59,9 +71,10 @@ async function startBot() {
       if (statusCode !== DisconnectReason.loggedOut) {
         setTimeout(startBot, 5000);
       } else {
-        console.log("Sesion cerrada. Hay que volver a pedir el codigo.");
+        console.log("Sesion cerrada.");
       }
     } else if (connection === "open") {
+      currentCode = "CONECTADO";
       console.log("Bot conectado a WhatsApp");
     }
   });
@@ -82,4 +95,4 @@ async function startBot() {
 }
 
 startBot();
-             
+        
