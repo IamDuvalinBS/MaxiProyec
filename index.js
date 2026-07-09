@@ -12,6 +12,7 @@ const PHONE_NUMBER = "529616050619";
 
 let currentCode = "Todavia no generado, esperando...";
 let codeTime = null;
+let pairingRequested = false;
 
 const PORT = process.env.PORT || 3000;
 http
@@ -44,8 +45,14 @@ async function startBot() {
     browser: ["Ubuntu", "Chrome", "20.0.04"]
   });
 
-  if (!sock.authState.creds.registered) {
-    setTimeout(async () => {
+  sock.ev.on("connection.update", async (update) => {
+    const connection = update.connection;
+    const lastDisconnect = update.lastDisconnect;
+    const qr = update.qr;
+
+    // Pedimos el codigo justo cuando WhatsApp esta listo para darlo (no antes)
+    if ((connection === "connecting" || qr) && !sock.authState.creds.registered && !pairingRequested) {
+      pairingRequested = true;
       try {
         const code = await sock.requestPairingCode(PHONE_NUMBER);
         currentCode = code;
@@ -53,13 +60,9 @@ async function startBot() {
         console.log("CODIGO GENERADO: " + code);
       } catch (e) {
         console.log("Error pidiendo el codigo: " + e.message);
+        pairingRequested = false;
       }
-    }, 1500);
-  }
-
-  sock.ev.on("connection.update", (update) => {
-    const connection = update.connection;
-    const lastDisconnect = update.lastDisconnect;
+    }
 
     if (connection === "close") {
       const statusCode = lastDisconnect && lastDisconnect.error && lastDisconnect.error.output
@@ -69,6 +72,7 @@ async function startBot() {
       console.log("Conexion cerrada. Codigo: " + statusCode + ". Motivo: " + reason);
 
       if (statusCode !== DisconnectReason.loggedOut) {
+        pairingRequested = false;
         setTimeout(startBot, 5000);
       } else {
         console.log("Sesion cerrada.");
@@ -95,4 +99,3 @@ async function startBot() {
 }
 
 startBot();
-        
