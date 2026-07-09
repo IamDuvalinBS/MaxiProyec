@@ -1,6 +1,16 @@
 import { makeWASocket, useMultiFileAuthState, DisconnectReason } from "@whiskeysockets/baileys";
 import qrcode from "qrcode-terminal";
 import pino from "pino";
+import http from "http";
+
+// Servidor web mínimo, requerido por Render para mantener el proyecto activo
+const PORT = process.env.PORT || 3000;
+http
+  .createServer((req, res) => {
+    res.writeHead(200, { "Content-Type": "text/plain" });
+    res.end("Bot activo ✅");
+  })
+  .listen(PORT, () => console.log(`Servidor web escuchando en el puerto ${PORT}`));
 
 async function startBot() {
   const { state, saveCreds } = await useMultiFileAuthState("auth_info");
