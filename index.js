@@ -4,9 +4,12 @@ import {
   DisconnectReason,
   fetchLatestBaileysVersion
 } from "@whiskeysockets/baileys";
-import qrcode from "qrcode-terminal";
 import pino from "pino";
 import http from "http";
+
+// CAMBIA ESTO por tu número completo con código de país, sin +, sin espacios
+// Ejemplo Argentina: 5491122334455 | Ejemplo México: 5215512345678
+const PHONE_NUMBER = "529616050619";
 
 const PORT = process.env.PORT || 3000;
 http
@@ -28,15 +31,23 @@ async function startBot() {
     browser: ["Ubuntu", "Chrome", "20.0.04"]
   });
 
+  // Si todavía no está registrado, pedimos el código de emparejamiento
+  if (!sock.authState.creds.registered) {
+    setTimeout(async () => {
+      try {
+        const code = await sock.requestPairingCode(PHONE_NUMBER);
+        console.log("=========================================");
+        console.log("TU CODIGO DE VINCULACION ES: " + code);
+        console.log("=========================================");
+      } catch (e) {
+        console.log("Error pidiendo el codigo: " + e.message);
+      }
+    }, 3000);
+  }
+
   sock.ev.on("connection.update", (update) => {
     const connection = update.connection;
-    const qr = update.qr;
     const lastDisconnect = update.lastDisconnect;
-
-    if (qr) {
-      console.log("Escaneá este QR:");
-      qrcode.generate(qr, { small: true });
-    }
 
     if (connection === "close") {
       const statusCode = lastDisconnect && lastDisconnect.error && lastDisconnect.error.output
@@ -48,7 +59,7 @@ async function startBot() {
       if (statusCode !== DisconnectReason.loggedOut) {
         setTimeout(startBot, 5000);
       } else {
-        console.log("Sesion cerrada. Hay que volver a escanear el QR.");
+        console.log("Sesion cerrada. Hay que volver a pedir el codigo.");
       }
     } else if (connection === "open") {
       console.log("Bot conectado a WhatsApp");
@@ -71,3 +82,4 @@ async function startBot() {
 }
 
 startBot();
+             
