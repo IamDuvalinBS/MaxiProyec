@@ -32,7 +32,22 @@ http
   })
   .listen(PORT, () => console.log("Servidor web escuchando en el puerto " + PORT));
 
+process.on("uncaughtException", (err) => {
+  console.log("Error no manejado (el bot sigue corriendo): " + err.message);
+});
+process.on("unhandledRejection", (err) => {
+  console.log("Promesa rechazada sin manejar (el bot sigue corriendo): " + (err?.message || err));
+});
+
+let isConnecting = false;
+
 async function startBot() {
+  if (isConnecting) {
+    console.log("Ya hay un intento de conexion en curso, se ignora este pedido duplicado.");
+    return;
+  }
+  isConnecting = true;
+
   const { state, saveCreds } = await useMultiFileAuthState("auth_info");
   const { version } = await fetchLatestBaileysVersion();
 
@@ -77,9 +92,11 @@ async function startBot() {
         : "sin codigo";
       console.log("Conexion cerrada. Codigo: " + statusCode);
       pairingRequested = false;
+      isConnecting = false;
       setTimeout(startBot, 10000);
     } else if (connection === "open") {
       currentCode = "CONECTADO";
+      isConnecting = false;
       console.log("Bot conectado a WhatsApp");
     }
   });
@@ -108,5 +125,4 @@ async function startBot() {
 }
 
 startBot();
-  
-startBot();
+      
