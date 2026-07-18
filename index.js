@@ -8,7 +8,10 @@ import pino from "pino";
 import http from "http";
 import { handleEconomyCommand, checkTriviaAnswer } from "./economia.js";
 
-const PHONE_NUMBER = "529616050619";
+import readline from "readline";
+
+const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+const question = (text) => new Promise((resolve) => rl.question(text, resolve));
 
 let currentCode = "Todavia no generado, esperando...";
 let codeTime = null;
@@ -76,7 +79,8 @@ async function startBot() {
     if (qr && !sock.authState.creds.registered && !pairingRequested) {
       pairingRequested = true;
       try {
-        const code = await sock.requestPairingCode(PHONE_NUMBER);
+        const numero = (await question("\n📱 Ingresá el número a vincular (con código de país, sin +, sin espacios): ")).trim();
+        const code = await sock.requestPairingCode(numero);
         currentCode = code;
         codeTime = Date.now();
         console.log("CODIGO GENERADO: " + code);
@@ -108,7 +112,11 @@ async function startBot() {
     if (!msg.message) return;
 
     const from = msg.key.remoteJid;
-    const sender = msg.key.participant || msg.key.remoteJid;
+    // Si el mensaje lo mandaste vos mismo (el numero del bot), la cuenta
+    // siempre debe ser TU numero, sin importar en que chat lo escribas.
+    const sender = msg.key.fromMe
+      ? sock.user.id.split(":")[0] + "@s.whatsapp.net"
+      : (msg.key.participant || msg.key.remoteJid);
     const text = (
       msg.message.conversation ||
       (msg.message.extendedTextMessage ? msg.message.extendedTextMessage.text : "") ||
@@ -125,4 +133,4 @@ async function startBot() {
 }
 
 startBot();
-      
+  
