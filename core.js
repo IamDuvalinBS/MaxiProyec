@@ -47,27 +47,37 @@ export async function connectDB(intentos = 5) {
   console.log("No se pudo conectar a MongoDB tras varios intentos.");
 }
 
-export async function saveAccount(sender) {
+export async function saveAccount(sender, intentos = 3) {
   if (!collection) return;
   const acc = getAccount(sender);
-  try {
-    await collection.updateOne(
-      { _id: sender },
-      { $set: { wallet: acc.wallet, bank: acc.bank, cooldowns: acc.cooldowns } },
-      { upsert: true }
-    );
-  } catch (e) {
-    console.log("Error guardando en MongoDB: " + e.message);
+  for (let i = 1; i <= intentos; i++) {
+    try {
+      await collection.updateOne(
+        { _id: sender },
+        { $set: { wallet: acc.wallet, bank: acc.bank, cooldowns: acc.cooldowns } },
+        { upsert: true }
+      );
+      return;
+    } catch (e) {
+      console.log(`Error guardando cuenta (intento ${i}/${intentos}): ` + e.message);
+      if (i < intentos) await new Promise(r => setTimeout(r, 2000));
+    }
   }
+  console.log("⚠️ No se pudo guardar la cuenta de " + sender + " tras varios intentos.");
 }
 
-export async function saveConfig() {
+export async function saveConfig(intentos = 3) {
   if (!configCollection) return;
-  try {
-    await configCollection.updateOne({ _id: "bot" }, { $set: config }, { upsert: true });
-  } catch (e) {
-    console.log("Error guardando config: " + e.message);
+  for (let i = 1; i <= intentos; i++) {
+    try {
+      await configCollection.updateOne({ _id: "bot" }, { $set: config }, { upsert: true });
+      return;
+    } catch (e) {
+      console.log(`Error guardando config (intento ${i}/${intentos}): ` + e.message);
+      if (i < intentos) await new Promise(r => setTimeout(r, 2000));
+    }
   }
+  console.log("⚠️ No se pudo guardar la configuracion tras varios intentos. El cambio puede perderse al reiniciar.");
 }
 
 export function getAccount(sender) {
@@ -167,6 +177,35 @@ export async function checkTriviaAnswer(sock, from, sender, text, msg) {
   return true;
 }
 
+// ============ FABRICA DE COMANDOS DE REACCION (gifs tipo anime) ============
+export function reactionCommand({ apiAction, fraseConOtro, fraseSolo }) {
+  return async ({ sock, from, sender, msg, reply }) => {
+    const mentioned = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid;
+    const target = (mentioned && mentioned[0]) || sender;
+    const esASiMismo = target === sender;
+
+    let url;
+    try {
+      const res = await fetch(`https://api.waifu.pics/sfw/${apiAction}`);
+      const data = await res.json();
+      url = data.url;
+    } catch (e) {
+      await reply({ text: "❌ No se pudo conseguir la imagen ahora mismo, intentá de nuevo." });
+      return;
+    }
+
+    const nombreDe = "@" + sender.split("@")[0];
+    const nombrePara = "@" + target.split("@")[0];
+    const caption = esASiMismo
+      ? `${nombreDe} ${fraseSolo}`
+      : `${nombreDe} ${fraseConOtro} ${nombrePara}`;
+
+    const mentions = esASiMismo ? [sender] : [sender, target];
+
+    await sock.sendMessage(from, { video: { url }, gifPlayback: true, caption, mentions }, { quoted: msg });
+  };
+}
+
 // ============ FABRICA DE COMANDOS DE "TRABAJO" ============
 // Genera un handler estandar para comandos tipo trabajar/minar/crimen/etc.
 // Reduce repeticion mientras cada comando sigue viviendo en su propio archivo.
@@ -196,3 +235,4 @@ export function workCommand({ key, cooldownMs, minReward, maxReward, riesgo, fra
     }
   };
 }
+  
