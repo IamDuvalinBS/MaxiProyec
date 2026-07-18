@@ -286,6 +286,31 @@ export async function handleEconomyCommand(sock, from, sender, text, msg) {
     });
     return true;
   }
+if (cmd === ".top" || cmd === ".baltop") {
+    const lista = Array.from(accounts.entries())
+      .map(([jid, acc]) => ({ jid, total: acc.wallet + acc.bank }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 10);
 
+    if (lista.length === 0) {
+      await reply({ text: "⚙️ Todavía nadie tiene ¥enes registrados." });
+      return true;
+    }
+
+    const medallas = ["🥇", "🥈", "🥉"];
+    const lineas = lista.map((u, i) => {
+      const medalla = medallas[i] || `${i + 1}.`;
+      return `${medalla} @${u.jid.split("@")[0]}  ›› *${u.total} ${CURRENCY}*`;
+    });
+
+    await reply({
+      text: box("TOP RICOS ›› ¥enes", lineas),
+      mentions: lista.map(u => u.jid)
+    });
+    return true;
+  }
+
+  return false;
+}
   return false;
 }
