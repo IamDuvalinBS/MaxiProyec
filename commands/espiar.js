@@ -16,7 +16,7 @@ export default {
       exito: [
         "🕶️ Conseguiste información valiosa y la vendiste por",
         "📷 Sacaste fotos comprometedoras y cobraste",
-        "🔍 Vendiste secretos de la competencia por"
+        "🔍 Vendiste secretos de la competencia por",
         "🤤 Grabastes a la vecina en la ducha y procediste a vender el video por"
       ],
       fallo: [
