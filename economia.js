@@ -1,7 +1,46 @@
+import { MongoClient } from "mongodb";
+
 const CURRENCY = "¥enes";
+const MONGO_URI = "mongodb+srv://jg0455748_db_user:2IBhQ33NazDOoBjg@cluster0.27mrbg5.mongodb.net/?appName=Cluster0";
 
 const accounts = new Map(); // sender -> { wallet, bank }
 const cooldowns = new Map(); // sender -> { comando: timestamp }
+
+let collection = null;
+
+async function connectDB() {
+  try {
+    const client = new MongoClient(MONGO_URI);
+    await client.connect();
+    const db = client.db("whatsappbot");
+    collection = db.collection("accounts");
+    console.log("Conectado a MongoDB");
+    const docs = await collection.find({}).toArray();
+    for (const doc of docs) {
+      accounts.set(doc._id, { wallet: doc.wallet, bank: doc.bank });
+    }
+    console.log(`Datos cargados desde MongoDB: ${accounts.size} cuentas`);
+  } catch (e) {
+    console.log("Error conectando a MongoDB: " + e.message);
+    console.log("El bot seguira funcionando pero SIN guardar datos permanentes.");
+  }
+}
+
+connectDB();
+
+async function saveAccount(sender) {
+  if (!collection) return;
+  const acc = getAccount(sender);
+  try {
+    await collection.updateOne(
+      { _id: sender },
+      { $set: { wallet: acc.wallet, bank: acc.bank } },
+      { upsert: true }
+    );
+  } catch (e) {
+    console.log("Error guardando en MongoDB: " + e.message);
+  }
+}
 
 function getAccount(sender) {
   if (!accounts.has(sender)) {
@@ -13,6 +52,7 @@ function getAccount(sender) {
 function addToWallet(sender, amount) {
   const acc = getAccount(sender);
   acc.wallet += amount;
+  saveAccount(sender);
   return acc;
 }
 
@@ -45,7 +85,6 @@ function box(titulo, lineas) {
   ].join("\n");
 }
 
-// Maneja todos los comandos de economia. Devuelve true si respondio algo.
 export async function handleEconomyCommand(sock, from, sender, text, msg) {
   const cmd = text.toLowerCase().split(" ")[0];
   const reply = (content) => sock.sendMessage(from, content, { quoted: msg });
@@ -74,6 +113,7 @@ export async function handleEconomyCommand(sock, from, sender, text, msg) {
     }
     acc.wallet -= amount;
     acc.bank += amount;
+    await saveAccount(sender);
     await reply({
       text: box("¡DEPÓSITO REALIZADO!", [
         `🪙 DEPOSITASTE  ›› *${amount} ${CURRENCY}*`,
@@ -94,6 +134,7 @@ export async function handleEconomyCommand(sock, from, sender, text, msg) {
     }
     acc.bank -= amount;
     acc.wallet += amount;
+    await saveAccount(sender);
     await reply({
       text: box("¡RETIRO REALIZADO!", [
         `🪙 RETIRASTE  ›› *${amount} ${CURRENCY}*`,
@@ -158,6 +199,7 @@ export async function handleEconomyCommand(sock, from, sender, text, msg) {
     } else {
       const perdio = Math.min(acc.wallet, Math.floor(Math.random() * 100) + 50);
       acc.wallet -= perdio;
+      await saveAccount(sender);
       await reply({
         text: box("¡TE ATRAPARON!", [
           "🚔 La policía te encontró...",
@@ -188,6 +230,7 @@ export async function handleEconomyCommand(sock, from, sender, text, msg) {
     } else {
       const perdio = acc.wallet;
       acc.wallet = 0;
+      await saveAccount(sender);
       await reply({
         text: box("¡CAÍSTE EN LA MAZMORRA!", [
           "💀 Perdiste todo lo que llevabas en mano...",
@@ -199,5 +242,5 @@ export async function handleEconomyCommand(sock, from, sender, text, msg) {
   }
 
   return false;
-}
-  
+      }
+      
