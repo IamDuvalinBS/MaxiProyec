@@ -6,8 +6,8 @@ import {
 } from "@whiskeysockets/baileys";
 import pino from "pino";
 import http from "http";
-import { handleEconomyCommand } from "./economia.js";
- 
+import { handleEconomyCommand, checkTriviaAnswer } from "./economia.js";
+
 const PHONE_NUMBER = "529616050619";
 
 let currentCode = "Todavia no generado, esperando...";
@@ -19,16 +19,7 @@ http
   .createServer((req, res) => {
     res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
     const segundos = codeTime ? Math.floor((Date.now() - codeTime) / 1000) : null;
-    res.end(`
-      <html>
-        <head><meta http-equiv="refresh" content="3"></head>
-        <body style="font-family:sans-serif;text-align:center;margin-top:50px;">
-          <h1>Codigo de vinculacion</h1>
-          <h2 style="font-size:48px;letter-spacing:5px;">${currentCode}</h2>
-          ${segundos !== null ? `<p>Generado hace ${segundos} segundos</p>` : ""}
-        </body>
-      </html>
-    `);
+    res.end(<p>Generado hace  segundos</p>);
   })
   .listen(PORT, () => console.log("Servidor web escuchando en el puerto " + PORT));
 
@@ -101,9 +92,10 @@ async function startBot() {
 
     if (text.startsWith(".")) {
       await handleEconomyCommand(sock, from, sender, text, msg);
+    } else {
+      await checkTriviaAnswer(sock, from, sender, text, msg);
     }
   });
 }
 
 startBot();
-         
