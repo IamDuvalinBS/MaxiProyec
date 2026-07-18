@@ -6,8 +6,8 @@ import {
 } from "@whiskeysockets/baileys";
 import pino from "pino";
 import http from "http";
+import { handleEconomyCommand } from "./economia.js";
 
-// Tu número completo con código de país, sin +, sin espacios, sin guiones
 const PHONE_NUMBER = "529616050619";
 
 let currentCode = "Todavia no generado, esperando...";
@@ -26,7 +26,6 @@ http
           <h1>Codigo de vinculacion</h1>
           <h2 style="font-size:48px;letter-spacing:5px;">${currentCode}</h2>
           ${segundos !== null ? `<p>Generado hace ${segundos} segundos</p>` : ""}
-          <p>Esta pagina se actualiza sola cada 3 segundos.</p>
         </body>
       </html>
     `);
@@ -62,7 +61,6 @@ async function startBot() {
         console.log("CODIGO GENERADO: " + code);
       } catch (e) {
         console.log("Error pidiendo el codigo: " + e.message);
-        currentCode = "Error, esperando reintento...";
         pairingRequested = false;
       }
     }
@@ -71,8 +69,7 @@ async function startBot() {
       const statusCode = lastDisconnect && lastDisconnect.error && lastDisconnect.error.output
         ? lastDisconnect.error.output.statusCode
         : "sin codigo";
-      const reason = lastDisconnect && lastDisconnect.error ? lastDisconnect.error.message : "desconocido";
-      console.log("Conexion cerrada. Codigo: " + statusCode + ". Motivo: " + reason);
+      console.log("Conexion cerrada. Codigo: " + statusCode);
       pairingRequested = false;
       setTimeout(startBot, 10000);
     } else if (connection === "open") {
@@ -85,16 +82,27 @@ async function startBot() {
 
   sock.ev.on("messages.upsert", async (m) => {
     const msg = m.messages[0];
-    if (!msg.message || msg.key.fromMe) return;
+    if (!msg.message) return;
 
     const from = msg.key.remoteJid;
-    const text = msg.message.conversation || (msg.message.extendedTextMessage ? msg.message.extendedTextMessage.text : "");
+    const sender = msg.key.participant || msg.key.remoteJid;
+    const text = (msg.message.conversation || (msg.message.extendedTextMessage ? msg.message.extendedTextMessage.text : "") || "").trim();
 
-    if (text && text.toLowerCase() === "hola") {
-      await sock.sendMessage(from, { text: "Hola! El bot esta funcionando" });
+    if (text.startsWith(".")) {
+      const cmd = text.toLowerCase().split(" ")[0];
+
+      if (cmd === ".p" || cmd === ".ping") {
+        const inicio = Date.now();
+        const sent = await sock.sendMessage(from, { text: "🏓 Pong..." }, { quoted: msg });
+        const ms = Date.now() - inicio;
+        await sock.sendMessage(from, { text: `🏓 Pong! *${ms}ms*` }, { quoted: msg });
+        return;
+      }
+
+      await handleEconomyCommand(sock, from, sender, text, msg);
     }
   });
 }
 
 startBot();
-             
+        
