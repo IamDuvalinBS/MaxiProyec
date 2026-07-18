@@ -2,14 +2,15 @@ import { workCommand } from "../core.js";
 
 export default {
   names: [".mazmorra", ".castillo"],
-  desc: "Máximo riesgo, máxima recompensa (cada 6 horas)",
+  desc: "Máximo riesgo, máxima recompensa (cada 1 hora)",
   category: "Trabajos",
   handler: workCommand({
     key: "mazmorra",
-    cooldownMs: 6 * 60 * 60 * 1000,
-    minReward: 400,
-    maxReward: 900,
-    riesgo: { chanceFallo: 0.55, perdidaTotal: true },
+    cooldownMs: 1 * 60 * 60 * 1000,
+    minReward: 700,
+    maxReward: 2100,
+    riesgo: {
+    chanceFallo: 0.40, minPerdida: 750,  maxPerdida: 1800},
     frases: {
       titulo: "¡MAZMORRA SUPERADA!",
       tituloFallo: "¡CAÍSTE EN LA MAZMORRA!",
@@ -19,8 +20,7 @@ export default {
         "🛡️ Sobreviviste a la mazmorra maldita con un botín de"
       ],
       fallo: [
-        "💀 Perdiste todo lo que llevabas en mano, un total de",
-        "☠️ Te emboscaron dentro del castillo y perdiste"
+      "☠️ Te emboscaron dentro del castillo y perdiste"
       ]
     }
   })
