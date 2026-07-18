@@ -2,13 +2,13 @@ import { workCommand } from "../core.js";
 
 export default {
   names: [".minar", ".mine"],
-  desc: "Minería, ganancia media (cada 2 horas)",
+  desc: "Minería, ganancia media (cada 20 minutos)",
   category: "Trabajos",
   handler: workCommand({
     key: "minar",
-    cooldownMs: 2 * 60 * 60 * 1000,
-    minReward: 100,
-    maxReward: 250,
+    cooldownMs: 20 * 60 * 1000,
+    minReward: 509,
+    maxReward: 4000,
     frases: {
       titulo: "¡A LA MINA!",
       exito: [
