@@ -248,6 +248,43 @@ export async function handleEconomyCommand(sock, from, sender, text, msg) {
     return true;
   }
 
-  return false;
+  if (cmd === ".transferir" || cmd === ".pagar") {
+    const acc = getAccount(sender);
+    const mentioned = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid;
+    const destino = mentioned && mentioned[0];
+
+    if (!destino) {
+      await reply({ text: "⚙️ Uso: .transferir <cantidad> @usuario\nTenés que etiquetar a la persona." });
+      return true;
+    }
+    if (destino === sender) {
+      await reply({ text: "❌ No podés transferirte plata a vos mismo." });
+      return true;
+    }
+
+    const parts = text.split(" ");
+    const amount = parseInt(parts[1], 10);
+    if (!amount || amount <= 0 || amount > acc.wallet) {
+      await reply({ text: `⚙️ Uso: .transferir <cantidad> @usuario\n💰 En mano: ${acc.wallet} ${CURRENCY}` });
+      return true;
+    }
+
+    const destAcc = getAccount(destino);
+    acc.wallet -= amount;
+    destAcc.wallet += amount;
+    await saveAccount(sender);
+    await saveAccount(destino);
+
+    await reply({
+      text: box("¡TRANSFERENCIA REALIZADA!", [
+        `👤 DE  ›› @${sender.split("@")[0]}`,
+        `👤 PARA  ›› @${destino.split("@")[0]}`,
+        `🪙 MONTO  ›› *${amount} ${CURRENCY}*`
+      ]),
+      mentions: [sender, destino]
+    });
+    return true;
   }
-                          
+
+  return false;
+}
