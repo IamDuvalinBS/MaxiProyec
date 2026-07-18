@@ -91,21 +91,22 @@ function box(titulo, lineas) {
     "╰╼┉✦┉╍✦┉╍✦┉╍✦┉╍✦┉╼⧽⧽"
   ].join("\n");
 }
-
 export async function handleEconomyCommand(sock, from, sender, text, msg) {
   const cmd = text.toLowerCase().split(" ")[0];
   const reply = (content) => sock.sendMessage(from, content, { quoted: msg });
 
   if (cmd === ".banco") {
-    const acc = getAccount(sender);
+    const mentioned = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid;
+    const target = (mentioned && mentioned[0]) || sender;
+    const acc = getAccount(target);
     const total = acc.wallet + acc.bank;
     await reply({
-      text: box("BANCO DE ›› @" + sender.split("@")[0], [
+      text: box("BANCO DE ›› @" + target.split("@")[0], [
         `💰 EN MANO  ›› *${acc.wallet} ${CURRENCY}*`,
         `🏦 EN BANCO  ›› *${acc.bank} ${CURRENCY}*`,
         `📊 TOTAL  ›› *${total} ${CURRENCY}*`
       ]),
-      mentions: [sender]
+      mentions: [target]
     });
     return true;
   }
