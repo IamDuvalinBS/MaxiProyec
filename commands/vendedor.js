@@ -2,11 +2,11 @@ import { workCommand } from "../core.js";
 
 export default {
   names: [".vendedor", ".ambulante"],
-  desc: "Ventas ambulantes, ganancia chica pero segura (cada 2 horas)",
+  desc: "Ventas ambulantes, ganancia chica pero segura (cada 30 minutos)",
   category: "Trabajos",
   handler: workCommand({
     key: "vendedor",
-    cooldownMs: 2 * 60 * 60 * 1000,
+    cooldownMs: 30 * 60 * 1000,
     minReward: 60,
     maxReward: 150,
     frases: {
