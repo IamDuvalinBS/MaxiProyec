@@ -1,7 +1,7 @@
 import { workCommand } from "../core.js";
 
 export default {
-  names: [".crimen", ".crime" ".asalto"],
+  names: [".crimen", ".crime", ".asalto"],
   desc: "Ganancia alta, riesgo de multa (cada 3 horas)",
   category: "Trabajos",
   handler: workCommand({
