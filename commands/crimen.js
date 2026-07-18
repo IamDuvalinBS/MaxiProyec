@@ -1,7 +1,7 @@
 import { workCommand } from "../core.js";
 
 export default {
-  names: [".crimen", ".crime"],
+  names: [".crimen", ".crime" ".asalto"],
   desc: "Ganancia alta, riesgo de multa (cada 3 horas)",
   category: "Trabajos",
   handler: workCommand({
@@ -9,7 +9,7 @@ export default {
     cooldownMs: 30 * 60 * 1000,
     minReward: 500,
     maxReward: 1700,
-    riesgo: { chanceFallo: 0.4, minPerdida: 50, maxPerdida: 150 },
+    riesgo: { chanceFallo: 0.4, minPerdida: 230, maxPerdida: 900 },
     frases: {
       titulo: "¡CRIMEN EXITOSO!",
       tituloFallo: "¡TE ATRAPARON!",
