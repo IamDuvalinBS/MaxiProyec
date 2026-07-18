@@ -6,6 +6,6 @@ export default {
     const inicio = Date.now();
     await sock.sendMessage(from, { text: "🏓 Pong..." }, { quoted: msg });
     const ms = Date.now() - inicio;
-    await sock.sendMessage(from, { text:  }, { quoted: msg });
+    await sock.sendMessage(from, { text: `🏓 Pong! *${ms}ms*` }, { quoted: msg });
   }
 };

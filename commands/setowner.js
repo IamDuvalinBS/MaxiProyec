@@ -10,6 +10,6 @@ export default {
     if (!nuevo) return reply({ text: "⚙️ Uso: .setowner <nombre>" });
     config.ownerName = nuevo;
     await saveConfig();
-    await reply({ text:  });
+    await reply({ text: `✅ Owner cambiado a: *${nuevo}*` });
   }
 };

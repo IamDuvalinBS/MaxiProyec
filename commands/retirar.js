@@ -10,16 +10,16 @@ export default {
     const arg = cleanText.split(/\s+/)[1];
     const amount = arg === "todo" ? acc.bank : parseInt(arg, 10);
     if (!amount || amount <= 0 || amount > acc.bank) {
-      return reply({ text:  });
+      return reply({ text: `⚙️ Uso: .retirar <cantidad|todo>\n🏦 En banco: ${acc.bank} ${CURRENCY}` });
     }
     acc.bank -= amount;
     acc.wallet += amount;
     await saveAccount(sender);
     await reply({
       text: box("¡RETIRO REALIZADO!", [
-        ,
-        ,
-        
+        `🪙 RETIRASTE  ›› *${amount} ${CURRENCY}*`,
+        `💰 EN MANO  ›› *${acc.wallet} ${CURRENCY}*`,
+        `🏦 EN BANCO  ›› *${acc.bank} ${CURRENCY}*`
       ])
     });
   }

@@ -9,7 +9,7 @@ export default {
     const categorias = {};
     for (const info of commandRegistry.values()) {
       if (!categorias[info.category]) categorias[info.category] = [];
-      categorias[info.category].push();
+      categorias[info.category].push(`▸ *${info.usage}* — ${info.desc}`);
     }
 
     const iconos = {
@@ -20,22 +20,22 @@ export default {
     };
 
     const accounts = getAllAccounts();
-    let texto = ;
+    let texto = `「✦」 *¡Hola!* @${sender.split("@")[0]} . *Soy* 『 *${config.botNameLong}* 』 *, aquí tienes la lista de comandos (๑•ᴗ•๑).*\n\n`;
     texto += "╔┅┉✦┉┅✦┅┉✦┉┅✦┉┅┅❥⧽\n";
-    texto += ;
-    texto += ;
+    texto += `║. .┊⩩﹕ *OWNER »* ${config.ownerName}\n`;
+    texto += `║. .┊⩩﹕ *BOT NAME »* 『 *${config.botNameShort}* 』\n`;
     texto += "║. .┊⩩﹕ *TYPE »* Multi-Device\n";
     texto += "║. .┊⩩﹕ *VERSION »* 1.0.0\n";
     texto += "║. .┊⩩﹕ *SISTEMA »* Node.js\n";
-    texto += ;
-    texto += ;
+    texto += `║. .┊⩩﹕ *UPTIME »* ${formatUptime()}\n`;
+    texto += `║. .┊⩩﹕ *USERS »* ${accounts.size}\n`;
     texto += "╚┅┉✦┉┅✦┅┉✦┉┅✦┉┅┅❥⧽\n\n";
 
     const ordenCategorias = ["General", "Utilidad", "Economía", "Trabajos"];
     for (const cat of ordenCategorias) {
       if (!categorias[cat]) continue;
       const [i1, i2] = iconos[cat] || ["📌", "•"];
-      texto += ;
+      texto += `${i1} » ˚୨•(${i2})• ⊹  \`⧼⧼ ${cat.toUpperCase()} ⧽⧽\`⊹\n`;
       texto += categorias[cat].join("\n") + "\n\n";
     }
 

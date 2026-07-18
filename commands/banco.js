@@ -12,9 +12,9 @@ export default {
     const total = acc.wallet + acc.bank;
     await reply({
       text: box("BANCO DE ›› @" + target.split("@")[0], [
-        ,
-        ,
-        
+        `💰 EN MANO  ›› *${acc.wallet} ${CURRENCY}*`,
+        `🏦 EN BANCO  ›› *${acc.bank} ${CURRENCY}*`,
+        `📊 TOTAL  ›› *${total} ${CURRENCY}*`
       ]),
       mentions: [target]
     });

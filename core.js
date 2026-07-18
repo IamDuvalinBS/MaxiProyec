@@ -34,13 +34,13 @@ export async function connectDB(intentos = 5) {
           cooldowns: doc.cooldowns || {}
         });
       }
-      console.log();
+      console.log(`Datos cargados desde MongoDB: ${accounts.size} cuentas`);
 
       const cfgDoc = await configCollection.findOne({ _id: "bot" });
       if (cfgDoc) Object.assign(config, cfgDoc);
       return;
     } catch (e) {
-      console.log();
+      console.log(`Intento ${i}/${intentos} fallo: ${e.message}`);
       if (i < intentos) await new Promise(r => setTimeout(r, 4000));
     }
   }
@@ -53,7 +53,7 @@ export async function saveAccount(sender) {
   try {
     await collection.updateOne(
       { _id: sender },
-      { : { wallet: acc.wallet, bank: acc.bank, cooldowns: acc.cooldowns } },
+      { $set: { wallet: acc.wallet, bank: acc.bank, cooldowns: acc.cooldowns } },
       { upsert: true }
     );
   } catch (e) {
@@ -64,7 +64,7 @@ export async function saveAccount(sender) {
 export async function saveConfig() {
   if (!configCollection) return;
   try {
-    await configCollection.updateOne({ _id: "bot" }, { : config }, { upsert: true });
+    await configCollection.updateOne({ _id: "bot" }, { $set: config }, { upsert: true });
   } catch (e) {
     console.log("Error guardando config: " + e.message);
   }
@@ -109,9 +109,9 @@ export function formatTime(ms) {
   const h = Math.floor(seg / 3600);
   const m = Math.floor((seg % 3600) / 60);
   const s = seg % 60;
-  if (h > 0) return ;
-  if (m > 0) return ;
-  return ;
+  if (h > 0) return `${h}h ${m}m`;
+  if (m > 0) return `${m}m ${s}s`;
+  return `${s}s`;
 }
 
 export function formatUptime() {
@@ -119,15 +119,15 @@ export function formatUptime() {
   const h = Math.floor(seg / 3600);
   const m = Math.floor((seg % 3600) / 60);
   const s = seg % 60;
-  return ;
+  return `${h}h ${m}m ${s}s`;
 }
 
 export function box(titulo, lineas) {
   return [
     "╔╼┉✦┉╍✦┉╍✦┉╍✦┉╍✦╼⧽⧽",
-    ,
+    `┋✿ *${titulo}*`,
     "┋",
-    ...lineas.map(l => ),
+    ...lineas.map(l => `┋ ${l}`),
     "┋",
     "╰╼┉✦┉╍✦┉╍✦┉╍✦┉╍✦┉╼⧽⧽"
   ].join("\n");
@@ -160,9 +160,9 @@ export async function checkTriviaAnswer(sock, from, sender, text, msg) {
 
   if (respuesta === pending.correcta) {
     addToWallet(sender, pending.reward);
-    await reply({ text: box("¡RESPUESTA CORRECTA!", [, ]) });
+    await reply({ text: box("¡RESPUESTA CORRECTA!", [`🧠 Ganaste por acertar la trivia...`, `🪙 GANASTE  ›› *${pending.reward} ${CURRENCY}*`]) });
   } else {
-    await reply({ text:  });
+    await reply({ text: `❌ Incorrecto. La respuesta era *${pending.correcta}*. Mejor suerte la próxima.` });
   }
   return true;
 }
@@ -174,7 +174,7 @@ export function workCommand({ key, cooldownMs, minReward, maxReward, riesgo, fra
   return async ({ sender, reply }) => {
     const wait = checkCooldown(sender, key, cooldownMs);
     if (wait > 0) {
-      return reply({ text:  });
+      return reply({ text: `⏳ Ya usaste este comando. Esperá *${formatTime(wait)}*.` });
     }
 
     const acc = getAccount(sender);
@@ -184,7 +184,7 @@ export function workCommand({ key, cooldownMs, minReward, maxReward, riesgo, fra
       const gano = Math.floor(Math.random() * (maxReward - minReward + 1)) + minReward;
       addToWallet(sender, gano);
       const frase = frases.exito[Math.floor(Math.random() * frases.exito.length)];
-      await reply({ text: box(frases.titulo, [frase, ]) });
+      await reply({ text: box(frases.titulo, [frase, `🪙 GANASTE  ›› *${gano} ${CURRENCY}*`]) });
     } else {
       const perdio = riesgo.perdidaTotal
         ? acc.wallet
@@ -192,7 +192,7 @@ export function workCommand({ key, cooldownMs, minReward, maxReward, riesgo, fra
       acc.wallet -= perdio;
       await saveAccount(sender);
       const frase = frases.fallo[Math.floor(Math.random() * frases.fallo.length)];
-      await reply({ text: box(frases.tituloFallo || frases.titulo, [frase, ]) });
+      await reply({ text: box(frases.tituloFallo || frases.titulo, [frase, `💸 PERDISTE  ›› *${perdio} ${CURRENCY}*`]) });
     }
   };
 }

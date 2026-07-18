@@ -11,10 +11,10 @@ const commandMap = new Map(); // cada nombre/alias -> handler
 async function loadCommands() {
   const files = fs.readdirSync(commandsDir).filter(f => f.endsWith(".js"));
   for (const file of files) {
-    const mod = await import();
+    const mod = await import(`./commands/${file}`);
     const cmd = mod.default;
     if (!cmd || !cmd.names || !cmd.handler) {
-      console.log();
+      console.log(`⚠️ Comando invalido en ${file}, se salteo.`);
       continue;
     }
     for (const name of cmd.names) {
@@ -28,7 +28,7 @@ async function loadCommands() {
       usage: cmd.usage || cmd.names[0]
     });
   }
-  console.log();
+  console.log(`Comandos cargados: ${commandMap.size} (desde ${files.length} archivos)`);
 }
 
 connectDB();

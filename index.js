@@ -19,7 +19,16 @@ http
   .createServer((req, res) => {
     res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
     const segundos = codeTime ? Math.floor((Date.now() - codeTime) / 1000) : null;
-    res.end(<p>Generado hace  segundos</p>);
+    res.end(`
+      <html>
+        <head><meta http-equiv="refresh" content="3"></head>
+        <body style="font-family:sans-serif;text-align:center;margin-top:50px;">
+          <h1>Codigo de vinculacion</h1>
+          <h2 style="font-size:48px;letter-spacing:5px;">${currentCode}</h2>
+          ${segundos !== null ? `<p>Generado hace ${segundos} segundos</p>` : ""}
+        </body>
+      </html>
+    `);
   })
   .listen(PORT, () => console.log("Servidor web escuchando en el puerto " + PORT));
 

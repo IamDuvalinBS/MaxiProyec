@@ -12,6 +12,6 @@ export default {
     config.botNameShort = corto || config.botNameShort;
     config.botNameLong = largo || corto || config.botNameLong;
     await saveConfig();
-    await reply({ text:  });
+    await reply({ text: `✅ Nombre corto: *${config.botNameShort}*\n✅ Nombre largo: *${config.botNameLong}*` });
   }
 };
