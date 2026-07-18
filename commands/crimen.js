@@ -6,9 +6,9 @@ export default {
   category: "Trabajos",
   handler: workCommand({
     key: "crimen",
-    cooldownMs: 3 * 60 * 60 * 1000,
-    minReward: 150,
-    maxReward: 400,
+    cooldownMs: 30 * 60 * 1000,
+    minReward: 500,
+    maxReward: 1700,
     riesgo: { chanceFallo: 0.4, minPerdida: 50, maxPerdida: 150 },
     frases: {
       titulo: "¡CRIMEN EXITOSO!",
