@@ -1,6 +1,6 @@
 export default {
   names: [".p", ".ping"],
-  desc: "Ver si el bot esta activo",
+  desc: "Ver la latencia del bot",
   category: "General",
   handler: async ({ sock, from, msg }) => {
     const inicio = Date.now();
