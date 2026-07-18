@@ -8,22 +8,29 @@ const cooldowns = new Map(); // sender -> { comando: timestamp }
 
 let collection = null;
 
-async function connectDB() {
-  try {
-    const client = new MongoClient(MONGO_URI);
-    await client.connect();
-    const db = client.db("whatsappbot");
-    collection = db.collection("accounts");
-    console.log("Conectado a MongoDB");
-    const docs = await collection.find({}).toArray();
-    for (const doc of docs) {
-      accounts.set(doc._id, { wallet: doc.wallet, bank: doc.bank });
+async function connectDB(intentos = 5) {
+  for (let i = 1; i <= intentos; i++) {
+    try {
+      const client = new MongoClient(MONGO_URI);
+      await client.connect();
+      const db = client.db("whatsappbot");
+      collection = db.collection("accounts");
+      console.log("Conectado a MongoDB");
+      const docs = await collection.find({}).toArray();
+      for (const doc of docs) {
+        accounts.set(doc._id, { wallet: doc.wallet, bank: doc.bank });
+      }
+      console.log(`Datos cargados desde MongoDB: ${accounts.size} cuentas`);
+      return;
+    } catch (e) {
+      console.log(`Intento ${i}/${intentos} fallo: ${e.message}`);
+      if (i < intentos) {
+        await new Promise(r => setTimeout(r, 4000));
+      }
     }
-    console.log(`Datos cargados desde MongoDB: ${accounts.size} cuentas`);
-  } catch (e) {
-    console.log("Error conectando a MongoDB: " + e.message);
-    console.log("El bot seguira funcionando pero SIN guardar datos permanentes.");
   }
+  console.log("No se pudo conectar a MongoDB tras varios intentos.");
+  console.log("El bot seguira funcionando pero SIN guardar datos permanentes.");
 }
 
 connectDB();
@@ -242,5 +249,5 @@ export async function handleEconomyCommand(sock, from, sender, text, msg) {
   }
 
   return false;
-      }
-      
+  }
+                          
