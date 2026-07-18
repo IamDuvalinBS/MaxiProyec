@@ -7,8 +7,8 @@ export default {
   handler: workCommand({
     key: "trabajar",
     cooldownMs: 60 * 60 * 1000, // 1 hora
-    minReward: 40,
-    maxReward: 120,
+    minReward: 100,
+    maxReward: 500,
     frases: {
       titulo: "¡A TRABAJAR!",
       exito: [
