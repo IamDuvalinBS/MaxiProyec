@@ -2,14 +2,14 @@ import { workCommand } from "../core.js";
 
 export default {
   names: [".influencer", ".tiktoker"],
-  desc: "Contenido viral, buena ganancia con riesgo de flop (cada 8 horas)",
+  desc: "Contenido viral, buena ganancia con riesgo de flop (cada 1 hora)",
   category: "Trabajos",
   handler: workCommand({
     key: "influencer",
-    cooldownMs: 8 * 60 * 60 * 1000,
-    minReward: 200,
-    maxReward: 500,
-    riesgo: { chanceFallo: 0.3, minPerdida: 20, maxPerdida: 60 },
+    cooldownMs: 1 * 60 * 60 * 1000,
+    minReward: 600,
+    maxReward: 1000,
+    riesgo: { chanceFallo: 0.3, minPerdida: 150, maxPerdida: 500 },
     frases: {
       titulo: "¡VIDEO VIRAL!",
       tituloFallo: "¡EL VIDEO FUE UN FLOP!",
