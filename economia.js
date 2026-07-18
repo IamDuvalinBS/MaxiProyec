@@ -309,8 +309,5 @@ if (cmd === ".top" || cmd === ".baltop") {
     });
     return true;
   }
-
-  return false;
-}
   return false;
 }
