@@ -7,6 +7,32 @@ import {
 import pino from "pino";
 import http from "http";
 import { handleEconomyCommand } from "./economia.js";
+import { Kamijs } from "kamijs";
+
+const kami = new Kamijs({
+  dbPath: "./database/gacha.db",
+  logLevel: "info",              // "debug" | "info" | "warn" | "error" | "silent"
+  cooldowns: { pull10: 3000 },   // ms de cooldown por acción (opcional)
+  ticketSuccessRate: 0.30,       // probabilidad de éxito del ticket (0-1, opcional)
+});
+await kami.init();
+
+// Escuchar eventos
+kami.on("pull", ({ jid, results }) => {
+  console.log(`${jid} hizo un pull10, hits:`, results.filter(r => r.char).length);
+});
+
+// Depositar monedas
+await kami.deposit(jid, 5000, sock);
+
+// Hacer un pull x10
+const results = await kami.pull10(jid, { sock, chatId, eventConfig: { rateMultiplier: 1.5 } });
+
+// Ver harem (personajes obtenidos)
+const harem = await kami.getHarem(jid, sock);
+
+// Al apagar el bot
+await kami.close();
 
 const PHONE_NUMBER = "529616050619";
 
