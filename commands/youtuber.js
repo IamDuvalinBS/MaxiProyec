@@ -6,10 +6,10 @@ export default {
   category: "Trabajos",
   handler: workCommand({
     key: "youtuber",
-    cooldownMs: 8 * 60 * 60 * 1000,
-    minReward: 220,
-    maxReward: 520,
-    riesgo: { chanceFallo: 0.25, minPerdida: 30, maxPerdida: 70 },
+    cooldownMs: 4 * 60 * 60 * 1000,
+    minReward: 1000,
+    maxReward: 5000,
+    riesgo: { chanceFallo: 0.25, minPerdida: 1000, maxPerdida: 6009 },
     frases: {
       titulo: "¡MONETIZACIÓN ACTIVADA!",
       tituloFallo: "¡YOUTUBE TE DESMONETIZÓ!",
