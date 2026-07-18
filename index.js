@@ -7,7 +7,7 @@ import {
 import pino from "pino";
 import http from "http";
 import { handleEconomyCommand } from "./economia.js";
-import { handleEconomyCommand } from "./shares.js";
+import { handleReavtionsCommand } from "./shares.js";
 
  
 const PHONE_NUMBER = "529616050619";
