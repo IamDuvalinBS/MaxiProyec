@@ -340,8 +340,6 @@ export function workCommand(opts) {
   handler.config = opts; // el .allw lee esto para reusar la misma config exacta
   return handler;
 }
-<<<<<<< HEAD
-=======
 COREEOF
 cat > commands/menu.js << 'MENUEOF'
 import fs from "fs";
@@ -576,5 +574,87 @@ export default {
   desc: "Poner tu juego favorito en el perfil",
   category: "Perfil",
   usage: ".setgame <nombre del juego>",
-  handler: async ({ sender
->>>>>>> 6235ad52a5b69747bdd6c3a2945e89cb75822239
+  handler: async ({ sender, cleanText, reply }) => {
+    const texto = cleanText.split(/\s+/).slice(1).join(" ").trim();
+    if (!texto) return reply({ text: "⚙️ Uso: .setgame <nombre del juego>" });
+    const p = getProfile(sender);
+    p.favGame = texto;
+    await saveAccount(sender);
+    await reply({ text: `✅ Juego favorito actualizado: *${texto}*` });
+  }
+};
+TAG_setgame
+cat > commands/marry.js << 'TAG_marry'
+import { getProfile, saveAccount, box } from "../core.js";
+
+function fechaHoy() {
+  const d = new Date();
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  return `${dd}/${mm}/${d.getFullYear()}`;
+}
+
+export default {
+  names: [".marry", ".casar"],
+  desc: "Casarte con otro usuario (etiquetándolo)",
+  category: "Perfil",
+  usage: ".marry @usuario",
+  handler: async ({ sender, msg, reply }) => {
+    const mentioned = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid;
+    const destino = mentioned && mentioned[0];
+
+    if (!destino) return reply({ text: "⚙️ Uso: .marry @usuario\nTenés que etiquetar a la persona." });
+    if (destino === sender) return reply({ text: "❌ No podés casarte con vos mismo." });
+
+    const pSender = getProfile(sender);
+    const pDestino = getProfile(destino);
+
+    if (pSender.marriedTo) return reply({ text: "❌ Ya estás casado. Primero tenés que separarte." });
+    if (pDestino.marriedTo) return reply({ text: "❌ Esa persona ya está casada con alguien más." });
+
+    const hoy = fechaHoy();
+    pSender.marriedTo = destino;
+    pSender.marriedSince = hoy;
+    pDestino.marriedTo = sender;
+    pDestino.marriedSince = hoy;
+
+    await saveAccount(sender);
+    await saveAccount(destino);
+
+    await reply({
+      text: box("¡BODA CELEBRADA! 💍", [
+        `👰 @${sender.split("@")[0]}`,
+        `🤵 @${destino.split("@")[0]}`,
+        `📅 Casados desde: *${hoy}*`
+      ]),
+      mentions: [sender, destino]
+    });
+  }
+};
+TAG_marry
+cat > commands/divorciar.js << 'TAG_divorciar'
+import { getProfile, saveAccount } from "../core.js";
+
+export default {
+  names: [".divorciar", ".divorce"],
+  desc: "Separarte de tu pareja actual",
+  category: "Perfil",
+  handler: async ({ sender, reply }) => {
+    const p = getProfile(sender);
+    if (!p.marriedTo) return reply({ text: "❌ No estás casado con nadie." });
+
+    const exPareja = getProfile(p.marriedTo);
+    const exId = p.marriedTo;
+    p.marriedTo = "";
+    p.marriedSince = "";
+    exPareja.marriedTo = "";
+    exPareja.marriedSince = "";
+
+    await saveAccount(sender);
+    await saveAccount(exId);
+
+    await reply({ text: "💔 Te divorciaste. Ya podés volver a casarte con otra persona." });
+  }
+};
+TAG_divorciar
+echo Sistema de perfil instalado.
