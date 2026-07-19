@@ -17,22 +17,23 @@ export default {
       "Economía": ["🪙", "💰"],
       "Trabajos": ["🛠️", "⚙️"],
       "Utilidad": ["⚙️", "🛠️"],
-      "Diversión": ["🎭", "🎉"]
+      "Diversión": ["🎭", "🎉"],
+      "Perfil": ["👤", "✨"]
     };
 
     const accounts = getAllAccounts();
-    let texto = `「✦」 *¡Hola!* @${sender.split("@")[0]} . *Soy* 『 *${config.botNameLong}* 』 *, aquí tienes la lista de comandos (๑•ᴗ•๑).*\n\n`;
-    texto += "╔┅┉✦┉┅✦┅┉✦┉┅✦┉┅┅❥⧽\n";
-    texto += `║. .┊⩩﹕ *OWNER »* ${config.ownerName}\n`;
-    texto += `║. .┊⩩﹕ *BOT NAME »* 『 *${config.botNameShort}* 』\n`;
-    texto += "║. .┊⩩﹕ *TYPE »* Multi-Device\n";
-    texto += "║. .┊⩩﹕ *VERSION »* 1.0.0\n";
-    texto += "║. .┊⩩﹕ *SISTEMA »* Node.js\n";
-    texto += `║. .┊⩩﹕ *UPTIME »* ${formatUptime()}\n`;
-    texto += `║. .┊⩩﹕ *USERS »* ${accounts.size}\n`;
-    texto += "╚┅┉✦┉┅✦┅┉✦┉┅✦┉┅┅❥⧽\n\n";
+    let texto = `✿ *¡Holaaa! . Mucho gusto* @${sender.split("@")[0]} . *Soy* 『 *${config.botNameLong}* 』 *, aquí tienes la lista de comandos (≧∇≦).*\n\n`;
+    texto += "╔╼┉┅◆┉┅╍◆┉┅╍◆┉┅❥⧽⧽\n";
+    texto += `║. .┊⩩ : *ᴏᴡɴᴇʀ* ›› ${config.ownerName}\n`;
+    texto += `║. .┊⩩ : *ʙᴏᴛ ɴᴀᴍᴇ* ›› ${config.botNameShort}\n`;
+    texto += "║. .┊⩩ : *ᴛʏᴘᴇ* ›› Multi-Device\n";
+    texto += "║. .┊⩩ : *ᴜᴘᴅᴀᴛᴇ* ›› 1.0.0\n";
+    texto += "║. .┊⩩ : *sʏsᴛᴇᴍ* ›› Node.js\n";
+    texto += `║. .┊⩩ : *ᴜᴘᴛɪᴍᴇ* ›› ${formatUptime()}\n`;
+    texto += `║. .┊⩩ : *ᴜsᴇʀ* ›› ${accounts.size}\n`;
+    texto += "╚╼┉┅◆┉┅╍◆┉┅╍◆┉┅❥⧽⧽\n\n";
 
-    const ordenCategorias = ["General", "Utilidad", "Economía", "Trabajos", "Diversión"];
+    const ordenCategorias = ["General", "Utilidad", "Perfil", "Economía", "Trabajos", "Diversión"];
     for (const cat of ordenCategorias) {
       if (!categorias[cat]) continue;
       const [i1, i2] = iconos[cat] || ["📌", "•"];
@@ -50,4 +51,3 @@ export default {
     }
   }
 };
-          
