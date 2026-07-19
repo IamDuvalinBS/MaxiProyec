@@ -1,3 +1,4 @@
+cat > core.js << 'COREEOF'
 import { MongoClient } from "mongodb";
 
 export const CURRENCY = "¥enes";
@@ -54,7 +55,7 @@ export async function saveAccount(sender, intentos = 3) {
     try {
       await collection.updateOne(
         { _id: sender },
-        { $set: { wallet: acc.wallet, bank: acc.bank, cooldowns: acc.cooldowns } },
+        { $set: { wallet: acc.wallet, bank: acc.bank, cooldowns: acc.cooldowns, profile: acc.profile } },
         { upsert: true }
       );
       return;
@@ -223,6 +224,32 @@ function convertirGifLiviano(bufferOriginal) {
   });
 }
 
+// ============ PERFILES DE USUARIO ============
+const PERFILES_DIR = "./perfiles";
+if (!fs.existsSync(PERFILES_DIR)) fs.mkdirSync(PERFILES_DIR);
+
+export function getProfile(sender) {
+  const acc = getAccount(sender);
+  if (!acc.profile) {
+    acc.profile = {
+      name: "",
+      birthday: "",
+      hobby: "",
+      bio: "",
+      marriedTo: "",
+      marriedSince: "",
+      favGame: "",
+      level: 1
+    };
+  }
+  return acc.profile;
+}
+
+export function pfpPath(sender) {
+  const safe = sender.replace(/[^a-zA-Z0-9]/g, "_");
+  return path.join(PERFILES_DIR, `${safe}.jpg`);
+}
+
 // ============ FABRICA DE COMANDOS DE REACCION (gifs tipo anime) ============
 export function reactionCommand({ apiAction, fraseConOtro, fraseSolo }) {
   return async ({ sock, from, sender, msg, reply }) => {
@@ -232,19 +259,12 @@ export function reactionCommand({ apiAction, fraseConOtro, fraseSolo }) {
 
     let url;
     try {
-<<<<<<< HEAD
       const res = await fetch(`https://nekos.best/api/v2/${apiAction}`, {
         headers: { "User-Agent": "MaxiProyecBot/1.0 (WhatsApp bot, contacto en GitHub IamDuvalinBS)" }
       });
       const data = await res.json();
       url = data.results && data.results[0] && data.results[0].url;
       if (!url) throw new Error("Sin url en la respuesta: " + JSON.stringify(data));
-=======
-      const res = await fetch(`https://nekos.best/api/v2/${apiAction}`);
-      const data = await res.json();
-      url = data.results && data.results[0] && data.results[0].url;
-      if (!url) throw new Error("Sin url en la respuesta");
->>>>>>> 32b6c718062900c492138e4443ff26da9e3a7618
     } catch (e) {
       console.log(`❌ ERROR en reaccion "${apiAction}": ${e.message}`);
       await reply({ text: "❌ No se pudo conseguir la imagen ahora mismo, intentá de nuevo." });
@@ -319,9 +339,239 @@ export function workCommand(opts) {
   };
   handler.config = opts; // el .allw lee esto para reusar la misma config exacta
   return handler;
-<<<<<<< HEAD
 }
-=======
-        }
-    
->>>>>>> 32b6c718062900c492138e4443ff26da9e3a7618
+COREEOF
+cat > commands/menu.js << 'MENUEOF'
+import fs from "fs";
+import { config, formatUptime, getAllAccounts, box, commandRegistry, FOTO_PATH } from "../core.js";
+
+export default {
+  names: [".menu", ".help"],
+  desc: "Ver todos los comandos disponibles",
+  category: "General",
+  handler: async ({ sock, from, sender, msg }) => {
+    const categorias = {};
+    for (const info of commandRegistry.values()) {
+      if (!categorias[info.category]) categorias[info.category] = [];
+      categorias[info.category].push(`▸ *${info.usage}* — ${info.desc}`);
+    }
+
+    const iconos = {
+      "General": ["🍭", "🌟"],
+      "Economía": ["🪙", "💰"],
+      "Trabajos": ["🛠️", "⚙️"],
+      "Utilidad": ["⚙️", "🛠️"],
+      "Diversión": ["🎭", "🎉"],
+      "Perfil": ["👤", "✨"]
+    };
+
+    const accounts = getAllAccounts();
+    let texto = `✿ *¡Holaaa! . Mucho gusto* @${sender.split("@")[0]} . *Soy* 『 *${config.botNameLong}* 』 *, aquí tienes la lista de comandos (≧∇≦).*\n\n`;
+    texto += "╔╼┉┅◆┉┅╍◆┉┅╍◆┉┅❥⧽⧽\n";
+    texto += `║. .┊⩩ : *ᴏᴡɴᴇʀ* ›› ${config.ownerName}\n`;
+    texto += `║. .┊⩩ : *ʙᴏᴛ ɴᴀᴍᴇ* ›› ${config.botNameShort}\n`;
+    texto += "║. .┊⩩ : *ᴛʏᴘᴇ* ›› Multi-Device\n";
+    texto += "║. .┊⩩ : *ᴜᴘᴅᴀᴛᴇ* ›› 1.0.0\n";
+    texto += "║. .┊⩩ : *sʏsᴛᴇᴍ* ›› Node.js\n";
+    texto += `║. .┊⩩ : *ᴜᴘᴛɪᴍᴇ* ›› ${formatUptime()}\n`;
+    texto += `║. .┊⩩ : *ᴜsᴇʀ* ›› ${accounts.size}\n`;
+    texto += "╚╼┉┅◆┉┅╍◆┉┅╍◆┉┅❥⧽⧽\n\n";
+
+    const ordenCategorias = ["General", "Utilidad", "Perfil", "Economía", "Trabajos", "Diversión"];
+    for (const cat of ordenCategorias) {
+      if (!categorias[cat]) continue;
+      const [i1, i2] = iconos[cat] || ["📌", "•"];
+      texto += `${i1} » ˚୨•(${i2})• ⊹  \`⧼⧼ ${cat.toUpperCase()} ⧽⧽\`⊹\n`;
+      texto += categorias[cat].join("\n") + "\n\n";
+    }
+
+    let imageBuffer = null;
+    if (fs.existsSync(FOTO_PATH)) imageBuffer = fs.readFileSync(FOTO_PATH);
+
+    if (imageBuffer) {
+      await sock.sendMessage(from, { image: imageBuffer, caption: texto.trim(), mentions: [sender] }, { quoted: msg });
+    } else {
+      await sock.sendMessage(from, { text: texto.trim(), mentions: [sender] }, { quoted: msg });
+    }
+  }
+};
+MENUEOF
+cat > commands/perfil.js << 'TAG_perfil'
+import { getProfile, getAccount, pfpPath, box } from "../core.js";
+import fs from "fs";
+
+export default {
+  names: [".perfil", ".profile"],
+  desc: "Ver tu perfil o el de alguien mencionado",
+  category: "Perfil",
+  usage: ".perfil [@usuario]",
+  handler: async ({ sock, from, sender, msg, reply }) => {
+    const mentioned = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid;
+    const target = (mentioned && mentioned[0]) || sender;
+    const p = getProfile(target);
+    const acc = getAccount(target);
+
+    let texto = "╔┅┉✦┉┅✦┅┉✦┉┅✦┉┅✦┅┅❥⧽\n";
+    texto += `║✿ *Perfil de ›* ⊱@${target.split("@")[0]}⊰\n`;
+    texto += "║\n";
+    texto += `╰━⧽⧽ *Nombre ›* ${p.name || target.split("@")[0]}\n\n`;
+    texto += `║ ✦ *Nivel*  ▸  *${p.level}*\n\n`;
+    texto += "╠┅┉✦┉┅✦┅┉✦┉┅✦┉┅✦┅┅❥⧽\n";
+    texto += "║\n";
+    texto += "╠「⌕」`SOBRE MÍ  ٭  ૮꒰˵•ᵜ•˵꒱ა‧`\n";
+    texto += "║\n";
+    texto += `║ ฅ Cumpleaños » *${p.birthday || "No establecido"}*\n`;
+    texto += `║ ☕︎︎ Pasatiempo » *${p.hobby || "No establecido"}*\n`;
+    texto += `║ ☘︎ Biografía » *${p.bio || "Sin biografía"}*\n`;
+    texto += `║ ✿ Casado con » *${p.marriedTo ? "@" + p.marriedTo.split("@")[0] : "Nadie"}*\n`;
+    texto += `║ ⏳ Casados desde » *${p.marriedSince || "No aplica"}*\n`;
+    texto += `║ 😎 Juego Favorito » *${p.favGame || "No establecido"}*\n`;
+    texto += "╚┅┉✦┉┅✦┅┉✦┉┅✦┉┅✦┅┅❥⧽";
+
+    const mentions = [target];
+    if (p.marriedTo) mentions.push(p.marriedTo);
+
+    let imageBuffer = null;
+    if (fs.existsSync(pfpPath(target))) {
+      imageBuffer = fs.readFileSync(pfpPath(target));
+    } else {
+      try {
+        const url = await sock.profilePictureUrl(target, "image");
+        const res = await fetch(url);
+        imageBuffer = Buffer.from(await res.arrayBuffer());
+      } catch (e) {
+        imageBuffer = null;
+      }
+    }
+
+    if (imageBuffer) {
+      await sock.sendMessage(from, { image: imageBuffer, caption: texto, mentions }, { quoted: msg });
+    } else {
+      await sock.sendMessage(from, { text: texto, mentions }, { quoted: msg });
+    }
+  }
+};
+TAG_perfil
+cat > commands/setpfp.js << 'TAG_setpfp'
+import { downloadMediaMessage } from "@whiskeysockets/baileys";
+import fs from "fs";
+import { pfpPath } from "../core.js";
+
+export default {
+  names: [".setpfp"],
+  desc: "Cambiar la foto de tu perfil (con imagen adjunta o respondiendo a una)",
+  category: "Perfil",
+  usage: ".setpfp (con imagen adjunta o respondiendo a una)",
+  handler: async ({ from, sender, msg, reply }) => {
+    const imgMsg = msg.message?.imageMessage;
+    const quotedImg = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage?.imageMessage;
+
+    let targetMsg = null;
+    if (imgMsg) {
+      targetMsg = msg;
+    } else if (quotedImg) {
+      const ctx = msg.message.extendedTextMessage.contextInfo;
+      targetMsg = {
+        key: { remoteJid: from, id: ctx.stanzaId, participant: ctx.participant },
+        message: ctx.quotedMessage
+      };
+    }
+
+    if (!targetMsg) {
+      await reply({ text: "⚙️ Mandá una imagen con *.setpfp* de caption, o respondé a una foto con *.setpfp*." });
+      return;
+    }
+
+    try {
+      const buffer = await downloadMediaMessage(targetMsg, "buffer", {});
+      fs.writeFileSync(pfpPath(sender), buffer);
+      await reply({ text: "✅ Foto de perfil actualizada." });
+    } catch (e) {
+      await reply({ text: "❌ Error cambiando la foto: " + e.message });
+    }
+  }
+};
+TAG_setpfp
+cat > commands/setname.js << 'TAG_setname'
+import { getProfile, saveAccount } from "../core.js";
+
+export default {
+  names: [".setname"],
+  desc: "Cambiar el nombre que aparece en tu perfil",
+  category: "Perfil",
+  usage: ".setname <nombre>",
+  handler: async ({ sender, cleanText, reply }) => {
+    const nombre = cleanText.split(/\s+/).slice(1).join(" ").trim();
+    if (!nombre) return reply({ text: "⚙️ Uso: .setname <nombre>" });
+    const p = getProfile(sender);
+    p.name = nombre;
+    await saveAccount(sender);
+    await reply({ text: `✅ Nombre de perfil cambiado a: *${nombre}*` });
+  }
+};
+TAG_setname
+cat > commands/setbirthday.js << 'TAG_setbirthday'
+import { getProfile, saveAccount } from "../core.js";
+
+export default {
+  names: [".setbirthday", ".setbirth"],
+  desc: "Poner tu fecha de cumpleaños en el perfil",
+  category: "Perfil",
+  usage: ".setbirthday <DD/MM/AAAA>",
+  handler: async ({ sender, cleanText, reply }) => {
+    const fecha = cleanText.split(/\s+/)[1];
+    if (!fecha || !/^\d{2}\/\d{2}\/\d{4}$/.test(fecha)) {
+      return reply({ text: "⚙️ Uso: .setbirthday <DD/MM/AAAA>\nEjemplo: .setbirthday 15/07/2000" });
+    }
+    const p = getProfile(sender);
+    p.birthday = fecha;
+    await saveAccount(sender);
+    await reply({ text: `✅ Cumpleaños actualizado: *${fecha}*` });
+  }
+};
+TAG_setbirthday
+cat > commands/setpasatiempo.js << 'TAG_setpasatiempo'
+import { getProfile, saveAccount } from "../core.js";
+
+export default {
+  names: [".setpasatiempo", ".sethobby"],
+  desc: "Poner tu pasatiempo en el perfil",
+  category: "Perfil",
+  usage: ".setpasatiempo <texto>",
+  handler: async ({ sender, cleanText, reply }) => {
+    const texto = cleanText.split(/\s+/).slice(1).join(" ").trim();
+    if (!texto) return reply({ text: "⚙️ Uso: .setpasatiempo <texto>" });
+    const p = getProfile(sender);
+    p.hobby = texto;
+    await saveAccount(sender);
+    await reply({ text: `✅ Pasatiempo actualizado: *${texto}*` });
+  }
+};
+TAG_setpasatiempo
+cat > commands/setbio.js << 'TAG_setbio'
+import { getProfile, saveAccount } from "../core.js";
+
+export default {
+  names: [".setbio", ".setbiografia"],
+  desc: "Poner tu biografía en el perfil",
+  category: "Perfil",
+  usage: ".setbio <texto>",
+  handler: async ({ sender, cleanText, reply }) => {
+    const texto = cleanText.split(/\s+/).slice(1).join(" ").trim();
+    if (!texto) return reply({ text: "⚙️ Uso: .setbio <texto>" });
+    const p = getProfile(sender);
+    p.bio = texto;
+    await saveAccount(sender);
+    await reply({ text: `✅ Biografía actualizada: *${texto}*` });
+  }
+};
+TAG_setbio
+cat > commands/setgame.js << 'TAG_setgame'
+import { getProfile, saveAccount } from "../core.js";
+
+export default {
+  names: [".setgame"],
+  desc: "Poner tu juego favorito en el perfil",
+  category: "Perfil",
+  usage: ".setgame <nombre del juego>",
+  handler: async ({ sender
