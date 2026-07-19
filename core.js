@@ -11,9 +11,9 @@ let collection = null;
 let configCollection = null;
 
 export const config = {
-  botNameShort: "𝕬𝖘𝖙𝖆",
-  botNameLong: "𝕬𝖘𝖙𝖆",
-  ownerName: "Sin definir"
+  botNameShort: "Maximilian Calypse",
+  botNameLong: "Maxi",
+  ownerName: "It's Duva"
 };
 
 export async function connectDB(intentos = 5) {
@@ -299,7 +299,7 @@ export function reactionCommand({ apiAction, fraseConOtro, fraseSolo }) {
 // ============ FABRICA DE COMANDOS DE "TRABAJO" ============
 // runWorkOnce hace el calculo puro (cooldown + premio/perdida) sin mandar mensajes.
 // La usan tanto el comando individual (workCommand) como el .allw para reclamar todo junto.
-export function runWorkOnce(sender, { key, cooldownMs, minReward, maxReward, riesgo }) {
+export function runWorkOnce(sender, { key, cooldownMs, minReward, maxReward, riesgo, frases }) {
   const wait = checkCooldown(sender, key, cooldownMs);
   if (wait > 0) return { onCooldown: true, wait };
 
@@ -307,16 +307,39 @@ export function runWorkOnce(sender, { key, cooldownMs, minReward, maxReward, rie
   const exito = !riesgo || Math.random() > riesgo.chanceFallo;
 
   if (exito) {
-    const gano = Math.floor(Math.random() * (maxReward - minReward + 1)) + minReward;
+    // Cada frase puede tener su propio min/max (ej: "anillo de oro"=mucho, "piedra"=poco).
+    // Si la frase es un simple texto (sin min/max propio), usa el rango global del comando.
+    const pool = frases && frases.exito;
+    let fraseTexto, min, max;
+    if (pool && typeof pool[0] === "object") {
+      const item = pool[Math.floor(Math.random() * pool.length)];
+      fraseTexto = item.text;
+      min = item.min;
+      max = item.max;
+    } else {
+      fraseTexto = null;
+      min = minReward;
+      max = maxReward;
+    }
+    const gano = Math.floor(Math.random() * (max - min + 1)) + min;
     addToWallet(sender, gano);
-    return { onCooldown: false, exito: true, monto: gano };
+    return { onCooldown: false, exito: true, monto: gano, fraseTexto };
   } else {
-    const perdio = riesgo.perdidaTotal
-      ? acc.wallet
-      : Math.min(acc.wallet, Math.floor(Math.random() * riesgo.maxPerdida) + riesgo.minPerdida);
+    const poolFallo = frases && frases.fallo;
+    let fraseTexto, perdio;
+    if (poolFallo && typeof poolFallo[0] === "object") {
+      const item = poolFallo[Math.floor(Math.random() * poolFallo.length)];
+      fraseTexto = item.text;
+      perdio = Math.min(acc.wallet, Math.floor(Math.random() * (item.max - item.min + 1)) + item.min);
+    } else {
+      fraseTexto = null;
+      perdio = riesgo.perdidaTotal
+        ? acc.wallet
+        : Math.min(acc.wallet, Math.floor(Math.random() * riesgo.maxPerdida) + riesgo.minPerdida);
+    }
     acc.wallet -= perdio;
     saveAccount(sender);
-    return { onCooldown: false, exito: false, monto: perdio };
+    return { onCooldown: false, exito: false, monto: perdio, fraseTexto };
   }
 }
 
@@ -329,14 +352,20 @@ export function workCommand(opts) {
       return reply({ text: `⏳ Ya usaste este comando. Esperá *${formatTime(r.wait)}*.` });
     }
     if (r.exito) {
-      const frase = frases.exito[Math.floor(Math.random() * frases.exito.length)];
-      await reply({ text: box(frases.titulo, [frase, `🪙 GANASTE  ›› *${r.monto} ${CURRENCY}*`]) });
+      const frase = r.fraseTexto || frases.exito[Math.floor(Math.random() * frases.exito.length)];
+      // Si el comando define su propio "renderExito", se usa ese diseño en vez del generico.
+      const texto = opts.renderExito
+        ? opts.renderExito({ frase, monto: r.monto })
+        : box(frases.titulo, [frase, `🪙 GANASTE  ›› *${r.monto} ${CURRENCY}*`]);
+      await reply({ text: texto });
     } else {
-      const frase = frases.fallo[Math.floor(Math.random() * frases.fallo.length)];
-      await reply({ text: box(frases.tituloFallo || frases.titulo, [frase, `💸 PERDISTE  ›› *${r.monto} ${CURRENCY}*`]) });
+      const frase = r.fraseTexto || frases.fallo[Math.floor(Math.random() * frases.fallo.length)];
+      const texto = opts.renderFallo
+        ? opts.renderFallo({ frase, monto: r.monto })
+        : box(frases.tituloFallo || frases.titulo, [frase, `💸 PERDISTE  ›› *${r.monto} ${CURRENCY}*`]);
+      await reply({ text: texto });
     }
   };
   handler.config = opts; // el .allw lee esto para reusar la misma config exacta
   return handler;
-                            }
-  
+    }
