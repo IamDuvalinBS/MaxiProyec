@@ -6,7 +6,7 @@ import { connectDB, commandRegistry, checkTriviaAnswer } from "./core.js";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const carpetas = [
   { dir: path.join(__dirname, "commands"), prefix: "./commands/" },
-  { dir: path.join(__dirname, "reactions"), prefix: "./reactions/" }
+  { dir: path.join(__dirname, "reacciones"), prefix: "./reacciones/" }
 ];
 
 const commandMap = new Map(); // cada nombre/alias -> handler
@@ -59,4 +59,3 @@ export async function handleEconomyCommand(sock, from, sender, text, msg) {
 }
 
 export { checkTriviaAnswer };
-          
