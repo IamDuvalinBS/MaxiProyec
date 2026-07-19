@@ -207,32 +207,45 @@ export function reactionCommand({ apiAction, fraseConOtro, fraseSolo }) {
 }
 
 // ============ FABRICA DE COMANDOS DE "TRABAJO" ============
-// Genera un handler estandar para comandos tipo trabajar/minar/crimen/etc.
-// Reduce repeticion mientras cada comando sigue viviendo en su propio archivo.
-export function workCommand({ key, cooldownMs, minReward, maxReward, riesgo, frases }) {
-  return async ({ sender, reply }) => {
-    const wait = checkCooldown(sender, key, cooldownMs);
-    if (wait > 0) {
-      return reply({ text: `⏳ Ya usaste este comando. Esperá *${formatTime(wait)}*.` });
+// runWorkOnce hace el calculo puro (cooldown + premio/perdida) sin mandar mensajes.
+// La usan tanto el comando individual (workCommand) como el .allw para reclamar todo junto.
+export function runWorkOnce(sender, { key, cooldownMs, minReward, maxReward, riesgo }) {
+  const wait = checkCooldown(sender, key, cooldownMs);
+  if (wait > 0) return { onCooldown: true, wait };
+
+  const acc = getAccount(sender);
+  const exito = !riesgo || Math.random() > riesgo.chanceFallo;
+
+  if (exito) {
+    const gano = Math.floor(Math.random() * (maxReward - minReward + 1)) + minReward;
+    addToWallet(sender, gano);
+    return { onCooldown: false, exito: true, monto: gano };
+  } else {
+    const perdio = riesgo.perdidaTotal
+      ? acc.wallet
+      : Math.min(acc.wallet, Math.floor(Math.random() * riesgo.maxPerdida) + riesgo.minPerdida);
+    acc.wallet -= perdio;
+    saveAccount(sender);
+    return { onCooldown: false, exito: false, monto: perdio };
+  }
+}
+
+export function workCommand(opts) {
+  const handler = async ({ sender, reply }) => {
+    const r = runWorkOnce(sender, opts);
+    const { frases } = opts;
+
+    if (r.onCooldown) {
+      return reply({ text: `⏳ Ya usaste este comando. Esperá *${formatTime(r.wait)}*.` });
     }
-
-    const acc = getAccount(sender);
-    const exito = !riesgo || Math.random() > riesgo.chanceFallo;
-
-    if (exito) {
-      const gano = Math.floor(Math.random() * (maxReward - minReward + 1)) + minReward;
-      addToWallet(sender, gano);
+    if (r.exito) {
       const frase = frases.exito[Math.floor(Math.random() * frases.exito.length)];
-      await reply({ text: box(frases.titulo, [frase, `🪙 GANASTE  ›› *${gano} ${CURRENCY}*`]) });
+      await reply({ text: box(frases.titulo, [frase, `🪙 GANASTE  ›› *${r.monto} ${CURRENCY}*`]) });
     } else {
-      const perdio = riesgo.perdidaTotal
-        ? acc.wallet
-        : Math.min(acc.wallet, Math.floor(Math.random() * riesgo.maxPerdida) + riesgo.minPerdida);
-      acc.wallet -= perdio;
-      await saveAccount(sender);
       const frase = frases.fallo[Math.floor(Math.random() * frases.fallo.length)];
-      await reply({ text: box(frases.tituloFallo || frases.titulo, [frase, `💸 PERDISTE  ›› *${perdio} ${CURRENCY}*`]) });
+      await reply({ text: box(frases.tituloFallo || frases.titulo, [frase, `💸 PERDISTE  ›› *${r.monto} ${CURRENCY}*`]) });
     }
   };
+  handler.config = opts; // el .allw lee esto para reusar la misma config exacta
+  return handler;
   }
-      
