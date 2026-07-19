@@ -186,9 +186,10 @@ export function reactionCommand({ apiAction, fraseConOtro, fraseSolo }) {
 
     let url;
     try {
-      const res = await fetch(`https://api.waifu.pics/sfw/${apiAction}`);
+      const res = await fetch(`https://nekos.best/api/v2/${apiAction}`);
       const data = await res.json();
-      url = data.url;
+      url = data.results && data.results[0] && data.results[0].url;
+      if (!url) throw new Error("Sin url en la respuesta");
     } catch (e) {
       await reply({ text: "❌ No se pudo conseguir la imagen ahora mismo, intentá de nuevo." });
       return;
@@ -248,5 +249,5 @@ export function workCommand(opts) {
   };
   handler.config = opts; // el .allw lee esto para reusar la misma config exacta
   return handler;
-  }
+        }
     
