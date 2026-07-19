@@ -6,7 +6,7 @@ export default {
   category: "Diversión",
   usage: ".bonk [@usuario]",
   handler: reactionCommand({
-    apiAction: "bonk",
+    apiAction: "yeet",
     fraseConOtro: "le dio un bonk a",
     fraseSolo: "se dio un bonk a sí mismo."
   })
