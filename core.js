@@ -234,5 +234,5 @@ export function workCommand({ key, cooldownMs, minReward, maxReward, riesgo, fra
       await reply({ text: box(frases.tituloFallo || frases.titulo, [frase, `💸 PERDISTE  ›› *${perdio} ${CURRENCY}*`]) });
     }
   };
-}
-  
+  }
+      
