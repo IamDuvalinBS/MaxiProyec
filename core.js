@@ -249,3 +249,4 @@ export function workCommand(opts) {
   handler.config = opts; // el .allw lee esto para reusar la misma config exacta
   return handler;
   }
+    
