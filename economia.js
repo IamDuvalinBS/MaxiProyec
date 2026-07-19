@@ -54,8 +54,14 @@ export async function handleEconomyCommand(sock, from, sender, text, msg) {
   if (!handler) return false;
 
   const reply = (content) => sock.sendMessage(from, content, { quoted: msg });
-  await handler({ sock, from, sender, cleanText, msg, reply });
+  try {
+    await handler({ sock, from, sender, cleanText, msg, reply });
+  } catch (e) {
+    console.log(`❌ ERROR ejecutando el comando "${cmd}": ${e.stack || e.message}`);
+    await reply({ text: "❌ Ocurrió un error interno ejecutando ese comando." });
+  }
   return true;
 }
 
 export { checkTriviaAnswer };
+  
