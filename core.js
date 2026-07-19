@@ -232,12 +232,19 @@ export function reactionCommand({ apiAction, fraseConOtro, fraseSolo }) {
 
     let url;
     try {
+<<<<<<< HEAD
       const res = await fetch(`https://nekos.best/api/v2/${apiAction}`, {
         headers: { "User-Agent": "MaxiProyecBot/1.0 (WhatsApp bot, contacto en GitHub IamDuvalinBS)" }
       });
       const data = await res.json();
       url = data.results && data.results[0] && data.results[0].url;
       if (!url) throw new Error("Sin url en la respuesta: " + JSON.stringify(data));
+=======
+      const res = await fetch(`https://nekos.best/api/v2/${apiAction}`);
+      const data = await res.json();
+      url = data.results && data.results[0] && data.results[0].url;
+      if (!url) throw new Error("Sin url en la respuesta");
+>>>>>>> 32b6c718062900c492138e4443ff26da9e3a7618
     } catch (e) {
       console.log(`❌ ERROR en reaccion "${apiAction}": ${e.message}`);
       await reply({ text: "❌ No se pudo conseguir la imagen ahora mismo, intentá de nuevo." });
@@ -312,4 +319,9 @@ export function workCommand(opts) {
   };
   handler.config = opts; // el .allw lee esto para reusar la misma config exacta
   return handler;
+<<<<<<< HEAD
 }
+=======
+        }
+    
+>>>>>>> 32b6c718062900c492138e4443ff26da9e3a7618
