@@ -12,6 +12,7 @@ import influencer from "./influencer.js";
 import youtuber from "./youtuber.js";
 import superalbanil from "./superalbanil.js";
 import ninero from "./ninero.js";
+import uber from "./uber.js";
 
 // Comandos tipo "trabajo" (usan runWorkOnce con su misma config real, no numeros copiados)
 const TRABAJOS = [
@@ -26,7 +27,8 @@ const TRABAJOS = [
   { emoji: "📱", nombre: "Influencer", cmd: influencer },
   { emoji: "🎥", nombre: "Youtuber", cmd: youtuber },
   { emoji: "🧱", nombre: "Superalbañil", cmd: superalbanil },
-  { emoji: "🍼", nombre: "Niñero", cmd: ninero }
+  { emoji: "🍼", nombre: "Niñero", cmd: ninero },
+  { emoji: "🚕", nombre: "Uber", cmd: uber }
   // .daily, .semanal, .cofre y .trivia quedan AFUERA a proposito (se reclaman aparte)
 ];
 

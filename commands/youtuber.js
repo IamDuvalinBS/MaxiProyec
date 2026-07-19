@@ -1,4 +1,21 @@
-import { workCommand } from "../core.js";
+import { workCommand, CURRENCY } from "../core.js";
+
+const EMOJI = "🎥";
+const TITULO = "YOUTUBER";
+
+function renderExito({ frase, monto }) {
+  return `「${EMOJI}」 \`${TITULO}\`\n\n` +
+    `   ➥⧽⧽  *${frase}*\n\n` +
+    `🌱 \`GANANCIA\` ›› *+${monto} ${CURRENCY}*\n` +
+    `✨ *EXPERIENCIA* ›› \`+0\``;
+}
+
+function renderFallo({ frase, monto }) {
+  return `「⚠️」 \`${TITULO}\`\n\n` +
+    `   ➥⧽⧽  *${frase}*\n\n` +
+    `💸 \`PÉRDIDA\` ›› *-${monto} ${CURRENCY}*\n` +
+    `✨ *EXPERIENCIA* ›› \`+0\``;
+}
 
 export default {
   names: [".youtuber", ".cc"],
@@ -6,21 +23,21 @@ export default {
   category: "Trabajos",
   handler: workCommand({
     key: "youtuber",
-    cooldownMs: 4 * 60 * 60 * 1000,
-    minReward: 1000,
-    maxReward: 5000,
-    riesgo: { chanceFallo: 0.25, minPerdida: 1000, maxPerdida: 6009 },
+    cooldownMs: 8 * 60 * 60 * 1000,
+    riesgo: { chanceFallo: 0.25, minPerdida: 30, maxPerdida: 70 },
+    renderExito,
+    renderFallo,
     frases: {
       titulo: "¡MONETIZACIÓN ACTIVADA!",
       tituloFallo: "¡YOUTUBE TE DESMONETIZÓ!",
       exito: [
-        "🎥 Subiste un video que pegó fuerte y ganaste por anuncios",
-        "🎬 Tu canal creció bastante esta semana, cobraste",
-        "🖥️ Conseguiste un sponsor para tu contenido:"
+        { text: "Tu video generó pocas visitas.", min: 40, max: 90 },
+        { text: "Tu canal creció bastante esta semana.", min: 220, max: 420 },
+        { text: "¡Conseguiste un sponsor grande para tu contenido!", min: 500, max: 900 }
       ],
       fallo: [
-        "⚠️ Youtube desmonetizó tu video y perdiste",
-        "🚫 Te llegó un copyright strike y perdiste ingresos por"
+        { text: "Youtube desmonetizó tu video.", min: 30, max: 70 },
+        { text: "Te llegó un copyright strike.", min: 50, max: 110 }
       ]
     }
   })

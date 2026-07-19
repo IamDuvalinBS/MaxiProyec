@@ -1,4 +1,21 @@
-import { workCommand } from "../core.js";
+import { workCommand, CURRENCY } from "../core.js";
+
+const EMOJI = "🍼";
+const TITULO = "NIÑERO";
+
+function renderExito({ frase, monto }) {
+  return `「${EMOJI}」 \`${TITULO}\`\n\n` +
+    `   ➥⧽⧽  *${frase}*\n\n` +
+    `🌱 \`GANANCIA\` ›› *+${monto} ${CURRENCY}*\n` +
+    `✨ *EXPERIENCIA* ›› \`+0\``;
+}
+
+function renderFallo({ frase, monto }) {
+  return `「😭」 \`${TITULO}\`\n\n` +
+    `   ➥⧽⧽  *${frase}*\n\n` +
+    `💸 \`PÉRDIDA\` ›› *-${monto} ${CURRENCY}*\n` +
+    `✨ *EXPERIENCIA* ›› \`+0\``;
+}
 
 export default {
   names: [".niñero", ".cuidador"],
@@ -6,21 +23,20 @@ export default {
   category: "Trabajos",
   handler: workCommand({
     key: "niñero",
-    cooldownMs: 1 * 0 * 60 * 1000,
-    minReward: 1000,
-    maxReward: 5000,
+    cooldownMs: 1 * 60 * 60 * 1000,
     riesgo: { chanceFallo: 0.25, minPerdida: 1000, maxPerdida: 5000 },
+    renderExito,
+    renderFallo,
     frases: {
       titulo: "¡NIÑERO PRECAVIDO!",
       tituloFallo: "¡DESCUIDASTE AL BEBÉ!",
       exito: [
-        "😼 Cuidaste bien al bebé de Sarita y Duva, lo cuál tu pago es de",
-        "🧸 No dejaste que el bebé de Sarita y Duva llorara, tu premio es de",
-        "✨ Cuidaste súper bien del bebé de Sarita... Gracias a ella obtienes:"
+        { text: "Cuidaste bien al bebé de Sarita y Duva.", min: 1000, max: 3000 },
+        { text: "No dejaste que el bebé llorara ni un segundo, un cuidado excelente.", min: 3000, max: 5000 }
       ],
       fallo: [
-        "🔕 Te quedaste dormido mientras el beb de Sarita lloraba",
-        "🍼 El bebé llegó con mucha hambre a casa, hiciste mal cuidado de él"
+        { text: "Te quedaste dormido mientras el bebé lloraba.", min: 1000, max: 3000 },
+        { text: "El bebé llegó con mucha hambre a casa.", min: 2000, max: 5000 }
       ]
     }
   })
