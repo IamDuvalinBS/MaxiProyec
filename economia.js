@@ -17,22 +17,26 @@ async function loadCommands() {
     if (!fs.existsSync(dir)) continue;
     const files = fs.readdirSync(dir).filter(f => f.endsWith(".js"));
     for (const file of files) {
-      const mod = await import(`${prefix}${file}`);
-      const cmd = mod.default;
-      if (!cmd || !cmd.names || !cmd.handler) {
-        console.log(`⚠️ Comando invalido en ${prefix}${file}, se salteo.`);
-        continue;
+      try {
+        const mod = await import(`${prefix}${file}`);
+        const cmd = mod.default;
+        if (!cmd || !cmd.names || !cmd.handler) {
+          console.log(`⚠️ Comando invalido en ${prefix}${file}, se salteo.`);
+          continue;
+        }
+        for (const name of cmd.names) {
+          commandMap.set(name, cmd.handler);
+        }
+        commandRegistry.set(cmd.names[0], {
+          names: cmd.names,
+          desc: cmd.desc || "",
+          category: cmd.category || "General",
+          usage: cmd.usage || cmd.names[0]
+        });
+        total++;
+      } catch (e) {
+        console.log(`❌ ERROR cargando ${prefix}${file}: ${e.message}`);
       }
-      for (const name of cmd.names) {
-        commandMap.set(name, cmd.handler);
-      }
-      commandRegistry.set(cmd.names[0], {
-        names: cmd.names,
-        desc: cmd.desc || "",
-        category: cmd.category || "General",
-        usage: cmd.usage || cmd.names[0]
-      });
-      total++;
     }
   }
   console.log(`Comandos cargados: ${commandMap.size} (desde ${total} archivos)`);
@@ -55,4 +59,4 @@ export async function handleEconomyCommand(sock, from, sender, text, msg) {
 }
 
 export { checkTriviaAnswer };
-                       
+          
