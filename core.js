@@ -177,6 +177,52 @@ export async function checkTriviaAnswer(sock, from, sender, text, msg) {
   return true;
 }
 
+import { execFile } from "child_process";
+import fs from "fs";
+import os from "os";
+import path from "path";
+
+function convertirGifLiviano(bufferOriginal) {
+  return new Promise((resolve, reject) => {
+    const tmpDir = os.tmpdir();
+    const entrada = path.join(tmpDir, `in_${Date.now()}.gif`);
+    const salida = path.join(tmpDir, `out_${Date.now()}.mp4`);
+
+    fs.writeFileSync(entrada, bufferOriginal);
+
+    // Achicamos resolucion y bajamos calidad para que sea rapido de convertir en un celular
+    const args = [
+      "-y",
+      "-i", entrada,
+      "-vf", "scale=320:-2",
+      "-c:v", "libx264",
+      "-pix_fmt", "yuv420p",
+      "-crf", "28",
+      "-preset", "veryfast",
+      "-movflags", "faststart",
+      "-an",
+      salida
+    ];
+
+    execFile("ffmpeg", args, { timeout: 20000 }, (error) => {
+      try { fs.unlinkSync(entrada); } catch (e) {}
+      if (error) {
+        try { fs.unlinkSync(salida); } catch (e) {}
+        // Si ffmpeg falla o no esta instalado, mandamos el archivo original sin tocar
+        resolve(bufferOriginal);
+        return;
+      }
+      try {
+        const resultado = fs.readFileSync(salida);
+        fs.unlinkSync(salida);
+        resolve(resultado);
+      } catch (e) {
+        resolve(bufferOriginal);
+      }
+    });
+  });
+}
+
 // ============ FABRICA DE COMANDOS DE REACCION (gifs tipo anime) ============
 export function reactionCommand({ apiAction, fraseConOtro, fraseSolo }) {
   return async ({ sock, from, sender, msg, reply }) => {
@@ -186,11 +232,29 @@ export function reactionCommand({ apiAction, fraseConOtro, fraseSolo }) {
 
     let url;
     try {
-      const res = await fetch(`https://api.waifu.pics/sfw/${apiAction}`);
+      const res = await fetch(`https://nekos.best/api/v2/${apiAction}`, {
+        headers: { "User-Agent": "MaxiProyecBot/1.0 (WhatsApp bot, contacto en GitHub IamDuvalinBS)" }
+      });
       const data = await res.json();
-      url = data.url;
+      url = data.results && data.results[0] && data.results[0].url;
+      if (!url) throw new Error("Sin url en la respuesta: " + JSON.stringify(data));
     } catch (e) {
+      console.log(`❌ ERROR en reaccion "${apiAction}": ${e.message}`);
       await reply({ text: "❌ No se pudo conseguir la imagen ahora mismo, intentá de nuevo." });
+      return;
+    }
+
+    let buffer;
+    try {
+      const resArchivo = await fetch(url, {
+        headers: { "User-Agent": "MaxiProyecBot/1.0 (WhatsApp bot, contacto en GitHub IamDuvalinBS)" }
+      });
+      const arrayBuffer = await resArchivo.arrayBuffer();
+      const bufferOriginal = Buffer.from(arrayBuffer);
+      buffer = await convertirGifLiviano(bufferOriginal);
+    } catch (e) {
+      console.log(`❌ ERROR descargando/convirtiendo archivo de reaccion "${apiAction}": ${e.message}`);
+      await reply({ text: "❌ No se pudo descargar la imagen ahora mismo, intentá de nuevo." });
       return;
     }
 
@@ -202,7 +266,7 @@ export function reactionCommand({ apiAction, fraseConOtro, fraseSolo }) {
 
     const mentions = esASiMismo ? [sender] : [sender, target];
 
-    await sock.sendMessage(from, { video: { url }, gifPlayback: true, caption, mentions }, { quoted: msg });
+    await sock.sendMessage(from, { video: buffer, gifPlayback: true, caption, mentions }, { quoted: msg });
   };
 }
 
@@ -248,5 +312,4 @@ export function workCommand(opts) {
   };
   handler.config = opts; // el .allw lee esto para reusar la misma config exacta
   return handler;
-  }
-    
+}
