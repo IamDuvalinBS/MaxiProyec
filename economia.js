@@ -4,18 +4,30 @@ import path from "path";
 import { connectDB, commandRegistry, checkTriviaAnswer } from "./core.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const carpetas = [
-  { dir: path.join(__dirname, "commands"), prefix: "./commands/" },
-  { dir: path.join(__dirname, "reacciones"), prefix: "./reacciones/" },
-  { dir: path.join(__dirname, "perfil"), prefix: "./perfil/" }
-];
+
+// Carpetas que NUNCA se leen como si tuvieran comandos (archivos de sistema/datos)
+const CARPETAS_EXCLUIDAS = new Set([
+  "node_modules", "auth_info", ".git", ".github", "perfiles"
+]);
+
+// Descubre automaticamente CUALQUIER carpeta en la raiz del proyecto que
+// tenga archivos .js adentro, y la trata como una carpeta de comandos.
+// Para agregar una categoria nueva (ej: "juegos/"), solo hay que crear la
+// carpeta con sus comandos - no hace falta tocar este archivo para nada.
+function descubrirCarpetas() {
+  const entradas = fs.readdirSync(__dirname, { withFileTypes: true });
+  return entradas
+    .filter(e => e.isDirectory() && !e.name.startsWith(".") && !CARPETAS_EXCLUIDAS.has(e.name))
+    .map(e => ({ dir: path.join(__dirname, e.name), prefix: `./${e.name}/`, nombre: e.name }));
+}
 
 const commandMap = new Map(); // cada nombre/alias -> handler
 
 async function loadCommands() {
   let total = 0;
+  const carpetas = descubrirCarpetas();
+
   for (const { dir, prefix } of carpetas) {
-    if (!fs.existsSync(dir)) continue;
     const files = fs.readdirSync(dir).filter(f => f.endsWith(".js"));
     for (const file of files) {
       try {
@@ -40,7 +52,9 @@ async function loadCommands() {
       }
     }
   }
-  console.log(`Comandos cargados: ${commandMap.size} (desde ${total} archivos)`);
+
+  const nombresCarpetas = carpetas.map(c => c.nombre).join(", ");
+  console.log(`Comandos cargados: ${commandMap.size} (desde ${total} archivos, en carpetas: ${nombresCarpetas})`);
 }
 
 connectDB();
@@ -65,4 +79,4 @@ export async function handleEconomyCommand(sock, from, sender, text, msg) {
 }
 
 export { checkTriviaAnswer };
-      
+          
