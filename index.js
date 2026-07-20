@@ -10,6 +10,20 @@ import { handleEconomyCommand, checkTriviaAnswer } from "./economia.js";
 import { config } from "./core.js";
 
 import readline from "readline";
+import cfonts from "cfonts";
+import chalk from "chalk";
+
+function imprimirBanner() {
+  console.clear();
+  cfonts.say("MAXI-BOT", {
+    font: "block",
+    align: "center",
+    gradient: ["cyan", "magenta"]
+  });
+  const firma = "powered by • It's Duva";
+  const espacios = " ".repeat(Math.max(0, Math.floor((process.stdout.columns || 60) / 2) - Math.floor(firma.length / 2)));
+  console.log(espacios + chalk.gray("powered by ") + chalk.cyanBright("• ") + chalk.magentaBright("It's Duva") + "\n");
+}
 
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 const question = (text) => new Promise((resolve) => rl.question(text, resolve));
@@ -45,9 +59,16 @@ process.on("unhandledRejection", (err) => {
 
 let isConnecting = false;
 
+let bannerImpreso = false;
+
 async function startBot() {
+  if (!bannerImpreso) {
+    bannerImpreso = true;
+    imprimirBanner();
+  }
+
   if (isConnecting) {
-    console.log("Ya hay un intento de conexion en curso, se ignora este pedido duplicado.");
+    console.log(chalk.yellow("Ya hay un intento de conexion en curso, se ignora este pedido duplicado."));
     return;
   }
   isConnecting = true;
@@ -81,10 +102,11 @@ async function startBot() {
       pairingRequested = true;
       try {
         const numero = (await question("\n📱 Ingresá el número a vincular (con código de país, sin +, sin espacios): ")).trim();
-        const code = await sock.requestPairingCode(numero);
+        const CODIGO_PERSONALIZADO = "MAXIBOTS"; // tiene que tener EXACTAMENTE 8 caracteres
+        const code = await sock.requestPairingCode(numero, CODIGO_PERSONALIZADO);
         currentCode = code;
         codeTime = Date.now();
-        console.log("CODIGO GENERADO: " + code);
+        console.log(chalk.bgMagenta.white.bold(" CODIGO DE VINCULACION ") + " " + chalk.bold.cyanBright(code));
       } catch (e) {
         console.log("Error pidiendo el codigo: " + e.message);
         pairingRequested = false;
@@ -95,14 +117,14 @@ async function startBot() {
       const statusCode = lastDisconnect && lastDisconnect.error && lastDisconnect.error.output
         ? lastDisconnect.error.output.statusCode
         : "sin codigo";
-      console.log("Conexion cerrada. Codigo: " + statusCode);
+      console.log(chalk.red("Conexion cerrada. Codigo: " + statusCode));
       pairingRequested = false;
       isConnecting = false;
       setTimeout(startBot, 10000);
     } else if (connection === "open") {
       currentCode = "CONECTADO";
       isConnecting = false;
-      console.log("Bot conectado a WhatsApp");
+      console.log(chalk.greenBright.bold("✔ Bot conectado a WhatsApp"));
     }
   });
 
@@ -137,4 +159,4 @@ async function startBot() {
 }
 
 startBot();
-    
+          
