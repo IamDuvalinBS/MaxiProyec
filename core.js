@@ -11,9 +11,10 @@ let collection = null;
 let configCollection = null;
 
 export const config = {
-  botNameShort: "Maximilian Calypse",
-  botNameLong: "Maxi",
-  ownerName: "It's Duva"
+  botNameShort: "𝕬𝖘𝖙𝖆",
+  botNameLong: "𝕬𝖘𝖙𝖆",
+  ownerName: "Sin definir",
+  prefix: "."
 };
 
 export async function connectDB(intentos = 5) {
@@ -238,10 +239,29 @@ export function getProfile(sender) {
       marriedTo: "",
       marriedSince: "",
       favGame: "",
-      level: 1
+      level: 1,
+      xp: 0
     };
   }
+  if (acc.profile.xp === undefined) acc.profile.xp = 0;
   return acc.profile;
+}
+
+// Sube experiencia y sube de nivel automaticamente si corresponde.
+// La formula de cuanta xp hace falta para subir de nivel es: nivel actual * 100
+export function addXp(sender, amount) {
+  const p = getProfile(sender);
+  p.xp = (p.xp || 0) + amount;
+  let required = p.level * 100;
+  let leveledUp = false;
+  while (p.xp >= required) {
+    p.xp -= required;
+    p.level += 1;
+    leveledUp = true;
+    required = p.level * 100;
+  }
+  saveAccount(sender);
+  return { leveledUp, newLevel: p.level, xpGanada: amount };
 }
 
 export function pfpPath(sender) {
@@ -368,4 +388,5 @@ export function workCommand(opts) {
   };
   handler.config = opts; // el .allw lee esto para reusar la misma config exacta
   return handler;
-    }
+  }
+                                                     
