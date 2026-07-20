@@ -7,6 +7,7 @@ import {
 import pino from "pino";
 import http from "http";
 import { handleEconomyCommand, checkTriviaAnswer } from "./economia.js";
+import { config } from "./core.js";
 
 import readline from "readline";
 
@@ -124,8 +125,11 @@ async function startBot() {
       ""
     ).trim();
 
-    if (text.startsWith(".")) {
-      await handleEconomyCommand(sock, from, sender, text, msg);
+    const prefijoActual = config.prefix || ".";
+    if (text.startsWith(prefijoActual)) {
+      // Los comandos internamente siempre usan "." - traducimos el prefijo elegido a "."
+      const textoTraducido = "." + text.slice(prefijoActual.length);
+      await handleEconomyCommand(sock, from, sender, textoTraducido, msg);
     } else {
       await checkTriviaAnswer(sock, from, sender, text, msg);
     }
@@ -133,4 +137,4 @@ async function startBot() {
 }
 
 startBot();
-  
+    
