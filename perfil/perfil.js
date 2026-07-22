@@ -16,7 +16,7 @@ export default {
     texto += `║✿ *Perfil de ›* ⊱@${target.split("@")[0]}⊰\n`;
     texto += "║\n";
     texto += `╰━⧽⧽ *Nombre ›* ${p.name || target.split("@")[0]}\n\n`;
-    texto += `║ ✦ *Nivel*  ▸  *${p.level}*\n\n`;
+    texto += `║ ✦ *Nivel*  ▸  *${p.level}*  (${p.xp || 0}/${p.level * 100} XP)\n\n`;
     texto += "╠┅┉✦┉┅✦┅┉✦┉┅✦┉┅✦┅┅❥⧽\n";
     texto += "║\n";
     texto += "╠「⌕」`SOBRE MÍ  ٭  ૮꒰˵•ᵜ•˵꒱ა‧`\n";
@@ -52,3 +52,4 @@ export default {
     }
   }
 };
+                                                 
