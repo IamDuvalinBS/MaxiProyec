@@ -1,4 +1,4 @@
-import { MongoClient } from "mongodb";
+ import { MongoClient } from "mongodb";
 
 export const CURRENCY = "¥enes";
 export const FOTO_PATH = "./botpic.jpg";
@@ -11,9 +11,9 @@ let collection = null;
 let configCollection = null;
 
 export const config = {
-  botNameShort: "𝕬𝖘𝖙𝖆",
-  botNameLong: "𝕬𝖘𝖙𝖆",
-  ownerName: "Sin definir",
+  botNameShort: "*Maxi*",
+  botNameLong: "*Maximiliam Calypse*",
+  ownerName: "Its Duva",
   prefix: "."
 };
 
@@ -343,7 +343,13 @@ export function runWorkOnce(sender, { key, cooldownMs, minReward, maxReward, rie
     }
     const gano = Math.floor(Math.random() * (max - min + 1)) + min;
     addToWallet(sender, gano);
-    return { onCooldown: false, exito: true, monto: gano, fraseTexto };
+
+    // La XP se calcula sola en base a la plata ganada, sin que el comando
+    // tenga que declarar nada. Formula: 1 XP cada 10 de plata (minimo 1 XP).
+    const xpGanada = Math.max(1, Math.round(gano / 10));
+    const { leveledUp, newLevel } = addXp(sender, xpGanada);
+
+    return { onCooldown: false, exito: true, monto: gano, fraseTexto, xpGanada, leveledUp, newLevel };
   } else {
     const poolFallo = frases && frases.fallo;
     let fraseTexto, perdio;
@@ -359,7 +365,7 @@ export function runWorkOnce(sender, { key, cooldownMs, minReward, maxReward, rie
     }
     acc.wallet -= perdio;
     saveAccount(sender);
-    return { onCooldown: false, exito: false, monto: perdio, fraseTexto };
+    return { onCooldown: false, exito: false, monto: perdio, fraseTexto, xpGanada: 0, leveledUp: false, newLevel: getProfile(sender).level };
   }
 }
 
@@ -373,20 +379,24 @@ export function workCommand(opts) {
     }
     if (r.exito) {
       const frase = r.fraseTexto || frases.exito[Math.floor(Math.random() * frases.exito.length)];
-      // Si el comando define su propio "renderExito", se usa ese diseño en vez del generico.
-      const texto = opts.renderExito
-        ? opts.renderExito({ frase, monto: r.monto })
-        : box(frases.titulo, [frase, `🪙 GANASTE  ›› *${r.monto} ${CURRENCY}*`]);
+      let texto = opts.renderExito
+        ? opts.renderExito({ frase, monto: r.monto, xp: r.xpGanada })
+        : box(frases.titulo, [frase, `🪙 GANASTE  ›› *${r.monto} ${CURRENCY}*`, `✨ XP  ›› *+${r.xpGanada}*`]);
+      // Si el archivo del comando dejo "+0" fijo de XP (texto viejo), lo reemplazamos
+      // por el valor real, sin que haga falta editar ese archivo.
+      texto = texto.replace(/EXPERIENCIA\*?\s*››\s*`?\+0`?/i, `EXPERIENCIA* ›› \`+${r.xpGanada}\``);
       await reply({ text: texto });
+      if (r.leveledUp) {
+        await reply({ text: `🎉 *¡SUBISTE DE NIVEL!* Ahora sos nivel *${r.newLevel}*` });
+      }
     } else {
       const frase = r.fraseTexto || frases.fallo[Math.floor(Math.random() * frases.fallo.length)];
       const texto = opts.renderFallo
-        ? opts.renderFallo({ frase, monto: r.monto })
+        ? opts.renderFallo({ frase, monto: r.monto, xp: 0 })
         : box(frases.tituloFallo || frases.titulo, [frase, `💸 PERDISTE  ›› *${r.monto} ${CURRENCY}*`]);
       await reply({ text: texto });
     }
   };
   handler.config = opts; // el .allw lee esto para reusar la misma config exacta
   return handler;
-  }
-                                                     
+}
