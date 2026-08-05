@@ -84,7 +84,8 @@ async function startBot() {
     browser: ["Ubuntu", "Chrome", "20.0.04"],
     keepAliveIntervalMs: 10000,
     connectTimeoutMs: 60000,
-    defaultQueryTimeoutMs: 60000
+    defaultQueryTimeoutMs: 60000,
+    markOnlineOnConnect: false // NO forzar "en linea" 24/7 - eso tambien es sospechoso, mejor que solo se note actividad cuando realmente esta respondiendo
   });
 
   console.log("Intentando conectar con WhatsApp...");
@@ -159,4 +160,4 @@ async function startBot() {
 }
 
 startBot();
-          
+            
