@@ -11,13 +11,13 @@ let collection = null;
 let configCollection = null;
 
 export const config = {
-  botNameShort: "𝕬𝖘𝖙𝖆",
-  botNameLong: "𝕬𝖘𝖙𝖆",
+  botNameShort: "Maxi",
+  botNameLong: "Maximilian Calypse",
   ownerName: "Sin definir",
   prefix: "."
 };
 
-export async function connectDB(intentos = 5) {
+export async function connectDB(intentos = 15) {
   for (let i = 1; i <= intentos; i++) {
     try {
       const client = new MongoClient(MONGO_URI);
@@ -25,7 +25,7 @@ export async function connectDB(intentos = 5) {
       const db = client.db("whatsappbot");
       collection = db.collection("accounts");
       configCollection = db.collection("config");
-      console.log("Conectado a MongoDB");
+      console.log("✅ Mongo conectado con éxito");
 
       const docs = await collection.find({}).toArray();
       for (const doc of docs) {
@@ -42,11 +42,11 @@ export async function connectDB(intentos = 5) {
       if (cfgDoc) Object.assign(config, cfgDoc);
       return;
     } catch (e) {
-      console.log(`Intento ${i}/${intentos} fallo: ${e.message}`);
+      // Reintenta en silencio, sin ensuciar la pantalla con cada intento fallido.
       if (i < intentos) await new Promise(r => setTimeout(r, 4000));
     }
   }
-  console.log("No se pudo conectar a MongoDB tras varios intentos.");
+  console.log("❌ No se pudo conectar a MongoDB tras varios intentos.");
 }
 
 export async function saveAccount(sender, intentos = 3) {
