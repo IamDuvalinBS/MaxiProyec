@@ -1,13 +1,13 @@
 import fs from "fs";
 import { fileURLToPath } from "url";
 import path from "path";
-import { connectDB, commandRegistry, checkTriviaAnswer } from "./core.js";
+import { connectDB, commandRegistry, checkTriviaAnswer, simularEscritura, delayAleatorio } from "./core.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Carpetas que NUNCA se leen como si tuvieran comandos (archivos de sistema/datos)
 const CARPETAS_EXCLUIDAS = new Set([
-  "node_modules", "auth_info", ".git", ".github", "perfiles"
+  "node_modules", "auth_info", ".git", ".github", "perfiles", "motores", "kamijs"
 ]);
 
 // Descubre automaticamente CUALQUIER carpeta en la raiz del proyecto que
@@ -60,6 +60,19 @@ async function loadCommands() {
 connectDB();
 const readyPromise = loadCommands();
 
+// Limitador anti-spam: si un usuario manda mas de 10 comandos en 10 segundos,
+// el bot lo frena solo (mas espera) en vez de contestar todo de una, que es
+// justamente el patron que WhatsApp detecta como comportamiento de bot.
+const historialComandos = new Map(); // sender -> [timestamps]
+
+function debeEsperarPorSpam(sender) {
+  const ahora = Date.now();
+  const historial = (historialComandos.get(sender) || []).filter(t => ahora - t < 10000);
+  historial.push(ahora);
+  historialComandos.set(sender, historial);
+  return historial.length > 10;
+}
+
 export async function handleEconomyCommand(sock, from, sender, text, msg) {
   await readyPromise;
 
@@ -68,7 +81,16 @@ export async function handleEconomyCommand(sock, from, sender, text, msg) {
   const handler = commandMap.get(cmd);
   if (!handler) return false;
 
-  const reply = (content) => sock.sendMessage(from, content, { quoted: msg });
+  const reply = async (content) => {
+    await delayAleatorio(300, 900);
+    await simularEscritura(sock, from, 800 + Math.floor(Math.random() * 1200));
+    return sock.sendMessage(from, content, { quoted: msg });
+  };
+
+  if (debeEsperarPorSpam(sender)) {
+    await delayAleatorio(4000, 8000); // frena antes de seguir, sin avisar nada
+  }
+
   try {
     await handler({ sock, from, sender, cleanText, msg, reply });
   } catch (e) {
@@ -79,4 +101,4 @@ export async function handleEconomyCommand(sock, from, sender, text, msg) {
 }
 
 export { checkTriviaAnswer };
-          
+                                                        
