@@ -22,7 +22,7 @@ export default {
     };
 
     const accounts = getAllAccounts();
-    let texto = `> ✿ *¡Holaaa! . Mucho gusto* @${sender.split("@")[0]} . *Soy* 『 *${config.botNameLong}* 』 *, aquí tienes la lista de comandos (≧∇≦).*\n\n`;
+    let texto = `✿ *¡Holaaa! . Mucho gusto* @${sender.split("@")[0]} . *Soy* 『 *${config.botNameLong}* 』 *, aquí tienes la lista de comandos (≧∇≦).*\n\n`;
     texto += "╔╼┉┅◆┉┅╍◆┉┅╍◆┉┅❥⧽⧽\n";
     texto += `║. .┊⩩ : *ᴏᴡɴᴇʀ* ›› ${config.ownerName}\n`;
     texto += `║. .┊⩩ : *ʙᴏᴛ ɴᴀᴍᴇ* ›› ${config.botNameShort}\n`;
@@ -44,10 +44,24 @@ export default {
     let imageBuffer = null;
     if (fs.existsSync(FOTO_PATH)) imageBuffer = fs.readFileSync(FOTO_PATH);
 
+    // Esto hace que el mensaje aparezca con la "firma" de un canal arriba,
+    // y "Reenviado muchas veces" abajo - es solo un efecto visual, no manda
+    // nada a ningun canal real.
+    const contextInfo = {
+      isForwarded: true,
+      forwardingScore: 999,
+      forwardedNewsletterMessageInfo: {
+        newsletterJid: "120363000000000000@newsletter",
+        newsletterName: `${config.botNameShort}-Bot Channel`,
+        serverMessageId: 1
+      }
+    };
+
     if (imageBuffer) {
-      await sock.sendMessage(from, { image: imageBuffer, caption: texto.trim(), mentions: [sender] }, { quoted: msg });
+      await sock.sendMessage(from, { image: imageBuffer, caption: texto.trim(), mentions: [sender], contextInfo }, { quoted: msg });
     } else {
-      await sock.sendMessage(from, { text: texto.trim(), mentions: [sender] }, { quoted: msg });
+      await sock.sendMessage(from, { text: texto.trim(), mentions: [sender], contextInfo }, { quoted: msg });
     }
   }
 };
+    
