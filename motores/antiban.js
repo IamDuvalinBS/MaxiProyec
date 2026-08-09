@@ -18,5 +18,4 @@ export async function simularEscritura(sock, jid, ms = 1200) {
   } catch (e) {
     // Si falla (por ejemplo el chat no existe mas), no rompemos nada por esto.
   }
-      }
-
+}
