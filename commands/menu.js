@@ -23,6 +23,7 @@ export default {
 
     const accounts = getAllAccounts();
     let texto = `✿ *¡Holaaa! . Mucho gusto* @${sender.split("@")[0]} . *Soy* 『 *${config.botNameLong}* 』 *, aquí tienes la lista de comandos (≧∇≦).*\n\n`;
+    texto += `*==𑁍 INFORMACIÓN DEL BOT 𑁍==*\n\n`;
     texto += "╔╼┉┅◆┉┅╍◆┉┅╍◆┉┅❥⧽⧽\n";
     texto += `║. .┊⩩ : *ᴏᴡɴᴇʀ* ›› ${config.ownerName}\n`;
     texto += `║. .┊⩩ : *ʙᴏᴛ ɴᴀᴍᴇ* ›› ${config.botNameShort}\n`;
@@ -64,4 +65,3 @@ export default {
     }
   }
 };
-    
