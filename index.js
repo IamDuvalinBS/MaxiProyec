@@ -7,7 +7,7 @@ import {
 import pino from "pino";
 import http from "http";
 import { handleEconomyCommand, checkTriviaAnswer } from "./economia.js";
-import { config } from "./core.js";
+import { config, manejarCambioParticipantes } from "./core.js";
 
 import readline from "readline";
 import cfonts from "cfonts";
@@ -131,6 +131,14 @@ async function startBot() {
 
   sock.ev.on("creds.update", saveCreds);
 
+  sock.ev.on("group-participants.update", async (update) => {
+    try {
+      await manejarCambioParticipantes(sock, update);
+    } catch (e) {
+      console.log("Error en aviso de admin: " + e.message);
+    }
+  });
+
   sock.ev.on("messages.upsert", async (m) => {
     const msg = m.messages[0];
     if (!msg.message) return;
@@ -147,6 +155,15 @@ async function startBot() {
       (msg.message.imageMessage ? msg.message.imageMessage.caption : "") ||
       ""
     ).trim();
+
+    // Simula "escribiendo..." brevemente cada vez que alguien manda un
+    // mensaje al chat, sin importar si es un comando o no (efecto anti-ban).
+    if (!msg.key.fromMe) {
+      sock.sendPresenceUpdate("composing", from)
+        .then(() => new Promise(r => setTimeout(r, 1500 + Math.floor(Math.random() * 1000))))
+        .then(() => sock.sendPresenceUpdate("paused", from))
+        .catch(() => {});
+    }
 
     const prefijoActual = config.prefix || ".";
     if (text.startsWith(prefijoActual)) {
