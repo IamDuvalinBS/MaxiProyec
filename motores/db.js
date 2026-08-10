@@ -1,4 +1,5 @@
 import { MongoClient } from "mongodb";
+import chalk from "chalk";
 
 export const CURRENCY = "¥enes";
 export const FOTO_PATH = "./botpic.jpg";
@@ -18,6 +19,7 @@ export const config = {
 };
 
 export async function connectDB(intentos = 15) {
+  console.log(chalk.yellow("Conectando a MongoDB..."));
   for (let i = 1; i <= intentos; i++) {
     try {
       const client = new MongoClient(MONGO_URI);
@@ -25,7 +27,7 @@ export async function connectDB(intentos = 15) {
       const db = client.db("whatsappbot");
       collection = db.collection("accounts");
       configCollection = db.collection("config");
-      console.log("✅ Mongo conectado con éxito");
+      console.log(chalk.greenBright.bold("✅ Mongo conectado con éxito"));
 
       const docs = await collection.find({}).toArray();
       for (const doc of docs) {
@@ -42,11 +44,14 @@ export async function connectDB(intentos = 15) {
       if (cfgDoc) Object.assign(config, cfgDoc);
       return;
     } catch (e) {
-      // Reintenta en silencio, sin ensuciar la pantalla con cada intento fallido.
+      // Solo avisa cada 5 intentos, no en cada uno (para no ensuciar la pantalla)
+      if (i % 5 === 0 && i < intentos) {
+        console.log(chalk.yellow(`MongoDB no dio ninguna respuesta. Intentando nuevamente ${i}/${intentos}`));
+      }
       if (i < intentos) await new Promise(r => setTimeout(r, 4000));
     }
   }
-  console.log("❌ No se pudo conectar a MongoDB tras varios intentos.");
+  console.log(chalk.redBright.bold("❌ No se pudo conectar a MongoDB tras varios intentos."));
 }
 
 export async function saveAccount(sender, intentos = 3) {
@@ -112,4 +117,4 @@ export function checkCooldown(sender, comando, ms) {
   acc.cooldowns[comando] = now;
   saveAccount(sender);
   return 0;
-}
+        }
