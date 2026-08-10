@@ -16,9 +16,11 @@ export default {
       "General": ["🍭", "🌟"],
       "Economía": ["🪙", "💰"],
       "Trabajos": ["🛠️", "⚙️"],
+      "Descargas": ["📥", "🎬"],
       "Utilidad": ["⚙️", "🛠️"],
       "Diversión": ["🎭", "🎉"],
-      "Perfil": ["👤", "✨"]
+      "Perfil": ["👤", "✨"],
+      "Stickers": ["🌱", "🪺"]
     };
 
     const accounts = getAllAccounts();
@@ -34,7 +36,7 @@ export default {
     texto += `║. .┊⩩ : *ᴜsᴇʀ* ›› ${accounts.size}\n`;
     texto += "╚╼┉┅◆┉┅╍◆┉┅╍◆┉┅❥⧽⧽\n\n";
 
-    const ordenCategorias = ["General", "Utilidad", "Perfil", "Economía", "Trabajos", "Diversión"];
+    const ordenCategorias = ["General", "Utilidad", "Perfil", "Descargas", "Economía", "Trabajos", "Diversión", "Stickers"];
     for (const cat of ordenCategorias) {
       if (!categorias[cat]) continue;
       const [i1, i2] = iconos[cat] || ["📌", "•"];
@@ -65,3 +67,4 @@ export default {
     }
   }
 };
+        
