@@ -3,7 +3,7 @@ import { extraerImagenDeMensaje, crearSticker } from "../sticker.js";
 export default {
   names: [".s", ".sticker"],
   desc: "Convierte una imagen (citada) en sticker",
-  category: "Diversión",
+  category: "Stickers",
   usage: ".s (respondiendo a una imagen)",
   handler: async ({ msg, sender, from, sock, reply }) => {
     const buffer = await extraerImagenDeMensaje(msg);
