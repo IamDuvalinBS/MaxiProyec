@@ -15,3 +15,4 @@ export * from "./motores/antiban.js";
 export * from "./motores/adminwelcome.js";
 export * from "./motores/youtub.js";
 export * from "./motores/ig.js";
+export * from "./motores/descargas-core.js";
