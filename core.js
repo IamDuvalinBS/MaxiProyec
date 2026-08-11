@@ -14,3 +14,4 @@ export * from "./motores/work.js";
 export * from "./motores/owner.js";
 export * from "./motores/antiban.js";
 export * from "./motores/adminwelcome.js";
+export * from "./motores/youtub.js";
