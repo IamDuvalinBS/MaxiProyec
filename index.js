@@ -149,6 +149,26 @@ async function startBot() {
     const sender = msg.key.fromMe
       ? sock.user.id.split(":")[0] + "@s.whatsapp.net"
       : (msg.key.participant || msg.key.remoteJid);
+
+    // Cuando alguien toca un boton (ej: "🎧 Audio" / "🎬 Video" de .play),
+    // WhatsApp NO manda un texto normal: manda un buttonsResponseMessage
+    // (o templateButtonReplyMessage en telefonos viejos) con el "buttonId"
+    // que el bot puso al armar el mensaje con botones. La persona solo ve
+    // en pantalla el texto del boton (ej "Audio"), pero por dentro se
+    // ejecuta el comando escondido que iba en ese buttonId (ej ".ytaudio
+    // <link>"). Por eso esto se procesa ANTES que el texto normal.
+    const idBotonPulsado =
+      msg.message.buttonsResponseMessage?.selectedButtonId ||
+      msg.message.templateButtonReplyMessage?.selectedId ||
+      null;
+
+    if (idBotonPulsado) {
+      // El buttonId ya viene armado internamente con "." (no pasa por el
+      // prefijo configurable), asi que se ejecuta directo.
+      await handleEconomyCommand(sock, from, sender, idBotonPulsado.trim(), msg);
+      return;
+    }
+
     const text = (
       msg.message.conversation ||
       (msg.message.extendedTextMessage ? msg.message.extendedTextMessage.text : "") ||
