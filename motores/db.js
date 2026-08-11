@@ -8,8 +8,10 @@ export const startTime = Date.now();
 const MONGO_URI = "mongodb+srv://jg0455748_db_user:2IBhQ33NazDOoBjg@cluster0.27mrbg5.mongodb.net/?appName=Cluster0";
 
 const accounts = new Map(); // sender -> { wallet, bank, cooldowns, profile }
+const stickerMetas = new Map(); // idSticker -> { pack, author }
 let collection = null;
 let configCollection = null;
+let stickersCollection = null;
 
 export const config = {
   botNameShort: "Maxi",
@@ -27,6 +29,7 @@ export async function connectDB(intentos = 15) {
       const db = client.db("whatsappbot");
       collection = db.collection("accounts");
       configCollection = db.collection("config");
+      stickersCollection = db.collection("stickers");
       console.log(chalk.greenBright.bold("✅ Mongo conectado con éxito"));
 
       const docs = await collection.find({}).toArray();
@@ -42,6 +45,12 @@ export async function connectDB(intentos = 15) {
 
       const cfgDoc = await configCollection.findOne({ _id: "bot" });
       if (cfgDoc) Object.assign(config, cfgDoc);
+
+      const metaDocs = await stickersCollection.find({}).toArray();
+      for (const doc of metaDocs) {
+        stickerMetas.set(doc._id, { pack: doc.pack, author: doc.author });
+      }
+      console.log(`Metadatos de stickers cargados: ${stickerMetas.size}`);
       return;
     } catch (e) {
       // Solo avisa cada 5 intentos, no en cada uno (para no ensuciar la pantalla)
@@ -117,4 +126,43 @@ export function checkCooldown(sender, comando, ms) {
   acc.cooldowns[comando] = now;
   saveAccount(sender);
   return 0;
-        }
+}
+
+// ==================== METADATOS DE STICKERS ====================
+// stickerMetas: idSticker -> { pack, author }
+
+export function getStickerMeta(idSticker) {
+  return stickerMetas.get(idSticker) || null;
+}
+
+export function getAllStickerMetas() {
+  return stickerMetas;
+}
+
+// Guarda en memoria al toque (para que este disponible ya mismo) y despues
+// persiste en MongoDB, igual que saveAccount/saveConfig.
+export function setStickerMeta(idSticker, pack, author) {
+  stickerMetas.set(idSticker, { pack, author });
+  saveStickerMeta(idSticker);
+}
+
+export async function saveStickerMeta(idSticker, intentos = 3) {
+  if (!stickersCollection) return;
+  const meta = stickerMetas.get(idSticker);
+  if (!meta) return;
+
+  for (let i = 1; i <= intentos; i++) {
+    try {
+      await stickersCollection.updateOne(
+        { _id: idSticker },
+        { $set: { pack: meta.pack, author: meta.author } },
+        { upsert: true }
+      );
+      return;
+    } catch (e) {
+      console.log(`Error guardando metadatos de sticker (intento ${i}/${intentos}): ` + e.message);
+      if (i < intentos) await new Promise((r) => setTimeout(r, 2000));
+    }
+  }
+  console.log("⚠️ No se pudo guardar el metadato del sticker " + idSticker + " tras varios intentos.");
+}
