@@ -109,6 +109,13 @@ export function getAllAccounts() {
   return accounts;
 }
 
+// Devuelve el perfil guardado del usuario ({} si todavia no tiene uno,
+// para que perfil.name no explote en quien lo consuma).
+export function getProfile(sender) {
+  const acc = getAccount(sender);
+  return acc.profile || {};
+}
+
 export function addToWallet(sender, amount) {
   const acc = getAccount(sender);
   acc.wallet += amount;
@@ -165,4 +172,5 @@ export async function saveStickerMeta(idSticker, intentos = 3) {
     }
   }
   console.log("⚠️ No se pudo guardar el metadato del sticker " + idSticker + " tras varios intentos.");
-}
+    }
+      
