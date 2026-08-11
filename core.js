@@ -2,7 +2,6 @@
 // chicos (db.js, ui.js, profile.js, trivia.js, reactions.js, work.js, sticker.js)
 // para que los comandos puedan seguir haciendo "import ... from ../core.js" como
 // siempre, sin tener que cambiar nada en cada archivo de comando.
-export * from "./motores/stickers.js";
 export * from "./motores/redes.js";
 export * from "./motores/sp.js";
 export * from "./motores/db.js";
