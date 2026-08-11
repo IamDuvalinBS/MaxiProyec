@@ -2,7 +2,6 @@
 // Facebook, Pinterest, Reddit). Reusa las funciones de compatibilidad con
 // WhatsApp que ya viven en descargas-core.js, para no repetir codigo.
 import axios from "axios";
-import ffmpegPath from "ffmpeg-static";
 import { execFile } from "child_process";
 import { promisify } from "util";
 import fs from "fs";
@@ -129,7 +128,7 @@ async function fusionarVideoYAudio(videoBuffer, audioBuffer) {
   fs.writeFileSync(a, audioBuffer);
 
   try {
-    await execFileAsync(ffmpegPath, [
+    await execFileAsync("ffmpeg", [
       "-y", "-i", v, "-i", a,
       "-c:v", "copy", "-c:a", "aac",
       "-map", "0:v:0", "-map", "1:a:0",
