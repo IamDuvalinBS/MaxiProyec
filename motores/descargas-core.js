@@ -6,7 +6,6 @@ import { promisify } from "util";
 import fs from "fs";
 import os from "os";
 import path from "path";
-import sharp from "sharp";
 
 const execFileAsync = promisify(execFile);
 
@@ -62,7 +61,30 @@ export async function asegurarVideoCompatibleWhatsApp(bufferEntrada) {
 
 // Pasa la imagen a JPEG "plano" para evitar problemas con webp/formatos
 // raros que a veces mandan las redes y que WhatsApp no siempre digiere bien.
+// Usa el mismo "ffmpeg" del sistema que ya se usa para el video, en vez de
+// sharp: así no depende de binarios nativos de npm (que en Termux/ARM suelen
+// no tener build precompilado) y funciona igual en cualquier dispositivo sin
+// instalar nada extra.
 export async function asegurarImagenCompatibleWhatsApp(bufferEntrada) {
-  return sharp(bufferEntrada).jpeg({ quality: 90 }).toBuffer();
+  const tmp = os.tmpdir();
+  const sufijo = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  const entrada = path.join(tmp, `di_in_${sufijo}`);
+  const salida = path.join(tmp, `di_out_${sufijo}.jpg`);
+
+  fs.writeFileSync(entrada, bufferEntrada);
+
+  try {
+    await execFileAsync("ffmpeg", [
+      "-y",
+      "-i", entrada,
+      "-q:v", "2", // calidad alta (escala 2-31, mientras mas bajo mejor)
+      "-pix_fmt", "yuvj420p",
+      salida
+    ]);
+    return fs.readFileSync(salida);
+  } finally {
+    if (fs.existsSync(entrada)) fs.unlinkSync(entrada);
+    if (fs.existsSync(salida)) fs.unlinkSync(salida);
+  }
 }
 
