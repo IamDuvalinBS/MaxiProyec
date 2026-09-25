@@ -53,18 +53,27 @@ def estado_pregunta(aki):
     }
 
 
+INTENTOS_INICIO = 3
+
+
 @app.post("/start")
 def iniciar():
     limpiar_inactivas()
-    aki = akinator.Akinator()
-    try:
-        aki.start_game(language=IDIOMA, child_mode=False, theme=TEMA)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 502
 
-    sid = str(uuid.uuid4())
-    sesiones[sid] = {"aki": aki, "ultimo": time.time()}
-    return jsonify({"id": sid, **estado_pregunta(aki)})
+    ultimo_error = None
+    for intento in range(INTENTOS_INICIO):
+        aki = akinator.Akinator()
+        try:
+            aki.start_game(language=IDIOMA, child_mode=False, theme=TEMA)
+            sid = str(uuid.uuid4())
+            sesiones[sid] = {"aki": aki, "ultimo": time.time()}
+            return jsonify({"id": sid, **estado_pregunta(aki)})
+        except Exception as e:
+            ultimo_error = e
+            print(f"⚠️ Intento {intento + 1}/{INTENTOS_INICIO} de iniciar Akinator falló: {e}")
+            time.sleep(1.5)
+
+    return jsonify({"error": str(ultimo_error)}), 502
 
 
 MAPA_RESPUESTAS = {
