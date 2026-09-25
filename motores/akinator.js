@@ -377,4 +377,4 @@ export async function procesarTextoAkinator(sock, from, sender, texto, msg) {
 
   await enviar(sock, from, msg, mensajePregunta(estado));
   return true;
-}
+  }
