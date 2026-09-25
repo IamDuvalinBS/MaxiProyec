@@ -140,32 +140,38 @@ function armarBotonesWA(def, estado) {
 async function enviarFrame(sock, from, msg, def, estado) {
   const buffer = renderizarFrame(def, estado);
   const terminado = def.terminado(estado);
-  await sock.sendMessage(
-    from,
-    {
-      image: buffer,
-      caption: terminado ? `🏁 ${def.mensajeFinal(estado)}` : "",
-      footer: terminado ? "" : "🎮 Toca un boton para jugar",
-      buttons: armarBotonesWA(def, estado),
-      headerType: 4,
-    },
-    msg ? { quoted: msg } : undefined
-  );
+  const botones = armarBotonesWA(def, estado);
+
+  const contenido = {
+    image: buffer,
+    caption: terminado ? `🏁 ${def.mensajeFinal(estado)}` : "",
+  };
+  if (botones.length) {
+    contenido.footer = terminado ? "" : "🎮 Toca un boton para jugar";
+    contenido.buttons = botones;
+    contenido.headerType = 4;
+  } else if (def.entradaTexto && !terminado) {
+    contenido.footer = "✍️ Responde con un numero para jugar";
+  }
+
+  await sock.sendMessage(from, contenido, msg ? { quoted: msg } : undefined);
 }
 
-/** Arranca una partida nueva del juego `juegoId` en el chat `from`. */
-export async function iniciarJuego(sock, from, sender, msg, juegoId) {
+/** Arranca una partida nueva del juego `juegoId` en el chat `from`.
+ *  `opciones` se le pasa tal cual a `crearEstado` - por ejemplo
+ *  { oponente: jid } para desafiar a alguien puntual en vez de al bot. */
+export async function iniciarJuego(sock, from, sender, msg, juegoId, opciones = {}) {
   const def = juegosRegistrados.get(juegoId);
   if (!def) return false;
   limpiarInactivas();
-  const estado = def.crearEstado(sender);
+  const estado = def.crearEstado(sender, opciones);
   partidasActivas.set(from, { juegoId, estado, ultimaAccion: Date.now() });
   await enviarFrame(sock, from, msg, def, estado);
   return true;
 }
 
 /** Procesa un boton tocado (siempre llega como ".jbtn <juegoId> <accionId>"). */
-export async function procesarBoton(sock, from, msg, juegoId, accionId) {
+export async function procesarBoton(sock, from, sender, msg, juegoId, accionId) {
   const def = juegosRegistrados.get(juegoId);
   const partida = partidasActivas.get(from);
   if (!def || !partida || partida.juegoId !== juegoId) {
@@ -176,7 +182,30 @@ export async function procesarBoton(sock, from, msg, juegoId, accionId) {
     );
     return;
   }
-  partida.estado = def.accion(partida.estado, accionId);
+  partida.estado = def.accion(partida.estado, accionId, sender);
   partida.ultimaAccion = Date.now();
   await enviarFrame(sock, from, msg, def, partida.estado);
+}
+
+/**
+ * Se llama con CUALQUIER mensaje de texto plano (no-comando) antes de
+ * mandarlo a la trivia. Si hay una partida activa en `from` cuyo juego
+ * acepta texto (def.entradaTexto) y `texto` es una jugada valida de
+ * `sender`, la aplica y devuelve true (el llamador no debe seguir
+ * procesando ese mensaje como otra cosa). Si no aplica, devuelve false
+ * sin tocar nada - así un chat normal con un juego activo no se rompe.
+ */
+export async function intentarProcesarTexto(sock, from, sender, texto, msg) {
+  const partida = partidasActivas.get(from);
+  if (!partida) return false;
+  const def = juegosRegistrados.get(partida.juegoId);
+  if (!def || !def.entradaTexto || !def.validarTexto) return false;
+
+  const accionId = def.validarTexto(partida.estado, texto, sender);
+  if (accionId === null || accionId === undefined) return false;
+
+  partida.estado = def.accion(partida.estado, accionId, sender);
+  partida.ultimaAccion = Date.now();
+  await enviarFrame(sock, from, msg, def, partida.estado);
+  return true;
 }
