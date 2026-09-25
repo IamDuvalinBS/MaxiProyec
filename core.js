@@ -17,3 +17,4 @@ export * from "./motores/youtub.js";
 export * from "./motores/ig.js";
 export * from "./motores/descargas-core.js";
 export * from "./motores/juegos-core.js";
+export * from "./motores/akinator.js";
