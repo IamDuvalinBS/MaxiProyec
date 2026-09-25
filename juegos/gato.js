@@ -6,7 +6,7 @@
 //
 // Como WhatsApp solo da 3 botones comodos, la navegacion es "cursor +
 // confirmar" (◀ / ✅ Colocar / ▶), igual que Galaga se mueve con ◀ ▶.
-import { registrarJuego, iniciarJuego } from "../motores/juegos-core.js";
+import { registrarJuego, iniciarJuego, FUENTE } from "../motores/juegos-core.js";
 
 const LINEAS = [
   [0, 1, 2], [3, 4, 5], [6, 7, 8],
@@ -67,7 +67,7 @@ registrarJuego({
       const col = i % 3;
       const cx = ox + col * celda + celda / 2;
       const cy = oy + fila * celda + celda / 2;
-      ctx.font = `bold ${Math.floor(celda * 0.6)}px sans-serif`;
+      ctx.font = `bold ${Math.floor(celda * 0.6)}px ${FUENTE}`;
       ctx.fillStyle = valor === "X" ? "#2dfdc5" : "#ff3d81";
       ctx.fillText(valor, cx, cy);
     });
