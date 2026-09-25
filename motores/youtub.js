@@ -2,7 +2,7 @@
 // varios resultados, y descargar audio o video. Usa @distube/ytdl-core y
 // yt-search (para poder buscar por texto y no solo por link).
 import ytdl from "@distube/ytdl-core";
-import ytSearch from "https://api.alyacore.xyz/dl/ytmp3";
+import ytSearch from "https://api.alyacore.xyz/dl/ytdlpmp3";
 import { asegurarVideoCompatibleWhatsApp, LIMITE_VIDEO_WHATSAPP_MB } from "./descargas-core.js";
 
 export function esLinkYoutube(texto) {
