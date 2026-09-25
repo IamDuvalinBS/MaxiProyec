@@ -1,11 +1,12 @@
 // juegos/gato.js
 //
-// Gato (tic-tac-toe). Dos modos:
-//   .gato            -> jugas contra el bot (IA local, gratis, sin API ni
-//                        configuracion - un minimax casero que la mayoria
-//                        de las veces juega el mejor movimiento posible
-//                        pero a veces se equivoca, para que sea ganable).
-//   .gato @persona   -> desafias a esa persona del chat, sin apuestas.
+// Gato (tic-tac-toe). Tres formas de arrancarlo:
+//   .gato            -> como no dijiste con quien, te pregunta: boton para
+//                        jugar contra el bot, o instrucciones para mencionar
+//                        a alguien.
+//   .gato @persona   -> desafia directo a esa persona, sin apuestas.
+//   .gatobot         -> (uso interno, lo dispara el boton de arriba) fuerza
+//                        el modo contra el bot.
 //
 // Las jugadas son TEXTO PLANO (escribir un numero del 1 al 9), no botones
 // - por eso define "entradaTexto" + "validarTexto" en vez de "botones".
@@ -53,8 +54,8 @@ function jugadaBot(tablero) {
 registrarJuego({
   id: "gato",
   nombre: "GATO",
-  ancho: 500,
-  alto: 640,
+  ancho: 480,
+  alto: 860, // mas alta que ancha a proposito - no cuadrada
   entradaTexto: true,
 
   crearEstado(sender, opciones = {}) {
@@ -75,16 +76,24 @@ registrarJuego({
     ];
   },
 
+  // A quien le toca ahora (para la leyenda de la foto, ej "Turno de @dino").
+  turnoInfo(estado) {
+    const jidActual = estado.turno === "X" ? estado.jugadorX : estado.jugadorO;
+    if (!jidActual) return { texto: "🤖 Turno del BOT" };
+    return { texto: `👉 Turno de @${jidActual.split("@")[0]}`, mentions: [jidActual] };
+  },
+
   dibujar(ctx, estado, ancho, alto) {
-    const tam = Math.min(ancho, alto - 30) - 10;
+    // deja bastante aire arriba y abajo del tablero - imagen alargada, no cuadrada
+    const tam = ancho - 40;
     const ox = (ancho - tam) / 2;
-    const oy = 30;
+    const oy = (alto - tam) / 2;
     const celda = tam / 3;
 
     ctx.fillStyle = "#8a8fa3";
-    ctx.font = `13px ${FUENTE}`;
-    ctx.fillText("X", ox, 15);
-    ctx.fillText(estado.jugadorO ? "O: rival" : "O: BOT", ox + tam - 70, 15);
+    ctx.font = `16px ${FUENTE}`;
+    ctx.fillText("X", ox, oy - 16);
+    ctx.fillText(estado.jugadorO ? "O: rival" : "O: BOT", ox + tam - 80, oy - 16);
 
     ctx.strokeStyle = "#2dfdc5";
     ctx.lineWidth = 3;
@@ -164,12 +173,33 @@ registrarJuego({
 });
 
 export default {
-  names: [".gato"],
-  desc: "Gato: solo (.gato) contra el bot, o .gato @persona para desafiarla",
+  names: [".gato", ".gatobot"],
+  desc: "Gato: solo (.gato) pregunta con quien, o .gato @persona para desafiarla directo",
   category: "Juegos",
   usage: ".gato [@persona]",
-  handler: async ({ sock, from, sender, msg }) => {
+  handler: async ({ sock, from, sender, msg, cleanText, reply }) => {
+    const esBotForzado = cleanText.toLowerCase().startsWith(".gatobot");
     const mencionado = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
-    await iniciarJuego(sock, from, sender, msg, "gato", { oponente: mencionado || null });
+
+    if (esBotForzado) {
+      await iniciarJuego(sock, from, sender, msg, "gato", { oponente: null });
+      return;
+    }
+
+    if (mencionado) {
+      await iniciarJuego(sock, from, sender, msg, "gato", { oponente: mencionado });
+      return;
+    }
+
+    // No forzo bot ni mencionaste a nadie -> pregunto antes de arrancar
+    await reply({
+      text:
+        "¿Con quién jugamos al Gato?\n\n" +
+        "🤖 Tocá el botón para jugar contra el bot\n" +
+        "👤 O escribí *.gato @persona* mencionando a quien quieras desafiar",
+      footer: "Gato",
+      buttons: [{ buttonId: ".gatobot", buttonText: { displayText: "🤖 Jugar contra el bot" } }],
+      headerType: 1,
+    });
   },
 };
