@@ -1,0 +1,164 @@
+// motores/juegos-core.js
+//
+// Motor central de juegos jugables por chat. Un "juego" es solo un objeto
+// con estado inicial, una funcion que dibuja ese estado en un canvas y una
+// funcion que aplica una accion (lo que la persona toco) sobre ese estado.
+// Este archivo NO sabe nada de Gato, Mario, Tetris, etc - eso vive en cada
+// archivo dentro de /juegos. Este archivo solo:
+//
+//   1. Guarda que juegos existen (registrarJuego).
+//   2. Guarda la partida activa de cada chat (Map por "from").
+//   3. Sabe renderizar cualquier estado a imagen PNG con el mismo marco
+//      visual retro/neon para todos los juegos (titulo + cajitas HUD).
+//   4. Arma los botones de WhatsApp y sabe que apretar significa que
+//      (todo boton de cualquier juego pasa por ".jbtn <juego> <accion>").
+//
+// WhatsApp (via botones clasicos de Baileys) solo garantiza 3 botones por
+// mensaje. Por eso el patron recomendado para moverse es el mismo que ya
+// usan Galaga/Mario: cursor + confirmar, es decir botones tipo
+// [ "◀", "✅ Confirmar", "▶" ] en vez de un boton por casilla/accion.
+//
+// Para agregar un juego nuevo: crear /juegos/<nombre>.js siguiendo el
+// ejemplo de gato.js (es el mas simple de los cuatro que pediste).
+
+import { createCanvas } from "@napi-rs/canvas";
+
+const juegosRegistrados = new Map(); // id -> definicion del juego
+const partidasActivas = new Map();   // from (chatId) -> { juegoId, estado, ultimaAccion }
+
+const TIEMPO_INACTIVIDAD_MS = 10 * 60 * 1000; // 10 min sin tocar nada = se borra sola
+
+/**
+ * Cada juego se registra UNA vez, al importarse su archivo, con:
+ * - id            string corto, ej "gato"
+ * - nombre        titulo que se muestra arriba, ej "GATO RETRO"
+ * - ancho/alto    tamaño total del lienzo (con HUD incluido)
+ * - crearEstado(sender)                  -> estado inicial de una partida nueva
+ * - dibujar(ctx, estado, ancho, alto)     -> dibuja SOLO el area de juego (0,0 = esquina del area)
+ * - accion(estado, accionId)              -> devuelve el estado nuevo segun el boton tocado
+ * - botones(estado)                       -> array de { id, texto }, maximo 3
+ * - hud(estado)                           -> array de { etiqueta, valor } para las cajitas de arriba
+ * - terminado(estado)                     -> true/false, si la partida termino
+ * - mensajeFinal(estado)                  -> texto a mostrar cuando termina
+ */
+export function registrarJuego(def) {
+  juegosRegistrados.set(def.id, def);
+}
+
+function limpiarInactivas() {
+  const ahora = Date.now();
+  for (const [from, partida] of partidasActivas) {
+    if (ahora - partida.ultimaAccion > TIEMPO_INACTIVIDAD_MS) partidasActivas.delete(from);
+  }
+}
+
+// --- Dibuja el marco/HUD comun (mismo estilo para todos los juegos) ---
+function dibujarMarco(ctx, ancho, alto, def, estado) {
+  ctx.fillStyle = "#0a0a0f";
+  ctx.fillRect(0, 0, ancho, alto);
+
+  ctx.fillStyle = "#2dfdc5";
+  ctx.font = "bold 28px sans-serif";
+  ctx.shadowColor = "#2dfdc5";
+  ctx.shadowBlur = 12;
+  ctx.fillText(def.nombre, 20, 42);
+  ctx.shadowBlur = 0;
+
+  const stats = def.hud ? def.hud(estado) : [];
+  let x = ancho - 20;
+  for (let i = stats.length - 1; i >= 0; i--) {
+    const { etiqueta, valor } = stats[i];
+    const texto = String(valor);
+    ctx.font = "bold 16px sans-serif";
+    const w = Math.max(80, ctx.measureText(texto).width + 24);
+    x -= w;
+    ctx.strokeStyle = "#2dfdc5";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x, 14, w, 46);
+    ctx.fillStyle = "#8a8fa3";
+    ctx.font = "11px sans-serif";
+    ctx.fillText(etiqueta, x + 10, 31);
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 18px sans-serif";
+    ctx.fillText(texto, x + 10, 51);
+    x -= 10;
+  }
+
+  ctx.strokeStyle = "#2dfdc5";
+  ctx.lineWidth = 3;
+  ctx.strokeRect(20, 74, ancho - 40, alto - 110);
+}
+
+function renderizarFrame(def, estado) {
+  const ancho = def.ancho || 600;
+  const alto = def.alto || 700;
+  const canvas = createCanvas(ancho, alto);
+  const ctx = canvas.getContext("2d");
+
+  dibujarMarco(ctx, ancho, alto, def, estado);
+
+  // el juego dibuja SOLO adentro de su rectangulo, con su propio 0,0
+  ctx.save();
+  ctx.translate(25, 79);
+  ctx.beginPath();
+  ctx.rect(0, 0, ancho - 50, alto - 120);
+  ctx.clip();
+  def.dibujar(ctx, estado, ancho - 50, alto - 120);
+  ctx.restore();
+
+  return canvas.toBuffer("image/png");
+}
+
+function armarBotonesWA(def, estado) {
+  if (def.terminado(estado)) {
+    return [{ buttonId: `.jnuevo ${def.id}`, buttonText: { displayText: "🔁 Jugar de nuevo" } }];
+  }
+  return def.botones(estado).map((b) => ({
+    buttonId: `.jbtn ${def.id} ${b.id}`,
+    buttonText: { displayText: b.texto },
+  }));
+}
+
+async function enviarFrame(sock, from, msg, def, estado) {
+  const buffer = renderizarFrame(def, estado);
+  const terminado = def.terminado(estado);
+  await sock.sendMessage(
+    from,
+    {
+      image: buffer,
+      caption: terminado ? `🏁 ${def.mensajeFinal(estado)}` : "",
+      footer: terminado ? "" : "🎮 Toca un boton para jugar",
+      buttons: armarBotonesWA(def, estado),
+      headerType: 4,
+    },
+    msg ? { quoted: msg } : undefined
+  );
+}
+
+/** Arranca una partida nueva del juego `juegoId` en el chat `from`. */
+export async function iniciarJuego(sock, from, sender, msg, juegoId) {
+  const def = juegosRegistrados.get(juegoId);
+  if (!def) return false;
+  limpiarInactivas();
+  const estado = def.crearEstado(sender);
+  partidasActivas.set(from, { juegoId, estado, ultimaAccion: Date.now() });
+  await enviarFrame(sock, from, msg, def, estado);
+  return true;
+}
+
+/** Procesa un boton tocado (siempre llega como ".jbtn <juegoId> <accionId>"). */
+export async function procesarBoton(sock, from, msg, juegoId, accionId) {
+  const def = juegosRegistrados.get(juegoId);
+  const partida = partidasActivas.get(from);
+  if (!def || !partida || partida.juegoId !== juegoId) {
+    await sock.sendMessage(
+      from,
+      { text: "No hay ninguna partida de eso activa. Iniciala de nuevo con el comando." },
+      msg ? { quoted: msg } : undefined
+    );
+    return;
+  }
+  partida.estado = def.accion(partida.estado, accionId);
+  partida.ultimaAccion = Date.now();
+  await enviarFrame(sock, from, msg, def, partida.estado);
+}
