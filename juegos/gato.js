@@ -1,11 +1,14 @@
 // juegos/gato.js
 //
-// Ejemplo mas simple de juego conectado al motor. Sirve de plantilla para
-// Mario, Tetris y el avioncito: solo hay que llenar los mismos 8 campos de
-// registrarJuego() y exportar un comando default que llame a iniciarJuego().
+// Gato (tic-tac-toe). Dos modos:
+//   .gato            -> jugas contra el bot (IA local, gratis, sin API ni
+//                        configuracion - un minimax casero que la mayoria
+//                        de las veces juega el mejor movimiento posible
+//                        pero a veces se equivoca, para que sea ganable).
+//   .gato @persona   -> desafias a esa persona del chat, sin apuestas.
 //
-// Como WhatsApp solo da 3 botones comodos, la navegacion es "cursor +
-// confirmar" (◀ / ✅ Colocar / ▶), igual que Galaga se mueve con ◀ ▶.
+// Las jugadas son TEXTO PLANO (escribir un numero del 1 al 9), no botones
+// - por eso define "entradaTexto" + "validarTexto" en vez de "botones".
 import { registrarJuego, iniciarJuego, FUENTE } from "../motores/juegos-core.js";
 
 const LINEAS = [
@@ -21,96 +24,133 @@ function ganador(tablero) {
   return tablero.every((c) => c) ? "empate" : null;
 }
 
+// Minimax sin ninguna libreria ni API - puro calculo local y gratis.
+function minimax(tablero, jugador) {
+  const fin = ganador(tablero);
+  if (fin === "O") return { puntaje: 1 };
+  if (fin === "X") return { puntaje: -1 };
+  if (fin === "empate") return { puntaje: 0 };
+
+  const libres = tablero.map((c, i) => (c ? null : i)).filter((i) => i !== null);
+  const jugadas = libres.map((i) => {
+    const copia = [...tablero];
+    copia[i] = jugador;
+    return { indice: i, puntaje: minimax(copia, jugador === "O" ? "X" : "O").puntaje };
+  });
+
+  return jugador === "O"
+    ? jugadas.reduce((a, b) => (b.puntaje > a.puntaje ? b : a))
+    : jugadas.reduce((a, b) => (b.puntaje < a.puntaje ? b : a));
+}
+
+// 70% juega el mejor movimiento, 30% al azar - asi es ganable, no imposible.
 function jugadaBot(tablero) {
   const libres = tablero.map((c, i) => (c ? null : i)).filter((i) => i !== null);
-  return libres[Math.floor(Math.random() * libres.length)];
+  if (Math.random() < 0.3) return libres[Math.floor(Math.random() * libres.length)];
+  return minimax(tablero, "O").indice;
 }
 
 registrarJuego({
   id: "gato",
-  nombre: "GATO RETRO",
+  nombre: "GATO",
   ancho: 500,
-  alto: 620,
+  alto: 640,
+  entradaTexto: true,
 
-  crearEstado() {
-    return { tablero: Array(9).fill(null), cursor: 4, fin: null };
+  crearEstado(sender, opciones = {}) {
+    return {
+      tablero: Array(9).fill(null),
+      turno: "X",
+      jugadorX: sender,
+      jugadorO: opciones.oponente || null, // null = juega el bot
+      jugada: 0,
+      fin: null,
+    };
   },
 
   hud(estado) {
-    return [{ etiqueta: "TURNO", valor: estado.fin ? "-" : "VOS (X)" }];
+    return [
+      { etiqueta: "JUGADA", valor: estado.jugada },
+      { etiqueta: "TURNO", valor: estado.turno },
+    ];
   },
 
   dibujar(ctx, estado, ancho, alto) {
-    const tam = Math.min(ancho, alto) - 20;
+    const tam = Math.min(ancho, alto - 30) - 10;
     const ox = (ancho - tam) / 2;
-    const oy = (alto - tam) / 2;
+    const oy = 30;
     const celda = tam / 3;
+
+    ctx.fillStyle = "#8a8fa3";
+    ctx.font = `13px ${FUENTE}`;
+    ctx.fillText("X", ox, 15);
+    ctx.fillText(estado.jugadorO ? "O: rival" : "O: BOT", ox + tam - 70, 15);
 
     ctx.strokeStyle = "#2dfdc5";
     ctx.lineWidth = 3;
     for (let i = 1; i < 3; i++) {
-      ctx.beginPath();
-      ctx.moveTo(ox + celda * i, oy);
-      ctx.lineTo(ox + celda * i, oy + tam);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(ox, oy + celda * i);
-      ctx.lineTo(ox + tam, oy + celda * i);
-      ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(ox + celda * i, oy); ctx.lineTo(ox + celda * i, oy + tam); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(ox, oy + celda * i); ctx.lineTo(ox + tam, oy + celda * i); ctx.stroke();
     }
 
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     estado.tablero.forEach((valor, i) => {
-      if (!valor) return;
-      const fila = Math.floor(i / 3);
-      const col = i % 3;
+      const fila = Math.floor(i / 3), col = i % 3;
       const cx = ox + col * celda + celda / 2;
       const cy = oy + fila * celda + celda / 2;
-      ctx.font = `bold ${Math.floor(celda * 0.6)}px ${FUENTE}`;
-      ctx.fillStyle = valor === "X" ? "#2dfdc5" : "#ff3d81";
-      ctx.fillText(valor, cx, cy);
+      if (valor) {
+        ctx.font = `bold ${Math.floor(celda * 0.55)}px ${FUENTE}`;
+        ctx.fillStyle = valor === "X" ? "#2dfdc5" : "#ff3d81";
+        ctx.fillText(valor, cx, cy);
+      } else {
+        ctx.font = `${Math.floor(celda * 0.22)}px ${FUENTE}`;
+        ctx.fillStyle = "#3a3f4f";
+        ctx.fillText(String(i + 1), cx, cy);
+      }
     });
     ctx.textAlign = "left";
     ctx.textBaseline = "alphabetic";
-
-    // resalta la celda donde esta el cursor
-    const fc = Math.floor(estado.cursor / 3);
-    const cc = estado.cursor % 3;
-    ctx.strokeStyle = "#ffd23f";
-    ctx.lineWidth = 4;
-    ctx.strokeRect(ox + cc * celda + 4, oy + fc * celda + 4, celda - 8, celda - 8);
   },
 
   botones() {
-    return [
-      { id: "izq", texto: "◀" },
-      { id: "poner", texto: "✅ Colocar" },
-      { id: "der", texto: "▶" },
-    ];
+    return []; // este juego se juega por texto, no con botones
+  },
+
+  validarTexto(estado, texto, sender) {
+    if (estado.fin) return null;
+    const esX = estado.jugadorX === sender;
+    const esO = estado.jugadorO === sender;
+    if (!esX && !esO) return null; // no es ninguno de los dos jugadores
+    if ((estado.turno === "X" && !esX) || (estado.turno === "O" && !esO)) return null; // no es su turno
+
+    const n = Number(String(texto).trim());
+    if (!Number.isInteger(n) || n < 1 || n > 9) return null;
+    if (estado.tablero[n - 1]) return null; // casilla ocupada
+
+    return String(n - 1);
   },
 
   accion(estado, accionId) {
     if (estado.fin) return estado;
-    let { tablero, cursor } = estado;
+    const idx = Number(accionId);
+    const tablero = [...estado.tablero];
+    tablero[idx] = estado.turno;
 
-    if (accionId === "izq") cursor = (cursor + 8) % 9;
-    if (accionId === "der") cursor = (cursor + 1) % 9;
+    let fin = ganador(tablero);
+    let turno = estado.turno === "X" ? "O" : "X";
+    let jugada = estado.jugada + 1;
 
-    if (accionId === "poner") {
-      if (tablero[cursor]) return { ...estado, cursor }; // ocupada, no pasa nada
-      tablero = [...tablero];
-      tablero[cursor] = "X";
-      let fin = ganador(tablero);
-      if (!fin) {
-        const idxBot = jugadaBot(tablero);
-        if (idxBot !== undefined) tablero[idxBot] = "O";
-        fin = ganador(tablero);
-      }
-      return { tablero, cursor, fin };
+    // si sigue el bot (no hay jugadorO humano), juega solo de una
+    if (!fin && turno === "O" && !estado.jugadorO) {
+      const idxBot = jugadaBot(tablero);
+      if (idxBot !== undefined) tablero[idxBot] = "O";
+      fin = ganador(tablero);
+      turno = "X";
+      jugada += 1;
     }
 
-    return { ...estado, cursor };
+    return { ...estado, tablero, turno, jugada, fin };
   },
 
   terminado(estado) {
@@ -119,17 +159,17 @@ registrarJuego({
 
   mensajeFinal(estado) {
     if (estado.fin === "empate") return "Empate!";
-    if (estado.fin === "X") return "Ganaste! 🎉";
-    return "Gano la maquina 🤖";
+    return estado.fin === "X" ? "Gano X! 🎉" : "Gano O! 🎉";
   },
 });
 
 export default {
   names: [".gato"],
-  desc: "Jugar al gato (tic-tac-toe) contra la maquina",
+  desc: "Gato: solo (.gato) contra el bot, o .gato @persona para desafiarla",
   category: "Juegos",
-  usage: ".gato",
+  usage: ".gato [@persona]",
   handler: async ({ sock, from, sender, msg }) => {
-    await iniciarJuego(sock, from, sender, msg, "gato");
+    const mencionado = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
+    await iniciarJuego(sock, from, sender, msg, "gato", { oponente: mencionado || null });
   },
 };
