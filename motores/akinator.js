@@ -262,8 +262,9 @@ export async function iniciarAkinator(sock, from, sender, msg) {
     });
   }
 
+  let mensajePreparando = null;
   if (estadoServidor === "iniciando" || estadoServidor === "sin-iniciar") {
-    await enviar(sock, from, msg, { text: "🔮 Preparando Akinator, un segundo..." });
+    mensajePreparando = await sock.sendMessage(from, { text: "🔮 Preparando Akinator, un segundo..." }, msg ? { quoted: msg } : undefined);
   }
 
   let estado;
@@ -271,11 +272,18 @@ export async function iniciarAkinator(sock, from, sender, msg) {
     estado = await llamar("/start");
   } catch (e) {
     console.log(`❌ ERROR iniciando Akinator: ${e.message}`);
-    return enviar(sock, from, msg, { text: `❌ No pude iniciar Akinator ahora mismo.\n\n${e.message}` });
+    const contenidoError = { text: `❌ No pude iniciar Akinator ahora mismo.\n\n${e.message}` };
+    if (mensajePreparando) return sock.sendMessage(from, { ...contenidoError, edit: mensajePreparando.key });
+    return enviar(sock, from, msg, contenidoError);
   }
 
   sesiones.set(from, { id: estado.id, sender, ultimaActividad: Date.now(), esperandoConfirmacion: false, guess: null });
-  await enviar(sock, from, msg, mensajePregunta(estado));
+  const contenidoPregunta = mensajePregunta(estado);
+  if (mensajePreparando) {
+    await sock.sendMessage(from, { ...contenidoPregunta, edit: mensajePreparando.key });
+  } else {
+    await enviar(sock, from, msg, contenidoPregunta);
+  }
 }
 
 async function resolverAcierto(sock, from, msg, sesion) {
@@ -377,4 +385,5 @@ export async function procesarTextoAkinator(sock, from, sender, texto, msg) {
 
   await enviar(sock, from, msg, mensajePregunta(estado));
   return true;
-  }
+                      }
+       
