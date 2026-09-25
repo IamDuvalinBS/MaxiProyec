@@ -12,9 +12,9 @@ export default {
   desc: "Procesa un boton de un juego (uso interno)",
   category: "Juegos",
   usage: ".jbtn <juego> <accion>",
-  handler: async ({ sock, from, msg, cleanText }) => {
+  handler: async ({ sock, from, sender, msg, cleanText }) => {
     const [, juegoId, accionId] = cleanText.split(/\s+/);
     if (!juegoId || !accionId) return;
-    await procesarBoton(sock, from, msg, juegoId, accionId);
+    await procesarBoton(sock, from, sender, msg, juegoId, accionId);
   },
 };
