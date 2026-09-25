@@ -1,18 +1,64 @@
-import { resolverLinkYoutube, obtenerInfoYoutube } from "../core.js";
+import { resolverLinkYoutube, obtenerInfoYoutube, buscarVideosYoutube } from "../core.js";
 
+// Fusiona lo que antes eran youtube.js (.play/.yt) y ytsearch.js
+// (.ytsearch/.buscaryt) en un solo comando. Se mantiene UN solo
+// "export default" (como en los archivos originales) para no depender
+// de si el loader de comandos soporta que un archivo exporte varios
+// comandos a la vez: acá se decide qué hacer mirando con qué alias
+// entró el mensaje (primera palabra de cleanText).
 export default {
-  names: [".play", ".yt"],
-  desc: "Busca un video de YouTube y elegí si querés el audio o el video",
+  names: [".play", ".yt", ".ytsearch", ".buscaryt"],
+  desc: "'.play' busca un video y te deja elegir audio o video; '.ytsearch' lista los primeros 10 resultados",
   category: "Descargas",
-  usage: ".play <link o nombre>",
+  usage: ".play <link o nombre> | .ytsearch <lo que quieras buscar>",
   handler: async ({ cleanText, reply }) => {
-    const consulta = cleanText.trim().split(/\s+/).slice(1).join(" ");
+    const partes = cleanText.trim().split(/\s+/);
+    const comando = partes[0].toLowerCase();
+    const consulta = partes.slice(1).join(" ");
+    const esListado = comando === ".ytsearch" || comando === ".buscaryt";
+
     if (!consulta) {
-      return reply({ text: "📌 Usalo así:\n*.play* nombre del video\n*.play* https://youtu.be/xxxxxxx" });
+      return reply({
+        text: esListado
+          ? "📌 Usalo así:\n*.ytsearch* historias de terror"
+          : "📌 Usalo así:\n*.play* nombre del video\n*.play* https://youtu.be/xxxxxxx"
+      });
     }
 
     await reply({ text: "⏳ Buscando en YouTube, dame un segundo..." });
 
+    // --- Rama .ytsearch / .buscaryt: lista de 10 resultados ---
+    if (esListado) {
+      let resultados;
+      try {
+        resultados = await buscarVideosYoutube(consulta, 10);
+      } catch (e) {
+        return reply({ text: `❌ No pude buscar eso: ${e.message}` });
+      }
+
+      if (resultados.length === 0) {
+        return reply({ text: "😕 No encontré resultados para eso." });
+      }
+
+      let texto = `🔎 *Resultados para:* ${consulta}\n\n`;
+      resultados.forEach((v, i) => {
+        texto +=
+          `*${i + 1}.* ${v.titulo}\n` +
+          `⏱️ ${v.duracion} · 📅 ${v.fecha}\n` +
+          `🔗 ${v.url}\n\n`;
+      });
+
+      // Solo se manda la miniatura del primer resultado, como antes.
+      const primera = resultados[0];
+      if (primera.miniatura) {
+        await reply({ image: { url: primera.miniatura }, caption: texto.trim() });
+      } else {
+        await reply({ text: texto.trim() });
+      }
+      return;
+    }
+
+    // --- Rama .play / .yt: un solo video + botones Audio/Video ---
     let link, info;
     try {
       link = await resolverLinkYoutube(consulta);
@@ -32,9 +78,8 @@ export default {
     // El texto que ve la persona es "Audio"/"Video", pero al tocar el
     // boton, WhatsApp le devuelve al bot el buttonId de forma invisible:
     // el bot recibe ".ytaudio <link>" o ".ytvideo <link>" y los ejecuta
-    // como si fueran comandos normales (ver index.js y los comandos
-    // .ytaudio / .ytvideo, que estan marcados como categoria "Oculto"
-    // para no aparecer en el .menu).
+    // como si fueran comandos normales (ver yt-descargas.js, marcado
+    // como categoria "Oculto" para no aparecer en el .menu).
     try {
       await reply({
         image: info.miniatura ? { url: info.miniatura } : undefined,
@@ -58,4 +103,3 @@ export default {
     }
   }
 };
-
