@@ -17,7 +17,7 @@
     "jimp": "^1.6.0",
     "mongodb": "^6.10.0",
     "pino": "^9.4.0",
-    "yt-search": "^2.13.1"
+    "https://api.alyacore.xyz/dl/ytdlpmp3": 
   },
   "engines": {
     "node": ">=18.0.0"
