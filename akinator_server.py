@@ -147,3 +147,4 @@ def cerrar():
 if __name__ == "__main__":
     print(f"🔮 Servidor de Akinator escuchando en http://127.0.0.1:{PUERTO}")
     app.run(host="127.0.0.1", port=PUERTO)
+    
