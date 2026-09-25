@@ -8,6 +8,7 @@ import pino from "pino";
 import http from "http";
 import { handleEconomyCommand, checkTriviaAnswer } from "./economia.js";
 import { config, manejarCambioParticipantes } from "./core.js";
+import { intentarProcesarTexto } from "./motores/juegos-core.js";
 
 import readline from "readline";
 import cfonts from "cfonts";
@@ -191,7 +192,15 @@ async function startBot() {
       const textoTraducido = "." + text.slice(prefijoActual.length);
       await handleEconomyCommand(sock, from, sender, textoTraducido, msg);
     } else {
-      await checkTriviaAnswer(sock, from, sender, text, msg);
+      // Si hay una partida de un juego por texto (ej. Gato) esperando una
+      // jugada de esta persona, se la mandamos primero. Si no aplica (no
+      // es su turno, no es un numero, no hay partida activa, etc),
+      // intentarProcesarTexto devuelve false y seguimos como siempre con
+      // la trivia - esto no rompe nada de lo que ya tenias.
+      const fueJugada = await intentarProcesarTexto(sock, from, sender, text, msg);
+      if (!fueJugada) {
+        await checkTriviaAnswer(sock, from, sender, text, msg);
+      }
     }
   });
 }
