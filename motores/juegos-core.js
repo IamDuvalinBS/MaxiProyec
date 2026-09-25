@@ -21,7 +21,25 @@
 // Para agregar un juego nuevo: crear /juegos/<nombre>.js siguiendo el
 // ejemplo de gato.js (es el mas simple de los cuatro que pediste).
 
-import { createCanvas } from "@napi-rs/canvas";
+import { createCanvas, GlobalFonts } from "@napi-rs/canvas";
+import path from "path";
+import { fileURLToPath } from "url";
+
+// IMPORTANTE: en Termux (y en la mayoria de servidores Linux "pelados") no
+// hay ninguna fuente de sistema instalada. Sin registrar una a mano, Skia
+// dibuja los rectangulos/lineas perfecto pero el texto sale INVISIBLE (por
+// eso el titulo y las cajitas de HUD se veian vacias). Descarga cualquier
+// .ttf (ej "Press Start 2P" de Google Fonts para el look retro) y guardalo
+// en assets/fonts/retro.ttf en la raiz del proyecto.
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const RUTA_FUENTE = path.join(__dirname, "../assets/fonts/retro.ttf");
+export let FUENTE = "sans-serif"; // si falla el registro, al menos no explota - solo queda sin texto
+try {
+  GlobalFonts.registerFromPath(RUTA_FUENTE, "RetroFont");
+  FUENTE = "RetroFont";
+} catch (e) {
+  console.log(`⚠️ No se pudo cargar la fuente de juegos (${RUTA_FUENTE}): ${e.message}. El texto de los juegos no se va a ver hasta que la agregues.`);
+}
 
 const juegosRegistrados = new Map(); // id -> definicion del juego
 const partidasActivas = new Map();   // from (chatId) -> { juegoId, estado, ultimaAccion }
@@ -58,7 +76,7 @@ function dibujarMarco(ctx, ancho, alto, def, estado) {
   ctx.fillRect(0, 0, ancho, alto);
 
   ctx.fillStyle = "#2dfdc5";
-  ctx.font = "bold 28px sans-serif";
+  ctx.font = `bold 28px ${FUENTE}`;
   ctx.shadowColor = "#2dfdc5";
   ctx.shadowBlur = 12;
   ctx.fillText(def.nombre, 20, 42);
@@ -69,17 +87,17 @@ function dibujarMarco(ctx, ancho, alto, def, estado) {
   for (let i = stats.length - 1; i >= 0; i--) {
     const { etiqueta, valor } = stats[i];
     const texto = String(valor);
-    ctx.font = "bold 16px sans-serif";
+    ctx.font = `bold 16px ${FUENTE}`;
     const w = Math.max(80, ctx.measureText(texto).width + 24);
     x -= w;
     ctx.strokeStyle = "#2dfdc5";
     ctx.lineWidth = 2;
     ctx.strokeRect(x, 14, w, 46);
     ctx.fillStyle = "#8a8fa3";
-    ctx.font = "11px sans-serif";
+    ctx.font = `11px ${FUENTE}`;
     ctx.fillText(etiqueta, x + 10, 31);
     ctx.fillStyle = "#ffffff";
-    ctx.font = "bold 18px sans-serif";
+    ctx.font = `bold 18px ${FUENTE}`;
     ctx.fillText(texto, x + 10, 51);
     x -= 10;
   }
