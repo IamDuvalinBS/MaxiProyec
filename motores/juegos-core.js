@@ -141,11 +141,13 @@ async function enviarFrame(sock, from, msg, def, estado) {
   const buffer = renderizarFrame(def, estado);
   const terminado = def.terminado(estado);
   const botones = armarBotonesWA(def, estado);
+  const turno = !terminado && def.turnoInfo ? def.turnoInfo(estado) : null;
 
   const contenido = {
     image: buffer,
-    caption: terminado ? `🏁 ${def.mensajeFinal(estado)}` : "",
+    caption: terminado ? `🏁 ${def.mensajeFinal(estado)}` : (turno ? turno.texto : ""),
   };
+  if (turno && turno.mentions && turno.mentions.length) contenido.mentions = turno.mentions;
   if (botones.length) {
     contenido.footer = terminado ? "" : "🎮 Toca un boton para jugar";
     contenido.buttons = botones;
