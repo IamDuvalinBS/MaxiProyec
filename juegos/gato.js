@@ -1,4 +1,4 @@
-// juegos/gato.js
+ // juegos/gato.js
 //
 // Gato (tic-tac-toe). Tres formas de arrancarlo:
 //   .gato            -> como no dijiste con quien, te pregunta: boton para
@@ -93,6 +93,7 @@ registrarJuego({
     const ox = (ancho - tam) / 2;
     const oy = (alto - tam) / 2;
     const celda = tam / 3;
+    console.log(`[GATO-DEBUG-DIBUJAR] ancho=${ancho} alto=${alto} tam=${tam} ox=${ox} oy=${oy} celda=${celda} tablero=${JSON.stringify(estado.tablero)}`);
 
     ctx.fillStyle = "#8a8fa3";
     ctx.font = `16px ${FUENTE}`;
@@ -186,3 +187,4 @@ export default {
     await iniciarJuego(sock, from, sender, msg, "gato", { oponente: mencionado || null });
   },
 };
+  
