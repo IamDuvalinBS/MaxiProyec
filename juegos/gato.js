@@ -79,8 +79,12 @@ registrarJuego({
   // A quien le toca ahora (para la leyenda de la foto, ej "Turno de @dino").
   turnoInfo(estado) {
     const jidActual = estado.turno === "X" ? estado.jugadorX : estado.jugadorO;
-    if (!jidActual) return { texto: "🤖 Turno del BOT" };
-    return { texto: `👉 Turno de @${jidActual.split("@")[0]}`, mentions: [jidActual] };
+    const inicio = estado.jugada === 0
+      ? (estado.jugadorO ? "🎮 Empieza la partida vs @" + estado.jugadorO.split("@")[0] + "\n" : "🎮 Empieza la partida vs el BOT\n")
+      : "";
+    if (!jidActual) return { texto: `${inicio}🤖 Turno del BOT`, mentions: estado.jugadorO ? [estado.jugadorO] : [] };
+    const mentions = [...new Set([jidActual, ...(estado.jugadorO ? [estado.jugadorO] : [])])];
+    return { texto: `${inicio}👉 Turno de @${jidActual.split("@")[0]}`, mentions };
   },
 
   dibujar(ctx, estado, ancho, alto) {
@@ -174,33 +178,11 @@ registrarJuego({
 
 export default {
   names: [".gato", ".gatobot"],
-  desc: "Gato: solo (.gato) pregunta con quien, o .gato @persona para desafiarla directo",
+  desc: "Gato: solo (.gato) juega contra el bot, o .gato @persona para desafiarla directo",
   category: "Juegos",
   usage: ".gato [@persona]",
-  handler: async ({ sock, from, sender, msg, cleanText, reply }) => {
-    const esBotForzado = cleanText.toLowerCase().startsWith(".gatobot");
+  handler: async ({ sock, from, sender, msg }) => {
     const mencionado = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
-
-    if (esBotForzado) {
-      await iniciarJuego(sock, from, sender, msg, "gato", { oponente: null });
-      return;
-    }
-
-    if (mencionado) {
-      await iniciarJuego(sock, from, sender, msg, "gato", { oponente: mencionado });
-      return;
-    }
-
-    // No forzo bot ni mencionaste a nadie -> pregunto antes de arrancar
-    await reply({
-      text:
-        "¿Con quién jugamos al Gato?\n\n" +
-        "🤖 Tocá el botón para jugar contra el bot\n" +
-        "👤 O escribí *.gato @persona* mencionando a quien quieras desafiar",
-      footer: "Gato",
-      buttons: [{ buttonId: ".gatobot", buttonText: { displayText: "🤖 Jugar contra el bot" } }],
-      headerType: 1,
-    });
+    await iniciarJuego(sock, from, sender, msg, "gato", { oponente: mencionado || null });
   },
 };
-      
