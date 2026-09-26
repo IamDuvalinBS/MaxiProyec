@@ -5,6 +5,19 @@ import fs from "node:fs";
 
 const RUTA_CHROMIUM = "/data/data/com.termux/files/usr/bin/headless_shell";
 
+const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Espera hasta que el título de la página deje de ser "Just a moment..."
+// (o se acabe el tiempo). Chequea cada 1s.
+async function esperarQueResuelvaCloudflare(pagina, maxSegundos = 20) {
+  for (let i = 0; i < maxSegundos; i++) {
+    const titulo = await pagina.title().catch(() => "");
+    if (!titulo.toLowerCase().includes("just a moment")) return titulo;
+    await esperar(1000);
+  }
+  return await pagina.title().catch(() => "(timeout)");
+}
+
 const navegador = await puppeteer.launch({
   executablePath: RUTA_CHROMIUM,
   args: ["--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage"],
@@ -20,28 +33,19 @@ await pagina.evaluateOnNewDocument(() => {
 
 console.log("1) Cargando portada...");
 await pagina.goto("https://es.akinator.com", { waitUntil: "domcontentloaded", timeout: 45000 });
-await new Promise((r) => setTimeout(r, 4000));
-console.log("   Título portada:", await pagina.title());
+let t = await esperarQueResuelvaCloudflare(pagina);
+console.log("   Título portada:", t);
 
 console.log("2) Haciendo clic en JUGAR...");
-try {
-  await Promise.all([
-    pagina.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 20000 }),
-    pagina.click('a[onclick*="jouer"]')
-  ]);
-} catch (e) {
-  console.log("⚠️ No hubo navegación clásica (puede que haya cambiado el DOM sin recargar la página):", e.message);
-}
-await new Promise((r) => setTimeout(r, 3000));
+await pagina.click('a[onclick*="jouer"]').catch((e) => console.log("   (no se pudo clickear:", e.message, ")"));
 
-const titulo2 = await pagina.title().catch(() => "(no se pudo leer)");
-const url2 = pagina.url();
+console.log("   Esperando a que resuelva Cloudflare (hasta 20s)...");
+t = await esperarQueResuelvaCloudflare(pagina, 20);
+console.log("   Título final:", t);
+console.log("   URL final:", pagina.url());
+
 const html2 = await pagina.content().catch(() => "");
-
-console.log("   Título después de JUGAR:", titulo2);
-console.log("   URL después de JUGAR:", url2);
 console.log("   LARGO HTML:", html2.length);
-
 fs.writeFileSync("akinator_dump2.html", html2);
 console.log("   Guardado en akinator_dump2.html");
 
