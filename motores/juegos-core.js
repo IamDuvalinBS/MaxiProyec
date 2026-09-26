@@ -128,9 +128,7 @@ function renderizarFrame(def, estado) {
 }
 
 function armarBotonesWA(def, estado) {
-  if (def.terminado(estado)) {
-    return [{ buttonId: `.jnuevo ${def.id}`, buttonText: { displayText: "🔁 Jugar de nuevo" } }];
-  }
+  if (def.terminado(estado)) return [];
   return def.botones(estado).map((b) => ({
     buttonId: `.jbtn ${def.id} ${b.id}`,
     buttonText: { displayText: b.texto },
@@ -145,11 +143,13 @@ async function enviarFrame(sock, from, msg, def, estado) {
 
   const contenido = {
     image: buffer,
-    caption: terminado ? `🏁 ${def.mensajeFinal(estado)}` : (turno ? turno.texto : ""),
+    caption: terminado
+      ? `🏁 ${def.mensajeFinal(estado)}\n\nEscribí el comando de nuevo para jugar otra vez.`
+      : (turno ? turno.texto : ""),
   };
   if (turno && turno.mentions && turno.mentions.length) contenido.mentions = turno.mentions;
   if (botones.length) {
-    contenido.footer = terminado ? "" : "🎮 Toca un boton para jugar";
+    contenido.footer = "🎮 Toca un boton para jugar";
     contenido.buttons = botones;
     contenido.headerType = 4;
   } else if (def.entradaTexto && !terminado) {
@@ -210,4 +210,4 @@ export async function intentarProcesarTexto(sock, from, sender, texto, msg) {
   partida.ultimaAccion = Date.now();
   await enviarFrame(sock, from, msg, def, partida.estado);
   return true;
-      }
+}
