@@ -114,6 +114,7 @@ function renderizarFrame(def, estado) {
   const ctx = canvas.getContext("2d");
 
   dibujarMarco(ctx, ancho, alto, def, estado);
+  console.log(`[GATO-DEBUG] renderizando con tablero=${JSON.stringify(estado.tablero)}`);
 
   // el juego dibuja SOLO adentro de su rectangulo, con su propio 0,0
   ctx.save();
