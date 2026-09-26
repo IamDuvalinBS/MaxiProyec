@@ -13,23 +13,24 @@ const navegador = await puppeteer.launch({
 
 const pagina = await navegador.newPage();
 
-// Sacamos "Headless" del user-agent: Cloudflare lo detecta fácil si lo dejamos.
 const uaOriginal = await navegador.userAgent();
 await pagina.setUserAgent(uaOriginal.replace("HeadlessChrome", "Chrome"));
-
-// Escondemos la bandera que delata que es un navegador automatizado.
 await pagina.evaluateOnNewDocument(() => {
   Object.defineProperty(navigator, "webdriver", { get: () => undefined });
 });
 
-console.log("Cargando es.akinator.com...");
-await pagina.goto("https://es.akinator.com", { waitUntil: "networkidle2", timeout: 30000 });
+try {
+  console.log("Cargando es.akinator.com...");
+  await pagina.goto("https://es.akinator.com", { waitUntil: "domcontentloaded", timeout: 45000 });
+  console.log("DOM cargado. Esperando 6s más por si hay desafío de Cloudflare...");
+  await new Promise((r) => setTimeout(r, 6000));
+} catch (e) {
+  console.log("⚠️ goto() falló o hizo timeout:", e.message);
+  console.log("Sigo igual para ver qué se alcanzó a cargar...");
+}
 
-console.log("Esperando 5s por si hay que resolver un desafío de Cloudflare...");
-await new Promise((r) => setTimeout(r, 5000));
-
-const titulo = await pagina.title();
-const html = await pagina.content();
+const titulo = await pagina.title().catch(() => "(no se pudo leer)");
+const html = await pagina.content().catch(() => "");
 
 console.log("TITULO:", titulo);
 console.log("LARGO HTML:", html.length);
