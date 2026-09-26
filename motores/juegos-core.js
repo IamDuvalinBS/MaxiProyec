@@ -76,7 +76,7 @@ function dibujarMarco(ctx, ancho, alto, def, estado) {
   ctx.fillRect(0, 0, ancho, alto);
 
   ctx.fillStyle = "#2dfdc5";
-  ctx.font = `bold 28px ${FUENTE}`;
+  ctx.font = `28px ${FUENTE}`;
   ctx.shadowColor = "#2dfdc5";
   ctx.shadowBlur = 12;
   ctx.fillText(def.nombre, 20, 42);
@@ -87,7 +87,7 @@ function dibujarMarco(ctx, ancho, alto, def, estado) {
   for (let i = stats.length - 1; i >= 0; i--) {
     const { etiqueta, valor } = stats[i];
     const texto = String(valor);
-    ctx.font = `bold 16px ${FUENTE}`;
+    ctx.font = `16px ${FUENTE}`;
     const w = Math.max(80, ctx.measureText(texto).width + 24);
     x -= w;
     ctx.strokeStyle = "#2dfdc5";
@@ -97,7 +97,7 @@ function dibujarMarco(ctx, ancho, alto, def, estado) {
     ctx.font = `11px ${FUENTE}`;
     ctx.fillText(etiqueta, x + 10, 31);
     ctx.fillStyle = "#ffffff";
-    ctx.font = `bold 18px ${FUENTE}`;
+    ctx.font = `18px ${FUENTE}`;
     ctx.fillText(texto, x + 10, 51);
     x -= 10;
   }
