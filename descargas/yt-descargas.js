@@ -4,7 +4,7 @@ import {
   consultarApiDescarga,
   extraerEnlaceDescarga,
   LIMITE_VIDEO_WHATSAPP_MB
-} from "./descargas-core.js";
+} from "../core.js"; // descargas-core.js vive en motores/ y core.js lo reexporta
 
 // Fusiona lo que era audioyt.js (.ytaudio) y el .ytvideo que faltaba,
 // en un solo comando oculto (mismo truco que en youtube.js: un solo
