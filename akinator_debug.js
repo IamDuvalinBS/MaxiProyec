@@ -18,7 +18,7 @@ async function esperarQueResuelvaCloudflare(pagina, maxSegundos = 25) {
 
 const navegador = await puppeteer.launch({
   executablePath: RUTA_CHROMIUM,
-  args: ["--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage"],
+  args: ["--no-sandbox", "--disable-dev-shm-usage"],
   headless: true
 });
 
