@@ -3,13 +3,11 @@
 import puppeteer from "puppeteer-core";
 import fs from "node:fs";
 
-const RUTA_CHROMIUM = "/data/data/com.termux/files/usr/bin/headless_shell";
+const RUTA_CHROMIUM = "/data/data/com.termux/files/usr/bin/chromium-browser";
 
 const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// Espera hasta que el título de la página deje de ser "Just a moment..."
-// (o se acabe el tiempo). Chequea cada 1s.
-async function esperarQueResuelvaCloudflare(pagina, maxSegundos = 20) {
+async function esperarQueResuelvaCloudflare(pagina, maxSegundos = 25) {
   for (let i = 0; i < maxSegundos; i++) {
     const titulo = await pagina.title().catch(() => "");
     if (!titulo.toLowerCase().includes("just a moment")) return titulo;
@@ -39,8 +37,8 @@ console.log("   Título portada:", t);
 console.log("2) Haciendo clic en JUGAR...");
 await pagina.click('a[onclick*="jouer"]').catch((e) => console.log("   (no se pudo clickear:", e.message, ")"));
 
-console.log("   Esperando a que resuelva Cloudflare (hasta 20s)...");
-t = await esperarQueResuelvaCloudflare(pagina, 20);
+console.log("   Esperando a que resuelva Cloudflare (hasta 25s)...");
+t = await esperarQueResuelvaCloudflare(pagina, 25);
 console.log("   Título final:", t);
 console.log("   URL final:", pagina.url());
 
