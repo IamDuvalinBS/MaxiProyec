@@ -9,6 +9,7 @@ import http from "http";
 import { handleEconomyCommand, checkTriviaAnswer } from "./economia.js";
 import { config, manejarCambioParticipantes, procesarTextoAkinator } from "./core.js";
 import { intentarProcesarTexto } from "./motores/juegos-core.js";
+import { resolverEleccionFormato } from "./motores/espera-formato.js";
 
 import readline from "readline";
 import cfonts from "cfonts";
@@ -192,11 +193,18 @@ async function startBot() {
       const textoTraducido = "." + text.slice(prefijoActual.length);
       await handleEconomyCommand(sock, from, sender, textoTraducido, msg);
     } else {
-      // Si hay una partida de un juego por texto (ej. Gato) esperando una
-      // jugada de esta persona, se la mandamos primero. Si no aplica (no
-      // es su turno, no es un numero, no hay partida activa, etc),
-      // intentarProcesarTexto devuelve false y seguimos como siempre con
-      // la trivia - esto no rompe nada de lo que ya tenias.
+      // Si un ".play" reciente dejó a esta persona esperando que elija
+      // formato ("1" = Audio, "2" = Video), se resuelve ANTES que
+      // Akinator/juegos/trivia, porque es la respuesta más específica y
+      // reciente que se le pidió. Si no aplica (no escribió "1"/"2", o no
+      // tenia ninguna espera pendiente), resolverEleccionFormato devuelve
+      // null y seguimos la cadena como siempre.
+      const comandoElegido = resolverEleccionFormato(`${from}:${sender}`, text);
+      if (comandoElegido) {
+        await handleEconomyCommand(sock, from, sender, comandoElegido, msg);
+        return;
+      }
+
       const fueAkinator = await procesarTextoAkinator(sock, from, sender, text, msg);
       if (!fueAkinator) {
         const fueJugada = await intentarProcesarTexto(sock, from, sender, text, msg);
@@ -209,4 +217,4 @@ async function startBot() {
 }
 
 startBot();
-  
+
