@@ -1,4 +1,4 @@
- // juegos/gato.js
+// juegos/gato.js
 //
 // Gato (tic-tac-toe). Tres formas de arrancarlo:
 //   .gato            -> como no dijiste con quien, te pregunta: boton para
@@ -76,16 +76,8 @@ registrarJuego({
     ];
   },
 
-  // A quien le toca ahora (para la leyenda de la foto, ej "Turno de @dino").
-  turnoInfo(estado) {
-    const jidActual = estado.turno === "X" ? estado.jugadorX : estado.jugadorO;
-    const inicio = estado.jugada === 0
-      ? (estado.jugadorO ? "🎮 Empieza la partida vs @" + estado.jugadorO.split("@")[0] + "\n" : "🎮 Empieza la partida vs el BOT\n")
-      : "";
-    if (!jidActual) return { texto: `${inicio}🤖 Turno del BOT`, mentions: estado.jugadorO ? [estado.jugadorO] : [] };
-    const mentions = [...new Set([jidActual, ...(estado.jugadorO ? [estado.jugadorO] : [])])];
-    return { texto: `${inicio}👉 Turno de @${jidActual.split("@")[0]}`, mentions };
-  },
+  // A quien le toca ahora se dibuja DENTRO de la imagen (ver dibujar), ya
+  // no como mención de WhatsApp en el caption.
 
   dibujar(ctx, estado, ancho, alto) {
     // deja bastante aire arriba y abajo del tablero - imagen alargada, no cuadrada
@@ -94,6 +86,19 @@ registrarJuego({
     const oy = (alto - tam) / 2;
     const celda = tam / 3;
     console.log(`[GATO-DEBUG-DIBUJAR] ancho=${ancho} alto=${alto} tam=${tam} ox=${ox} oy=${oy} celda=${celda} tablero=${JSON.stringify(estado.tablero)}`);
+
+    // "TURNO DE ..." dibujado adentro de la imagen (no como mención de WhatsApp)
+    const jidActual = estado.turno === "X" ? estado.jugadorX : estado.jugadorO;
+    const etiquetaTurno = estado.fin
+      ? (estado.fin === "empate" ? "EMPATE" : `GANÓ ${estado.fin}`)
+      : jidActual
+        ? `TURNO DE +${jidActual.split("@")[0]}`
+        : "TURNO DEL BOT 🤖";
+    ctx.textAlign = "center";
+    ctx.font = `${Math.floor(celda * 0.16)}px ${FUENTE}`;
+    ctx.fillStyle = estado.turno === "X" ? "#2dfdc5" : "#ff3d81";
+    ctx.fillText(etiquetaTurno, ancho / 2, oy - 30);
+    ctx.textAlign = "left";
 
     ctx.fillStyle = "#8a8fa3";
     ctx.font = `16px ${FUENTE}`;
@@ -114,7 +119,7 @@ registrarJuego({
       const cx = ox + col * celda + celda / 2;
       const cy = oy + fila * celda + celda / 2;
       if (valor) {
-        ctx.font = `bold ${Math.floor(celda * 0.55)}px ${FUENTE}`;
+        ctx.font = `${Math.floor(celda * 0.55)}px ${FUENTE}`;
         ctx.fillStyle = valor === "X" ? "#2dfdc5" : "#ff3d81";
         ctx.fillText(valor, cx, cy);
       } else {
@@ -187,4 +192,3 @@ export default {
     await iniciarJuego(sock, from, sender, msg, "gato", { oponente: mencionado || null });
   },
 };
-  
