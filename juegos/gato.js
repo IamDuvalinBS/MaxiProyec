@@ -1,213 +1,206 @@
-// motores/juegos-core.js
+// juegos/gato.js
 //
-// Motor central de juegos jugables por chat. Un "juego" es solo un objeto
-// con estado inicial, una funcion que dibuja ese estado en un canvas y una
-// funcion que aplica una accion (lo que la persona toco) sobre ese estado.
-// Este archivo NO sabe nada de Gato, Mario, Tetris, etc - eso vive en cada
-// archivo dentro de /juegos. Este archivo solo:
+// Gato (tic-tac-toe). Tres formas de arrancarlo:
+//   .gato            -> como no dijiste con quien, te pregunta: boton para
+//                        jugar contra el bot, o instrucciones para mencionar
+//                        a alguien.
+//   .gato @persona   -> desafia directo a esa persona, sin apuestas.
+//   .gatobot         -> (uso interno, lo dispara el boton de arriba) fuerza
+//                        el modo contra el bot.
 //
-//   1. Guarda que juegos existen (registrarJuego).
-//   2. Guarda la partida activa de cada chat (Map por "from").
-//   3. Sabe renderizar cualquier estado a imagen PNG con el mismo marco
-//      visual retro/neon para todos los juegos (titulo + cajitas HUD).
-//   4. Arma los botones de WhatsApp y sabe que apretar significa que
-//      (todo boton de cualquier juego pasa por ".jbtn <juego> <accion>").
-//
-// WhatsApp (via botones clasicos de Baileys) solo garantiza 3 botones por
-// mensaje. Por eso el patron recomendado para moverse es el mismo que ya
-// usan Galaga/Mario: cursor + confirmar, es decir botones tipo
-// [ "◀", "✅ Confirmar", "▶" ] en vez de un boton por casilla/accion.
-//
-// Para agregar un juego nuevo: crear /juegos/<nombre>.js siguiendo el
-// ejemplo de gato.js (es el mas simple de los cuatro que pediste).
+// Las jugadas son TEXTO PLANO (escribir un numero del 1 al 9), no botones
+// - por eso define "entradaTexto" + "validarTexto" en vez de "botones".
+import { registrarJuego, iniciarJuego, FUENTE } from "../motores/juegos-core.js";
 
-import { createCanvas, GlobalFonts } from "@napi-rs/canvas";
-import path from "path";
-import { fileURLToPath } from "url";
+const LINEAS = [
+  [0, 1, 2], [3, 4, 5], [6, 7, 8],
+  [0, 3, 6], [1, 4, 7], [2, 5, 8],
+  [0, 4, 8], [2, 4, 6],
+];
 
-// IMPORTANTE: en Termux (y en la mayoria de servidores Linux "pelados") no
-// hay ninguna fuente de sistema instalada. Sin registrar una a mano, Skia
-// dibuja los rectangulos/lineas perfecto pero el texto sale INVISIBLE (por
-// eso el titulo y las cajitas de HUD se veian vacias). Descarga cualquier
-// .ttf (ej "Press Start 2P" de Google Fonts para el look retro) y guardalo
-// en assets/fonts/retro.ttf en la raiz del proyecto.
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const RUTA_FUENTE = path.join(__dirname, "../assets/fonts/retro.ttf");
-export let FUENTE = "sans-serif"; // si falla el registro, al menos no explota - solo queda sin texto
-try {
-  GlobalFonts.registerFromPath(RUTA_FUENTE, "RetroFont");
-  FUENTE = "RetroFont";
-} catch (e) {
-  console.log(`⚠️ No se pudo cargar la fuente de juegos (${RUTA_FUENTE}): ${e.message}. El texto de los juegos no se va a ver hasta que la agregues.`);
-}
-
-const juegosRegistrados = new Map(); // id -> definicion del juego
-const partidasActivas = new Map();   // from (chatId) -> { juegoId, estado, ultimaAccion }
-
-const TIEMPO_INACTIVIDAD_MS = 10 * 60 * 1000; // 10 min sin tocar nada = se borra sola
-
-/**
- * Cada juego se registra UNA vez, al importarse su archivo, con:
- * - id            string corto, ej "gato"
- * - nombre        titulo que se muestra arriba, ej "GATO RETRO"
- * - ancho/alto    tamaño total del lienzo (con HUD incluido)
- * - crearEstado(sender)                  -> estado inicial de una partida nueva
- * - dibujar(ctx, estado, ancho, alto)     -> dibuja SOLO el area de juego (0,0 = esquina del area)
- * - accion(estado, accionId)              -> devuelve el estado nuevo segun el boton tocado
- * - botones(estado)                       -> array de { id, texto }, maximo 3
- * - hud(estado)                           -> array de { etiqueta, valor } para las cajitas de arriba
- * - terminado(estado)                     -> true/false, si la partida termino
- * - mensajeFinal(estado)                  -> texto a mostrar cuando termina
- */
-export function registrarJuego(def) {
-  juegosRegistrados.set(def.id, def);
-}
-
-function limpiarInactivas() {
-  const ahora = Date.now();
-  for (const [from, partida] of partidasActivas) {
-    if (ahora - partida.ultimaAccion > TIEMPO_INACTIVIDAD_MS) partidasActivas.delete(from);
+function ganador(tablero) {
+  for (const [a, b, c] of LINEAS) {
+    if (tablero[a] && tablero[a] === tablero[b] && tablero[a] === tablero[c]) return tablero[a];
   }
+  return tablero.every((c) => c) ? "empate" : null;
 }
 
-// --- Dibuja el marco/HUD comun (mismo estilo para todos los juegos) ---
-function dibujarMarco(ctx, ancho, alto, def, estado) {
-  ctx.fillStyle = "#0a0a0f";
-  ctx.fillRect(0, 0, ancho, alto);
+// Minimax sin ninguna libreria ni API - puro calculo local y gratis.
+function minimax(tablero, jugador) {
+  const fin = ganador(tablero);
+  if (fin === "O") return { puntaje: 1 };
+  if (fin === "X") return { puntaje: -1 };
+  if (fin === "empate") return { puntaje: 0 };
 
-  ctx.fillStyle = "#2dfdc5";
-  ctx.font = `bold 28px ${FUENTE}`;
-  ctx.shadowColor = "#2dfdc5";
-  ctx.shadowBlur = 12;
-  ctx.fillText(def.nombre, 20, 42);
-  ctx.shadowBlur = 0;
+  const libres = tablero.map((c, i) => (c ? null : i)).filter((i) => i !== null);
+  const jugadas = libres.map((i) => {
+    const copia = [...tablero];
+    copia[i] = jugador;
+    return { indice: i, puntaje: minimax(copia, jugador === "O" ? "X" : "O").puntaje };
+  });
 
-  const stats = def.hud ? def.hud(estado) : [];
-  let x = ancho - 20;
-  for (let i = stats.length - 1; i >= 0; i--) {
-    const { etiqueta, valor } = stats[i];
-    const texto = String(valor);
-    ctx.font = `bold 16px ${FUENTE}`;
-    const w = Math.max(80, ctx.measureText(texto).width + 24);
-    x -= w;
-    ctx.strokeStyle = "#2dfdc5";
-    ctx.lineWidth = 2;
-    ctx.strokeRect(x, 14, w, 46);
+  return jugador === "O"
+    ? jugadas.reduce((a, b) => (b.puntaje > a.puntaje ? b : a))
+    : jugadas.reduce((a, b) => (b.puntaje < a.puntaje ? b : a));
+}
+
+// 70% juega el mejor movimiento, 30% al azar - asi es ganable, no imposible.
+function jugadaBot(tablero) {
+  const libres = tablero.map((c, i) => (c ? null : i)).filter((i) => i !== null);
+  if (Math.random() < 0.3) return libres[Math.floor(Math.random() * libres.length)];
+  return minimax(tablero, "O").indice;
+}
+
+registrarJuego({
+  id: "gato",
+  nombre: "GATO",
+  ancho: 480,
+  alto: 860, // mas alta que ancha a proposito - no cuadrada
+  entradaTexto: true,
+
+  crearEstado(sender, opciones = {}) {
+    return {
+      tablero: Array(9).fill(null),
+      turno: "X",
+      jugadorX: sender,
+      jugadorO: opciones.oponente || null, // null = juega el bot
+      jugada: 0,
+      fin: null,
+    };
+  },
+
+  hud(estado) {
+    return [
+      { etiqueta: "JUGADA", valor: estado.jugada },
+      { etiqueta: "TURNO", valor: estado.turno },
+    ];
+  },
+
+  // A quien le toca ahora (para la leyenda de la foto, ej "Turno de @dino").
+  turnoInfo(estado) {
+    const jidActual = estado.turno === "X" ? estado.jugadorX : estado.jugadorO;
+    if (!jidActual) return { texto: "🤖 Turno del BOT" };
+    return { texto: `👉 Turno de @${jidActual.split("@")[0]}`, mentions: [jidActual] };
+  },
+
+  dibujar(ctx, estado, ancho, alto) {
+    // deja bastante aire arriba y abajo del tablero - imagen alargada, no cuadrada
+    const tam = ancho - 40;
+    const ox = (ancho - tam) / 2;
+    const oy = (alto - tam) / 2;
+    const celda = tam / 3;
+
     ctx.fillStyle = "#8a8fa3";
-    ctx.font = `11px ${FUENTE}`;
-    ctx.fillText(etiqueta, x + 10, 31);
-    ctx.fillStyle = "#ffffff";
-    ctx.font = `bold 18px ${FUENTE}`;
-    ctx.fillText(texto, x + 10, 51);
-    x -= 10;
-  }
+    ctx.font = `16px ${FUENTE}`;
+    ctx.fillText("X", ox, oy - 16);
+    ctx.fillText(estado.jugadorO ? "O: rival" : "O: BOT", ox + tam - 80, oy - 16);
 
-  ctx.strokeStyle = "#2dfdc5";
-  ctx.lineWidth = 3;
-  ctx.strokeRect(20, 74, ancho - 40, alto - 110);
-}
+    ctx.strokeStyle = "#2dfdc5";
+    ctx.lineWidth = 3;
+    for (let i = 1; i < 3; i++) {
+      ctx.beginPath(); ctx.moveTo(ox + celda * i, oy); ctx.lineTo(ox + celda * i, oy + tam); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(ox, oy + celda * i); ctx.lineTo(ox + tam, oy + celda * i); ctx.stroke();
+    }
 
-function renderizarFrame(def, estado) {
-  const ancho = def.ancho || 600;
-  const alto = def.alto || 700;
-  const canvas = createCanvas(ancho, alto);
-  const ctx = canvas.getContext("2d");
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    estado.tablero.forEach((valor, i) => {
+      const fila = Math.floor(i / 3), col = i % 3;
+      const cx = ox + col * celda + celda / 2;
+      const cy = oy + fila * celda + celda / 2;
+      if (valor) {
+        ctx.font = `bold ${Math.floor(celda * 0.55)}px ${FUENTE}`;
+        ctx.fillStyle = valor === "X" ? "#2dfdc5" : "#ff3d81";
+        ctx.fillText(valor, cx, cy);
+      } else {
+        ctx.font = `${Math.floor(celda * 0.22)}px ${FUENTE}`;
+        ctx.fillStyle = "#3a3f4f";
+        ctx.fillText(String(i + 1), cx, cy);
+      }
+    });
+    ctx.textAlign = "left";
+    ctx.textBaseline = "alphabetic";
+  },
 
-  dibujarMarco(ctx, ancho, alto, def, estado);
+  botones() {
+    return []; // este juego se juega por texto, no con botones
+  },
 
-  // el juego dibuja SOLO adentro de su rectangulo, con su propio 0,0
-  ctx.save();
-  ctx.translate(25, 79);
-  ctx.beginPath();
-  ctx.rect(0, 0, ancho - 50, alto - 120);
-  ctx.clip();
-  def.dibujar(ctx, estado, ancho - 50, alto - 120);
-  ctx.restore();
+  validarTexto(estado, texto, sender) {
+    if (estado.fin) return null;
+    const esX = estado.jugadorX === sender;
+    const esO = estado.jugadorO === sender;
+    if (!esX && !esO) return null; // no es ninguno de los dos jugadores
+    if ((estado.turno === "X" && !esX) || (estado.turno === "O" && !esO)) return null; // no es su turno
 
-  return canvas.toBuffer("image/png");
-}
+    const n = Number(String(texto).trim());
+    if (!Number.isInteger(n) || n < 1 || n > 9) return null;
+    if (estado.tablero[n - 1]) return null; // casilla ocupada
 
-function armarBotonesWA(def, estado) {
-  if (def.terminado(estado)) {
-    return [{ buttonId: `.jnuevo ${def.id}`, buttonText: { displayText: "🔁 Jugar de nuevo" } }];
-  }
-  return def.botones(estado).map((b) => ({
-    buttonId: `.jbtn ${def.id} ${b.id}`,
-    buttonText: { displayText: b.texto },
-  }));
-}
+    return String(n - 1);
+  },
 
-async function enviarFrame(sock, from, msg, def, estado) {
-  const buffer = renderizarFrame(def, estado);
-  const terminado = def.terminado(estado);
-  const botones = armarBotonesWA(def, estado);
-  const turno = !terminado && def.turnoInfo ? def.turnoInfo(estado) : null;
+  accion(estado, accionId) {
+    if (estado.fin) return estado;
+    const idx = Number(accionId);
+    const tablero = [...estado.tablero];
+    tablero[idx] = estado.turno;
 
-  const contenido = {
-    image: buffer,
-    caption: terminado ? `🏁 ${def.mensajeFinal(estado)}` : (turno ? turno.texto : ""),
-  };
-  if (turno && turno.mentions && turno.mentions.length) contenido.mentions = turno.mentions;
-  if (botones.length) {
-    contenido.footer = terminado ? "" : "🎮 Toca un boton para jugar";
-    contenido.buttons = botones;
-    contenido.headerType = 4;
-  } else if (def.entradaTexto && !terminado) {
-    contenido.footer = "✍️ Responde con un numero para jugar";
-  }
+    let fin = ganador(tablero);
+    let turno = estado.turno === "X" ? "O" : "X";
+    let jugada = estado.jugada + 1;
 
-  await sock.sendMessage(from, contenido, msg ? { quoted: msg } : undefined);
-}
+    // si sigue el bot (no hay jugadorO humano), juega solo de una
+    if (!fin && turno === "O" && !estado.jugadorO) {
+      const idxBot = jugadaBot(tablero);
+      if (idxBot !== undefined) tablero[idxBot] = "O";
+      fin = ganador(tablero);
+      turno = "X";
+      jugada += 1;
+    }
 
-/** Arranca una partida nueva del juego `juegoId` en el chat `from`.
- *  `opciones` se le pasa tal cual a `crearEstado` - por ejemplo
- *  { oponente: jid } para desafiar a alguien puntual en vez de al bot. */
-export async function iniciarJuego(sock, from, sender, msg, juegoId, opciones = {}) {
-  const def = juegosRegistrados.get(juegoId);
-  if (!def) return false;
-  limpiarInactivas();
-  const estado = def.crearEstado(sender, opciones);
-  partidasActivas.set(from, { juegoId, estado, ultimaAccion: Date.now() });
-  await enviarFrame(sock, from, msg, def, estado);
-  return true;
-}
+    return { ...estado, tablero, turno, jugada, fin };
+  },
 
-/** Procesa un boton tocado (siempre llega como ".jbtn <juegoId> <accionId>"). */
-export async function procesarBoton(sock, from, sender, msg, juegoId, accionId) {
-  const def = juegosRegistrados.get(juegoId);
-  const partida = partidasActivas.get(from);
-  if (!def || !partida || partida.juegoId !== juegoId) {
-    await sock.sendMessage(
-      from,
-      { text: "No hay ninguna partida de eso activa. Iniciala de nuevo con el comando." },
-      msg ? { quoted: msg } : undefined
-    );
-    return;
-  }
-  partida.estado = def.accion(partida.estado, accionId, sender);
-  partida.ultimaAccion = Date.now();
-  await enviarFrame(sock, from, msg, def, partida.estado);
-}
+  terminado(estado) {
+    return !!estado.fin;
+  },
 
-/**
- * Se llama con CUALQUIER mensaje de texto plano (no-comando) antes de
- * mandarlo a la trivia. Si hay una partida activa en `from` cuyo juego
- * acepta texto (def.entradaTexto) y `texto` es una jugada valida de
- * `sender`, la aplica y devuelve true (el llamador no debe seguir
- * procesando ese mensaje como otra cosa). Si no aplica, devuelve false
- * sin tocar nada - así un chat normal con un juego activo no se rompe.
- */
-export async function intentarProcesarTexto(sock, from, sender, texto, msg) {
-  const partida = partidasActivas.get(from);
-  if (!partida) return false;
-  const def = juegosRegistrados.get(partida.juegoId);
-  if (!def || !def.entradaTexto || !def.validarTexto) return false;
+  mensajeFinal(estado) {
+    if (estado.fin === "empate") return "Empate!";
+    return estado.fin === "X" ? "Gano X! 🎉" : "Gano O! 🎉";
+  },
+});
 
-  const accionId = def.validarTexto(partida.estado, texto, sender);
-  if (accionId === null || accionId === undefined) return false;
+export default {
+  names: [".gato", ".gatobot"],
+  desc: "Gato: solo (.gato) pregunta con quien, o .gato @persona para desafiarla directo",
+  category: "Juegos",
+  usage: ".gato [@persona]",
+  handler: async ({ sock, from, sender, msg, cleanText, reply }) => {
+    const esBotForzado = cleanText.toLowerCase().startsWith(".gatobot");
+    const mencionado = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
 
-  partida.estado = def.accion(partida.estado, accionId, sender);
-  partida.ultimaAccion = Date.now();
-  await enviarFrame(sock, from, msg, def, partida.estado);
-  return true;
-}
+    if (esBotForzado) {
+      await iniciarJuego(sock, from, sender, msg, "gato", { oponente: null });
+      return;
+    }
+
+    if (mencionado) {
+      await iniciarJuego(sock, from, sender, msg, "gato", { oponente: mencionado });
+      return;
+    }
+
+    // No forzo bot ni mencionaste a nadie -> pregunto antes de arrancar
+    await reply({
+      text:
+        "¿Con quién jugamos al Gato?\n\n" +
+        "🤖 Tocá el botón para jugar contra el bot\n" +
+        "👤 O escribí *.gato @persona* mencionando a quien quieras desafiar",
+      footer: "Gato",
+      buttons: [{ buttonId: ".gatobot", buttonText: { displayText: "🤖 Jugar contra el bot" } }],
+      headerType: 1,
+    });
+  },
+};
+      
