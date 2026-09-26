@@ -204,9 +204,11 @@ export async function intentarProcesarTexto(sock, from, sender, texto, msg) {
   if (!def || !def.entradaTexto || !def.validarTexto) return false;
 
   const accionId = def.validarTexto(partida.estado, texto, sender);
+  console.log(`[GATO-DEBUG] texto="${texto}" sender=${sender} jugadorX=${partida.estado.jugadorX} jugadorO=${partida.estado.jugadorO} turno=${partida.estado.turno} -> accionId=${accionId}`);
   if (accionId === null || accionId === undefined) return false;
 
   partida.estado = def.accion(partida.estado, accionId, sender);
+  console.log(`[GATO-DEBUG] tablero despues de accion(): ${JSON.stringify(partida.estado.tablero)}`);
   partida.ultimaAccion = Date.now();
   await enviarFrame(sock, from, msg, def, partida.estado);
   return true;
