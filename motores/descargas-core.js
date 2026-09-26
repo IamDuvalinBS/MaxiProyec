@@ -59,6 +59,46 @@ export async function asegurarVideoCompatibleWhatsApp(bufferEntrada) {
   }
 }
 
+// Llama a una API de descarga tipo "creator/status" (el patrón que usan
+// las APIs de alyacore.xyz: /dl/ytmp3, /dl/ytdlpmp3, /dl/ytmp4,
+// /dl/ytdlpmp4, y potencialmente otras a futuro con la misma forma).
+// Centralizada aca porque no es especifica de YouTube: sirve para
+// cualquier motor que responda { status, message, result }.
+export async function consultarApiDescarga(apiUrl, link, paramNombre = "url") {
+  const { data } = await axios.get(apiUrl, {
+    params: { [paramNombre]: link },
+    headers: HEADERS,
+    timeout: 20000
+  });
+
+  if (!data || data.status === false) {
+    throw new Error(data?.message || `La API ${apiUrl} no devolvió un resultado válido.`);
+  }
+  return data;
+}
+
+// Intenta sacar la URL directa de descarga de las formas más comunes en
+// las que responden estas APIs. No pude confirmar en vivo cuál usa
+// alyacore.xyz (ver nota en yt-descargas.js), asi que prueba varios
+// campos; si tu API devuelve el link en otro lado, agregalo a la lista.
+export function extraerEnlaceDescarga(json) {
+  const candidatos = [
+    json?.result?.url,
+    json?.result?.download,
+    json?.result?.download_url,
+    json?.result?.dl,
+    json?.result?.link,
+    json?.data?.url,
+    json?.data?.download,
+    json?.url,
+    json?.download,
+    json?.link
+  ];
+  const enlace = candidatos.find(Boolean);
+  if (!enlace) throw new Error("No encontré el enlace de descarga en la respuesta de la API.");
+  return enlace;
+}
+
 // Pasa la imagen a JPEG "plano" para evitar problemas con webp/formatos
 // raros que a veces mandan las redes y que WhatsApp no siempre digiere bien.
 // Usa el mismo "ffmpeg" del sistema que ya se usa para el video, en vez de
