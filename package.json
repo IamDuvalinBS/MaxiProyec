@@ -16,8 +16,7 @@
     "chalk": "^5.3.0",
     "jimp": "^1.6.0",
     "mongodb": "^6.10.0",
-    "pino": "^9.4.0",
-    "https://api.alyacore.xyz/dl/ytdlpmp3": 
+    "pino": "^9.4.0"
   },
   "engines": {
     "node": ">=18.0.0"
