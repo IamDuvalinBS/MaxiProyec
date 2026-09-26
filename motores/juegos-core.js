@@ -210,4 +210,4 @@ export async function intentarProcesarTexto(sock, from, sender, texto, msg) {
   partida.ultimaAccion = Date.now();
   await enviarFrame(sock, from, msg, def, partida.estado);
   return true;
-}
+      }
