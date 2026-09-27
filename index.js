@@ -187,10 +187,27 @@ async function startBot() {
         .catch(() => {});
     }
 
-    const prefijoActual = config.prefix || ".";
-    if (text.startsWith(prefijoActual)) {
-      // Los comandos internamente siempre usan "." - traducimos el prefijo elegido a "."
-      const textoTraducido = "." + text.slice(prefijoActual.length);
+    // Soporta varios prefijos a la vez (config.prefixes). Se ordenan del
+    // mas largo al mas corto para que, si por ejemplo tenes "." y ".." como
+    // prefijos, no se detecte mal uno adentro del otro.
+    const prefijosConfigurados = (config.prefixes && config.prefixes.length)
+      ? config.prefixes
+      : [config.prefix || "."];
+    const prefijoUsado = [...prefijosConfigurados]
+      .sort((a, b) => b.length - a.length)
+      .find((p) => text.startsWith(p));
+
+    if (prefijoUsado) {
+      // Los comandos internamente siempre usan "." - traducimos el prefijo usado a ".".
+      // Ademas, el comando se detecta sin importar si queda pegado o separado
+      // del prefijo (".p" o ". p") y sin importar mayusculas/minusculas
+      // (".P" = ".p"). Solo se normaliza la palabra del comando; el resto
+      // del texto (ej. lo que busca un .play) se deja intacto.
+      const resto = text.slice(prefijoUsado.length);
+      const match = resto.match(/^\s*(\S+)([\s\S]*)$/);
+      const textoTraducido = match
+        ? "." + match[1].toLowerCase() + match[2]
+        : "." + resto;
       await handleEconomyCommand(sock, from, sender, textoTraducido, msg);
     } else {
       // Si un ".play" reciente dejó a esta persona esperando que elija
@@ -217,4 +234,6 @@ async function startBot() {
 }
 
 startBot();
+
+
 
