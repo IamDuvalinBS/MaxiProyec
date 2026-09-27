@@ -2,7 +2,7 @@ import { MongoClient } from "mongodb";
 import chalk from "chalk";
 
 export const CURRENCY = "¥enes";
-export const FOTO_PATH = "./botpic.jpg";
+export const FOTO_PATH = "./photo/botpic.jpg";
 export const startTime = Date.now();
 
 const MONGO_URI = "mongodb+srv://jg0455748_db_user:2IBhQ33NazDOoBjg@cluster0.27mrbg5.mongodb.net/?appName=Cluster0";
