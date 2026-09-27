@@ -82,35 +82,44 @@ export async function buscarVideosYoutube(consulta, limite = 10) {
   }));
 }
 
-// Si el formato ya trae "url" directa se usa tal cual; si no, hay que
-// descifrarla (formatos con signatureCipher). Se espera el resultado con
-// "await" porque en algunas versiones de youtubei.js decipher() devuelve
-// el texto directo, y en otras una promesa - "await" funciona para las dos
-// (esperar algo que ya no es una promesa no rompe nada).
-async function urlDeFormato(formato, yt) {
-  const url = formato.url ?? (await formato.decipher(yt.session.player));
-  console.log(`[youtub] URL obtenida para itag ${formato.itag}: ${JSON.stringify(url)}`);
-  return url;
-}
-
-// Se usa el mismo cliente por defecto que ya funciona para getBasicInfo
-// (el truco de forzar el cliente "ANDROID" para esquivar el descifrado
-// dejó de funcionar: YouTube empezó a rechazar esas peticiones con 400).
+// Se usa el mismo cliente por defecto que ya funciona para getBasicInfo.
 async function obtenerInfoParaDescarga(link) {
   const yt = await obtenerCliente();
   const info = await yt.getInfo(extraerIdDeLink(link));
   return { yt, info };
 }
 
-// chooseFormat() de youtubei.js tira su propio error cuando no encuentra
-// nada (no devuelve null/undefined), asi que hay que atajarlo para poder
-// probar el siguiente formato en vez de cortar toda la descarga ahi.
-function intentarElegirFormato(info, opciones) {
-  try {
-    return info.chooseFormat(opciones);
-  } catch (e) {
-    return null;
+// Listas de formatos ordenadas del mas pesado/mejor al mas liviano, leidas
+// directo de streaming_data (no de chooseFormat, que solo da UN candidato
+// y tira error si ese en particular no se puede descifrar).
+function formatosProgresivos(info) {
+  return [...(info.streaming_data?.formats || [])]
+    .filter((f) => f.has_video && f.has_audio)
+    .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0));
+}
+function formatosDeTipo(info, tipo) {
+  const lista = info.streaming_data?.adaptive_formats || [];
+  const filtrados = tipo === "video" ? lista.filter((f) => f.has_video && !f.has_audio) : lista.filter((f) => f.has_audio && !f.has_video);
+  return filtrados.sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0));
+}
+
+// Prueba descifrar cada formato de la lista, del mejor al peor, y se queda
+// con el PRIMERO que funcione. A veces YouTube rompe el descifrado de
+// algunos formatos puntuales pero no de todos, asi que en vez de fallar
+// con el primero que no anda, se sigue probando antes de rendirse.
+async function primeraUrlQueFuncione(formatos, yt) {
+  let ultimoError = new Error("No hay formatos para probar.");
+  for (const formato of formatos) {
+    try {
+      const url = formato.url ?? (await formato.decipher(yt.session.player));
+      console.log(`[youtub] Descifrado OK para itag ${formato.itag}`);
+      return url;
+    } catch (e) {
+      console.log(`[youtub] Fallo descifrando itag ${formato.itag}: ${e.message}`);
+      ultimoError = e;
+    }
   }
+  throw ultimoError;
 }
 
 export async function descargarVideoYoutube(link) {
@@ -121,25 +130,28 @@ export async function descargarVideoYoutube(link) {
     throw new Error("Ese video dura mas de 20 minutos, muy probable que pese demasiado para WhatsApp.");
   }
 
-  let bufferListo;
-  const progresivo = intentarElegirFormato(info, { type: "video+audio", quality: "best" });
+  let bufferListo = null;
+  const progresivos = formatosProgresivos(info);
 
-  if (progresivo) {
-    const buffer = await descargarBuffer(await urlDeFormato(progresivo, yt));
-    bufferListo = await asegurarVideoCompatibleWhatsApp(buffer);
-  } else {
-    // Cada vez es mas raro que YouTube ofrezca un formato con video+audio
-    // juntos: se baja el video mudo y el audio por separado (esos siempre
-    // existen) y se combinan con ffmpeg.
-    const formatoVideo = intentarElegirFormato(info, { type: "video", quality: "best" });
-    const formatoAudio = intentarElegirFormato(info, { type: "audio", quality: "best" });
-    if (!formatoVideo || !formatoAudio) {
+  if (progresivos.length > 0) {
+    try {
+      const url = await primeraUrlQueFuncione(progresivos, yt);
+      const buffer = await descargarBuffer(url);
+      bufferListo = await asegurarVideoCompatibleWhatsApp(buffer);
+    } catch (e) {
+      // ninguno de los formatos progresivos se pudo descifrar - se cae al
+      // plan B de abajo (video mudo + audio por separado) en vez de fallar.
+    }
+  }
+
+  if (!bufferListo) {
+    const videos = formatosDeTipo(info, "video");
+    const audios = formatosDeTipo(info, "audio");
+    if (videos.length === 0 || audios.length === 0) {
       throw new Error("No encontré ningún formato descargable para ese video.");
     }
-    const [bufferVideo, bufferAudio] = await Promise.all([
-      urlDeFormato(formatoVideo, yt).then(descargarBuffer),
-      urlDeFormato(formatoAudio, yt).then(descargarBuffer)
-    ]);
+    const [urlVideo, urlAudio] = await Promise.all([primeraUrlQueFuncione(videos, yt), primeraUrlQueFuncione(audios, yt)]);
+    const [bufferVideo, bufferAudio] = await Promise.all([descargarBuffer(urlVideo), descargarBuffer(urlAudio)]);
     bufferListo = await combinarVideoAudioWhatsApp(bufferVideo, bufferAudio);
   }
 
@@ -153,7 +165,8 @@ export async function descargarVideoYoutube(link) {
 
 export async function descargarAudioYoutube(link) {
   const { yt, info } = await obtenerInfoParaDescarga(link);
-  const formato = intentarElegirFormato(info, { type: "audio", quality: "best" });
-  if (!formato) throw new Error("No encontré ningún formato de audio para ese video.");
-  return descargarBuffer(await urlDeFormato(formato, yt));
-    }
+  const audios = formatosDeTipo(info, "audio");
+  if (audios.length === 0) throw new Error("No encontré ningún formato de audio para ese video.");
+  const url = await primeraUrlQueFuncione(audios, yt);
+  return descargarBuffer(url);
+}
