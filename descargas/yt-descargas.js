@@ -122,6 +122,8 @@ export default {
     const partes = cleanText.trim().split(/\s+/);
     const comando = partes[0].toLowerCase();
     const link = partes[1];
+    console.log(`\n[yt-descargas] ==================== HANDLER EJECUTADO ====================`);
+    console.log(`[yt-descargas] comando="${comando}" link="${link}"`);
     if (!link) return reply({ text: "❌ Faltó el link del video." });
 
     const esAudio = comando === ".ytaudio";
@@ -129,12 +131,16 @@ export default {
 
     try {
       if (esAudio) {
+        console.log(`[yt-descargas] Probando proveedores de AUDIO...`);
         const url = await primeraUrlDeProveedores(link, PROVEEDORES_AUDIO);
+        console.log(`[yt-descargas] Resultado de proveedores (audio): ${url ? "URL obtenida" : "NINGUNO devolvió URL, cae a youtubei.js"}`);
         const audioBuffer = url ? await descargarBufferConfiable(url, "mp3") : await descargarAudioYoutube(link);
         const audioListo = await asegurarAudioCompatibleWhatsApp(audioBuffer);
         await reply({ audio: audioListo, mimetype: "audio/mpeg", ptt: false });
       } else {
+        console.log(`[yt-descargas] Probando proveedores de VIDEO...`);
         const url = await primeraUrlDeProveedores(link, PROVEEDORES_VIDEO);
+        console.log(`[yt-descargas] Resultado de proveedores (video): ${url ? "URL obtenida" : "NINGUNO devolvió URL, cae a youtubei.js"}`);
         let videoBuffer;
 
         if (url) {
@@ -155,4 +161,4 @@ export default {
     }
   }
 };
-    
+
