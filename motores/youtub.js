@@ -116,10 +116,36 @@ export async function buscarVideosYoutube(consulta, limite = 10) {
 }
 
 // Se usa el mismo cliente por defecto que ya funciona para getBasicInfo.
+// YouTube viene exigiendo cada vez mas un "PO token" (token anti-bot) para
+// el cliente WEB, que es el que usa youtubei.js por defecto - sin eso,
+// a veces ni siquiera manda datos utiles para descifrar el formato (por
+// eso fallaba TODO con "No valid URL to decipher", incluso con el
+// evaluador ya puesto). Los clientes de Android/iOS/TV no piden ese
+// token, asi que se prueban en orden hasta que alguno funcione.
+const CLIENTES_A_PROBAR = ["ANDROID", "IOS", "TV", "WEB"];
+
 async function obtenerInfoParaDescarga(link) {
   const yt = await obtenerCliente();
-  const info = await yt.getInfo(extraerIdDeLink(link));
-  return { yt, info };
+  const id = extraerIdDeLink(link);
+  let ultimoError = new Error("No pude obtener info descargable para ese video.");
+
+  for (const cliente of CLIENTES_A_PROBAR) {
+    try {
+      const info = await yt.getInfo(id, cliente);
+      const tieneFormatos =
+        (info.streaming_data?.formats?.length || 0) > 0 ||
+        (info.streaming_data?.adaptive_formats?.length || 0) > 0;
+      if (tieneFormatos) {
+        console.log(`[youtub] Cliente ${cliente} devolvió formatos utilizables`);
+        return { yt, info };
+      }
+      console.log(`[youtub] Cliente ${cliente} respondió sin streaming_data util`);
+    } catch (e) {
+      console.log(`[youtub] Cliente ${cliente} fallo: ${e.message}`);
+      ultimoError = e;
+    }
+  }
+  throw ultimoError;
 }
 
 // Listas de formatos ordenadas del mas pesado/mejor al mas liviano, leidas
@@ -203,4 +229,3 @@ export async function descargarAudioYoutube(link) {
   const url = await primeraUrlQueFuncione(audios, yt);
   return descargarBuffer(url);
 }
-  
