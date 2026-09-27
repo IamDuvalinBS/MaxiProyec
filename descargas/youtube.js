@@ -77,7 +77,12 @@ export default {
       `👁️ *VISTAS* › ${info.vistas}\n` +
       lineaFecha +
       `🔗 *ENLACE* › ${info.enlace}\n\n` +
-      `🎵 Selecciona un formato:`;
+      `🎵 Selecciona un formato:\n\n` +
+      `Formatos\n` +
+      `Audio: 1\n` +
+      `Video: 2\n\n` +
+      `> Elegí en que formato descargar el link\n\n` +
+      `Pᴏᴡᴇʀᴇᴅ Bʏ • ItsDuva`;
 
     // Antes se intentaba mandar botones nativos de WhatsApp
     // (buttonsMessage). Se sacó porque WhatsApp ya no los muestra en
@@ -88,14 +93,24 @@ export default {
     // index.js antes de Akinator/juegos/trivia (ver motores/espera-formato.js).
     registrarEsperaFormato(`${from}:${sender}`, link);
 
+    // "externalAdReply" es el mismo truco que usa WhatsApp para mostrar la
+    // vista previa de un link real (miniatura grande + titulo + dominio),
+    // pero armado a mano: asi el mensaje se ve igual que si hubieras
+    // pegado el link de YouTube directo, en vez de mandar la miniatura
+    // como una imagen normal con caption.
     await reply({
-      image: info.miniatura ? { url: info.miniatura } : undefined,
-      caption:
-        `${texto}\n\n` +
-        `Formatos\n` +
-        `Audio: 1\n` +
-        `Video: 2\n\n` +
-        `> Elegí en que formato descargar el link`
+      text: texto,
+      contextInfo: {
+        externalAdReply: {
+          title: info.titulo,
+          body: info.canal,
+          thumbnailUrl: info.miniatura || undefined,
+          mediaType: 1,
+          renderLargerThumbnail: true,
+          showAdAttribution: false,
+          sourceUrl: info.enlace
+        }
+      }
     });
   }
 };
