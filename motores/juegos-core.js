@@ -135,19 +135,26 @@ function armarBotonesWA(def, estado) {
   }));
 }
 
-async function enviarFrame(sock, from, msg, def, estado) {
+async function enviarFrame(sock, from, msg, def, estado, extraFinal) {
   const buffer = renderizarFrame(def, estado);
   const terminado = def.terminado(estado);
   const botones = armarBotonesWA(def, estado);
   const turno = !terminado && def.turnoInfo ? def.turnoInfo(estado) : null;
 
-  const contenido = {
-    image: buffer,
-    caption: terminado
-      ? `🏁 ${def.mensajeFinal(estado)}\n\nEscribí el comando de nuevo para jugar otra vez.`
-      : (turno ? turno.texto : ""),
-  };
-  if (turno && turno.mentions && turno.mentions.length) contenido.mentions = turno.mentions;
+  const mentions = new Set();
+  if (turno && turno.mentions) turno.mentions.forEach((j) => mentions.add(j));
+
+  let caption = terminado
+    ? `🏁 ${def.mensajeFinal(estado)}`
+    : (turno ? turno.texto : "");
+  if (terminado && extraFinal) {
+    if (extraFinal.lineas && extraFinal.lineas.length) caption += `\n${extraFinal.lineas.join("\n")}`;
+    if (extraFinal.mentions) extraFinal.mentions.forEach((j) => mentions.add(j));
+  }
+  if (terminado) caption += "\n\nEscribí el comando de nuevo para jugar otra vez.";
+
+  const contenido = { image: buffer, caption };
+  if (mentions.size) contenido.mentions = [...mentions];
   if (botones.length) {
     contenido.footer = "🎮 Toca un boton para jugar";
     contenido.buttons = botones;
@@ -184,9 +191,15 @@ export async function procesarBoton(sock, from, sender, msg, juegoId, accionId) 
     );
     return;
   }
+  const yaEstabaTerminado = def.terminado(partida.estado);
   partida.estado = def.accion(partida.estado, accionId, sender, msg);
   partida.ultimaAccion = Date.now();
-  await enviarFrame(sock, from, msg, def, partida.estado);
+
+  let extraFinal = null;
+  if (!yaEstabaTerminado && def.terminado(partida.estado) && def.alGanar) {
+    extraFinal = await def.alGanar(partida.estado, sender, msg);
+  }
+  await enviarFrame(sock, from, msg, def, partida.estado, extraFinal);
 }
 
 /**
@@ -206,8 +219,17 @@ export async function intentarProcesarTexto(sock, from, sender, texto, msg) {
   const accionId = def.validarTexto(partida.estado, texto, sender);
   if (accionId === null || accionId === undefined) return false;
 
+  // detecta el momento EXACTO en que la partida pasa a terminada, para
+  // disparar def.alGanar() una sola vez (dar premio, etc) - no en cada frame
+  const yaEstabaTerminado = def.terminado(partida.estado);
   partida.estado = def.accion(partida.estado, accionId, sender, msg);
   partida.ultimaAccion = Date.now();
-  await enviarFrame(sock, from, msg, def, partida.estado);
+
+  let extraFinal = null;
+  if (!yaEstabaTerminado && def.terminado(partida.estado) && def.alGanar) {
+    extraFinal = await def.alGanar(partida.estado, sender, msg);
+  }
+
+  await enviarFrame(sock, from, msg, def, partida.estado, extraFinal);
   return true;
-      }
+}
