@@ -1,50 +1,75 @@
+import { ytmp3 as vredenYtmp3, ytmp4 as vredenYtmp4 } from "@vreden/youtube_scraper";
+import { youtube as btchYoutube } from "btch-downloader";
 import {
   descargarBuffer,
-  asegurarVideoCompatibleWhatsApp,
   asegurarAudioCompatibleWhatsApp,
-  consultarApiDescarga,
-  extraerEnlaceDescarga,
+  asegurarVideoCompatibleWhatsApp,
+  descargarVideoYoutube,
+  descargarAudioYoutube,
   LIMITE_VIDEO_WHATSAPP_MB
-} from "../core.js"; // descargas-core.js vive en motores/ y core.js lo reexporta
+} from "../core.js";
 
-// Fusiona lo que era audioyt.js (.ytaudio) y el .ytvideo que faltaba,
-// en un solo comando oculto (mismo truco que en youtube.js: un solo
-// export default, y adentro se mira con qué alias entró el mensaje).
+// Fusiona lo que era audioyt.js (.ytaudio) y el .ytvideo que faltaba, en
+// un solo comando oculto.
 //
-// Para cada formato hay una API "rápida" (ytmp3 / ytmp4) y una de
-// "motor" con yt-dlp por detrás (ytdlpmp3 / ytdlpmp4) que se usa
-// solo si la rápida falla. No pude probar en vivo la forma exacta
-// de la respuesta de estas APIs (el fetch desde acá no conserva los
-// parámetros de la URL), así que extraerEnlaceDescarga() en
-// descargas-core.js prueba varios campos comunes ("result.url",
-// "result.download", "data.url", etc). Si al probar ves que el link
-// de descarga viene en otro campo, ajustalo ahí.
-const API_YTMP3 = "https://api.alyacore.xyz/dl/ytmp3";
-const API_YTDLP_MP3 = "https://api.alyacore.xyz/dl/ytdlpmp3";
-const API_YTMP4 = "https://api.alyacore.xyz/dl/ytmp4";
-const API_YTDLP_MP4 = "https://api.alyacore.xyz/dl/ytdlpmp4";
-
-// Antes esto era secuencial: probaba la API principal y RECIÉN si
-// fallaba (o se agotaba su timeout) arrancaba la de respaldo. Ahora se
-// llama a las dos al mismo tiempo y se usa la que responda primero -
-// no cambia la calidad de lo que se descarga, solo se deja de esperar
-// a que una termine de fallar para recién empezar con la otra.
-async function descargarConRespaldo(link, apiPrincipal, apiRespaldo) {
-  try {
-    return await Promise.any([
-      consultarApiDescarga(apiPrincipal, link),
-      consultarApiDescarga(apiRespaldo, link)
-    ]);
-  } catch (e) {
-    // Promise.any solo llega aca si las DOS fallaron: junta los motivos.
-    const detalles = e.errors ? e.errors.map((err) => err.message).join(" / ") : e.message;
-    throw new Error(detalles);
+// Orden de intentos: primero dos proveedores externos (encontrados en el
+// codigo de otro bot que ya los usa, "play.js") que se dedican a esquivar
+// el bloqueo anti-bot de YouTube; si los dos fallan o estan caidos, se cae
+// como ultimo recurso a descargar directo con youtubei.js (motores/youtub.js),
+// que puede fallar mas seguido por el bloqueo que YouTube reforzo este año,
+// pero no depende de ningun servicio de terceros.
+const PROVEEDORES_AUDIO = [
+  {
+    nombre: "Vreden",
+    obtenerUrl: async (link) => {
+      const d = await vredenYtmp3(link);
+      return d?.status && d?.download?.url ? d.download.url : null;
+    }
+  },
+  {
+    nombre: "Btch",
+    obtenerUrl: async (link) => {
+      const d = await btchYoutube(link);
+      return d?.status && d?.mp3 ? d.mp3 : null;
+    }
   }
+];
+
+const PROVEEDORES_VIDEO = [
+  {
+    nombre: "Vreden",
+    obtenerUrl: async (link) => {
+      const d = await vredenYtmp4(link);
+      return d?.status && d?.download?.url ? d.download.url : null;
+    }
+  },
+  {
+    nombre: "Btch",
+    obtenerUrl: async (link) => {
+      const d = await btchYoutube(link);
+      return d?.status && d?.mp4 ? d.mp4 : null;
+    }
+  }
+];
+
+async function primeraUrlDeProveedores(link, proveedores) {
+  for (const p of proveedores) {
+    try {
+      const url = await p.obtenerUrl(link);
+      if (url) {
+        console.log(`[yt-descargas] URL obtenida via ${p.nombre}`);
+        return url;
+      }
+    } catch (e) {
+      console.log(`[yt-descargas] Proveedor ${p.nombre} fallo: ${e.message}`);
+    }
+  }
+  return null;
 }
 
 export default {
   names: [".ytaudio", ".ytvideo"],
-  desc: "Comandos internos: descargan el audio o el video (se disparan desde los botones de .play)",
+  desc: "Comandos internos: descargan el audio o el video (se disparan respondiendo 1/2 a un .play)",
   category: "Oculto", // "Oculto" no está en ordenCategorias de menu.js, asi que nunca aparece en el .menu
   usage: ".ytaudio <link> | .ytvideo <link>",
   handler: async ({ cleanText, reply }) => {
@@ -58,24 +83,25 @@ export default {
 
     try {
       if (esAudio) {
-        const json = await descargarConRespaldo(link, API_YTMP3, API_YTDLP_MP3);
-        const enlace = extraerEnlaceDescarga(json);
-        const audioBuffer = await descargarBuffer(enlace);
+        const url = await primeraUrlDeProveedores(link, PROVEEDORES_AUDIO);
+        const audioBuffer = url ? await descargarBuffer(url) : await descargarAudioYoutube(link);
         const audioListo = await asegurarAudioCompatibleWhatsApp(audioBuffer);
         await reply({ audio: audioListo, mimetype: "audio/mpeg", ptt: false });
       } else {
-        const json = await descargarConRespaldo(link, API_YTMP4, API_YTDLP_MP4);
-        const enlace = extraerEnlaceDescarga(json);
-        let videoBuffer = await descargarBuffer(enlace);
+        const url = await primeraUrlDeProveedores(link, PROVEEDORES_VIDEO);
+        let videoBuffer;
 
-        const pesoMB = videoBuffer.length / (1024 * 1024);
-        if (pesoMB > LIMITE_VIDEO_WHATSAPP_MB) {
-          return reply({
-            text: `❌ El video pesa ${pesoMB.toFixed(1)}MB, supera el límite de ${LIMITE_VIDEO_WHATSAPP_MB}MB para WhatsApp.`
-          });
+        if (url) {
+          const buffer = await descargarBuffer(url);
+          const pesoMB = buffer.length / (1024 * 1024);
+          if (pesoMB > LIMITE_VIDEO_WHATSAPP_MB) {
+            return reply({ text: `❌ El video pesa ${pesoMB.toFixed(1)}MB, supera el límite de ${LIMITE_VIDEO_WHATSAPP_MB}MB para WhatsApp.` });
+          }
+          videoBuffer = await asegurarVideoCompatibleWhatsApp(buffer);
+        } else {
+          videoBuffer = await descargarVideoYoutube(link); // ya viene validado y listo
         }
 
-        videoBuffer = await asegurarVideoCompatibleWhatsApp(videoBuffer);
         await reply({ video: videoBuffer, mimetype: "video/mp4" });
       }
     } catch (e) {
