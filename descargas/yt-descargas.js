@@ -23,14 +23,18 @@ const PROVEEDORES_AUDIO = [
     nombre: "Vreden",
     obtenerUrl: async (link) => {
       const d = await vredenYtmp3(link);
-      return d?.status && d?.download?.url ? d.download.url : null;
+      if (d?.status && d?.download?.url) return d.download.url;
+      console.log(`[yt-descargas] Respuesta cruda de Vreden (audio): ${JSON.stringify(d).slice(0, 300)}`);
+      return null;
     }
   },
   {
     nombre: "Btch",
     obtenerUrl: async (link) => {
       const d = await btchYoutube(link);
-      return d?.status && d?.mp3 ? d.mp3 : null;
+      if (d?.status && d?.mp3) return d.mp3;
+      console.log(`[yt-descargas] Respuesta cruda de Btch (audio): ${JSON.stringify(d).slice(0, 300)}`);
+      return null;
     }
   }
 ];
@@ -40,14 +44,18 @@ const PROVEEDORES_VIDEO = [
     nombre: "Vreden",
     obtenerUrl: async (link) => {
       const d = await vredenYtmp4(link);
-      return d?.status && d?.download?.url ? d.download.url : null;
+      if (d?.status && d?.download?.url) return d.download.url;
+      console.log(`[yt-descargas] Respuesta cruda de Vreden (video): ${JSON.stringify(d).slice(0, 300)}`);
+      return null;
     }
   },
   {
     nombre: "Btch",
     obtenerUrl: async (link) => {
       const d = await btchYoutube(link);
-      return d?.status && d?.mp4 ? d.mp4 : null;
+      if (d?.status && d?.mp4) return d.mp4;
+      console.log(`[yt-descargas] Respuesta cruda de Btch (video): ${JSON.stringify(d).slice(0, 300)}`);
+      return null;
     }
   }
 ];
@@ -60,6 +68,7 @@ async function primeraUrlDeProveedores(link, proveedores) {
         console.log(`[yt-descargas] URL obtenida via ${p.nombre}`);
         return url;
       }
+      console.log(`[yt-descargas] Proveedor ${p.nombre} respondió sin URL util (revisar formato de respuesta)`);
     } catch (e) {
       console.log(`[yt-descargas] Proveedor ${p.nombre} fallo: ${e.message}`);
     }
@@ -109,3 +118,4 @@ export default {
     }
   }
 };
+                                                    
