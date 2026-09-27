@@ -59,6 +59,45 @@ export async function asegurarVideoCompatibleWhatsApp(bufferEntrada) {
   }
 }
 
+// Muchos videos de YouTube ya NO tienen un formato con video+audio juntos
+// (formato "progresivo"): solo ofrecen el video mudo y el audio por
+// separado. Esto los combina en un solo mp4 y de paso deja todo en el
+// mismo formato compatible con WhatsApp que asegurarVideoCompatibleWhatsApp.
+export async function combinarVideoAudioWhatsApp(bufferVideo, bufferAudio) {
+  const tmp = os.tmpdir();
+  const sufijo = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  const entradaVideo = path.join(tmp, `dv_in_${sufijo}.mp4`);
+  const entradaAudio = path.join(tmp, `da_in_${sufijo}.m4a`);
+  const salida = path.join(tmp, `dv_out_${sufijo}.mp4`);
+
+  fs.writeFileSync(entradaVideo, bufferVideo);
+  fs.writeFileSync(entradaAudio, bufferAudio);
+
+  try {
+    await execFileAsync("ffmpeg", [
+      "-y",
+      "-i", entradaVideo,
+      "-i", entradaAudio,
+      "-map", "0:v:0",
+      "-map", "1:a:0",
+      "-c:v", "libx264",
+      "-profile:v", "baseline",
+      "-level", "3.0",
+      "-pix_fmt", "yuv420p",
+      "-c:a", "aac",
+      "-b:a", "128k",
+      "-movflags", "+faststart",
+      "-shortest",
+      salida
+    ]);
+    return fs.readFileSync(salida);
+  } finally {
+    if (fs.existsSync(entradaVideo)) fs.unlinkSync(entradaVideo);
+    if (fs.existsSync(entradaAudio)) fs.unlinkSync(entradaAudio);
+    if (fs.existsSync(salida)) fs.unlinkSync(salida);
+  }
+}
+
 // Llama a una API de descarga tipo "creator/status" (el patrón que usan
 // las APIs de alyacore.xyz: /dl/ytmp3, /dl/ytdlpmp3, /dl/ytmp4,
 // /dl/ytdlpmp4, y potencialmente otras a futuro con la misma forma).
