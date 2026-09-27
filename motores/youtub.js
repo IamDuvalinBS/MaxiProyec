@@ -12,6 +12,24 @@ import {
   LIMITE_VIDEO_WHATSAPP_MB
 } from "./descargas-core.js";
 
+// youtubei.js tira avisos internos larguísimos ("[YOUTUBEJS][Parser]...")
+// cada vez que YouTube agrega un tipo de bloque nuevo que la libreria
+// todavia no reconoce. Son inofensivos (sigue funcionando igual) pero
+// tapan cualquier otro log util en la terminal - se silencian aca.
+const advertirOriginal = console.warn;
+const errorOriginal = console.error;
+function esRuidoDeYoutubei(args) {
+  return typeof args[0] === "string" && args[0].includes("[YOUTUBEJS]");
+}
+console.warn = (...args) => {
+  if (esRuidoDeYoutubei(args)) return;
+  advertirOriginal(...args);
+};
+console.error = (...args) => {
+  if (esRuidoDeYoutubei(args)) return;
+  errorOriginal(...args);
+};
+
 let clientePromise = null;
 function obtenerCliente() {
   if (!clientePromise) clientePromise = Innertube.create();
