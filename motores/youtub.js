@@ -4,13 +4,28 @@
 // Usa youtubei.js (habla con la API interna de YouTube, InnerTube) en vez
 // de @distube/ytdl-core, que scrapeaba el HTML de la página del video y
 // se rompía cada vez que YouTube cambiaba ese HTML.
-import { Innertube } from "youtubei.js";
+import { Innertube, Platform } from "youtubei.js";
 import {
   descargarBuffer,
   asegurarVideoCompatibleWhatsApp,
   combinarVideoAudioWhatsApp,
   LIMITE_VIDEO_WHATSAPP_MB
 } from "./descargas-core.js";
+
+// Desde hace unas versiones, youtubei.js ya NO trae incluido un
+// interprete de JavaScript para descifrar las URLs de los videos (antes
+// si lo traia). Sin esto, TODOS los formatos fallan con "No valid URL to
+// decipher" / "you must provide your own JavaScript evaluator". Esto le
+// da el evaluador que pide, usando el propio motor de JS de Node
+// (new Function), tal como recomienda la documentacion oficial:
+// https://ytjs.dev/guide/getting-started.html#providing-a-custom-javascript-interpreter
+Platform.shim.eval = async (data, env) => {
+  const propiedades = [];
+  if (env.n) propiedades.push(`n: exportedVars.nFunction("${env.n}")`);
+  if (env.sig) propiedades.push(`sig: exportedVars.sigFunction("${env.sig}")`);
+  const codigo = `${data.output}\nreturn { ${propiedades.join(", ")} }`;
+  return new Function(codigo)();
+};
 
 // youtubei.js tira avisos internos larguísimos ("[YOUTUBEJS][Parser]...")
 // cada vez que YouTube agrega un tipo de bloque nuevo que la libreria
@@ -188,3 +203,4 @@ export async function descargarAudioYoutube(link) {
   const url = await primeraUrlQueFuncione(audios, yt);
   return descargarBuffer(url);
 }
+  
