@@ -202,4 +202,3 @@ export default {
     await iniciarJuego(sock, from, sender, msg, "gato", { oponente: mencionado || null });
   },
 };
-                                  
