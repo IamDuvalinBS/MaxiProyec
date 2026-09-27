@@ -68,12 +68,15 @@ export default {
       return reply({ text: `❌ No pude buscar eso: ${e.message}` });
     }
 
+    const lineaFecha = info.fecha ? `📅 *PUBLICADO* › ${info.fecha}\n` : "";
     const texto =
       `🎬 *YouTube*\n\n` +
       `📺 *TÍTULO* › ${info.titulo}\n` +
       `👤 *CANAL* › ${info.canal}\n` +
       `⏱️ *DURACIÓN* › ${info.duracionTexto}\n` +
-      `👁️ *VISTAS* › ${info.vistas}\n\n` +
+      `👁️ *VISTAS* › ${info.vistas}\n` +
+      lineaFecha +
+      `🔗 *ENLACE* › ${info.enlace}\n\n` +
       `🎵 Selecciona un formato:`;
 
     // Antes se intentaba mandar botones nativos de WhatsApp
