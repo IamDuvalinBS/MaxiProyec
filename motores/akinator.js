@@ -1,12 +1,15 @@
- // motores/akinator.js
+// motores/akinator.js
 //
-// Después de mucho pelear: las librerías que solo simulan pedidos HTTP
-// (aki-api, akinator-client, akinator.py+cloudscraper) NUNCA iban a pasar
-// la protección de Akinator, porque es un desafío que necesita ejecutar
-// JavaScript de verdad. Así que esto usa un Chromium REAL (headless) que
-// abre akinator.com como lo haría una persona: clickea "JUGAR", elige
-// "Personaje", y va clickeando Sí/No/etc. en los botones reales de la
-// página. Ya no hace falta Python ni akinator_server.py - se puede borrar.
+// Usa un Chromium real (headless) que abre akinator.com como lo haría una
+// persona: clickea "JUGAR", elige "Personaje", y va clickeando Sí/No/etc.
+// en los botones reales de la página - es la única forma que encontramos
+// que pasa la protección anti-bot de Akinator (las librerías que solo
+// simulan pedidos HTTP no la pasan, sea cual sea la que probemos).
+//
+// Para cuidar la memoria del teléfono: Chromium se abre recién cuando
+// alguien arranca una partida con .akinator, y se cierra del todo apenas
+// esa partida termina (gana, se rinde, o se cancela por error) - nunca
+// queda prendido de fondo sin usarse.
 //
 // A diferencia de juegos-core.js (que dibuja un tablero en canvas), esto es
 // 100% texto + una foto al final, asi que tiene su propio Map de sesiones
@@ -14,26 +17,14 @@
 //
 // Selectores reales de akinator.com (confirmados a mano, pueden cambiar si
 // el sitio se rediseña):
-//   Portada:            a[onclick*="jouer"]                    (botón JUGAR)
-//   Selección de tema:   li[onclick*="chooseTheme('1')"]        (Personaje)
-//   Pregunta:            #question-label (texto) / #step-info (n° pregunta)
-//   Respuestas:          #a_yes #a_no #a_dont_know #a_probably #a_probaly_not
-//   Volver atrás:        #a_cancel_answer
+//   Portada:              a[onclick*="jouer"]                    (botón JUGAR)
+//   Selección de tema:    li[onclick*="chooseTheme('1')"]        (Personaje)
+//   Pregunta:             #question-label (texto) / #step-info (n° pregunta)
+//   Respuestas:           #a_yes #a_no #a_dont_know #a_probably #a_probaly_not
+//   Volver atrás:         #a_cancel_answer
 //   Bloque de adivinanza: #proposeGameBlock (oculto hasta que hay guess)
-//   Nombre/desc/foto:    #name_proposition #description_proposition #img_character
-//   Confirmar acierto:   #a_propose_yes / #a_propose_no
-//
-// Flujo:
-//   1. ".akinator" / ".aki" -> iniciarAkinator() abre una pestaña nueva,
-//      navega hasta la primera pregunta y la manda.
-//   2. Cada mensaje de texto SIN prefijo pasa por procesarTextoAkinator()
-//      (enganchado en index.js). Si hay sesión activa en ese chat y el
-//      texto es una respuesta válida, la procesa y devuelve true.
-//   3. Al adivinar, se muestra el personaje con foto y se espera "si"/"no".
-//   4. Si confirma que acertó, plata + xp con cooldown real (Mongo).
-//
-// Nota: si adivina mal, no se intenta seguir jugando la misma partida -
-// se cierra la pestaña y se invita a jugar de nuevo con .akinator.
+//   Nombre/desc/foto:     #name_proposition #description_proposition #img_character
+//   Confirmar acierto:    #a_propose_yes / #a_propose_no
 //
 // ⚠️ Una cosa que tuve que adivinar porque no tengo tu profile.js: el
 // nombre de la función para sumar XP. intentarSumarXp() prueba varios
@@ -61,6 +52,18 @@ const SELECTORES_RESPUESTA = {
   probablemente: "#a_probably",
   probablementeno: "#a_probaly_not" // sí, tiene ese typo en el sitio real
 };
+
+const ARGS_CHROMIUM = [
+  "--no-sandbox",
+  "--disable-dev-shm-usage",
+  "--disable-extensions",
+  "--disable-background-networking",
+  "--disable-sync",
+  "--disable-translate",
+  "--disable-default-apps",
+  "--mute-audio",
+  "--renderer-process-limit=1"
+];
 
 const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -91,54 +94,21 @@ function instalarChromiumTermux() {
   });
 }
 
-// ── Arranque del navegador (una sola vez, se reutiliza) ───────────────────
+let rutaChromiumCacheada = null; // solo cacheamos la ubicación, no el proceso
 
-let navegador = null;
-let estadoNavegador = "sin-iniciar"; // sin-iniciar | iniciando | listo | error
-let promesaInicio = null;
-let mensajeError = "";
-
-async function asegurarNavegador() {
-  if (estadoNavegador === "listo") return true;
-  if (estadoNavegador === "error") return false;
-  if (promesaInicio) return promesaInicio;
-
-  estadoNavegador = "iniciando";
-  promesaInicio = (async () => {
-    let ruta = encontrarChromium();
-    if (!ruta) {
-      const instalado = await instalarChromiumTermux();
-      if (instalado) ruta = encontrarChromium();
-    }
-    if (!ruta) {
-      mensajeError = "No encontré Chromium instalado. En Termux: pkg install x11-repo && pkg install chromium";
-      estadoNavegador = "error";
-      return false;
-    }
-    try {
-      navegador = await puppeteer.launch({
-        executablePath: ruta,
-        headless: true,
-        args: ["--no-sandbox", "--disable-dev-shm-usage"]
-      });
-      estadoNavegador = "listo";
-      return true;
-    } catch (e) {
-      mensajeError = `No pude arrancar Chromium: ${e.message}`;
-      estadoNavegador = "error";
-      return false;
-    }
-  })();
-
-  return promesaInicio;
+// Abre un Chromium NUEVO para esta partida puntual. Se cierra del todo al
+// terminar la partida (ver cerrarSesion). No se comparte entre partidas.
+async function lanzarNavegador() {
+  if (!rutaChromiumCacheada) rutaChromiumCacheada = encontrarChromium();
+  if (!rutaChromiumCacheada) {
+    const instalado = await instalarChromiumTermux();
+    if (instalado) rutaChromiumCacheada = encontrarChromium();
+  }
+  if (!rutaChromiumCacheada) {
+    throw new Error("No encontré Chromium instalado. En Termux: pkg install x11-repo && pkg install chromium");
+  }
+  return puppeteer.launch({ executablePath: rutaChromiumCacheada, headless: true, args: ARGS_CHROMIUM });
 }
-
-function apagarNavegador() {
-  if (navegador) navegador.close().catch(() => {});
-}
-process.on("exit", apagarNavegador);
-process.on("SIGINT", () => { apagarNavegador(); process.exit(); });
-process.on("SIGTERM", () => { apagarNavegador(); process.exit(); });
 
 // ── Interacción con la página real de Akinator ────────────────────────────
 
@@ -150,12 +120,21 @@ async function esperarQueResuelvaCloudflare(pagina, maxSegundos = 25) {
   }
 }
 
-async function abrirNuevaPartida() {
+async function abrirNuevaPartida(navegador) {
   const pagina = await navegador.newPage();
   const uaOriginal = await navegador.userAgent();
   await pagina.setUserAgent(uaOriginal.replace("HeadlessChrome", "Chrome"));
   await pagina.evaluateOnNewDocument(() => {
     Object.defineProperty(navigator, "webdriver", { get: () => undefined });
+  });
+
+  // No necesitamos ver imágenes/fuentes/video, solo el link de la foto al
+  // final - esto baja bastante el uso de memoria y de red.
+  await pagina.setRequestInterception(true);
+  pagina.on("request", (req) => {
+    const tipo = req.resourceType();
+    if (tipo === "image" || tipo === "media" || tipo === "font") req.abort();
+    else req.continue();
   });
 
   await pagina.goto("https://es.akinator.com", { waitUntil: "domcontentloaded", timeout: 45000 });
@@ -214,15 +193,22 @@ async function esperarActualizacion(pagina, pasoAnterior) {
 }
 
 // ── Sesiones de juego por chat ────────────────────────────────────────────
+// Cada sesión tiene SU PROPIO Chromium (navegador), no uno compartido.
 
-const sesiones = new Map(); // from (chatId) -> { pagina, sender, ultimaActividad, esperandoConfirmacion, guess }
+const sesiones = new Map(); // from (chatId) -> { navegador, pagina, sender, ultimaActividad, esperandoConfirmacion, guess }
+
+async function cerrarSesion(from) {
+  const sesion = sesiones.get(from);
+  if (!sesion) return;
+  sesiones.delete(from);
+  await sesion.navegador.close().catch(() => {});
+}
 
 async function limpiarInactivas() {
   const ahora = Date.now();
   for (const [from, sesion] of sesiones) {
     if (ahora - sesion.ultimaActividad > TIEMPO_INACTIVIDAD_MS) {
-      sesiones.delete(from);
-      await sesion.pagina.close().catch(() => {});
+      await cerrarSesion(from);
     }
   }
 }
@@ -284,44 +270,29 @@ export async function iniciarAkinator(sock, from, sender, msg) {
     });
   }
 
-  let mensajePreparando = null;
-  if (estadoNavegador === "iniciando" || estadoNavegador === "sin-iniciar") {
-    mensajePreparando = await sock.sendMessage(from, { text: "🔮 Preparando Akinator, un segundo..." }, msg ? { quoted: msg } : undefined);
-  }
+  const mensajePreparando = await sock.sendMessage(from, { text: "🔮 Preparando Akinator, un segundo..." }, msg ? { quoted: msg } : undefined);
 
-  const listo = await asegurarNavegador();
-  if (!listo) {
-    const contenidoError = { text: `❌ No pude iniciar Akinator ahora mismo.\n\n${mensajeError}` };
-    if (mensajePreparando) return sock.sendMessage(from, { ...contenidoError, edit: mensajePreparando.key });
-    return enviar(sock, from, msg, contenidoError);
+  let navegador;
+  try {
+    navegador = await lanzarNavegador();
+  } catch (e) {
+    console.log(`❌ ERROR iniciando Akinator: ${e.message}`);
+    return sock.sendMessage(from, { text: `❌ No pude iniciar Akinator ahora mismo.\n\n${e.message}`, edit: mensajePreparando.key });
   }
 
   let pagina;
   try {
-    pagina = await abrirNuevaPartida();
+    pagina = await abrirNuevaPartida(navegador);
   } catch (e) {
-    console.log(`❌ ERROR iniciando Akinator: ${e.message}`);
-    const contenidoError = { text: `❌ No pude conectar con Akinator ahora mismo. Probá de nuevo en un rato.\n\n${e.message}` };
-    if (mensajePreparando) return sock.sendMessage(from, { ...contenidoError, edit: mensajePreparando.key });
-    return enviar(sock, from, msg, contenidoError);
+    console.log(`❌ ERROR abriendo partida de Akinator: ${e.message}`);
+    await navegador.close().catch(() => {});
+    return sock.sendMessage(from, { text: `❌ No pude conectar con Akinator ahora mismo. Probá de nuevo en un rato.\n\n${e.message}`, edit: mensajePreparando.key });
   }
 
   const estado = await leerPregunta(pagina);
-  sesiones.set(from, { pagina, sender, ultimaActividad: Date.now(), esperandoConfirmacion: false, guess: null });
+  sesiones.set(from, { navegador, pagina, sender, ultimaActividad: Date.now(), esperandoConfirmacion: false, guess: null });
 
-  const contenidoPregunta = mensajePregunta(estado);
-  if (mensajePreparando) {
-    await sock.sendMessage(from, { ...contenidoPregunta, edit: mensajePreparando.key });
-  } else {
-    await enviar(sock, from, msg, contenidoPregunta);
-  }
-}
-
-async function cerrarSesion(from) {
-  const sesion = sesiones.get(from);
-  if (!sesion) return;
-  sesiones.delete(from);
-  await sesion.pagina.close().catch(() => {});
+  await sock.sendMessage(from, { ...mensajePregunta(estado), edit: mensajePreparando.key });
 }
 
 async function resolverAcierto(sock, from, msg, sesion) {
@@ -430,5 +401,14 @@ export async function procesarTextoAkinator(sock, from, sender, texto, msg) {
 
   await enviar(sock, from, msg, mensajePregunta(estado));
   return true;
-       }
-              
+}
+
+// Por si el bot entero se cierra con una partida activa, no dejar Chromium
+// huérfano corriendo en segundo plano.
+function apagarTodo() {
+  for (const sesion of sesiones.values()) sesion.navegador.close().catch(() => {});
+}
+process.on("exit", apagarTodo);
+process.on("SIGINT", () => { apagarTodo(); process.exit(); });
+process.on("SIGTERM", () => { apagarTodo(); process.exit(); });
+                  
