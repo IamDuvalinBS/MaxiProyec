@@ -99,6 +99,28 @@ export function extraerEnlaceDescarga(json) {
   return enlace;
 }
 
+// Reencoda el audio a mp3 real (libmp3lame). Si la API de turno entrega
+// el audio en otro contenedor (m4a, opus, etc) pero se manda igual como
+// "audio/mpeg" sin re-codificar, WhatsApp puede mostrar "contenido no
+// visible" en vez del audio - esto asegura que el contenido siempre
+// coincida con el mimetype que se declara.
+export async function asegurarAudioCompatibleWhatsApp(bufferEntrada) {
+  const tmp = os.tmpdir();
+  const sufijo = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  const entrada = path.join(tmp, `da_in_${sufijo}`);
+  const salida = path.join(tmp, `da_out_${sufijo}.mp3`);
+
+  fs.writeFileSync(entrada, bufferEntrada);
+
+  try {
+    await execFileAsync("ffmpeg", ["-y", "-i", entrada, "-c:a", "libmp3lame", "-b:a", "192k", salida]);
+    return fs.readFileSync(salida);
+  } finally {
+    if (fs.existsSync(entrada)) fs.unlinkSync(entrada);
+    if (fs.existsSync(salida)) fs.unlinkSync(salida);
+  }
+}
+
 // Pasa la imagen a JPEG "plano" para evitar problemas con webp/formatos
 // raros que a veces mandan las redes y que WhatsApp no siempre digiere bien.
 // Usa el mismo "ffmpeg" del sistema que ya se usa para el video, en vez de
