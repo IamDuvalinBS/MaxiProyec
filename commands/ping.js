@@ -1,5 +1,6 @@
 export default {
   names: [".p", ".ping"],
+  usage: ".p / .ping",
   desc: "Ver la latencia del bot",
   category: "General",
   handler: async ({ sock, from, msg }) => {
