@@ -18,7 +18,7 @@ export const config = {
   botNameLong: "Matikanetannhauser",
   ownerName: "Sin definir",
   prefix: ".", // se mantiene por compatibilidad, no hace falta tocarlo
-  prefixes: ["."], // agregá acá todos los prefijos que quieras: [".", "!", "#"]
+  prefixes: [".", "!", "#"], // agregá acá todos los prefijos que quieras: [".", "!", "#"]
   channelLink: "https://whatsapp.com/channel/0029Vb92LdaCnA7rdqUbdw38"
 };
 
