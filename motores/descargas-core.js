@@ -16,6 +16,45 @@ const HEADERS = {
 // Margen prudente: WhatsApp puede fallar mandando videos muy pesados.
 export const LIMITE_VIDEO_WHATSAPP_MB = 60;
 
+// Perfiles de H264 que WhatsApp reproduce sin problema. Si el video que
+// bajamos ya viene en alguno de estos (+ yuv420p + audio aac), no hace
+// falta re-codificarlo: alcanza con "remuxearlo" (reordenar el archivo
+// para que el moov atom quede al principio, sin tocar los datos de video
+// ni audio). Un remux tarda segundos; un re-encode completo puede tardar
+// varios minutos en un telefono - por eso vale la pena distinguir los dos
+// casos en vez de reencodear siempre "por las dudas".
+const PERFILES_H264_OK = new Set(["Baseline", "Constrained Baseline", "Main", "High"]);
+
+async function analizarPistas(rutaArchivo) {
+  try {
+    const { stdout } = await execFileAsync("ffprobe", [
+      "-v", "error",
+      "-print_format", "json",
+      "-show_streams",
+      rutaArchivo
+    ]);
+    const data = JSON.parse(stdout);
+    const video = data.streams?.find((s) => s.codec_type === "video") || null;
+    const audio = data.streams?.find((s) => s.codec_type === "audio") || null;
+    return { video, audio };
+  } catch (e) {
+    // Si ffprobe no esta instalado o falla, simplemente no sabemos si es
+    // compatible - se trata como "no compatible" y se re-codifica como
+    // antes (no rompe nada, solo pierde la optimizacion de velocidad).
+    console.log(`[descargas-core] No pude analizar el archivo con ffprobe: ${e.message}`);
+    return { video: null, audio: null };
+  }
+}
+
+function videoYaCompatible(video, audio) {
+  if (!video || !audio) return false;
+  if (video.codec_name !== "h264") return false;
+  if (video.pix_fmt !== "yuv420p") return false;
+  if (video.profile && !PERFILES_H264_OK.has(video.profile)) return false;
+  if (audio.codec_name !== "aac") return false;
+  return true;
+}
+
 export async function descargarBuffer(url) {
   const { data } = await axios.get(url, {
     responseType: "arraybuffer",
@@ -40,10 +79,26 @@ export async function asegurarVideoCompatibleWhatsApp(bufferEntrada) {
   fs.writeFileSync(entrada, bufferEntrada);
 
   try {
+    const { video, audio } = await analizarPistas(entrada);
+
+    if (videoYaCompatible(video, audio)) {
+      try {
+        // Remux: NO decodifica ni re-codifica nada, solo reacomoda el
+        // contenedor. Rapidisimo (segundos) y sin perdida de calidad.
+        await execFileAsync("ffmpeg", ["-y", "-i", entrada, "-c", "copy", "-movflags", "+faststart", salida]);
+        console.log("[descargas-core] Video ya era compatible, se remuxeo sin re-codificar");
+        return fs.readFileSync(salida);
+      } catch (e) {
+        console.log(`[descargas-core] Remux rapido fallo, se re-codifica completo: ${e.message}`);
+        // sigue abajo al re-encode completo, como red de seguridad
+      }
+    }
+
     await execFileAsync("ffmpeg", [
       "-y",
       "-i", entrada,
       "-c:v", "libx264",
+      "-preset", "veryfast", // mas rapido que el "medium" por defecto, mismo resultado compatible
       "-profile:v", "baseline",
       "-level", "3.0",
       "-pix_fmt", "yuv420p",
@@ -81,6 +136,7 @@ export async function combinarVideoAudioWhatsApp(bufferVideo, bufferAudio) {
       "-map", "0:v:0",
       "-map", "1:a:0",
       "-c:v", "libx264",
+      "-preset", "veryfast",
       "-profile:v", "baseline",
       "-level", "3.0",
       "-pix_fmt", "yuv420p",
@@ -147,16 +203,28 @@ export async function asegurarAudioCompatibleWhatsApp(bufferEntrada) {
   const tmp = os.tmpdir();
   const sufijo = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
   const entrada = path.join(tmp, `da_in_${sufijo}`);
-  const salida = path.join(tmp, `da_out_${sufijo}.mp3`);
 
   fs.writeFileSync(entrada, bufferEntrada);
 
   try {
-    await execFileAsync("ffmpeg", ["-y", "-i", entrada, "-c:a", "libmp3lame", "-b:a", "192k", salida]);
-    return fs.readFileSync(salida);
+    const { audio } = await analizarPistas(entrada);
+
+    if (audio?.codec_name === "mp3") {
+      // Ya es mp3 real: se devuelve el buffer tal cual llego, sin tocarlo.
+      // Cero riesgo (no se modifica nada) y cero tiempo de proceso.
+      console.log("[descargas-core] Audio ya era mp3, se devuelve sin reencodear");
+      return bufferEntrada;
+    }
+
+    const salida = path.join(tmp, `da_out_${sufijo}.mp3`);
+    try {
+      await execFileAsync("ffmpeg", ["-y", "-i", entrada, "-c:a", "libmp3lame", "-b:a", "192k", salida]);
+      return fs.readFileSync(salida);
+    } finally {
+      if (fs.existsSync(salida)) fs.unlinkSync(salida);
+    }
   } finally {
     if (fs.existsSync(entrada)) fs.unlinkSync(entrada);
-    if (fs.existsSync(salida)) fs.unlinkSync(salida);
   }
 }
 
