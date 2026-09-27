@@ -198,8 +198,11 @@ export async function descargarVideoYoutube(link) {
       const buffer = await descargarBuffer(url);
       bufferListo = await asegurarVideoCompatibleWhatsApp(buffer);
     } catch (e) {
-      // ninguno de los formatos progresivos se pudo descifrar - se cae al
-      // plan B de abajo (video mudo + audio por separado) en vez de fallar.
+      // Puede fallar por el decipher, pero tambien por la descarga del
+      // buffer o por ffmpeg (asegurarVideoCompatibleWhatsApp) - antes esto
+      // se tragaba en silencio y parecia que "ningun formato se pudo
+      // descifrar" cuando en realidad el decipher ya habia funcionado.
+      console.log(`[youtub] Fallo el plan A (formato progresivo) despues del decipher: ${e.message}`);
     }
   }
 
@@ -228,4 +231,4 @@ export async function descargarAudioYoutube(link) {
   if (audios.length === 0) throw new Error("No encontré ningún formato de audio para ese video.");
   const url = await primeraUrlQueFuncione(audios, yt);
   return descargarBuffer(url);
-}
+        }
