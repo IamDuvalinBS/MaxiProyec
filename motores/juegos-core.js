@@ -114,7 +114,6 @@ function renderizarFrame(def, estado) {
   const ctx = canvas.getContext("2d");
 
   dibujarMarco(ctx, ancho, alto, def, estado);
-  console.log(`[GATO-DEBUG] renderizando con tablero=${JSON.stringify(estado.tablero)}`);
 
   // el juego dibuja SOLO adentro de su rectangulo, con su propio 0,0
   ctx.save();
@@ -167,7 +166,7 @@ export async function iniciarJuego(sock, from, sender, msg, juegoId, opciones = 
   const def = juegosRegistrados.get(juegoId);
   if (!def) return false;
   limpiarInactivas();
-  const estado = def.crearEstado(sender, opciones);
+  const estado = def.crearEstado(sender, opciones, msg);
   partidasActivas.set(from, { juegoId, estado, ultimaAccion: Date.now() });
   await enviarFrame(sock, from, msg, def, estado);
   return true;
@@ -185,7 +184,7 @@ export async function procesarBoton(sock, from, sender, msg, juegoId, accionId) 
     );
     return;
   }
-  partida.estado = def.accion(partida.estado, accionId, sender);
+  partida.estado = def.accion(partida.estado, accionId, sender, msg);
   partida.ultimaAccion = Date.now();
   await enviarFrame(sock, from, msg, def, partida.estado);
 }
@@ -205,12 +204,10 @@ export async function intentarProcesarTexto(sock, from, sender, texto, msg) {
   if (!def || !def.entradaTexto || !def.validarTexto) return false;
 
   const accionId = def.validarTexto(partida.estado, texto, sender);
-  console.log(`[GATO-DEBUG] texto="${texto}" sender=${sender} jugadorX=${partida.estado.jugadorX} jugadorO=${partida.estado.jugadorO} turno=${partida.estado.turno} -> accionId=${accionId}`);
   if (accionId === null || accionId === undefined) return false;
 
-  partida.estado = def.accion(partida.estado, accionId, sender);
-  console.log(`[GATO-DEBUG] tablero despues de accion(): ${JSON.stringify(partida.estado.tablero)}`);
+  partida.estado = def.accion(partida.estado, accionId, sender, msg);
   partida.ultimaAccion = Date.now();
   await enviarFrame(sock, from, msg, def, partida.estado);
   return true;
-}
+      }
