@@ -62,7 +62,10 @@ const ARGS_CHROMIUM = [
   "--disable-translate",
   "--disable-default-apps",
   "--mute-audio",
-  "--renderer-process-limit=1"
+  "--renderer-process-limit=1",
+  "--single-process",
+  "--no-zygote",
+  "--js-flags=--max-old-space-size=128"
 ];
 
 const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -139,14 +142,15 @@ async function abrirNuevaPartida(navegador) {
 
   await pagina.goto("https://es.akinator.com", { waitUntil: "domcontentloaded", timeout: 45000 });
   await esperarQueResuelvaCloudflare(pagina);
-
+  await pagina.waitForSelector(SELECTOR_JUGAR, { timeout: 20000 });
   await pagina.click(SELECTOR_JUGAR);
-  await esperarQueResuelvaCloudflare(pagina, 25);
 
+  await esperarQueResuelvaCloudflare(pagina, 25);
+  await pagina.waitForSelector(SELECTOR_TEMA_PERSONAJE, { timeout: 20000 });
   await pagina.click(SELECTOR_TEMA_PERSONAJE);
-  await esperarQueResuelvaCloudflare(pagina, 25);
 
-  await pagina.waitForSelector("#question-label", { timeout: 15000 });
+  await esperarQueResuelvaCloudflare(pagina, 25);
+  await pagina.waitForSelector("#question-label", { timeout: 20000 });
   return pagina;
 }
 
@@ -411,4 +415,4 @@ function apagarTodo() {
 process.on("exit", apagarTodo);
 process.on("SIGINT", () => { apagarTodo(); process.exit(); });
 process.on("SIGTERM", () => { apagarTodo(); process.exit(); });
-                  
+      
