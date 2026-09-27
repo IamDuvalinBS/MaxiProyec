@@ -10,6 +10,8 @@
 // La X y la O se dibujan como LINEAS/CIRCULO, no como texto - la fuente
 // pixelada no rinde bien en tamaños grandes, pero las lineas siempre andan.
 import { registrarJuego, iniciarJuego, FUENTE } from "../motores/juegos-core.js";
+import { addToWallet, CURRENCY } from "../motores/db.js";
+import { addXp } from "../motores/profile.js";
 
 const LINEAS = [
   [0, 1, 2], [3, 4, 5], [6, 7, 8],
@@ -65,6 +67,7 @@ registrarJuego({
       nombreO: null,
       jugada: 0,
       fin: null,
+      conPremio: !!opciones.conPremio, // true solo si arrancó con .gatopremio
     };
   },
 
@@ -73,6 +76,15 @@ registrarJuego({
       { etiqueta: "JUGADA", valor: estado.jugada },
       { etiqueta: "TURNO", valor: estado.turno },
     ];
+  },
+
+  // Mención REAL de WhatsApp (dispara notificación) - solo tiene sentido
+  // contra otra persona; contra el bot no hay a quien avisar. El texto es
+  // minimo porque el "TURNO DE ..." grande ya se dibuja adentro de la foto.
+  turnoInfo(estado) {
+    if (!estado.jugadorO) return null;
+    const jidActual = estado.turno === "X" ? estado.jugadorX : estado.jugadorO;
+    return { texto: "👉 Te toca", mentions: [jidActual] };
   },
 
   dibujar(ctx, estado, ancho, alto) {
@@ -190,6 +202,32 @@ registrarJuego({
     if (estado.fin === "empate") return "Empate!";
     return estado.fin === "X" ? "Gano X! 🎉" : "Gano O! 🎉";
   },
+
+  // Se dispara UNA sola vez, justo cuando la partida termina (lo llama el
+  // motor). Si el juego no arranco con premio (.gato normal), no hace nada.
+  async alGanar(estado, sender, msg) {
+    if (!estado.conPremio) return null;
+    if (estado.fin === "empate") {
+      return { lineas: ["🤝 Empate - no hay premio esta vez."] };
+    }
+    const ganadorJid = estado.fin === "X" ? estado.jugadorX : estado.jugadorO;
+    if (!ganadorJid) {
+      return { lineas: ["🤖 Gano el bot - no hay premio para nadie."] };
+    }
+
+    const monto = Math.floor(Math.random() * 61) + 40; // 40 a 100
+    addToWallet(ganadorJid, monto);
+    const xpGanada = Math.max(1, Math.round(monto / 10));
+    const { leveledUp, newLevel } = addXp(ganadorJid, xpGanada);
+
+    const lineas = [
+      `🏆 GANADOR: @${ganadorJid.split("@")[0]}`,
+      `💰 DINERO: +${monto} ${CURRENCY}`,
+      `✨ XP: +${xpGanada}`,
+    ];
+    if (leveledUp) lineas.push(`🎉 ¡Subió a nivel ${newLevel}!`);
+    return { lineas, mentions: [ganadorJid] };
+  },
 });
 
 export default {
@@ -202,3 +240,4 @@ export default {
     await iniciarJuego(sock, from, sender, msg, "gato", { oponente: mencionado || null });
   },
 };
+      
