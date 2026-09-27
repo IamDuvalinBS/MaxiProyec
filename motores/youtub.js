@@ -82,12 +82,15 @@ export async function buscarVideosYoutube(consulta, limite = 10) {
   }));
 }
 
-// Si el formato ya trae "url" directa (comun con el cliente ANDROID) se usa
-// tal cual; solo se llama a decipher() cuando hace falta (formatos con
-// signatureCipher, el paso que a veces falla si YouTube cambio algo del
-// reproductor).
-function urlDeFormato(formato, yt) {
-  return formato.url ?? formato.decipher(yt.session.player);
+// Si el formato ya trae "url" directa se usa tal cual; si no, hay que
+// descifrarla (formatos con signatureCipher). Se espera el resultado con
+// "await" porque en algunas versiones de youtubei.js decipher() devuelve
+// el texto directo, y en otras una promesa - "await" funciona para las dos
+// (esperar algo que ya no es una promesa no rompe nada).
+async function urlDeFormato(formato, yt) {
+  const url = formato.url ?? (await formato.decipher(yt.session.player));
+  console.log(`[youtub] URL obtenida para itag ${formato.itag}: ${JSON.stringify(url)}`);
+  return url;
 }
 
 // Se usa el mismo cliente por defecto que ya funciona para getBasicInfo
@@ -122,7 +125,7 @@ export async function descargarVideoYoutube(link) {
   const progresivo = intentarElegirFormato(info, { type: "video+audio", quality: "best" });
 
   if (progresivo) {
-    const buffer = await descargarBuffer(urlDeFormato(progresivo, yt));
+    const buffer = await descargarBuffer(await urlDeFormato(progresivo, yt));
     bufferListo = await asegurarVideoCompatibleWhatsApp(buffer);
   } else {
     // Cada vez es mas raro que YouTube ofrezca un formato con video+audio
@@ -134,8 +137,8 @@ export async function descargarVideoYoutube(link) {
       throw new Error("No encontré ningún formato descargable para ese video.");
     }
     const [bufferVideo, bufferAudio] = await Promise.all([
-      descargarBuffer(urlDeFormato(formatoVideo, yt)),
-      descargarBuffer(urlDeFormato(formatoAudio, yt))
+      urlDeFormato(formatoVideo, yt).then(descargarBuffer),
+      urlDeFormato(formatoAudio, yt).then(descargarBuffer)
     ]);
     bufferListo = await combinarVideoAudioWhatsApp(bufferVideo, bufferAudio);
   }
@@ -152,5 +155,5 @@ export async function descargarAudioYoutube(link) {
   const { yt, info } = await obtenerInfoParaDescarga(link);
   const formato = intentarElegirFormato(info, { type: "audio", quality: "best" });
   if (!formato) throw new Error("No encontré ningún formato de audio para ese video.");
-  return descargarBuffer(urlDeFormato(formato, yt));
-}
+  return descargarBuffer(await urlDeFormato(formato, yt));
+    }
