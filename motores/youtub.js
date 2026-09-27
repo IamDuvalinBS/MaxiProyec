@@ -90,13 +90,21 @@ export async function obtenerInfoYoutube(link) {
   const basico = info.basic_info;
   const segundos = basico.duration || 0;
 
+  // No todas las respuestas de YouTube traen la fecha de publicacion en
+  // basic_info (a veces esta, a veces no, segun el video) - se prueban los
+  // nombres de campo mas comunes y si ninguno esta, se omite en vez de
+  // mostrar un dato inventado.
+  const fechaCruda = basico.publish_date || basico.upload_date || null;
+
   return {
     titulo: textoDe(basico.title),
     canal: basico.channel?.name || basico.author || "Desconocido",
     duracionSeg: segundos,
     duracionTexto: formatearDuracion(segundos),
     vistas: Number(basico.view_count || 0).toLocaleString("es"),
-    miniatura: basico.thumbnail?.[0]?.url || null
+    miniatura: basico.thumbnail?.[0]?.url || null,
+    fecha: fechaCruda,
+    enlace: `https://www.youtube.com/watch?v=${extraerIdDeLink(link)}`
   };
 }
 
@@ -231,4 +239,4 @@ export async function descargarAudioYoutube(link) {
   if (audios.length === 0) throw new Error("No encontré ningún formato de audio para ese video.");
   const url = await primeraUrlQueFuncione(audios, yt);
   return descargarBuffer(url);
-        }
+}
