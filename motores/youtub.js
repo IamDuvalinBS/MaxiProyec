@@ -99,6 +99,17 @@ async function obtenerInfoParaDescarga(link) {
   return { yt, info };
 }
 
+// chooseFormat() de youtubei.js tira su propio error cuando no encuentra
+// nada (no devuelve null/undefined), asi que hay que atajarlo para poder
+// probar el siguiente formato en vez de cortar toda la descarga ahi.
+function intentarElegirFormato(info, opciones) {
+  try {
+    return info.chooseFormat(opciones);
+  } catch (e) {
+    return null;
+  }
+}
+
 export async function descargarVideoYoutube(link) {
   const { yt, info } = await obtenerInfoParaDescarga(link);
 
@@ -108,7 +119,7 @@ export async function descargarVideoYoutube(link) {
   }
 
   let bufferListo;
-  const progresivo = info.chooseFormat({ type: "video+audio", quality: "best" });
+  const progresivo = intentarElegirFormato(info, { type: "video+audio", quality: "best" });
 
   if (progresivo) {
     const buffer = await descargarBuffer(urlDeFormato(progresivo, yt));
@@ -117,8 +128,8 @@ export async function descargarVideoYoutube(link) {
     // Cada vez es mas raro que YouTube ofrezca un formato con video+audio
     // juntos: se baja el video mudo y el audio por separado (esos siempre
     // existen) y se combinan con ffmpeg.
-    const formatoVideo = info.chooseFormat({ type: "video", quality: "best" });
-    const formatoAudio = info.chooseFormat({ type: "audio", quality: "best" });
+    const formatoVideo = intentarElegirFormato(info, { type: "video", quality: "best" });
+    const formatoAudio = intentarElegirFormato(info, { type: "audio", quality: "best" });
     if (!formatoVideo || !formatoAudio) {
       throw new Error("No encontré ningún formato descargable para ese video.");
     }
@@ -139,7 +150,7 @@ export async function descargarVideoYoutube(link) {
 
 export async function descargarAudioYoutube(link) {
   const { yt, info } = await obtenerInfoParaDescarga(link);
-  const formato = info.chooseFormat({ type: "audio", quality: "best" });
+  const formato = intentarElegirFormato(info, { type: "audio", quality: "best" });
   if (!formato) throw new Error("No encontré ningún formato de audio para ese video.");
   return descargarBuffer(urlDeFormato(formato, yt));
 }
