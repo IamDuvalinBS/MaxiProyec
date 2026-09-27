@@ -29,22 +29,25 @@ await pagina.evaluateOnNewDocument(() => {
   Object.defineProperty(navigator, "webdriver", { get: () => undefined });
 });
 
-console.log("1) Cargando portada...");
+console.log("1) Portada...");
 await pagina.goto("https://es.akinator.com", { waitUntil: "domcontentloaded", timeout: 45000 });
-let t = await esperarQueResuelvaCloudflare(pagina);
-console.log("   Título portada:", t);
+await esperarQueResuelvaCloudflare(pagina);
 
-console.log("2) Haciendo clic en JUGAR...");
-await pagina.click('a[onclick*="jouer"]').catch((e) => console.log("   (no se pudo clickear:", e.message, ")"));
+console.log("2) Clic en JUGAR...");
+await pagina.click('a[onclick*="jouer"]').catch(() => {});
+await esperarQueResuelvaCloudflare(pagina, 25);
 
-console.log("   Esperando a que resuelva Cloudflare (hasta 25s)...");
-t = await esperarQueResuelvaCloudflare(pagina, 25);
-console.log("   Título final:", t);
-console.log("   URL final:", pagina.url());
+console.log("3) Clic en Personaje...");
+await pagina.click('li[onclick*="chooseTheme"]').catch((e) => console.log("   no se pudo clickear:", e.message));
+await esperarQueResuelvaCloudflare(pagina, 25);
+await esperar(2000); // margen extra para que la pregunta 1 termine de pintarse
 
-const html2 = await pagina.content().catch(() => "");
-console.log("   LARGO HTML:", html2.length);
-fs.writeFileSync("akinator_dump2.html", html2);
-console.log("   Guardado en akinator_dump2.html");
+console.log("   Título:", await pagina.title().catch(() => ""));
+console.log("   URL:", pagina.url());
+
+const html3 = await pagina.content().catch(() => "");
+console.log("   LARGO HTML:", html3.length);
+fs.writeFileSync("akinator_dump3.html", html3);
+console.log("   Guardado en akinator_dump3.html");
 
 await navegador.close();
