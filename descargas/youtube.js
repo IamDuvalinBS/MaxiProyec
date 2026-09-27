@@ -1,85 +1,98 @@
-import {
-  descargarBuffer,
-  asegurarVideoCompatibleWhatsApp,
-  asegurarAudioCompatibleWhatsApp,
-  consultarApiDescarga,
-  extraerEnlaceDescarga,
-  LIMITE_VIDEO_WHATSAPP_MB
-} from "../core.js"; // descargas-core.js vive en motores/ y core.js lo reexporta
+import { resolverLinkYoutube, obtenerInfoYoutube, buscarVideosYoutube } from "../core.js";
+import { registrarEsperaFormato } from "../motores/espera-formato.js";
 
-// Fusiona lo que era audioyt.js (.ytaudio) y el .ytvideo que faltaba,
-// en un solo comando oculto (mismo truco que en youtube.js: un solo
-// export default, y adentro se mira con qué alias entró el mensaje).
-//
-// Para cada formato hay una API "rápida" (ytmp3 / ytmp4) y una de
-// "motor" con yt-dlp por detrás (ytdlpmp3 / ytdlpmp4) que se usa
-// solo si la rápida falla. No pude probar en vivo la forma exacta
-// de la respuesta de estas APIs (el fetch desde acá no conserva los
-// parámetros de la URL), así que extraerEnlaceDescarga() en
-// descargas-core.js prueba varios campos comunes ("result.url",
-// "result.download", "data.url", etc). Si al probar ves que el link
-// de descarga viene en otro campo, ajustalo ahí.
-const API_YTMP3 = "https://api.alyacore.xyz/dl/ytmp3";
-const API_YTDLP_MP3 = "https://api.alyacore.xyz/dl/ytdlpmp3";
-const API_YTMP4 = "https://api.alyacore.xyz/dl/ytmp4";
-const API_YTDLP_MP4 = "https://api.alyacore.xyz/dl/ytdlpmp4";
-
-// Antes esto era secuencial: probaba la API principal y RECIÉN si
-// fallaba (o se agotaba su timeout) arrancaba la de respaldo. Ahora se
-// llama a las dos al mismo tiempo y se usa la que responda primero -
-// no cambia la calidad de lo que se descarga, solo se deja de esperar
-// a que una termine de fallar para recién empezar con la otra.
-async function descargarConRespaldo(link, apiPrincipal, apiRespaldo) {
-  try {
-    return await Promise.any([
-      consultarApiDescarga(apiPrincipal, link),
-      consultarApiDescarga(apiRespaldo, link)
-    ]);
-  } catch (e) {
-    // Promise.any solo llega aca si las DOS fallaron: junta los motivos.
-    const detalles = e.errors ? e.errors.map((err) => err.message).join(" / ") : e.message;
-    throw new Error(detalles);
-  }
-}
-
+// Fusiona lo que antes eran youtube.js (.play/.yt) y ytsearch.js
+// (.ytsearch/.buscaryt) en un solo comando. Se mantiene UN solo
+// "export default" (como en los archivos originales) para no depender
+// de si el loader de comandos soporta que un archivo exporte varios
+// comandos a la vez: acá se decide qué hacer mirando con qué alias
+// entró el mensaje (primera palabra de cleanText).
 export default {
-  names: [".ytaudio", ".ytvideo"],
-  desc: "Comandos internos: descargan el audio o el video (se disparan desde los botones de .play)",
-  category: "Oculto", // "Oculto" no está en ordenCategorias de menu.js, asi que nunca aparece en el .menu
-  usage: ".ytaudio <link> | .ytvideo <link>",
-  handler: async ({ cleanText, reply }) => {
+  names: [".play", ".yt", ".ytsearch", ".buscaryt"],
+  desc: "'.play' busca un video y te deja elegir audio o video; '.ytsearch' lista los primeros 10 resultados",
+  category: "Descargas",
+  usage: ".play <link o nombre> | .ytsearch <lo que quieras buscar>",
+  handler: async ({ from, sender, cleanText, reply }) => {
     const partes = cleanText.trim().split(/\s+/);
     const comando = partes[0].toLowerCase();
-    const link = partes[1];
-    if (!link) return reply({ text: "❌ Faltó el link del video." });
+    const consulta = partes.slice(1).join(" ");
+    const esListado = comando === ".ytsearch" || comando === ".buscaryt";
 
-    const esAudio = comando === ".ytaudio";
-    await reply({ text: esAudio ? "⏳ Descargando el audio..." : "⏳ Descargando el video..." });
-
-    try {
-      if (esAudio) {
-        const json = await descargarConRespaldo(link, API_YTMP3, API_YTDLP_MP3);
-        const enlace = extraerEnlaceDescarga(json);
-        const audioBuffer = await descargarBuffer(enlace);
-        const audioListo = await asegurarAudioCompatibleWhatsApp(audioBuffer);
-        await reply({ audio: audioListo, mimetype: "audio/mpeg", ptt: false });
-      } else {
-        const json = await descargarConRespaldo(link, API_YTMP4, API_YTDLP_MP4);
-        const enlace = extraerEnlaceDescarga(json);
-        let videoBuffer = await descargarBuffer(enlace);
-
-        const pesoMB = videoBuffer.length / (1024 * 1024);
-        if (pesoMB > LIMITE_VIDEO_WHATSAPP_MB) {
-          return reply({
-            text: `❌ El video pesa ${pesoMB.toFixed(1)}MB, supera el límite de ${LIMITE_VIDEO_WHATSAPP_MB}MB para WhatsApp.`
-          });
-        }
-
-        videoBuffer = await asegurarVideoCompatibleWhatsApp(videoBuffer);
-        await reply({ video: videoBuffer, mimetype: "video/mp4" });
-      }
-    } catch (e) {
-      await reply({ text: `❌ No pude descargar el ${esAudio ? "audio" : "video"}: ${e.message}` });
+    if (!consulta) {
+      return reply({
+        text: esListado
+          ? "📌 Usalo así:\n*.ytsearch* historias de terror"
+          : "📌 Usalo así:\n*.play* nombre del video\n*.play* https://youtu.be/xxxxxxx"
+      });
     }
+
+    await reply({ text: "⏳ Buscando en YouTube, dame un segundo..." });
+
+    // --- Rama .ytsearch / .buscaryt: lista de 10 resultados ---
+    if (esListado) {
+      let resultados;
+      try {
+        resultados = await buscarVideosYoutube(consulta, 10);
+      } catch (e) {
+        return reply({ text: `❌ No pude buscar eso: ${e.message}` });
+      }
+
+      if (resultados.length === 0) {
+        return reply({ text: "😕 No encontré resultados para eso." });
+      }
+
+      let texto = `🔎 *Resultados para:* ${consulta}\n\n`;
+      resultados.forEach((v, i) => {
+        texto +=
+          `*${i + 1}.* ${v.titulo}\n` +
+          `⏱️ ${v.duracion} · 📅 ${v.fecha}\n` +
+          `🔗 ${v.url}\n\n`;
+      });
+
+      // Solo se manda la miniatura del primer resultado, como antes.
+      const primera = resultados[0];
+      if (primera.miniatura) {
+        await reply({ image: { url: primera.miniatura }, caption: texto.trim() });
+      } else {
+        await reply({ text: texto.trim() });
+      }
+      return;
+    }
+
+    // --- Rama .play / .yt: un solo video + botones Audio/Video ---
+    let link, info;
+    try {
+      link = await resolverLinkYoutube(consulta);
+      info = await obtenerInfoYoutube(link);
+    } catch (e) {
+      return reply({ text: `❌ No pude buscar eso: ${e.message}` });
+    }
+
+    const texto =
+      `🎬 *YouTube*\n\n` +
+      `📺 *TÍTULO* › ${info.titulo}\n` +
+      `👤 *CANAL* › ${info.canal}\n` +
+      `⏱️ *DURACIÓN* › ${info.duracionTexto}\n` +
+      `👁️ *VISTAS* › ${info.vistas}\n\n` +
+      `🎵 Selecciona un formato:`;
+
+    // Antes se intentaba mandar botones nativos de WhatsApp
+    // (buttonsMessage). Se sacó porque WhatsApp ya no los muestra en
+    // cuentas normales: Baileys arma el mensaje sin error, pero WhatsApp
+    // le borra los botones y solo entrega el texto/caption. Ahora en vez
+    // de eso se guarda una "espera" para que la persona responda solo
+    // "1" o "2" (sin prefijo, sin citar el mensaje) y se resuelve en
+    // index.js antes de Akinator/juegos/trivia (ver motores/espera-formato.js).
+    registrarEsperaFormato(`${from}:${sender}`, link);
+
+    await reply({
+      image: info.miniatura ? { url: info.miniatura } : undefined,
+      caption:
+        `${texto}\n\n` +
+        `Formatos\n` +
+        `Audio: 1\n` +
+        `Video: 2\n\n` +
+        `> Elegí en que formato descargar el link`
+    });
   }
 };
