@@ -22,19 +22,32 @@ function buscarCategoria(palabra) {
 
 function agruparComandos() {
   const categorias = {};
+  const vistos = new Set(); // evita repetir el mismo comando una vez por cada alias con el que esta registrado
   for (const info of commandRegistry.values()) {
+    if (vistos.has(info)) continue;
+    vistos.add(info);
+
+    // Si el comando tiene varios nombres (ej: [".p", ".ping"]), se
+    // muestran todos juntos separados por " / ". Si por algun motivo no
+    // hay "names" (array), cae de vuelta al "usage" de siempre.
+    const etiqueta = Array.isArray(info.names) && info.names.length
+      ? info.names.join(" / ")
+      : info.usage;
+
     if (!categorias[info.category]) categorias[info.category] = [];
     // Cada comando en su propio bloque: nombre en negrita, y la
     // descripcion en cita ("> texto") - el "citado" de WhatsApp que
     // resalta la linea completa.
-    categorias[info.category].push(`✿ *${info.usage}*\n> ${info.desc}`);
+    categorias[info.category].push(`✿ *${etiqueta}*\n> ${info.desc}`);
   }
   return categorias;
 }
 
 function bloqueCategoria(cat, comandos) {
-  const [i1, i2] = cat.iconos;
-  return `${i1} » ˚୨•(${i2})• ⊹  \`⧼⧼ ${cat.nombre.toUpperCase()} ⧽⧽\`⊹\n\n${comandos.join("\n\n")}`;
+  // Header mas corto (sin el segundo emoji entre parentesis ni las
+  // comillas/backticks) para que entre en una sola linea en pantallas
+  // angostas.
+  return `${cat.iconos[0]} ⧼⧼ ${cat.nombre.toUpperCase()} ⧽⧽\n\n${comandos.join("\n\n")}`;
 }
 
 // Intenta resolver el JID real del canal a partir del link de invitacion,
