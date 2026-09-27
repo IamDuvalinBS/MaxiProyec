@@ -1,15 +1,14 @@
 // juegos/gato.js
 //
 // Gato (tic-tac-toe). Tres formas de arrancarlo:
-//   .gato            -> como no dijiste con quien, te pregunta: boton para
-//                        jugar contra el bot, o instrucciones para mencionar
-//                        a alguien.
-//   .gato @persona   -> desafia directo a esa persona, sin apuestas.
-//   .gatobot         -> (uso interno, lo dispara el boton de arriba) fuerza
-//                        el modo contra el bot.
+//   .gato            -> jugas contra el bot (IA local, gratis, sin API).
+//   .gato @persona   -> desafias a esa persona del chat, sin apuestas.
 //
 // Las jugadas son TEXTO PLANO (escribir un numero del 1 al 9), no botones
-// - por eso define "entradaTexto" + "validarTexto" en vez de "botones".
+// (los botones de WhatsApp no funcionan de forma confiable).
+//
+// La X y la O se dibujan como LINEAS/CIRCULO, no como texto - la fuente
+// pixelada no rinde bien en tamaños grandes, pero las lineas siempre andan.
 import { registrarJuego, iniciarJuego, FUENTE } from "../motores/juegos-core.js";
 
 const LINEAS = [
@@ -25,7 +24,6 @@ function ganador(tablero) {
   return tablero.every((c) => c) ? "empate" : null;
 }
 
-// Minimax sin ninguna libreria ni API - puro calculo local y gratis.
 function minimax(tablero, jugador) {
   const fin = ganador(tablero);
   if (fin === "O") return { puntaje: 1 };
@@ -44,7 +42,6 @@ function minimax(tablero, jugador) {
     : jugadas.reduce((a, b) => (b.puntaje < a.puntaje ? b : a));
 }
 
-// 70% juega el mejor movimiento, 30% al azar - asi es ganable, no imposible.
 function jugadaBot(tablero) {
   const libres = tablero.map((c, i) => (c ? null : i)).filter((i) => i !== null);
   if (Math.random() < 0.3) return libres[Math.floor(Math.random() * libres.length)];
@@ -55,15 +52,17 @@ registrarJuego({
   id: "gato",
   nombre: "GATO",
   ancho: 480,
-  alto: 860, // mas alta que ancha a proposito - no cuadrada
+  alto: 860,
   entradaTexto: true,
 
-  crearEstado(sender, opciones = {}) {
+  crearEstado(sender, opciones = {}, msg) {
     return {
       tablero: Array(9).fill(null),
       turno: "X",
       jugadorX: sender,
+      nombreX: msg?.pushName || null,
       jugadorO: opciones.oponente || null, // null = juega el bot
+      nombreO: null,
       jugada: 0,
       fin: null,
     };
@@ -76,34 +75,26 @@ registrarJuego({
     ];
   },
 
-  // A quien le toca ahora se dibuja DENTRO de la imagen (ver dibujar), ya
-  // no como mención de WhatsApp en el caption.
-
   dibujar(ctx, estado, ancho, alto) {
-    // deja bastante aire arriba y abajo del tablero - imagen alargada, no cuadrada
     const tam = ancho - 40;
     const ox = (ancho - tam) / 2;
     const oy = (alto - tam) / 2;
     const celda = tam / 3;
-    console.log(`[GATO-DEBUG-DIBUJAR] ancho=${ancho} alto=${alto} tam=${tam} ox=${ox} oy=${oy} celda=${celda} tablero=${JSON.stringify(estado.tablero)}`);
 
-    // "TURNO DE ..." dibujado adentro de la imagen (no como mención de WhatsApp)
+    // "TURNO DE ..." dibujado adentro de la imagen (nombre real si ya lo
+    // sabemos por su pushName, si no el numero, y BOT si juega la maquina)
     const jidActual = estado.turno === "X" ? estado.jugadorX : estado.jugadorO;
+    const nombreActual = estado.turno === "X" ? estado.nombreX : estado.nombreO;
     const etiquetaTurno = estado.fin
-      ? (estado.fin === "empate" ? "EMPATE" : `GANÓ ${estado.fin}`)
+      ? (estado.fin === "empate" ? "EMPATE" : `GANO ${estado.fin}`)
       : jidActual
-        ? `TURNO DE +${jidActual.split("@")[0]}`
-        : "TURNO DEL BOT 🤖";
+        ? `TURNO DE ${nombreActual || "+" + jidActual.split("@")[0]}`
+        : "TURNO DEL BOT";
     ctx.textAlign = "center";
     ctx.font = `${Math.floor(celda * 0.16)}px ${FUENTE}`;
     ctx.fillStyle = estado.turno === "X" ? "#2dfdc5" : "#ff3d81";
     ctx.fillText(etiquetaTurno, ancho / 2, oy - 30);
     ctx.textAlign = "left";
-
-    ctx.fillStyle = "#8a8fa3";
-    ctx.font = `16px ${FUENTE}`;
-    ctx.fillText("X", ox, oy - 16);
-    ctx.fillText(estado.jugadorO ? "O: rival" : "O: BOT", ox + tam - 80, oy - 16);
 
     ctx.strokeStyle = "#2dfdc5";
     ctx.lineWidth = 3;
@@ -114,14 +105,28 @@ registrarJuego({
 
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
+    const margen = celda * 0.28;
     estado.tablero.forEach((valor, i) => {
       const fila = Math.floor(i / 3), col = i % 3;
       const cx = ox + col * celda + celda / 2;
       const cy = oy + fila * celda + celda / 2;
-      if (valor) {
-        ctx.font = `${Math.floor(celda * 0.55)}px ${FUENTE}`;
-        ctx.fillStyle = valor === "X" ? "#2dfdc5" : "#ff3d81";
-        ctx.fillText(valor, cx, cy);
+
+      if (valor === "X") {
+        ctx.strokeStyle = "#2dfdc5";
+        ctx.lineWidth = 8;
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.moveTo(cx - margen, cy - margen);
+        ctx.lineTo(cx + margen, cy + margen);
+        ctx.moveTo(cx + margen, cy - margen);
+        ctx.lineTo(cx - margen, cy + margen);
+        ctx.stroke();
+      } else if (valor === "O") {
+        ctx.strokeStyle = "#ff3d81";
+        ctx.lineWidth = 8;
+        ctx.beginPath();
+        ctx.arc(cx, cy, margen, 0, Math.PI * 2);
+        ctx.stroke();
       } else {
         ctx.font = `${Math.floor(celda * 0.22)}px ${FUENTE}`;
         ctx.fillStyle = "#3a3f4f";
@@ -133,34 +138,39 @@ registrarJuego({
   },
 
   botones() {
-    return []; // este juego se juega por texto, no con botones
+    return [];
   },
 
   validarTexto(estado, texto, sender) {
     if (estado.fin) return null;
     const esX = estado.jugadorX === sender;
     const esO = estado.jugadorO === sender;
-    if (!esX && !esO) return null; // no es ninguno de los dos jugadores
-    if ((estado.turno === "X" && !esX) || (estado.turno === "O" && !esO)) return null; // no es su turno
+    if (!esX && !esO) return null;
+    if ((estado.turno === "X" && !esX) || (estado.turno === "O" && !esO)) return null;
 
     const n = Number(String(texto).trim());
     if (!Number.isInteger(n) || n < 1 || n > 9) return null;
-    if (estado.tablero[n - 1]) return null; // casilla ocupada
+    if (estado.tablero[n - 1]) return null;
 
     return String(n - 1);
   },
 
-  accion(estado, accionId) {
+  accion(estado, accionId, sender, msg) {
     if (estado.fin) return estado;
     const idx = Number(accionId);
     const tablero = [...estado.tablero];
     tablero[idx] = estado.turno;
 
+    // guarda el nombre real (pushName) de quien acaba de jugar, si no lo teniamos
+    let nombreX = estado.nombreX;
+    let nombreO = estado.nombreO;
+    if (sender === estado.jugadorX && !nombreX && msg?.pushName) nombreX = msg.pushName;
+    if (sender === estado.jugadorO && !nombreO && msg?.pushName) nombreO = msg.pushName;
+
     let fin = ganador(tablero);
     let turno = estado.turno === "X" ? "O" : "X";
     let jugada = estado.jugada + 1;
 
-    // si sigue el bot (no hay jugadorO humano), juega solo de una
     if (!fin && turno === "O" && !estado.jugadorO) {
       const idxBot = jugadaBot(tablero);
       if (idxBot !== undefined) tablero[idxBot] = "O";
@@ -169,7 +179,7 @@ registrarJuego({
       jugada += 1;
     }
 
-    return { ...estado, tablero, turno, jugada, fin };
+    return { ...estado, tablero, turno, jugada, fin, nombreX, nombreO };
   },
 
   terminado(estado) {
@@ -192,3 +202,4 @@ export default {
     await iniciarJuego(sock, from, sender, msg, "gato", { oponente: mencionado || null });
   },
 };
+                                  
