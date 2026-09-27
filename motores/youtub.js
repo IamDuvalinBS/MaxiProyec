@@ -90,13 +90,12 @@ function urlDeFormato(formato, yt) {
   return formato.url ?? formato.decipher(yt.session.player);
 }
 
-// Se pide la info con el cliente "ANDROID" (en vez del "WEB" por defecto)
-// especificamente para descargar: las apps de YouTube para Android suelen
-// recibir las URLs ya "destrabadas", sin necesitar el paso de descifrado
-// que es el que se rompe cuando YouTube cambia su reproductor.
+// Se usa el mismo cliente por defecto que ya funciona para getBasicInfo
+// (el truco de forzar el cliente "ANDROID" para esquivar el descifrado
+// dejó de funcionar: YouTube empezó a rechazar esas peticiones con 400).
 async function obtenerInfoParaDescarga(link) {
   const yt = await obtenerCliente();
-  const info = await yt.getInfo(extraerIdDeLink(link), "ANDROID");
+  const info = await yt.getInfo(extraerIdDeLink(link));
   return { yt, info };
 }
 
