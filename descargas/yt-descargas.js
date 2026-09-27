@@ -1,7 +1,9 @@
+import axios from "axios";
+import fs from "fs";
+import path from "path";
 import { ytmp3 as vredenYtmp3, ytmp4 as vredenYtmp4 } from "@vreden/youtube_scraper";
 import { youtube as btchYoutube } from "btch-downloader";
 import {
-  descargarBuffer,
   asegurarAudioCompatibleWhatsApp,
   asegurarVideoCompatibleWhatsApp,
   descargarVideoYoutube,
@@ -12,12 +14,47 @@ import {
 // Fusiona lo que era audioyt.js (.ytaudio) y el .ytvideo que faltaba, en
 // un solo comando oculto.
 //
-// Orden de intentos: primero dos proveedores externos (encontrados en el
-// codigo de otro bot que ya los usa, "play.js") que se dedican a esquivar
-// el bloqueo anti-bot de YouTube; si los dos fallan o estan caidos, se cae
-// como ultimo recurso a descargar directo con youtubei.js (motores/youtub.js),
-// que puede fallar mas seguido por el bloqueo que YouTube reforzo este año,
-// pero no depende de ningun servicio de terceros.
+// Orden de intentos: primero dos proveedores externos (Vreden y Btch) que
+// se dedican a esquivar el bloqueo anti-bot de YouTube; si los dos fallan
+// o estan caidos, se cae como ultimo recurso a descargar directo con
+// youtubei.js (motores/youtub.js), que puede fallar mas seguido por el
+// bloqueo que YouTube reforzo este año, pero no depende de ningun
+// servicio de terceros.
+//
+// CAMBIO CLAVE respecto a la version anterior: antes se bajaba la url de
+// Vreden/Btch con descargarBuffer() de core.js (fetch simple, sin
+// timeout ni manejo de redirecciones raras), y eso era lo que fallaba.
+// Ahora se baja igual que en "play.js" (el bot que si funciona): con
+// axios en modo stream, timeout de 120s, escribiendo a un archivo
+// temporal y leyendolo despues. Es mucho mas tolerante a como responden
+// esos servidores externos.
+
+const tmpDir = path.resolve(process.cwd(), "tmp");
+if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
+
+async function descargarATemporal(url, ext) {
+  const tmpPath = path.join(tmpDir, `yt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`);
+  const { data: stream } = await axios.get(url, { responseType: "stream", timeout: 120000 });
+  const writer = fs.createWriteStream(tmpPath);
+  stream.pipe(writer);
+  await new Promise((resolve, reject) => {
+    writer.on("finish", resolve);
+    writer.on("error", reject);
+  });
+  return tmpPath;
+}
+
+async function descargarBufferConfiable(url, ext) {
+  const tmpPath = await descargarATemporal(url, ext);
+  try {
+    return fs.readFileSync(tmpPath);
+  } finally {
+    if (fs.existsSync(tmpPath)) {
+      try { fs.unlinkSync(tmpPath); } catch { }
+    }
+  }
+}
+
 const PROVEEDORES_AUDIO = [
   {
     nombre: "Vreden",
@@ -93,7 +130,7 @@ export default {
     try {
       if (esAudio) {
         const url = await primeraUrlDeProveedores(link, PROVEEDORES_AUDIO);
-        const audioBuffer = url ? await descargarBuffer(url) : await descargarAudioYoutube(link);
+        const audioBuffer = url ? await descargarBufferConfiable(url, "mp3") : await descargarAudioYoutube(link);
         const audioListo = await asegurarAudioCompatibleWhatsApp(audioBuffer);
         await reply({ audio: audioListo, mimetype: "audio/mpeg", ptt: false });
       } else {
@@ -101,7 +138,7 @@ export default {
         let videoBuffer;
 
         if (url) {
-          const buffer = await descargarBuffer(url);
+          const buffer = await descargarBufferConfiable(url, "mp4");
           const pesoMB = buffer.length / (1024 * 1024);
           if (pesoMB > LIMITE_VIDEO_WHATSAPP_MB) {
             return reply({ text: `❌ El video pesa ${pesoMB.toFixed(1)}MB, supera el límite de ${LIMITE_VIDEO_WHATSAPP_MB}MB para WhatsApp.` });
@@ -118,4 +155,4 @@ export default {
     }
   }
 };
-                                                    
+    
