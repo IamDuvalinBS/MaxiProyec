@@ -1,4 +1,5 @@
 import { resolverLinkYoutube, obtenerInfoYoutube, buscarVideosYoutube } from "../core.js";
+import { registrarEsperaFormato } from "../motores/espera-formato.js";
 
 // Fusiona lo que antes eran youtube.js (.play/.yt) y ytsearch.js
 // (.ytsearch/.buscaryt) en un solo comando. Se mantiene UN solo
@@ -11,7 +12,7 @@ export default {
   desc: "'.play' busca un video y te deja elegir audio o video; '.ytsearch' lista los primeros 10 resultados",
   category: "Descargas",
   usage: ".play <link o nombre> | .ytsearch <lo que quieras buscar>",
-  handler: async ({ cleanText, reply }) => {
+  handler: async ({ from, sender, cleanText, reply }) => {
     const partes = cleanText.trim().split(/\s+/);
     const comando = partes[0].toLowerCase();
     const consulta = partes.slice(1).join(" ");
@@ -75,31 +76,23 @@ export default {
       `👁️ *VISTAS* › ${info.vistas}\n\n` +
       `🎵 Selecciona un formato:`;
 
-    // El texto que ve la persona es "Audio"/"Video", pero al tocar el
-    // boton, WhatsApp le devuelve al bot el buttonId de forma invisible:
-    // el bot recibe ".ytaudio <link>" o ".ytvideo <link>" y los ejecuta
-    // como si fueran comandos normales (ver yt-descargas.js, marcado
-    // como categoria "Oculto" para no aparecer en el .menu).
-    try {
-      await reply({
-        image: info.miniatura ? { url: info.miniatura } : undefined,
-        caption: texto,
-        footer: "Toca un formato para descargar",
-        buttons: [
-          { buttonId: `.ytaudio ${link}`, buttonText: { displayText: "🎧 Audio" }, type: 1 },
-          { buttonId: `.ytvideo ${link}`, buttonText: { displayText: "🎬 Video" }, type: 1 }
-        ],
-        headerType: 4
-      });
-    } catch (e) {
-      // Por si el telefono/version de WhatsApp del usuario no soporta
-      // botones nativos: mandamos los comandos como texto de respaldo.
-      await reply({
-        text:
-          `${texto}\n\n` +
-          `🎧 Audio: \`.ytaudio ${link}\`\n` +
-          `🎬 Video: \`.ytvideo ${link}\``
-      });
-    }
+    // Antes se intentaba mandar botones nativos de WhatsApp
+    // (buttonsMessage). Se sacó porque WhatsApp ya no los muestra en
+    // cuentas normales: Baileys arma el mensaje sin error, pero WhatsApp
+    // le borra los botones y solo entrega el texto/caption. Ahora en vez
+    // de eso se guarda una "espera" para que la persona responda solo
+    // "1" o "2" (sin prefijo, sin citar el mensaje) y se resuelve en
+    // index.js antes de Akinator/juegos/trivia (ver motores/espera-formato.js).
+    registrarEsperaFormato(`${from}:${sender}`, link);
+
+    await reply({
+      image: info.miniatura ? { url: info.miniatura } : undefined,
+      caption:
+        `${texto}\n\n` +
+        `Formatos\n` +
+        `Audio: 1\n` +
+        `Video: 2\n\n` +
+        `> Elegí en que formato descargar el link`
+    });
   }
 };
