@@ -20,7 +20,8 @@ export default {
       "Utilidad": ["⚙️", "🛠️"],
       "Diversión": ["🎭", "🎉"],
       "Perfil": ["👤", "✨"],
-      "Stickers": ["🌱", "🪺"]
+      "Stickers": ["🌱", "🪺"],
+      "Juegos": ["🎮", "🕹️"]
     };
 
     const accounts = getAllAccounts();
@@ -36,7 +37,7 @@ export default {
     texto += `║. .┊⩩ : *ᴜsᴇʀ* ›› ${accounts.size}\n`;
     texto += "╚╼┉┅◆┉┅╍◆┉┅╍◆┉┅❥⧽⧽\n\n";
 
-    const ordenCategorias = ["General", "Utilidad", "Perfil", "Descargas", "Economía", "Trabajos", "Diversión", "Stickers"];
+    const ordenCategorias = ["General", "Utilidad", "Perfil", "Descargas", "Economía", "Trabajos", "Juegos", "Diversión", "Stickers"];
     for (const cat of ordenCategorias) {
       if (!categorias[cat]) continue;
       const [i1, i2] = iconos[cat] || ["📌", "•"];
@@ -47,9 +48,11 @@ export default {
     let imageBuffer = null;
     if (fs.existsSync(FOTO_PATH)) imageBuffer = fs.readFileSync(FOTO_PATH);
 
-    // Esto hace que el mensaje aparezca con la "firma" de un canal arriba,
-    // y "Reenviado muchas veces" abajo - es solo un efecto visual, no manda
-    // nada a ningun canal real.
+    // Los dos efectos van juntos en el mismo contextInfo:
+    // - isForwarded/forwardedNewsletterMessageInfo: el aspecto de "reenviado
+    //   muchas veces" desde un canal (solo visual).
+    // - externalAdReply: la tarjeta de enlace real con miniatura + firma
+    //   "Powered By ItsDuva" + el link del canal, que se ve en la previa.
     const contextInfo = {
       isForwarded: true,
       forwardingScore: 999,
@@ -57,6 +60,15 @@ export default {
         newsletterJid: "120363000000000000@newsletter",
         newsletterName: `${config.botNameShort}-Bot Channel`,
         serverMessageId: 1
+      },
+      externalAdReply: {
+        title: config.botNameLong,
+        body: "Pᴏᴡᴇʀᴇᴅ Bʏ • ItsDuva",
+        mediaType: 1,
+        thumbnail: imageBuffer || undefined,
+        renderLargerThumbnail: true,
+        showAdAttribution: false,
+        sourceUrl: config.channelLink
       }
     };
 
@@ -67,4 +79,4 @@ export default {
     }
   }
 };
-        
+
