@@ -14,10 +14,12 @@ let configCollection = null;
 let stickersCollection = null;
 
 export const config = {
-  botNameShort: "Maxi",
-  botNameLong: "Maximilian Calypse",
+  botNameShort: "Mambo",
+  botNameLong: "Matikanetannhauser",
   ownerName: "Sin definir",
-  prefix: "."
+  prefix: ".", // se mantiene por compatibilidad, no hace falta tocarlo
+  prefixes: ["."], // agregá acá todos los prefijos que quieras: [".", "!", "#"]
+  channelLink: "https://whatsapp.com/channel/0029Vb92LdaCnA7rdqUbdw38"
 };
 
 export async function connectDB(intentos = 15) {
@@ -173,4 +175,4 @@ export async function saveStickerMeta(idSticker, intentos = 3) {
   }
   console.log("⚠️ No se pudo guardar el metadato del sticker " + idSticker + " tras varios intentos.");
     }
-      
+
