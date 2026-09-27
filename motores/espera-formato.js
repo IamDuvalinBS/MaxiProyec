@@ -9,6 +9,7 @@ const DURACION_MS = 5 * 60 * 1000; // 5 minutos, despues se descarta sola
 
 export function registrarEsperaFormato(clave, link) {
   esperas.set(clave, { link, vence: Date.now() + DURACION_MS });
+  console.log(`[espera-formato] Guardada espera para "${clave}" -> ${link}`);
 }
 
 // Si "texto" es "1"/"2" y hay una espera vigente para esa clave, devuelve
@@ -18,9 +19,16 @@ export function registrarEsperaFormato(clave, link) {
 // Akinator/juegos/trivia si esta persona no tenia un .play pendiente.
 export function resolverEleccionFormato(clave, texto) {
   const espera = esperas.get(clave);
-  if (!espera) return null;
+  if (!espera) {
+    // Si esto aparece justo despues de responder "1"/"2" a un .play, es
+    // porque el bot se reinicio entre medio (la memoria se borra sola al
+    // reiniciar) o porque "clave" no coincide con la que se uso al guardar.
+    console.log(`[espera-formato] No hay espera guardada para "${clave}"`);
+    return null;
+  }
 
   if (Date.now() > espera.vence) {
+    console.log(`[espera-formato] La espera de "${clave}" ya habia vencido`);
     esperas.delete(clave);
     return null;
   }
