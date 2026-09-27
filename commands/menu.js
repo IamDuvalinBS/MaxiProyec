@@ -24,18 +24,43 @@ function agruparComandos() {
   const categorias = {};
   for (const info of commandRegistry.values()) {
     if (!categorias[info.category]) categorias[info.category] = [];
-    categorias[info.category].push(`▸ *${info.usage}* — ${info.desc}`);
+    // Cada comando en su propio bloque: nombre en negrita, y la
+    // descripcion en cita ("> texto") - el "citado" de WhatsApp que
+    // resalta la linea completa.
+    categorias[info.category].push(`✿ *${info.usage}*\n> ${info.desc}`);
   }
   return categorias;
 }
 
 function bloqueCategoria(cat, comandos) {
   const [i1, i2] = cat.iconos;
-  return `${i1} ‹‹ ${cat.nombre.toUpperCase()} ›› ${i2}\n${comandos.join("\n")}`;
+  return `${i1} » ˚୨•(${i2})• ⊹  \`⧼⧼ ${cat.nombre.toUpperCase()} ⧽⧽\`⊹\n\n${comandos.join("\n\n")}`;
+}
+
+// Intenta resolver el JID real del canal a partir del link de invitacion,
+// para que "Ver canal" abra el canal de verdad en vez de tirar el error de
+// "actualizacion reenviada no valida" que tiraba antes con un JID inventado.
+// Si el metodo no existe en esta version de Baileys, o falla por lo que
+// sea, simplemente no se agrega el boton (nunca rompe el .menu).
+async function resolverCanal(sock) {
+  try {
+    const inviteCode = (config.channelLink || "").split("/channel/")[1];
+    if (!inviteCode || typeof sock.newsletterMetadata !== "function") return null;
+    const meta = await sock.newsletterMetadata("invite", inviteCode);
+    if (!meta || !meta.id) return null;
+    return {
+      newsletterJid: meta.id,
+      newsletterName: meta.name || `${config.botNameShort}-Bot Channel`,
+      serverMessageId: 1
+    };
+  } catch (e) {
+    return null;
+  }
 }
 
 export default {
   names: [".menu", ".help"],
+  usage: ".menu / .help",
   desc: "Ver todos los comandos disponibles",
   category: "General",
   handler: async ({ sock, from, sender, msg }) => {
@@ -64,53 +89,57 @@ export default {
         const nombres = CATEGORIAS.map((c) => c.nombre).join(", ");
         texto =
           `✿ No encontré la categoría *${argumento}*.\n` +
-          `Categorías disponibles: ${nombres}.\n` +
-          `Escribí *.menu* para ver todo.`;
+          `Categorías disponibles: ${nombres}.`;
       } else if (!categorias[cat.nombre] || !categorias[cat.nombre].length) {
         texto = `✿ Por ahora no hay comandos cargados en *${cat.nombre}*.`;
       } else {
         texto =
           `✿ Comandos de *${cat.nombre}* — 『 *${config.botNameLong}* 』\n\n` +
-          bloqueCategoria(cat, categorias[cat.nombre]) +
-          `\n\n・ Escribí *.menu* para ver todas las categorías.`;
+          bloqueCategoria(cat, categorias[cat.nombre]);
       }
     } else {
       // ".menu" / ".help" sin nada mas -> menu completo
       let cuerpo = `✿ *¡Holaaa!* . Mucho gusto @${sender.split("@")[0]} . *Soy* 『 *${config.botNameLong}* 』 *, aquí tienes la lista de comandos (≧∇≦).*\n\n`;
-      cuerpo += "━━━━━━━━━━━━━━\n";
-      cuerpo += ` INFORMACIÓN DEL BOT\n`;
-      cuerpo += "━━━━━━━━━━━━━━\n";
-      cuerpo += `🏷️ Owner ›› ${config.ownerName}\n`;
-      cuerpo += `🤖 Bot ›› ${config.botNameShort}\n`;
-      cuerpo += `🔌 Tipo ›› Multi-Device\n`;
-      cuerpo += `🔄 Update ›› 1.0.0\n`;
-      cuerpo += `🖥️ Sistema ›› Node.js\n`;
-      cuerpo += `⏱️ Uptime ›› ${formatUptime()}\n`;
-      cuerpo += `👥 Usuarios ›› ${accounts.size}\n`;
-      cuerpo += "━━━━━━━━━━━━━━\n\n";
+      cuerpo += `*==𑁍 INFORMACIÓN DEL BOT 𑁍==*\n\n`;
+      cuerpo += "╔╼┉┅◆┉┅╍◆┉┅╍◆┉┅❥⧽⧽\n";
+      cuerpo += `║. .┊⩩ : *ᴏᴡɴᴇʀ* ›› ${config.ownerName}\n`;
+      cuerpo += `║. .┊⩩ : *ʙᴏᴛ ɴᴀᴍᴇ* ›› ${config.botNameShort}\n`;
+      cuerpo += "║. .┊⩩ : *ᴛʏᴘᴇ* ›› Multi-Device\n";
+      cuerpo += "║. .┊⩩ : *ᴜᴘᴅᴀᴛᴇ* ›› 1.0.0\n";
+      cuerpo += "║. .┊⩩ : *sʏsᴛᴇᴍ* ›› Node.js\n";
+      cuerpo += `║. .┊⩩ : *ᴜᴘᴛɪᴍᴇ* ›› ${formatUptime()}\n`;
+      cuerpo += `║. .┊⩩ : *ᴜsᴇʀ* ›› @${sender.split("@")[0]}\n`;
+      cuerpo += `║. .┊⩩ : *ᴛᴏᴛᴀʟ ᴜsᴇʀs* ›› ${accounts.size}\n`;
+      cuerpo += "╚╼┉┅◆┉┅╍◆┉┅╍◆┉┅❥⧽⧽\n\n";
 
       for (const cat of CATEGORIAS) {
         if (!categorias[cat.nombre] || !categorias[cat.nombre].length) continue;
         cuerpo += bloqueCategoria(cat, categorias[cat.nombre]) + "\n\n";
       }
-      cuerpo += `・ Tip: escribí *.menu <categoría>* (ej: *.menu economia*, *.menu juegos*) para ver solo esa sección.`;
       texto = cuerpo;
     }
 
     let imageBuffer = null;
     if (fs.existsSync(FOTO_PATH)) imageBuffer = fs.readFileSync(FOTO_PATH);
 
+    const newsletterInfo = await resolverCanal(sock);
+
     // Va todo como TEXTO con contextInfo, no como foto adjunta: la miniatura
     // aparece dentro de la tarjeta de enlace (externalAdReply), compacta,
     // en vez de mandar la imagen entera aparte.
     // - isForwarded + forwardingScore alto: da el aspecto "Reenviado muchas
-    //   veces" sin necesitar un canal real (asi no aparece un boton "Ver
-    //   canal" roto que tire error).
+    //   veces".
+    // - forwardedNewsletterMessageInfo: SOLO se agrega si se pudo resolver
+    //   el JID real del canal (resolverCanal). Asi "Ver canal" abre el
+    //   canal de verdad, y si no se puede resolver, no se agrega nada
+    //   (para no repetir el error de "actualizacion reenviada no valida").
     // - externalAdReply: la tarjeta con la miniatura, el nombre del bot,
-    //   la firma "Powered By ItsDuva" y el link del canal (real, funcional).
+    //   la firma "Powered By ItsDuva" y el link del canal (real, funcional
+    //   al tocar la tarjeta, sin depender de que se resuelva el JID).
     const contextInfo = {
       isForwarded: true,
       forwardingScore: 999,
+      ...(newsletterInfo ? { forwardedNewsletterMessageInfo: newsletterInfo } : {}),
       externalAdReply: {
         title: config.botNameLong,
         body: "Pᴏᴡᴇʀᴇᴅ Bʏ • ItsDuva",
