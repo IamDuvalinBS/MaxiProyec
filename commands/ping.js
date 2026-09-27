@@ -3,9 +3,25 @@ export default {
   desc: "Ver la latencia del bot",
   category: "General",
   handler: async ({ sock, from, msg }) => {
+    // Reacciona al mensaje del usuario que puso .p / .ping
+    await sock.sendMessage(from, { react: { text: "🏓", key: msg.key } });
+
     const inicio = Date.now();
-    await sock.sendMessage(from, { text: "🏓 Pong..." }, { quoted: msg });
+    const enviado = await sock.sendMessage(
+      from,
+      { text: "📡 *Detectando latencia del bot...*" },
+      { quoted: msg }
+    );
+
     const ms = Date.now() - inicio;
-    await sock.sendMessage(from, { text: `🏓 Pong! *${ms}ms*` }, { quoted: msg });
+    const estado = ms < 500 ? "Normal" : "Alto"; // ajustable segun tu umbral
+
+    const texto =
+      `📡 *LATENCIA - PING*\n` +
+      `Ping:: *${ms}ms*\n` +
+      `Estado:: *${estado}*`;
+
+    // Edita el mismo mensaje "Detectando..." con el resultado final
+    await sock.sendMessage(from, { text: texto, edit: enviado.key });
   }
 };
