@@ -257,23 +257,33 @@ async function enviarHTML(sock, from, html) {
   await sock.relayMessage(from, m.message, { messageId: m.key.id });
 }
 
+const HTML_MINI = "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"></head><body style=\"background:#0b141a;color:#e9edef;font-family:sans-serif;text-align:center;padding:24px\"><h2>Hola desde HTML</h2><p>Si ves esto, el envio funciona.</p></body></html>";
+
 export default {
   names: [".gatohtml"],
   desc: "Gato interactivo en HTML dentro del chat (rich response), con dificultades",
   category: "Juegos (prueba)",
   usage: ".gatohtml",
   handler: async ({ sock, from, msg }) => {
-    // Camino principal: sock.sendHtml del fork (@fer2809fl/baileys), su formato exacto.
-    // Si no existe, cae al envio manual de respaldo.
+    // Modos de prueba para aislar el error "mensaje no compatible":
+    //   .gatohtml      -> juego completo, citando el mensaje + headerText (como el ejemplo del fork)
+    //   .gatohtml t1   -> HTML minimo, sin opciones
+    //   .gatohtml t2   -> HTML minimo, citando el mensaje + headerText
+    //   .gatohtml t3   -> juego completo, sin opciones (como antes)
+    const texto = (msg?.message?.conversation || msg?.message?.extendedTextMessage?.text || "").trim();
+    const modo = (texto.split(/\s+/)[1] || "").toLowerCase();
     try {
-      if (typeof sock.sendHtml === "function") {
-        const r = await sock.sendHtml(from, HTML_GATO, [], undefined, {});
-        console.log("[GATOHTML] sendHtml enviado, id:", r?.messageId);
-      } else {
+      if (typeof sock.sendHtml !== "function") {
         console.log("[GATOHTML] este Baileys no tiene sendHtml, uso envio manual");
         await enviarHTML(sock, from, HTML_GATO);
-        console.log("[GATOHTML] envio manual enviado");
+        return;
       }
+      let html = HTML_GATO, quoted = msg, opts = { headerText: "Powered by Fernando" };
+      if (modo === "t1") { html = HTML_MINI; quoted = undefined; opts = {}; }
+      else if (modo === "t2") { html = HTML_MINI; }
+      else if (modo === "t3") { quoted = undefined; opts = {}; }
+      const r = await sock.sendHtml(from, html, [], quoted, opts);
+      console.log("[GATOHTML] modo '" + (modo || "normal") + "' enviado, id:", r?.messageId, "| bytes html:", html.length);
     } catch (e) {
       console.log("[GATOHTML] ERROR: " + e.stack);
       await sock.sendMessage(
