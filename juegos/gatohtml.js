@@ -11,16 +11,6 @@
 // primitive "FOAHtmlPrimitiveDemoDONOTUSE" (formato interno de WhatsApp, sin
 // documentacion oficial: puede dejar de funcionar segun la version de la app).
 import crypto from "crypto";
-// Import dinamico a proposito: si el paquete no existe o no exporta algo, NO se cae el bot al cargar.
-let generarMensaje = null;
-for (const paquete of ["@fer2809fl/baileys", "@whiskeysockets/baileys", "baileys"]) {
-  try {
-    const B = await import(paquete);
-    generarMensaje = B.generateWAMessageFromContent || B.default?.generateWAMessageFromContent || null;
-    if (generarMensaje) break;
-  } catch (e) {}
-}
-
 const HTML_GATO = `<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -214,50 +204,55 @@ function jugar(i) {
 </body>
 </html>`;
 
-async function enviarHTML(sock, from, html) {
-  // Camino 1: fork con soporte nativo { html }
-  // Camino 2: mensaje armado a mano (funciona con cualquier Baileys que tenga relayMessage)
-  if (typeof generarMensaje !== "function") {
-    await sock.sendMessage(from, { html });
-    return;
-  }
+const HTML_MINI = "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"></head><body style=\"background:#0b141a;color:#e9edef;font-family:sans-serif;text-align:center;padding:24px\"><h2>Hola desde HTML</h2><p>Si ves esto, el envio funciona.</p></body></html>";
+
+// Arma el mismo mensaje que generateHtmlContent del fork (@fer2809fl/baileys 7.0.6)
+// y lo manda con relayMessage AGREGANDO el nodo <bot biz_bot="1"/>, que es lo que
+// sendHtml se salta (y por eso WhatsApp lo mostraba como "no compatible").
+async function enviarHTML(sock, from, html, { quoted, headerText } = {}) {
+  const sections = [];
+  const texto = (t) => ({
+    view_model: { primitive: { text: t, __typename: "GenAIMarkdownTextUXPrimitive" }, __typename: "GenAISingleLayoutViewModel" },
+  });
+  if (headerText) sections.push(texto(headerText));
+  sections.push({
+    view_model: {
+      primitive: { __typename: "GenAIaeacdsnwHtmlPrimitive", payload: html, trusted_sources: [] },
+      __typename: "GenAISingleLayoutViewModel",
+    },
+  });
+
   const data = Buffer.from(
-    JSON.stringify({
-      __typename: "GenAIUnifiedResponse",
-      response_id: crypto.randomUUID(),
-      sections: [
-        {
-          __typename: "GenAIUnifiedResponseSection",
-          view_model: {
-            __typename: "GenAISingleLayoutViewModel",
-            primitive: {
-              __typename: "FOAHtmlPrimitiveDemoDONOTUSE",
-              trusted_sources: [],
-              payload: html,
-            },
-          },
-        },
-      ],
-    })
+    JSON.stringify({ response_id: crypto.randomUUID(), sections, version: "1", is_final: true })
   ).toString("base64");
 
+  const ctxInfo = { isForwarded: true, forwardOrigin: 4 };
+  if (quoted?.key) {
+    ctxInfo.participant = quoted.key.participant || quoted.sender || quoted.key.remoteJid;
+    ctxInfo.quotedMessage = quoted.message;
+  }
+
   const contenido = {
+    messageContextInfo: { threadId: [], messageSecret: crypto.randomBytes(32) },
     botForwardedMessage: {
       message: {
         richResponseMessage: {
           messageType: 1,
+          submessages: [{ messageType: 2, messageText: "Contenido interactivo" }],
           unifiedResponse: { data },
-          contextInfo: { isForwarded: true, forwardOrigin: 4 },
+          contextInfo: ctxInfo,
         },
       },
     },
   };
 
-  const m = generarMensaje(from, contenido, {});
-  await sock.relayMessage(from, m.message, { messageId: m.key.id });
+  const messageId = "3EB0" + crypto.randomBytes(9).toString("hex").toUpperCase();
+  await sock.relayMessage(from, contenido, {
+    messageId,
+    additionalNodes: [{ tag: "bot", attrs: { biz_bot: "1" } }],
+  });
+  return messageId;
 }
-
-const HTML_MINI = "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"></head><body style=\"background:#0b141a;color:#e9edef;font-family:sans-serif;text-align:center;padding:24px\"><h2>Hola desde HTML</h2><p>Si ves esto, el envio funciona.</p></body></html>";
 
 export default {
   names: [".gatohtml"],
@@ -265,32 +260,20 @@ export default {
   category: "Juegos (prueba)",
   usage: ".gatohtml",
   handler: async ({ sock, from, msg }) => {
-    // Modos de prueba para aislar el error "mensaje no compatible":
-    //   .gatohtml      -> juego completo, citando el mensaje + headerText (como el ejemplo del fork)
-    //   .gatohtml t1   -> HTML minimo, sin opciones
-    //   .gatohtml t2   -> HTML minimo, citando el mensaje + headerText
-    //   .gatohtml t3   -> juego completo, sin opciones (como antes)
+    //   .gatohtml     -> juego completo
+    //   .gatohtml t1  -> HTML minimo (para probar el envio)
+    //   .gatohtml t2  -> juego citando el mensaje + encabezado "Powered by Fernando"
     const texto = (msg?.message?.conversation || msg?.message?.extendedTextMessage?.text || "").trim();
     const modo = (texto.split(/\s+/)[1] || "").toLowerCase();
     try {
-      if (typeof sock.sendHtml !== "function") {
-        console.log("[GATOHTML] este Baileys no tiene sendHtml, uso envio manual");
-        await enviarHTML(sock, from, HTML_GATO);
-        return;
-      }
-      let html = HTML_GATO, quoted = msg, opts = { headerText: "Powered by Fernando" };
-      if (modo === "t1") { html = HTML_MINI; quoted = undefined; opts = {}; }
-      else if (modo === "t2") { html = HTML_MINI; }
-      else if (modo === "t3") { quoted = undefined; opts = {}; }
-      const r = await sock.sendHtml(from, html, [], quoted, opts);
-      console.log("[GATOHTML] modo '" + (modo || "normal") + "' enviado, id:", r?.messageId, "| bytes html:", html.length);
+      let html = HTML_GATO, opts = {};
+      if (modo === "t1") html = HTML_MINI;
+      else if (modo === "t2") opts = { quoted: msg, headerText: "Powered by Fernando" };
+      const id = await enviarHTML(sock, from, html, opts);
+      console.log("[GATOHTML] modo '" + (modo || "normal") + "' enviado con nodo bot, id:", id);
     } catch (e) {
       console.log("[GATOHTML] ERROR: " + e.stack);
-      await sock.sendMessage(
-        from,
-        { text: "❌ No se pudo enviar el HTML: " + e.message },
-        { quoted: msg }
-      );
+      await sock.sendMessage(from, { text: "❌ No se pudo enviar el HTML: " + e.message }, { quoted: msg });
     }
   },
 };
