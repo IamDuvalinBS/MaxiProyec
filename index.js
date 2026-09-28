@@ -9,6 +9,7 @@ import http from "http";
 import { handleEconomyCommand, checkTriviaAnswer } from "./economia.js";
 import { config, manejarCambioParticipantes } from "./core.js";
 import { intentarProcesarTexto } from "./motores/juegos-core.js";
+import gatohtml from "./juegos/gatohtml.js";
 import { procesarBotonGatoReal } from "./juegos/gatoreal.js";
 
 import readline from "readline";
@@ -211,8 +212,11 @@ async function startBot() {
     if (text.startsWith(prefijoActual)) {
       // Los comandos internamente siempre usan "." - traducimos el prefijo elegido a "."
       const textoTraducido = "." + text.slice(prefijoActual.length);
-      await handleEconomyCommand(sock, from, sender, textoTraducido, msg);
-    } else {
+if (textoTraducido.trim().toLowerCase() === ".gatohtml") {
+  await gatohtml.handler({ sock, from, sender, msg });
+  return;
+}
+await handleEconomyCommand(sock, from, sender, textoTraducido, msg);
       // Las jugadas de un juego por texto solo pueden venir de texto plano
       // de verdad - nunca del caption de una imagen (asi no se confunde ni
       // con el propio mensaje que el bot manda, ni con una foto que alguien
