@@ -261,19 +261,18 @@ export default {
   names: [".gatohtml"],
   desc: "Gato interactivo en HTML dentro del chat (rich response), con dificultades",
   category: "Juegos (prueba)",
-  usage: ".gatohtml [1|2]",
+  usage: ".gatohtml",
   handler: async ({ sock, from, msg }) => {
-    // .gatohtml    -> modo 1: mensaje armado a mano (relayMessage)
-    // .gatohtml 2  -> modo 2: sock.sendMessage(from, { html }) del fork (si lo trae)
-    const texto = (msg?.message?.conversation || msg?.message?.extendedTextMessage?.text || "").trim();
-    const modo = texto.split(/\s+/)[1] === "2" ? 2 : 1;
+    // Camino principal: sock.sendHtml del fork (@fer2809fl/baileys), su formato exacto.
+    // Si no existe, cae al envio manual de respaldo.
     try {
-      if (modo === 2) {
-        const r = await sock.sendMessage(from, { html: HTML_GATO });
-        console.log("[GATOHTML] modo 2 enviado, id:", r?.key?.id);
+      if (typeof sock.sendHtml === "function") {
+        const r = await sock.sendHtml(from, HTML_GATO, [], undefined, {});
+        console.log("[GATOHTML] sendHtml enviado, id:", r?.messageId);
       } else {
+        console.log("[GATOHTML] este Baileys no tiene sendHtml, uso envio manual");
         await enviarHTML(sock, from, HTML_GATO);
-        console.log("[GATOHTML] modo 1 enviado");
+        console.log("[GATOHTML] envio manual enviado");
       }
     } catch (e) {
       console.log("[GATOHTML] ERROR: " + e.stack);
