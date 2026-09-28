@@ -303,6 +303,20 @@ export default {
     const texto = (msg?.message?.conversation || msg?.message?.extendedTextMessage?.text || "").trim();
     const modo = (texto.split(/\s+/)[1] || "").toLowerCase();
     try {
+      if (modo === "pedir") {
+        // .gatohtml pedir 5219991234567 [.gato]  -> Kuromi le escribe ese comando al otro bot
+        const partes = texto.split(/\s+/);
+        const numero = (partes[2] || "").replace(/\D/g, "");
+        const comando = partes.slice(3).join(" ") || ".gato";
+        if (numero.length < 8) {
+          await sock.sendMessage(from, { text: "Uso: .gatohtml pedir <numero con codigo de pais, sin +> [comando]\nEj: .gatohtml pedir 5219991234567 .gato" }, { quoted: msg });
+          return;
+        }
+        activarEspia(sock);
+        await sock.sendMessage(numero + "@s.whatsapp.net", { text: comando });
+        await sock.sendMessage(from, { text: "📨 Pedí '" + comando + "' a +" + numero + ". Espera unos segundos y revisa tmp/ en Termux." }, { quoted: msg });
+        return;
+      }
       if (modo === "espiar") {
         const nueva = activarEspia(sock);
         await sock.sendMessage(from, { text: nueva ? "🕵️ Espía activada. Reenvía aquí el mensaje del juego." : "🕵️ La espía ya estaba activa." }, { quoted: msg });
@@ -320,4 +334,4 @@ export default {
     }
   },
 };
-               
+     
