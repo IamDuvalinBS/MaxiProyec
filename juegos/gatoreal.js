@@ -165,9 +165,16 @@ export default {
   category: "Juegos (prueba)",
   usage: ".gatoreal",
   handler: async ({ sock, from, sender, msg }) => {
-    const estado = { tablero: Array(9).fill(null), turno: "X", jugadorX: sender, fin: null };
-    partidas.set(from, estado);
-    await enviarEstado(sock, from, msg, estado);
+    console.log("[GATOREAL] comando recibido, arrancando partida...");
+    try {
+      const estado = { tablero: Array(9).fill(null), turno: "X", jugadorX: sender, fin: null };
+      partidas.set(from, estado);
+      await enviarEstado(sock, from, msg, estado);
+      console.log("[GATOREAL] mensaje enviado sin errores");
+    } catch (e) {
+      console.log("[GATOREAL] ERROR: " + e.stack);
+      await sock.sendMessage(from, { text: "❌ Error interno en gatoreal: " + e.message }, { quoted: msg });
+    }
   },
 };
 
