@@ -5,12 +5,11 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "test": "node scripts/verificar.mjs"
   },
   "dependencies": {
-    "@fer2809fl/baileys": "^7.0.6",
     "@napi-rs/canvas": "^0.1.53",
-    "@resvg/resvg-js": "^2.6.2",
     "@vreden/youtube_scraper": "^1.2.0",
     "@whiskeysockets/baileys": "^6.7.9",
     "axios": "^1.19.0",
@@ -21,7 +20,6 @@
     "mongodb": "^6.10.0",
     "pino": "^9.4.0",
     "puppeteer-core": "^23.0.0",
-    "satori": "^0.10.13",
     "sharp": "^0.33.5",
     "youtubei.js": "^10.5.0"
   },

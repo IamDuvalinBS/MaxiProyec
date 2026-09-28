@@ -5,7 +5,7 @@ export const CURRENCY = "¥enes";
 export const FOTO_PATH = "./photo/botpic.jpg";
 export const startTime = Date.now();
 
-const MONGO_URI = "mongodb+srv://jg0455748_db_user:2IBhQ33NazDOoBjg@cluster0.27mrbg5.mongodb.net/?appName=Cluster0";
+const MONGO_URI = process.env.MONGO_URI;
 
 const accounts = new Map(); // sender -> { wallet, bank, cooldowns, profile }
 const stickerMetas = new Map(); // idSticker -> { pack, author }
@@ -23,6 +23,10 @@ export const config = {
 };
 
 export async function connectDB(intentos = 15) {
+  if (!MONGO_URI) {
+    console.log(chalk.red("Falta la variable de entorno MONGO_URI. Configúrala antes de iniciar el bot."));
+    return;
+  }
   console.log(chalk.yellow("Conectando a MongoDB..."));
   for (let i = 1; i <= intentos; i++) {
     try {
@@ -109,13 +113,6 @@ export function getAccount(sender) {
 
 export function getAllAccounts() {
   return accounts;
-}
-
-// Devuelve el perfil guardado del usuario ({} si todavia no tiene uno,
-// para que perfil.name no explote en quien lo consuma).
-export function getProfile(sender) {
-  const acc = getAccount(sender);
-  return acc.profile || {};
 }
 
 export function addToWallet(sender, amount) {

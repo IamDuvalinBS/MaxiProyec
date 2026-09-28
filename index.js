@@ -3,14 +3,15 @@ import {
   useMultiFileAuthState,
   DisconnectReason,
   fetchLatestBaileysVersion
-} from "@fer2809fl/baileys";
+} from "@whiskeysockets/baileys";
 import pino from "pino";
 import http from "http";
-import { handleEconomyCommand, checkTriviaAnswer } from "./economia.js";
-import { config, manejarCambioParticipantes } from "./core.js";
+import { manejarComando } from "./src/nucleo/comandos.js";
+import { checkTriviaAnswer } from "./src/economia/trivia.js";
+import { procesarEspera } from "./src/economia/espera.js";
+import { config, manejarCambioParticipantes, procesarTextoAkinator } from "./core.js";
 import { intentarProcesarTexto } from "./motores/juegos-core.js";
-import gatohtml from "./juegos/gatohtml.js";
-import { procesarBotonGatoReal } from "./juegos/gatoreal.js";
+import { resolverEleccionFormato } from "./motores/espera-formato.js";
 
 import readline from "readline";
 import cfonts from "cfonts";
@@ -88,7 +89,7 @@ async function startBot() {
     keepAliveIntervalMs: 10000,
     connectTimeoutMs: 60000,
     defaultQueryTimeoutMs: 60000,
-    markOnlineOnConnect: false // NO forzar "en linea" 24/7 - eso tambien es sospechoso, mejor que solo se note actividad cuando realmente esta respondiendo
+    markOnlineOnConnect: false
   });
 
   console.log("Intentando conectar con WhatsApp...");
@@ -106,7 +107,7 @@ async function startBot() {
       pairingRequested = true;
       try {
         const numero = (await question("\n📱 Ingresá el número a vincular (con código de país, sin +, sin espacios): ")).trim();
-        const CODIGO_PERSONALIZADO = "MAXIBOTS"; // tiene que tener EXACTAMENTE 8 caracteres
+        const CODIGO_PERSONALIZADO = "MAXIBOTS";
         const code = await sock.requestPairingCode(numero, CODIGO_PERSONALIZADO);
         currentCode = code;
         codeTime = Date.now();
@@ -147,48 +148,17 @@ async function startBot() {
     if (!msg.message) return;
 
     const from = msg.key.remoteJid;
-    // Si el mensaje lo mandaste vos mismo (el numero del bot), la cuenta
-    // siempre debe ser TU numero, sin importar en que chat lo escribas.
     const sender = msg.key.fromMe
       ? sock.user.id.split(":")[0] + "@s.whatsapp.net"
       : (msg.key.participant || msg.key.remoteJid);
 
-    // Cuando alguien toca un boton (ej: "🎧 Audio" / "🎬 Video" de .play),
-    // WhatsApp NO manda un texto normal: manda un buttonsResponseMessage
-    // (o templateButtonReplyMessage en telefonos viejos) con el "buttonId"
-    // que el bot puso al armar el mensaje con botones. La persona solo ve
-    // en pantalla el texto del boton (ej "Audio"), pero por dentro se
-    // ejecuta el comando escondido que iba en ese buttonId (ej ".ytaudio
-    // <link>"). Por eso esto se procesa ANTES que el texto normal.
-    // Botones VIEJOS (buttonsMessage/templateButtons) - lo que ya tenias.
     const idBotonPulsado =
       msg.message.buttonsResponseMessage?.selectedButtonId ||
       msg.message.templateButtonReplyMessage?.selectedId ||
       null;
 
     if (idBotonPulsado) {
-      // El buttonId ya viene armado internamente con "." (no pasa por el
-      // prefijo configurable), asi que se ejecuta directo.
-      await handleEconomyCommand(sock, from, sender, idBotonPulsado.trim(), msg);
-      return;
-    }
-
-    // Botones NUEVOS/reales (interactiveMessage de @fer2809fl/baileys) - la
-    // respuesta llega en una forma totalmente distinta a la de arriba: un
-    // "interactiveResponseMessage" con el id adentro de un JSON. Esto es
-    // SOLO para el juego de prueba (gatoreal.js) - no reemplaza lo de arriba.
-    const respuestaInteractiva = msg.message.interactiveResponseMessage;
-    if (respuestaInteractiva) {
-      let idReal = null;
-      try {
-        const params = JSON.parse(respuestaInteractiva.nativeFlowResponseMessage?.paramsJson || "{}");
-        idReal = params.id || null;
-      } catch (e) {
-        console.log("No se pudo leer el boton interactivo: " + e.message);
-      }
-      if (idReal && idReal.startsWith("gatoreal:")) {
-        await procesarBotonGatoReal(sock, from, sender, msg, idReal.split(":")[1]);
-      }
+      await manejarComando(sock, from, sender, idBotonPulsado.trim(), msg);
       return;
     }
 
@@ -199,8 +169,6 @@ async function startBot() {
       ""
     ).trim();
 
-    // Simula "escribiendo..." brevemente cada vez que alguien manda un
-    // mensaje al chat, sin importar si es un comando o no (efecto anti-ban).
     if (!msg.key.fromMe) {
       sock.sendPresenceUpdate("composing", from)
         .then(() => new Promise(r => setTimeout(r, 1500 + Math.floor(Math.random() * 1000))))
@@ -208,25 +176,36 @@ async function startBot() {
         .catch(() => {});
     }
 
-    const prefijoActual = config.prefix || ".";
-    if (text.startsWith(prefijoActual)) {
-      // Los comandos internamente siempre usan "." - traducimos el prefijo elegido a "."
-      const textoTraducido = "." + text.slice(prefijoActual.length);
-if (textoTraducido.trim().toLowerCase() === ".gatohtml") {
-  await gatohtml.handler({ sock, from, sender, msg });
-  return;
-}
-await handleEconomyCommand(sock, from, sender, textoTraducido, msg);
-      // Las jugadas de un juego por texto solo pueden venir de texto plano
-      // de verdad - nunca del caption de una imagen (asi no se confunde ni
-      // con el propio mensaje que el bot manda, ni con una foto que alguien
-      // mande con un numero de casualidad en el pie de foto).
-      const esTextoPlano = Boolean(msg.message.conversation || msg.message.extendedTextMessage);
-      const fueJugada = esTextoPlano
-        ? await intentarProcesarTexto(sock, from, sender, text, msg)
-        : false;
-      if (!fueJugada) {
-        await checkTriviaAnswer(sock, from, sender, text, msg);
+    const prefijosConfigurados = (config.prefixes && config.prefixes.length)
+      ? config.prefixes
+      : [config.prefix || "."];
+    const prefijoUsado = [...prefijosConfigurados]
+      .sort((a, b) => b.length - a.length)
+      .find((p) => text.startsWith(p));
+
+    if (prefijoUsado) {
+      const resto = text.slice(prefijoUsado.length);
+      const match = resto.match(/^\s*(\S+)([\s\S]*)$/);
+      const textoTraducido = match
+        ? "." + match[1].toLowerCase() + match[2]
+        : "." + resto;
+      await manejarComando(sock, from, sender, textoTraducido, msg);
+    } else {
+      const clave = `${from}:${sender}`;
+      if (await procesarEspera(clave, text, { sock, from, sender, msg })) return;
+
+      const comandoElegido = resolverEleccionFormato(clave, text);
+      if (comandoElegido) {
+        await manejarComando(sock, from, sender, comandoElegido, msg);
+        return;
+      }
+
+      const fueAkinator = await procesarTextoAkinator(sock, from, sender, text, msg);
+      if (!fueAkinator) {
+        const fueJugada = await intentarProcesarTexto(sock, from, sender, text, msg);
+        if (!fueJugada) {
+          await checkTriviaAnswer(sock, from, sender, text, msg);
+        }
       }
     }
   });

@@ -1,4 +1,5 @@
-import { getProfile, config } from "./db.js";
+import { config } from "./db.js";
+import { getProfile } from "./profile.js";
 
 // Numeros/nombres de los admins principales a los que hay que avisar - editalo aca
 const ADMINS_PRINCIPALES = "🏆*IamDuvalin* 2️⃣*IamCris* 3️⃣";
