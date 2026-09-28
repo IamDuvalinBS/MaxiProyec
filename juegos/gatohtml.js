@@ -1,4 +1,27 @@
-<!DOCTYPE html>
+// juegos/gatohtml.js
+//
+// GATO en HTML real (rich response de WhatsApp / "Meta AI"), como el .gato
+// de tu amigo. El juego corre DENTRO del mensaje: el bot solo lo envia una
+// vez, y todas las jugadas, el bot rival, el marcador y el sonido se hacen en
+// el celular con JavaScript. Por eso es fluido (no manda mensajes por jugada).
+//
+// Es 100% aparte de gato.js / gatoreal.js: si falla, no afecta a los demas.
+//
+// Formato: botForwardedMessage > richResponseMessage > unifiedResponse con un
+// primitive "FOAHtmlPrimitiveDemoDONOTUSE" (formato interno de WhatsApp, sin
+// documentacion oficial: puede dejar de funcionar segun la version de la app).
+import crypto from "crypto";
+// Import dinamico a proposito: si el paquete no existe o no exporta algo, NO se cae el bot al cargar.
+let generarMensaje = null;
+for (const paquete of ["@fer2809fl/baileys", "@whiskeysockets/baileys", "baileys"]) {
+  try {
+    const B = await import(paquete);
+    generarMensaje = B.generateWAMessageFromContent || B.default?.generateWAMessageFromContent || null;
+    if (generarMensaje) break;
+  } catch (e) {}
+}
+
+const HTML_GATO = `<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -188,4 +211,67 @@ function jugar(i) {
 }
 </script>
 </body>
-</html>
+</html>`;
+
+async function enviarHTML(sock, from, html) {
+  // Camino 1: fork con soporte nativo { html }
+  // Camino 2: mensaje armado a mano (funciona con cualquier Baileys que tenga relayMessage)
+  if (typeof generarMensaje !== "function") {
+    await sock.sendMessage(from, { html });
+    return;
+  }
+  const data = Buffer.from(
+    JSON.stringify({
+      __typename: "GenAIUnifiedResponse",
+      response_id: crypto.randomUUID(),
+      sections: [
+        {
+          __typename: "GenAIUnifiedResponseSection",
+          view_model: {
+            __typename: "GenAISingleLayoutViewModel",
+            primitive: {
+              __typename: "FOAHtmlPrimitiveDemoDONOTUSE",
+              trusted_sources: [],
+              payload: html,
+            },
+          },
+        },
+      ],
+    })
+  ).toString("base64");
+
+  const contenido = {
+    botForwardedMessage: {
+      message: {
+        richResponseMessage: {
+          messageType: 1,
+          unifiedResponse: { data },
+          contextInfo: { isForwarded: true, forwardOrigin: 4 },
+        },
+      },
+    },
+  };
+
+  const m = generarMensaje(from, contenido, {});
+  await sock.relayMessage(from, m.message, { messageId: m.key.id });
+}
+
+export default {
+  names: [".gatohtml"],
+  desc: "Gato interactivo en HTML dentro del chat (rich response), con dificultades",
+  category: "Juegos (prueba)",
+  usage: ".gatohtml",
+  handler: async ({ sock, from, msg }) => {
+    try {
+      await enviarHTML(sock, from, HTML_GATO);
+      console.log("[GATOHTML] enviado");
+    } catch (e) {
+      console.log("[GATOHTML] ERROR: " + e.stack);
+      await sock.sendMessage(
+        from,
+        { text: "❌ Tu Baileys no pudo enviar el HTML: " + e.message },
+        { quoted: msg }
+      );
+    }
+  },
+};
