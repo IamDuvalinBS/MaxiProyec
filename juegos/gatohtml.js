@@ -28,55 +28,56 @@ const HTML_GATO = `<!DOCTYPE html>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <style>
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  body { margin: 0; padding: 14px; background: #03030a; color: #cfe9ff;
+  html, body { width: 100%; margin: 0; overflow-x: hidden; }
+  body { padding: 6px; min-height: 540px; background: #03030a; color: #cfe9ff;
          font-family: "Courier New", monospace; touch-action: manipulation; }
-  .marco { max-width: 340px; margin: 0 auto; padding: 14px; border-radius: 26px;
+  .marco { width: 100%; margin: 0 auto; padding: 10px; border-radius: 22px;
            border: 2px solid #0e6e8c; background: #060818;
            box-shadow: 0 0 22px #0e6e8c55, inset 0 0 22px #0e6e8c33; }
-  .cab { display: flex; align-items: center; gap: 8px; padding-bottom: 12px;
+  .cab { display: flex; align-items: center; gap: 6px; padding-bottom: 10px;
          border-bottom: 2px solid #0e6e8c; }
   .tit { flex: 1; }
-  .tit small { display: block; font-size: 9px; letter-spacing: 3px; color: #4a6c86; }
-  .tit b { font-size: 34px; color: #ffe14d; text-shadow: 0 0 10px #ffe14d99; letter-spacing: 3px; }
-  .chip { border: 2px solid #22d3ee; color: #22d3ee; border-radius: 12px; padding: 8px 10px;
-          font-size: 11px; letter-spacing: 2px; text-align: center; min-width: 96px;
+  .tit small { display: block; font-size: 8px; letter-spacing: 2px; color: #4a6c86; }
+  .tit b { font-size: 26px; color: #ffe14d; text-shadow: 0 0 10px #ffe14d99; letter-spacing: 3px; }
+  .chip { border: 2px solid #22d3ee; color: #22d3ee; border-radius: 10px; padding: 6px 6px;
+          font-size: 10px; letter-spacing: 1px; text-align: center; min-width: 0;
           background: #0a2a3a; transition: all .2s; }
   .chip.bot { border-color: #ff3dbd; color: #ff3dbd; background: #2a0a24; }
   .chip.fin { border-color: #ffe14d; color: #ffe14d; background: #2a250a; }
-  #snd { width: 46px; height: 46px; border-radius: 12px; border: 2px solid #ffe14d;
-         background: #060818; font-size: 20px; cursor: pointer; }
-  .marc { display: flex; gap: 8px; margin: 14px 0; }
+  #snd { width: 38px; height: 38px; border-radius: 10px; padding: 0; border: 2px solid #ffe14d;
+         background: #060818; font-size: 16px; cursor: pointer; }
+  .marc { display: flex; gap: 6px; margin: 10px 0; }
   .caja { flex: 1; border: 2px solid #0e6e8c; border-radius: 12px; padding: 6px 4px;
           text-align: center; background: #070b20; }
   .caja small { display: block; font-size: 9px; letter-spacing: 2px; color: #4a6c86; }
-  .caja b { font-size: 26px; }
+  .caja b { font-size: 20px; }
   #pj { color: #ff3dbd; } #pb { color: #22d3ee; }
-  #dif { font-size: 15px; color: #39ff5a; line-height: 34px; }
-  .msg { text-align: center; font-size: 12px; letter-spacing: 2px; color: #8aa4bd;
-         margin: 12px 0; min-height: 16px; }
-  .difs { display: flex; flex-wrap: wrap; gap: 14px; justify-content: center; margin: 8px 0 14px; }
-  .dbtn { width: 116px; height: 104px; border-radius: 16px; background: #060818;
-          font-family: inherit; font-weight: bold; font-size: 15px; letter-spacing: 2px;
+  #dif { font-size: 12px; color: #39ff5a; line-height: 26px; }
+  .msg { text-align: center; font-size: 10px; letter-spacing: 1px; color: #8aa4bd;
+         margin: 10px 0; min-height: 16px; }
+  .difs { display: flex; gap: 8px; margin: 8px 0 12px; }
+  .dbtn { flex: 1 1 0; min-width: 0; height: 84px; border-radius: 14px; padding: 0; background: #060818;
+          font-family: inherit; font-weight: bold; font-size: 11px; letter-spacing: 0;
           cursor: pointer; display: flex; flex-direction: column; align-items: center;
           justify-content: center; gap: 8px; }
-  .dbtn span { font-size: 34px; }
+  .dbtn span { font-size: 26px; }
   .dbtn:active { transform: scale(.94); }
   .f { border: 3px solid #39ff5a; color: #39ff5a; box-shadow: 0 0 12px #39ff5a66; }
   .m { border: 3px solid #ffe14d; color: #ffe14d; box-shadow: 0 0 12px #ffe14d66; }
   .d { border: 3px solid #ff3dbd; color: #ff3dbd; box-shadow: 0 0 12px #ff3dbd66; }
-  #tab { display: none; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  #tab { display: none; grid-template-columns: repeat(3, 1fr); gap: 6px; }
   .c { aspect-ratio: 1; border-radius: 12px; border: 2px solid #0e6e8c; background: #050716;
-       font-size: 46px; font-weight: bold; cursor: pointer; padding: 0; font-family: inherit;
+       font-size: 34px; font-weight: bold; cursor: pointer; padding: 0; min-width: 0; font-family: inherit;
        display: flex; align-items: center; justify-content: center; }
   .c:active { transform: scale(.94); }
   .c.x { color: #ff3dbd; text-shadow: 0 0 12px #ff3dbd; }
   .c.o { color: #22d3ee; text-shadow: 0 0 12px #22d3ee; }
   .c.w { background: #1c1a06; border-color: #ffe14d; box-shadow: 0 0 16px #ffe14d99; animation: p .6s infinite alternate; }
   @keyframes p { to { transform: scale(1.06); } }
-  .acc { display: none; gap: 10px; margin-top: 14px; }
-  .acc button { flex: 1; padding: 11px 6px; border-radius: 12px; border: 2px solid #22d3ee;
+  .acc { display: none; gap: 8px; margin-top: 10px; }
+  .acc button { flex: 1; min-width: 0; padding: 10px 2px; border-radius: 12px; border: 2px solid #22d3ee;
                 background: #0a2a3a; color: #22d3ee; font-family: inherit; font-weight: bold;
-                font-size: 12px; letter-spacing: 1px; cursor: pointer; }
+                font-size: 10px; letter-spacing: 0; cursor: pointer; }
   .acc button:active { transform: scale(.95); }
 </style>
 </head>
