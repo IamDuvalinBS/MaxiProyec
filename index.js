@@ -3,13 +3,13 @@ import {
   useMultiFileAuthState,
   DisconnectReason,
   fetchLatestBaileysVersion
-} from "@whiskeysockets/baileys";
+} from "@fer2809fl/baileys";
 import pino from "pino";
 import http from "http";
 import { handleEconomyCommand, checkTriviaAnswer } from "./economia.js";
-import { config, manejarCambioParticipantes, procesarTextoAkinator } from "./core.js";
+import { config, manejarCambioParticipantes } from "./core.js";
 import { intentarProcesarTexto } from "./motores/juegos-core.js";
-import { resolverEleccionFormato } from "./motores/espera-formato.js";
+import { procesarBotonGatoReal } from "./juegos/gatoreal.js";
 
 import readline from "readline";
 import cfonts from "cfonts";
@@ -159,6 +159,7 @@ async function startBot() {
     // en pantalla el texto del boton (ej "Audio"), pero por dentro se
     // ejecuta el comando escondido que iba en ese buttonId (ej ".ytaudio
     // <link>"). Por eso esto se procesa ANTES que el texto normal.
+    // Botones VIEJOS (buttonsMessage/templateButtons) - lo que ya tenias.
     const idBotonPulsado =
       msg.message.buttonsResponseMessage?.selectedButtonId ||
       msg.message.templateButtonReplyMessage?.selectedId ||
@@ -168,6 +169,25 @@ async function startBot() {
       // El buttonId ya viene armado internamente con "." (no pasa por el
       // prefijo configurable), asi que se ejecuta directo.
       await handleEconomyCommand(sock, from, sender, idBotonPulsado.trim(), msg);
+      return;
+    }
+
+    // Botones NUEVOS/reales (interactiveMessage de @fer2809fl/baileys) - la
+    // respuesta llega en una forma totalmente distinta a la de arriba: un
+    // "interactiveResponseMessage" con el id adentro de un JSON. Esto es
+    // SOLO para el juego de prueba (gatoreal.js) - no reemplaza lo de arriba.
+    const respuestaInteractiva = msg.message.interactiveResponseMessage;
+    if (respuestaInteractiva) {
+      let idReal = null;
+      try {
+        const params = JSON.parse(respuestaInteractiva.nativeFlowResponseMessage?.paramsJson || "{}");
+        idReal = params.id || null;
+      } catch (e) {
+        console.log("No se pudo leer el boton interactivo: " + e.message);
+      }
+      if (idReal && idReal.startsWith("gatoreal:")) {
+        await procesarBotonGatoReal(sock, from, sender, msg, idReal.split(":")[1]);
+      }
       return;
     }
 
@@ -187,53 +207,25 @@ async function startBot() {
         .catch(() => {});
     }
 
-    // Soporta varios prefijos a la vez (config.prefixes). Se ordenan del
-    // mas largo al mas corto para que, si por ejemplo tenes "." y ".." como
-    // prefijos, no se detecte mal uno adentro del otro.
-    const prefijosConfigurados = (config.prefixes && config.prefixes.length)
-      ? config.prefixes
-      : [config.prefix || "."];
-    const prefijoUsado = [...prefijosConfigurados]
-      .sort((a, b) => b.length - a.length)
-      .find((p) => text.startsWith(p));
-
-    if (prefijoUsado) {
-      // Los comandos internamente siempre usan "." - traducimos el prefijo usado a ".".
-      // Ademas, el comando se detecta sin importar si queda pegado o separado
-      // del prefijo (".p" o ". p") y sin importar mayusculas/minusculas
-      // (".P" = ".p"). Solo se normaliza la palabra del comando; el resto
-      // del texto (ej. lo que busca un .play) se deja intacto.
-      const resto = text.slice(prefijoUsado.length);
-      const match = resto.match(/^\s*(\S+)([\s\S]*)$/);
-      const textoTraducido = match
-        ? "." + match[1].toLowerCase() + match[2]
-        : "." + resto;
+    const prefijoActual = config.prefix || ".";
+    if (text.startsWith(prefijoActual)) {
+      // Los comandos internamente siempre usan "." - traducimos el prefijo elegido a "."
+      const textoTraducido = "." + text.slice(prefijoActual.length);
       await handleEconomyCommand(sock, from, sender, textoTraducido, msg);
     } else {
-      // Si un ".play" reciente dejó a esta persona esperando que elija
-      // formato ("1" = Audio, "2" = Video), se resuelve ANTES que
-      // Akinator/juegos/trivia, porque es la respuesta más específica y
-      // reciente que se le pidió. Si no aplica (no escribió "1"/"2", o no
-      // tenia ninguna espera pendiente), resolverEleccionFormato devuelve
-      // null y seguimos la cadena como siempre.
-      const comandoElegido = resolverEleccionFormato(`${from}:${sender}`, text);
-      if (comandoElegido) {
-        await handleEconomyCommand(sock, from, sender, comandoElegido, msg);
-        return;
-      }
-
-      const fueAkinator = await procesarTextoAkinator(sock, from, sender, text, msg);
-      if (!fueAkinator) {
-        const fueJugada = await intentarProcesarTexto(sock, from, sender, text, msg);
-        if (!fueJugada) {
-          await checkTriviaAnswer(sock, from, sender, text, msg);
-        }
+      // Las jugadas de un juego por texto solo pueden venir de texto plano
+      // de verdad - nunca del caption de una imagen (asi no se confunde ni
+      // con el propio mensaje que el bot manda, ni con una foto que alguien
+      // mande con un numero de casualidad en el pie de foto).
+      const esTextoPlano = Boolean(msg.message.conversation || msg.message.extendedTextMessage);
+      const fueJugada = esTextoPlano
+        ? await intentarProcesarTexto(sock, from, sender, text, msg)
+        : false;
+      if (!fueJugada) {
+        await checkTriviaAnswer(sock, from, sender, text, msg);
       }
     }
   });
 }
 
 startBot();
-
-
-
