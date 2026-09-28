@@ -322,8 +322,16 @@ export default {
         await sock.sendMessage(from, { text: nueva ? "🕵️ Espía activada. Reenvía aquí el mensaje del juego." : "🕵️ La espía ya estaba activa." }, { quoted: msg });
         return;
       }
+      // Envio por defecto: sock.sendHtml del fork (la version que llegaba como "no compatible")
+      if (modo === "" || modo === "normal") {
+        if (typeof sock.sendHtml !== "function") throw new Error("este Baileys no tiene sendHtml");
+        const r = await sock.sendHtml(from, HTML_GATO, [], undefined, {});
+        console.log("[GATOHTML] sendHtml enviado, id:", r?.messageId);
+        return;
+      }
       let html = HTML_GATO, opts = {};
-      if (modo === "sn") opts = { sinNodo: true };
+      if (modo === "bot") opts = {};
+      else if (modo === "sn") opts = { sinNodo: true };
       else if (modo === "t1") html = HTML_MINI;
       else if (modo === "t2") opts = { quoted: msg, headerText: "Powered by Fernando" };
       const id = await enviarHTML(sock, from, html, opts);
@@ -334,4 +342,4 @@ export default {
     }
   },
 };
-     
+       
