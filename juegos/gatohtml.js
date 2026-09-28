@@ -11,6 +11,7 @@
 // primitive "FOAHtmlPrimitiveDemoDONOTUSE" (formato interno de WhatsApp, sin
 // documentacion oficial: puede dejar de funcionar segun la version de la app).
 import crypto from "crypto";
+import fs from "fs";
 const HTML_GATO = `<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -209,7 +210,7 @@ const HTML_MINI = "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><meta name
 // Arma el mismo mensaje que generateHtmlContent del fork (@fer2809fl/baileys 7.0.6)
 // y lo manda con relayMessage AGREGANDO el nodo <bot biz_bot="1"/>, que es lo que
 // sendHtml se salta (y por eso WhatsApp lo mostraba como "no compatible").
-async function enviarHTML(sock, from, html, { quoted, headerText } = {}) {
+async function enviarHTML(sock, from, html, { quoted, headerText, sinNodo } = {}) {
   const sections = [];
   const texto = (t) => ({
     view_model: { primitive: { text: t, __typename: "GenAIMarkdownTextUXPrimitive" }, __typename: "GenAISingleLayoutViewModel" },
@@ -249,9 +250,45 @@ async function enviarHTML(sock, from, html, { quoted, headerText } = {}) {
   const messageId = "3EB0" + crypto.randomBytes(9).toString("hex").toUpperCase();
   await sock.relayMessage(from, contenido, {
     messageId,
-    additionalNodes: [{ tag: "bot", attrs: { biz_bot: "1" } }],
+    ...(sinNodo ? {} : { additionalNodes: [{ tag: "bot", attrs: { biz_bot: "1" } }] }),
   });
   return messageId;
+}
+
+
+// --- MODO ESPIA: guarda en tmp/ como LLEGA un mensaje rich/bot (para copiar su estructura) ---
+let espiaActiva = false;
+function activarEspia(sock) {
+  if (espiaActiva) return false;
+  espiaActiva = true;
+  sock.ev.on("messages.upsert", ({ messages }) => {
+    for (const m of messages || []) {
+      try {
+        const reemplazo = function (k, v) {
+          const raw = this[k];
+          if (raw instanceof Uint8Array) return { __base64: Buffer.from(raw).toString("base64"), __len: raw.length };
+          return typeof v === "bigint" ? v.toString() : v;
+        };
+        const json = JSON.stringify(m, reemplazo);
+        if (!/richResponse|botForwarded|unifiedResponse/i.test(json)) continue;
+        const rr = m.message?.botForwardedMessage?.message?.richResponseMessage || m.message?.richResponseMessage;
+        let decodificado = null;
+        const bytes = rr?.unifiedResponse?.data;
+        if (bytes) {
+          const txt = Buffer.from(bytes).toString("utf8");
+          try { decodificado = JSON.parse(txt); }
+          catch { try { decodificado = JSON.parse(Buffer.from(txt, "base64").toString("utf8")); } catch { decodificado = txt.slice(0, 2000); } }
+        }
+        fs.mkdirSync("tmp", { recursive: true });
+        const archivo = "tmp/rich_dump_" + Date.now() + ".json";
+        fs.writeFileSync(archivo, JSON.stringify({ mensaje: JSON.parse(json), unified_decodificado: decodificado }, null, 1));
+        console.log("[GATOHTML-ESPIA] guardado:", archivo);
+      } catch (e) {
+        console.log("[GATOHTML-ESPIA] error:", e.message);
+      }
+    }
+  });
+  return true;
 }
 
 export default {
@@ -266,8 +303,14 @@ export default {
     const texto = (msg?.message?.conversation || msg?.message?.extendedTextMessage?.text || "").trim();
     const modo = (texto.split(/\s+/)[1] || "").toLowerCase();
     try {
+      if (modo === "espiar") {
+        const nueva = activarEspia(sock);
+        await sock.sendMessage(from, { text: nueva ? "🕵️ Espía activada. Reenvía aquí el mensaje del juego." : "🕵️ La espía ya estaba activa." }, { quoted: msg });
+        return;
+      }
       let html = HTML_GATO, opts = {};
-      if (modo === "t1") html = HTML_MINI;
+      if (modo === "sn") opts = { sinNodo: true };
+      else if (modo === "t1") html = HTML_MINI;
       else if (modo === "t2") opts = { quoted: msg, headerText: "Powered by Fernando" };
       const id = await enviarHTML(sock, from, html, opts);
       console.log("[GATOHTML] modo '" + (modo || "normal") + "' enviado con nodo bot, id:", id);
@@ -277,3 +320,4 @@ export default {
     }
   },
 };
+               
