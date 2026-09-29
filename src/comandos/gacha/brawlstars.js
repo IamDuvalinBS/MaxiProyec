@@ -1,41 +1,15 @@
-import { personajeAleatorio } from "../../../motores/gacha-db.js";
-import { asegurarBrawlers, sincronizarBrawlers } from "../../../motores/gacha-brawl.js";
-import { hacerRoll, gachaListo } from "../../../motores/gacha-core.js";
-import { isOwner } from "../../../motores/owner.js";
+import { gachaListo } from "../../../motores/gacha-core.js";
+import { crearHandlerPvp } from "../../../motores/gacha-pvp.js";
 
-const COOLDOWN_MS = 10 * 60 * 1000;
+const pvp = crearHandlerPvp({ categoria: "brawler", comando: "brawlstarspvp", nombreLuchador: "Brawler" });
 
 export default {
-  names: [".brawlstars", ".brawl"],
-  desc: "Genera un Brawler al azar para reclamar con .claim (cada 10 minutos)",
+  names: [".brawlstarspvp", ".brawlpvp"],
+  desc: "Pelea tu mejor Brawler contra el de otro usuario apostando dinero",
   category: "Gacha",
-  usage: ".brawlstars",
-  handler: async ({ from, sender, cleanText, reply }) => {
+  usage: ".brawlstarspvp @usuario <apuesta> [#id]",
+  handler: async (ctx) => {
     await gachaListo;
-
-    if (cleanText.split(/\s+/)[1]?.toLowerCase() === "actualizar") {
-      if (!isOwner(sender)) return reply({ text: "🚫 Solo los owners pueden actualizar la lista de brawlers." });
-      try {
-        const r = await sincronizarBrawlers();
-        return reply({ text: `✅ Brawlers sincronizados. Total en la API: ${r.total}. Nuevos: ${r.nuevos}.` });
-      } catch (e) {
-        return reply({ text: `❌ No pude consultar Brawlify: ${e.message}` });
-      }
-    }
-
-    try {
-      await asegurarBrawlers();
-    } catch (e) {
-      return reply({ text: `❌ No pude cargar los brawlers desde Brawlify: ${e.message}` });
-    }
-
-    await hacerRoll({
-      categoria: "brawler",
-      obtener: async () => personajeAleatorio("brawler"),
-      reply, sender, from,
-      cooldownMs: COOLDOWN_MS,
-      titulo: "BRAWLER",
-      textoVacio: "❌ No hay brawlers cargados todavía."
-    });
+    return pvp(ctx);
   }
 };
