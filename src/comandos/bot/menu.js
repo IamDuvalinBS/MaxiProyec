@@ -10,6 +10,7 @@ const CATEGORIAS = [
   { nombre: "Trabajos", icono: "🛠️", alias: ["trabajos", "trabajo", "jobs", "job", "work"] },
   { nombre: "Apuestas", icono: "🎰", alias: ["apuestas", "apuesta", "casino", "bets", "betting"] },
   { nombre: "Juegos", icono: "🎮", alias: ["juegos", "juego", "games", "game"] },
+  { nombre: "Gacha", icono: "🎴", alias: ["gacha", "waifus", "rw", "pokemon", "brawl"] },
   { nombre: "Diversión", icono: "🎭", alias: ["diversion", "diversión", "fun"] },
   { nombre: "Stickers", icono: "🌱", alias: ["stickers", "sticker"] }
 ];
