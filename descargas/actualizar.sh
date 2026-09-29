@@ -20,7 +20,8 @@ echo "📦 Usando: $ZIP"
 unzip -tq "$ZIP" >/dev/null 2>&1 || { echo "❌ El zip está dañado o incompleto. Volvé a descargarlo."; exit 1; }
 
 TMP=$(mktemp -d)
-trap 'rm -rf "$TMP"' EXIT
+ERR=$(mktemp)
+trap 'rm -rf "$TMP" "$ERR"' EXIT
 unzip -oq "$ZIP" -d "$TMP" || { echo "❌ No pude extraer el zip."; exit 1; }
 
 # 1) Verificar integridad: cada archivo debe coincidir con el manifiesto del zip (detecta archivos cortados
@@ -35,8 +36,8 @@ else
   echo "⚠️ El zip no trae manifiesto; solo verifico la sintaxis."
 fi
 while IFS= read -r f; do
-  if ! node --input-type=module --check < "$f" 2>/tmp/actualizar-error.txt; then
-    echo "❌ Archivo con errores: ${f#$TMP/}"; head -n 4 /tmp/actualizar-error.txt; MALOS=1
+  if ! node --input-type=module --check < "$f" 2>"$ERR"; then
+    echo "❌ Archivo con errores: ${f#$TMP/}"; head -n 4 "$ERR"; MALOS=1
   fi
 done < <(find "$TMP" -name '*.js')
 [ "$MALOS" = 0 ] || { echo "⛔ No se instaló nada. Volvé a descargar el zip."; exit 1; }
