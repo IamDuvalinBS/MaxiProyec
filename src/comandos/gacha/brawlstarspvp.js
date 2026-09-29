@@ -1,12 +1,12 @@
 import { gachaListo, crearHandlerPvp } from "../../../motores/gacha-core.js";
 
-const pvp = crearHandlerPvp({ categoria: "brawler", emoji: "⭐", comando: "brawlstarspvp", nombreLuchador: "Brawler" });
+const pvp = crearHandlerPvp({ categoria: "brawler", comando: "brawlstarspvp", nombreLuchador: "Brawler" });
 
 export default {
   names: [".brawlstarspvp", ".brawlpvp"],
   desc: "Pelea tu mejor Brawler contra el de otro usuario apostando dinero",
   category: "Gacha",
-  usage: ".brawlstarspvp @usuario <apuesta>",
+  usage: ".brawlstarspvp @usuario <apuesta> [#id]",
   handler: async (ctx) => {
     await gachaListo;
     return pvp(ctx);
