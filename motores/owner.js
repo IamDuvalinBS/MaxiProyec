@@ -1,10 +1,16 @@
 import { config, saveConfig } from "./db.js";
 
-// Numero inicial del dueño del bot (formato WhatsApp: numero@s.whatsapp.net)
-const OWNER_INICIAL = "5219613627169@s.whatsapp.net";
+// Owners fijos del bot (formato WhatsApp: numero@s.whatsapp.net). Para sumar otro, agregá su número acá.
+const OWNERS_INICIALES = [
+  "529613345733@s.whatsapp.net",
+  "529613627169@s.whatsapp.net",
+  "528719632704@s.whatsapp.net"
+];
 
-if (!config.owners) config.owners = [OWNER_INICIAL];
-if (!config.owners.includes(OWNER_INICIAL)) config.owners.push(OWNER_INICIAL);
+if (!config.owners) config.owners = [];
+for (const jid of OWNERS_INICIALES) {
+  if (!config.owners.includes(jid)) config.owners.push(jid);
+}
 
 export function isOwner(sender) {
   return (config.owners || []).includes(sender);
