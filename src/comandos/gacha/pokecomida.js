@@ -1,4 +1,4 @@
-import { crearComandoTienda } from "../../../motores/gacha-core.js";
+import { crearComandoTienda } from "../../../motores/gacha-tienda.js";
 
 export default crearComandoTienda({
   categoria: "pokemon",
