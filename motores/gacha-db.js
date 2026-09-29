@@ -61,6 +61,7 @@ function esquema() {
       usuario   TEXT    NOT NULL,
       char_id   INTEGER NOT NULL REFERENCES personajes(id) ON DELETE CASCADE,
       obtenido  INTEGER NOT NULL DEFAULT (strftime('%s','now')),
+      nivel     INTEGER NOT NULL DEFAULT 1,
       PRIMARY KEY (usuario, char_id)
     );
     CREATE INDEX IF NOT EXISTS idx_prop_char ON propiedad(char_id);
@@ -77,6 +78,14 @@ function esquema() {
     CREATE INDEX IF NOT EXISTS idx_yp_md5 ON yandere_posts(md5);
     CREATE INDEX IF NOT EXISTS idx_yp_parent ON yandere_posts(parent_id);
 
+    -- Inventario simple (cubitos de fuerza, etc.)
+    CREATE TABLE IF NOT EXISTS inventario (
+      usuario  TEXT    NOT NULL,
+      item     TEXT    NOT NULL,
+      cantidad INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (usuario, item)
+    );
+
     -- Cache de tipos de tag de yande.re (0 general, 1 artista, 3 copyright, 4 personaje, 5 circulo, 6 faults)
     CREATE TABLE IF NOT EXISTS yandere_tags (
       nombre TEXT PRIMARY KEY,
@@ -85,10 +94,17 @@ function esquema() {
   `);
 }
 
+// Bases creadas con la versión anterior: agrega la columna "nivel" si falta.
+function migrar() {
+  const cols = db.prepare("PRAGMA table_info(propiedad)").all().map((c) => c.name);
+  if (!cols.includes("nivel")) db.exec("ALTER TABLE propiedad ADD COLUMN nivel INTEGER NOT NULL DEFAULT 1");
+}
+
 export async function initGachaDB() {
   if (db) return db;
   db = await abrir();
   esquema();
+  migrar();
   return db;
 }
 
@@ -189,11 +205,12 @@ export function reclamar(usuario, personaje) {
   });
 }
 
+// Orden estable (no cambia al subir de nivel): valor base y luego id.
 export function coleccionDe(usuario, categoria, limite = 15, desplazamiento = 0) {
   return st(
-    `SELECT p.*, o.obtenido FROM propiedad o JOIN personajes p ON p.id = o.char_id
+    `SELECT p.*, o.obtenido, o.nivel FROM propiedad o JOIN personajes p ON p.id = o.char_id
      WHERE o.usuario = ? AND p.categoria = ?
-     ORDER BY p.valor DESC, o.obtenido DESC LIMIT ? OFFSET ?`
+     ORDER BY p.valor DESC, p.id ASC LIMIT ? OFFSET ?`
   ).all(usuario, categoria, limite, desplazamiento).map(hidratar);
 }
 
@@ -204,8 +221,52 @@ export function contarColeccion(usuario, categoria) {
   ).get(usuario, categoria);
 }
 
-export function mejorDe(usuario, categoria) {
-  return coleccionDe(usuario, categoria, 1, 0)[0] || null;
+// Sin charId: el de mayor nivel (y luego valor). Con charId: ese, si es del usuario.
+export function mejorDe(usuario, categoria, charId = null) {
+  if (charId) {
+    return hidratar(st(
+      `SELECT p.*, o.obtenido, o.nivel FROM propiedad o JOIN personajes p ON p.id = o.char_id
+       WHERE o.usuario = ? AND p.categoria = ? AND p.id = ?`
+    ).get(usuario, categoria, charId));
+  }
+  return hidratar(st(
+    `SELECT p.*, o.obtenido, o.nivel FROM propiedad o JOIN personajes p ON p.id = o.char_id
+     WHERE o.usuario = ? AND p.categoria = ?
+     ORDER BY o.nivel DESC, p.valor DESC, p.id ASC LIMIT 1`
+  ).get(usuario, categoria));
+}
+
+export function setNivel(usuario, charId, nivel) {
+  st("UPDATE propiedad SET nivel = ? WHERE usuario = ? AND char_id = ?").run(nivel, usuario, charId);
+}
+
+// ---------------- inventario ----------------
+export function cantidadItem(usuario, item) {
+  const r = st("SELECT cantidad FROM inventario WHERE usuario = ? AND item = ?").get(usuario, item);
+  return r ? r.cantidad : 0;
+}
+
+export function sumarItem(usuario, item, delta) {
+  st(`INSERT INTO inventario (usuario, item, cantidad) VALUES (?, ?, ?)
+      ON CONFLICT(usuario, item) DO UPDATE SET cantidad = cantidad + excluded.cantidad`).run(usuario, item, delta);
+}
+
+// ---------------- estadísticas para .rwinfo ----------------
+export function listarPersonajes(categoria, limite = 20, desplazamiento = 0) {
+  return st(
+    `SELECT p.*, (SELECT COUNT(*) FROM propiedad o WHERE o.char_id = p.id) AS duenos
+     FROM personajes p WHERE p.categoria = ? ORDER BY p.valor DESC, p.id ASC LIMIT ? OFFSET ?`
+  ).all(categoria, limite, desplazamiento).map(hidratar);
+}
+
+export function resumenGacha() {
+  const porCategoria = st("SELECT categoria, COUNT(*) AS n FROM personajes GROUP BY categoria").all();
+  const porRareza = st("SELECT categoria, rareza, COUNT(*) AS n FROM personajes GROUP BY categoria, rareza ORDER BY MAX(valor) DESC").all();
+  const reclamados = st(
+    `SELECT p.categoria, COUNT(DISTINCT o.char_id) AS n FROM propiedad o JOIN personajes p ON p.id = o.char_id GROUP BY p.categoria`
+  ).all();
+  const yandere = st("SELECT estado, COUNT(*) AS n FROM yandere_posts GROUP BY estado").all();
+  return { porCategoria, porRareza, reclamados, yandere };
 }
 
 // ---------------- yande.re: verificador de duplicados ----------------
@@ -243,4 +304,4 @@ export function yandereCrearPersonaje(datos, post) {
     yandereRegistrar({ post_id: post.post_id, md5: post.md5, parent_id: post.parent_id, char_id: creado.id, estado: "ok" });
     return creado;
   });
-}
+                      }
