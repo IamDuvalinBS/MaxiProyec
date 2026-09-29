@@ -7,6 +7,6 @@ export default {
   usage: ".harem [página]",
   handler: async ({ sender, cleanText, reply }) => {
     await gachaListo;
-    await mostrarColeccion({ categoria: "waifu", titulo: "Tu harem", emoji: "🎴", sender, cleanText, reply });
+    await mostrarColeccion({ categoria: "waifu", titulo: "Tu harem", sender, cleanText, reply });
   }
 };
