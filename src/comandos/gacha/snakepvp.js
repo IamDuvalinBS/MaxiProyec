@@ -1,4 +1,5 @@
-import { gachaListo, crearHandlerPvp } from "../../../motores/gacha-core.js";
+import { gachaListo } from "../../../motores/gacha-core.js";
+import { crearHandlerPvp } from "../../../motores/gacha-pvp.js";
 
 const pvp = crearHandlerPvp({ categoria: "snake", comando: "snakepvp", nombreLuchador: "Snake" });
 
