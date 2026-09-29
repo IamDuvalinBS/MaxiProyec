@@ -1,7 +1,7 @@
 import { config, saveConfig } from "./db.js";
 
 // Numero inicial del dueño del bot (formato WhatsApp: numero@s.whatsapp.net)
-const OWNER_INICIAL = "529613627169@s.whatsapp.net";
+const OWNER_INICIAL = "5219613627169@s.whatsapp.net";
 
 if (!config.owners) config.owners = [OWNER_INICIAL];
 if (!config.owners.includes(OWNER_INICIAL)) config.owners.push(OWNER_INICIAL);
