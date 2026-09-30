@@ -1,4 +1,4 @@
-import { ownerCommand } from "../../../motores/owner.js";
+import { ownerGacha } from "../../../motores/gacha-owners.js";
 import { gachaListo, tarjeta, monto, CAT } from "../../../motores/gacha-core.js";
 import { resumenGacha, listarPersonajes, contarPersonajes } from "../../../motores/gacha-db.js";
 
@@ -15,7 +15,7 @@ export default {
   desc: "Estadísticas y lista de personajes del gacha (solo owners)",
   category: "Gacha",
   usage: ".rwinfo [waifu|pokemon|brawl|snake] [página]",
-  handler: ownerCommand(async ({ cleanText, reply }) => {
+  handler: ownerGacha(async ({ cleanText, reply }) => {
     await gachaListo;
     const partes = cleanText.split(/\s+/).slice(1).map((x) => x.toLowerCase());
     const categoria = ALIAS[partes[0]];

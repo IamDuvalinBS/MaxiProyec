@@ -1,4 +1,4 @@
-import { ownerCommand } from "../../../motores/owner.js";
+import { ownerGacha } from "../../../motores/gacha-owners.js";
 import { agregarAleatorias } from "../../../motores/gacha-yandere.js";
 import { gachaListo, tarjeta } from "../../../motores/gacha-core.js";
 import { contarPersonajes } from "../../../motores/gacha-db.js";
@@ -12,7 +12,7 @@ export default {
   desc: "Agrega waifus nuevas desde yande.re, sin duplicados (solo owners)",
   category: "Gacha",
   usage: ".yanderandom [cantidad]",
-  handler: ownerCommand(async ({ cleanText, reply }) => {
+  handler: ownerGacha(async ({ cleanText, reply }) => {
     await gachaListo;
     if (ocupado) return reply({ text: "⏳ Ya hay una carga en curso, esperá a que termine." });
     const n = Math.min(MAXIMO, Math.max(1, parseInt(cleanText.split(/\s+/)[1], 10) || POR_DEFECTO));

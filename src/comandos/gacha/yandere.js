@@ -1,4 +1,4 @@
-import { ownerCommand } from "../../../motores/owner.js";
+import { ownerGacha } from "../../../motores/gacha-owners.js";
 import { agregarPorLink } from "../../../motores/gacha-yandere.js";
 import { gachaListo, enviarPersonaje, registrarPendiente } from "../../../motores/gacha-core.js";
 
@@ -7,7 +7,7 @@ export default {
   desc: "Agrega UNA waifu desde un link de yande.re (solo owners)",
   category: "Gacha",
   usage: ".yandere <link del post>",
-  handler: ownerCommand(async ({ from, sender, cleanText, reply }) => {
+  handler: ownerGacha(async ({ from, sender, cleanText, reply }) => {
     await gachaListo;
     const link = cleanText.split(/\s+/)[1];
     if (!link) return reply({ text: "⚙️ Uso: .yandere https://yande.re/post/show/123456" });

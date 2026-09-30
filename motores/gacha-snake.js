@@ -1,13 +1,16 @@
 // motores/gacha-snake.js
 //
-// Minijuego "Snake": colección de gusanitos (skins) estilo snake.io. NO hay imágenes que descargar:
-// cada skin se dibuja como SVG y se convierte a PNG con sharp (que ya está en tu package.json) en un
-// archivo temporal justo al enviarla. En la base solo queda una referencia "snake:<clave>".
-import { crearPersonaje, contarPersonajes } from "./gacha-db.js";
+// Minijuego "Snake": colección de gusanitos (skins) estilo snake.io.
+//  - 32 skins curadas + ~440 variantes generadas (color x patrón x accesorio x forma).
+//  - Nada se descarga ni se guarda: cada skin se dibuja en un PNG temporal con un lienzo propio
+//    (gacha-png.js, JavaScript puro, sin sharp). En la base solo queda la referencia "snake:<clave>".
+import fs from "fs";
+import { crearPersonaje, contarPersonajes, enTransaccion } from "./gacha-db.js";
+import { Lienzo } from "./gacha-png.js";
 
 // patrón: liso | rayas | puntos | bicolor | degradado | arcoiris
-// accesorio: ninguno | cuernos | corona | halo
-export const SKINS = [
+// accesorio: ninguno | antenas | gafas | cuernos | halo | corona
+const CURADAS = [
   // ---- Común ----
   { clave: "verde-clasico",  nombre: "Verde Clásico",  rareza: "Común", patron: "liso", pal: ["#3ddc84", "#1fa85a"] },
   { clave: "rojo-fuego",     nombre: "Rojo Fuego",     rareza: "Común", patron: "liso", pal: ["#ff4d4d", "#c92a2a"] },
@@ -47,8 +50,28 @@ export const SKINS = [
   { clave: "fenix",          nombre: "Fénix",          rareza: "Legendaria", patron: "degradado", pal: ["#ffec99", "#ff922b", "#e03131"], accesorio: "corona" }
 ];
 
-const BASE_RAREZA = { "Común": 55, "Poco común": 65, "Rara": 78, "Épica": 92, "Legendaria": 110 };
-const BONO_VALOR = { "Común": 500, "Poco común": 1500, "Rara": 3500, "Épica": 8000, "Legendaria": 18000 };
+// ---------------- variantes generadas ----------------
+// Ordenados por tono, así el "compañero" (i+8) queda casi opuesto y contrasta.
+const COLORES = [
+  ["rojo", "Rojo", "#ff6b6b", "#c92a2a"], ["naranja", "Naranja", "#ffa94d", "#e8590c"],
+  ["amarillo", "Amarillo", "#ffe066", "#f08c00"], ["lima", "Lima", "#c0eb75", "#66a80f"],
+  ["verde", "Verde", "#69db7c", "#2b8a3e"], ["turquesa", "Turquesa", "#63e6be", "#087f5b"],
+  ["celeste", "Celeste", "#74c0fc", "#1971c2"], ["azul", "Azul", "#4c6ef5", "#1b2a8a"],
+  ["indigo", "Índigo", "#7950f2", "#3b1a99"], ["violeta", "Violeta", "#da77f2", "#862e9c"],
+  ["magenta", "Magenta", "#f06595", "#a61e4d"], ["rosa", "Rosa", "#faa2c1", "#c2255c"],
+  ["coral", "Coral", "#ff8787", "#e03131"], ["marron", "Marrón", "#c69c6d", "#5c3d1e"],
+  ["gris", "Gris", "#ced4da", "#495057"], ["negro", "Negro", "#495057", "#141517"]
+];
+const PATRONES = { liso: "Sólido", rayas: "Rayado", puntos: "Moteado", bicolor: "Dúo", degradado: "Degradé" };
+const ACCESORIOS = { ninguno: "", antenas: "Antenas", gafas: "Gafas", cuernos: "Cuernos", halo: "Halo", corona: "Corona" };
+const PUNTOS_PATRON = { liso: 0, rayas: 1, puntos: 1, bicolor: 1, degradado: 2, arcoiris: 3 };
+const PUNTOS_ACC = { ninguno: 0, antenas: 1, gafas: 1, cuernos: 2, halo: 2, corona: 3 };
+const FORMAS = ["onda", "serpentina", "arco"];
+const LISOS_CURADOS = new Set(["verde", "rojo", "azul", "amarillo", "naranja", "rosa", "violeta", "gris"]);
+
+function rarezaPorPuntos(n) {
+  return n <= 1 ? "Común" : n === 2 ? "Poco común" : n === 3 ? "Rara" : n === 4 ? "Épica" : "Legendaria";
+}
 
 function hash(str) {
   let h = 2166136261;
@@ -56,124 +79,164 @@ function hash(str) {
   return h >>> 0;
 }
 
+function generar() {
+  const lista = [];
+  const agregar = (clave, nombre, patron, pal, acc) => lista.push({
+    clave, nombre, patron, pal, accesorio: acc, forma: FORMAS[hash(clave) % 3],
+    rareza: rarezaPorPuntos(PUNTOS_PATRON[patron] + PUNTOS_ACC[acc])
+  });
+  COLORES.forEach(([id, nom, claro, oscuro], i) => {
+    const [, , claro2, oscuro2] = COLORES[(i + 8) % COLORES.length];
+    for (const acc of Object.keys(ACCESORIOS)) {
+      const sufijo = ACCESORIOS[acc] ? ` con ${ACCESORIOS[acc]}` : "";
+      if (!LISOS_CURADOS.has(id)) agregar(`gen-liso-${id}-${acc}`, `Sólido ${nom}${sufijo}`, "liso", [claro, oscuro], acc);
+      agregar(`gen-rayas-${id}-${acc}`, `Rayado ${nom}${sufijo}`, "rayas", [claro, oscuro2], acc);
+      agregar(`gen-puntos-${id}-${acc}`, `Moteado ${nom}${sufijo}`, "puntos", [claro, claro2], acc);
+      agregar(`gen-bicolor-${id}-${acc}`, `Dúo ${nom}${sufijo}`, "bicolor", [claro, claro2], acc);
+      agregar(`gen-degrade-${id}-${acc}`, `Degradé ${nom}${sufijo}`, "degradado", [claro, claro2, oscuro2], acc);
+    }
+  });
+  for (const acc of Object.keys(ACCESORIOS)) {
+    const sufijo = ACCESORIOS[acc] ? ` con ${ACCESORIOS[acc]}` : "";
+    agregar(`gen-prisma-${acc}`, `Prisma${sufijo}`, "arcoiris", ["#ff4d4d"], acc);
+  }
+  return lista;
+}
+
+export const SKINS = [...CURADAS.map((s) => ({ accesorio: "ninguno", forma: "onda", ...s })), ...generar()];
+const POR_CLAVE = new Map(SKINS.map((s) => [s.clave, s]));
+
+const BASE_RAREZA = { "Común": 55, "Poco común": 65, "Rara": 78, "Épica": 92, "Legendaria": 110 };
+const BONO_VALOR = { "Común": 500, "Poco común": 1500, "Rara": 3500, "Épica": 8000, "Legendaria": 18000 };
+
+// Probabilidad relativa de salir en .snake según rareza (las raras salen menos).
+export const PESOS_SNAKE = { "Común": 50, "Poco común": 27, "Rara": 14, "Épica": 6, "Legendaria": 2 };
+
 function estadisticas(sk) {
   const b = BASE_RAREZA[sk.rareza];
   const v = (n) => hash(sk.clave + n) % 15; // 0..14, fijo por skin
   return { hp: b + v("a"), atk: b + v("b"), def: b + v("c"), spe: b + v("d"), tipos: [] };
 }
 
+// Inserta las skins que falten (idempotente; se puede ampliar la lista y volver a llamar).
 export async function asegurarSnakes() {
   if (contarPersonajes("snake") >= SKINS.length) return;
-  for (const sk of SKINS) {
-    const st = estadisticas(sk);
-    crearPersonaje({
-      categoria: "snake", clave: sk.clave, nombre: sk.nombre, serie: "Snake", genero: "",
-      rareza: sk.rareza,
-      valor: (st.hp + st.atk + st.def + st.spe) * 8 + BONO_VALOR[sk.rareza],
-      img: `snake:${sk.clave}`,
-      stats: st,
-      meta: { patron: sk.patron, accesorio: sk.accesorio || "ninguno" }
-    });
-  }
+  enTransaccion(() => {
+    for (const sk of SKINS) {
+      const st = estadisticas(sk);
+      crearPersonaje({
+        categoria: "snake", clave: sk.clave, nombre: sk.nombre, serie: "Snake", genero: "",
+        rareza: sk.rareza,
+        valor: (st.hp + st.atk + st.def + st.spe) * 8 + BONO_VALOR[sk.rareza],
+        img: `snake:${sk.clave}`, stats: st,
+        meta: { patron: sk.patron, accesorio: sk.accesorio }
+      });
+    }
+  });
 }
 
 // ---------------- dibujo ----------------
+const rgb = (hex) => { const n = parseInt(hex.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
+const mezcla = (a, b, t) => a.map((v, i) => Math.round(v * (1 - t) + b[i] * t));
+function hsl(h, s, l) {
+  s /= 100; l /= 100;
+  const k = (n) => (n + h / 30) % 12, a = s * Math.min(l, 1 - l);
+  const f = (n) => Math.round(255 * (l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)))));
+  return [f(0), f(8), f(4)];
+}
 function prng(semilla) {
   let s = semilla || 1;
   return () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; };
 }
 
-function mezclar(c1, c2, t) {
-  const a = parseInt(c1.slice(1), 16), b = parseInt(c2.slice(1), 16);
-  const ch = (sh) => Math.round(((a >> sh) & 255) * (1 - t) + ((b >> sh) & 255) * t);
-  return `rgb(${ch(16)},${ch(8)},${ch(0)})`;
-}
-
-function colorSegmento(sk, i, t) {
-  const pal = sk.pal;
+function colorSegmento(sk, pal, i, t) {
   switch (sk.patron) {
     case "rayas":     return pal[Math.floor(i / 2) % 2];
     case "bicolor":   return pal[Math.floor(i / 3) % 2];
     case "puntos":    return pal[0];
-    case "arcoiris":  return `hsl(${Math.round(t * 300)},90%,58%)`;
+    case "arcoiris":  return hsl(Math.round(t * 300), 90, 58);
     case "degradado": {
-      const tramos = pal.length - 1;
-      const x = Math.min(0.9999, t) * tramos;
-      const k = Math.floor(x);
-      return mezclar(pal[k], pal[k + 1], x - k);
+      const x = Math.min(0.9999, t) * (pal.length - 1), k = Math.floor(x);
+      return mezcla(pal[k], pal[k + 1], x - k);
     }
     default:          return pal[i % 2];
   }
 }
 
-export function svgSnake(sk) {
-  const W = 800, H = 800, N = 26;
-  const rnd = prng(hash(sk.clave));
-
-  // fondo: degradado oscuro + orbes de luz
-  let orbes = "";
-  for (let k = 0; k < 34; k++) {
-    const x = Math.round(rnd() * W), y = Math.round(rnd() * H), r = 3 + Math.round(rnd() * 9);
-    const col = sk.patron === "arcoiris" ? `hsl(${Math.round(rnd() * 360)},95%,65%)` : sk.pal[k % sk.pal.length];
-    orbes += `<circle cx="${x}" cy="${y}" r="${r * 2.4}" fill="${col}" opacity="0.10"/><circle cx="${x}" cy="${y}" r="${r}" fill="${col}" opacity="0.75"/>`;
-  }
-
-  // cuerpo: onda de la cola (izquierda) a la cabeza (derecha)
+function trazado(forma, N) {
   const pts = [];
   for (let i = 0; i < N; i++) {
     const t = i / (N - 1);
     const x = 110 + t * 580;
-    const y = 420 + Math.sin(t * Math.PI * 2.2 + 0.5) * 165;
-    const r = 20 + 24 * Math.pow(t, 0.8);
-    pts.push({ x, y, r, t });
+    const y = forma === "serpentina" ? 420 + Math.sin(t * Math.PI * 3.6 + 0.3) * 125
+      : forma === "arco" ? 590 - Math.sin(t * Math.PI) * 340 + t * 20
+      : 420 + Math.sin(t * Math.PI * 2.2 + 0.5) * 165;
+    pts.push({ x, y, r: 20 + 24 * Math.pow(t, 0.8), t });
+  }
+  return pts;
+}
+
+export function dibujarSkin(sk) {
+  const W = 800, H = 800, N = sk.forma === "serpentina" ? 30 : 26;
+  const L = new Lienzo(W, H);
+  const pal = sk.pal.map(rgb);
+  const NEGRO = [17, 17, 17];
+  L.fondoRadial([43, 36, 80], [10, 9, 22]);
+
+  // orbes de luz de fondo
+  const rnd = prng(hash(sk.clave));
+  for (let k = 0; k < 34; k++) {
+    const x = rnd() * W, y = rnd() * H, r = 3 + Math.round(rnd() * 9);
+    const col = sk.patron === "arcoiris" ? hsl(Math.round(rnd() * 360), 95, 65) : pal[k % pal.length];
+    L.circulo(x, y, r * 2.4, col, 0.10);
+    L.circulo(x, y, r, col, 0.75);
   }
 
-  let cuerpo = "";
+  // cuerpo (de la cola a la cabeza)
+  const pts = trazado(sk.forma, N);
   pts.forEach((p, i) => {
-    const col = colorSegmento(sk, i, p.t);
-    cuerpo += `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${p.r.toFixed(1)}" fill="${col}" stroke="rgba(0,0,0,0.35)" stroke-width="3"/>`;
-    if (sk.patron === "puntos" && i % 2 === 1 && i < N - 1) {
-      cuerpo += `<circle cx="${(p.x + 4).toFixed(1)}" cy="${(p.y + 2).toFixed(1)}" r="${(p.r * 0.38).toFixed(1)}" fill="${sk.pal[1]}"/>`;
-    }
-    cuerpo += `<circle cx="${(p.x - p.r * 0.3).toFixed(1)}" cy="${(p.y - p.r * 0.35).toFixed(1)}" r="${(p.r * 0.32).toFixed(1)}" fill="#fff" opacity="0.22"/>`;
+    L.circulo(p.x, p.y, p.r, colorSegmento(sk, pal, i, p.t));
+    L.anillo(p.x, p.y, p.r, 3, [0, 0, 0], 0.35);
+    if (sk.patron === "puntos" && i % 2 === 1 && i < N - 1) L.circulo(p.x + 4, p.y + 2, p.r * 0.38, pal[1]);
+    L.circulo(p.x - p.r * 0.3, p.y - p.r * 0.35, p.r * 0.32, [255, 255, 255], 0.22);
   });
 
-  // cabeza: ojos y accesorio
+  // cabeza: ojos + accesorio
   const h = pts[N - 1], q = pts[N - 2];
   let dx = h.x - q.x, dy = h.y - q.y;
   const len = Math.hypot(dx, dy) || 1; dx /= len; dy /= len;
-  const nx = -dy, ny = dx;
-  let cabeza = "";
-  for (const lado of [-1, 1]) {
-    const ex = h.x + dx * 16 + nx * lado * 19, ey = h.y + dy * 16 + ny * lado * 19;
-    cabeza += `<circle cx="${ex.toFixed(1)}" cy="${ey.toFixed(1)}" r="13" fill="#fff" stroke="#111" stroke-width="2"/>` +
-              `<circle cx="${(ex + dx * 5).toFixed(1)}" cy="${(ey + dy * 5).toFixed(1)}" r="6.5" fill="#111"/>`;
+  const ojos = [-1, 1].map((lado) => [h.x + dx * 16 - dy * lado * 19, h.y + dy * 16 + dx * lado * 19]);
+  for (const [ex, ey] of ojos) {
+    L.circulo(ex, ey, 14, NEGRO);
+    L.circulo(ex, ey, 12, [255, 255, 255]);
+    L.circulo(ex + dx * 5, ey + dy * 5, 6.5, NEGRO);
   }
-  const hx = h.x.toFixed(1), hy = h.y.toFixed(1);
-  if (sk.accesorio === "cuernos") {
-    cabeza += `<polygon points="${h.x - 34},${h.y - 30} ${h.x - 20},${h.y - 78} ${h.x - 6},${h.y - 38}" fill="#f1f3f5" stroke="#111" stroke-width="3"/>` +
-              `<polygon points="${h.x + 6},${h.y - 38} ${h.x + 20},${h.y - 78} ${h.x + 34},${h.y - 30}" fill="#f1f3f5" stroke="#111" stroke-width="3"/>`;
-  } else if (sk.accesorio === "corona") {
-    cabeza += `<polygon points="${h.x - 36},${h.y - 34} ${h.x - 36},${h.y - 80} ${h.x - 18},${h.y - 58} ${h.x},${h.y - 88} ${h.x + 18},${h.y - 58} ${h.x + 36},${h.y - 80} ${h.x + 36},${h.y - 34}" fill="#fcc419" stroke="#7a4a00" stroke-width="3"/>` +
-              `<circle cx="${h.x}" cy="${h.y - 50}" r="6" fill="#e03131"/>`;
-  } else if (sk.accesorio === "halo") {
-    cabeza += `<ellipse cx="${hx}" cy="${(h.y - 62).toFixed(1)}" rx="38" ry="11" fill="none" stroke="#ffe066" stroke-width="7"/>`;
+  const acc = sk.accesorio;
+  if (acc === "gafas") {
+    for (const [ex, ey] of ojos) L.anillo(ex, ey, 19, 5, [25, 25, 25]);
+    L.linea(ojos[0][0], ojos[0][1], ojos[1][0], ojos[1][1], 5, [25, 25, 25]);
+  } else if (acc === "antenas") {
+    for (const s of [-1, 1]) {
+      L.linea(h.x + s * 14, h.y - 38, h.x + s * 34, h.y - 92, 5, [30, 30, 30]);
+      L.circulo(h.x + s * 34, h.y - 96, 9, pal[0]);
+      L.anillo(h.x + s * 34, h.y - 96, 9, 3, [30, 30, 30]);
+    }
+  } else if (acc === "cuernos") {
+    L.poligono([[h.x - 34, h.y - 30], [h.x - 20, h.y - 78], [h.x - 6, h.y - 38]], [241, 243, 245], 1, NEGRO);
+    L.poligono([[h.x + 6, h.y - 38], [h.x + 20, h.y - 78], [h.x + 34, h.y - 30]], [241, 243, 245], 1, NEGRO);
+  } else if (acc === "corona") {
+    L.poligono([[h.x - 36, h.y - 34], [h.x - 36, h.y - 80], [h.x - 18, h.y - 58], [h.x, h.y - 88],
+      [h.x + 18, h.y - 58], [h.x + 36, h.y - 80], [h.x + 36, h.y - 34]], [252, 196, 25], 1, [122, 74, 0]);
+    L.circulo(h.x, h.y - 50, 6, [224, 49, 49]);
+  } else if (acc === "halo") {
+    L.elipseAnillo(h.x, h.y - 62, 38, 11, 7, [255, 224, 102]);
   }
-
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
-<defs><radialGradient id="fondo" cx="50%" cy="45%" r="75%"><stop offset="0%" stop-color="#2b2450"/><stop offset="100%" stop-color="#0a0916"/></radialGradient></defs>
-<rect width="${W}" height="${H}" fill="url(#fondo)"/>${orbes}${cuerpo}${cabeza}</svg>`;
+  return L;
 }
 
-let sharpMod = null;
-// Dibuja la skin en un PNG (ruta). Usa sharp, ya incluido en las dependencias del bot.
+// Dibuja la skin en un PNG (ruta).
 export async function renderSnake(clave, ruta) {
-  const sk = SKINS.find((s) => s.clave === clave);
+  const sk = POR_CLAVE.get(clave);
   if (!sk) throw new Error("skin desconocida: " + clave);
-  if (!sharpMod) {
-    sharpMod = (await import("sharp")).default;
-    sharpMod.cache(false);          // no acumular imágenes en la cache interna
-    sharpMod.concurrency(1);
-  }
-  await sharpMod(Buffer.from(svgSnake(sk))).png({ compressionLevel: 9 }).toFile(ruta);
+  await fs.promises.writeFile(ruta, dibujarSkin(sk).png());
 }

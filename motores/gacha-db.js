@@ -134,6 +134,8 @@ function transaccion(fn) {
   }
 }
 
+export const enTransaccion = (fn) => transaccion(fn);
+
 const parse = (s) => { try { return s ? JSON.parse(s) : null; } catch { return null; } };
 function hidratar(row) {
   if (!row) return null;
@@ -178,6 +180,17 @@ export function personajeAleatorio(categoria, { soloLibres = false } = {}) {
     if (row) return hidratar(row);
   }
   return hidratar(st("SELECT * FROM personajes WHERE categoria = ? ORDER BY RANDOM() LIMIT 1").get(categoria));
+}
+
+// Como personajeAleatorio, pero elige primero la rareza según `pesos` (las raras salen menos).
+export function personajeAleatorioPonderado(categoria, pesos) {
+  const filas = st("SELECT rareza, COUNT(*) AS n FROM personajes WHERE categoria = ? GROUP BY rareza").all(categoria);
+  if (!filas.length) return null;
+  const pond = filas.map((f) => ({ rareza: f.rareza, peso: pesos[f.rareza] ?? 10 }));
+  let x = Math.random() * pond.reduce((a, b) => a + b.peso, 0);
+  let elegida = pond[pond.length - 1].rareza;
+  for (const f of pond) { if ((x -= f.peso) < 0) { elegida = f.rareza; break; } }
+  return hidratar(st("SELECT * FROM personajes WHERE categoria = ? AND rareza = ? ORDER BY RANDOM() LIMIT 1").get(categoria, elegida));
 }
 
 export function contarPersonajes(categoria) {
@@ -304,4 +317,4 @@ export function yandereCrearPersonaje(datos, post) {
     yandereRegistrar({ post_id: post.post_id, md5: post.md5, parent_id: post.parent_id, char_id: creado.id, estado: "ok" });
     return creado;
   });
-                      }
+}

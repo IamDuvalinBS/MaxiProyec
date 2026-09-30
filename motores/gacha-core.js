@@ -269,7 +269,7 @@ export async function hacerRoll({ categoria, obtener, reply, sender, from, coold
         exito = true;
         return;
       } catch (e) {
-        // imagen caída: probamos otro personaje
+        console.log(`[gacha] no pude preparar la imagen de "${personaje.nombre}" (${categoria}):`, e.message);
       }
     }
     await reply({ text: "❌ No pude preparar la imagen, probá de nuevo en un momento." });
@@ -349,5 +349,4 @@ export async function mostrarColeccion({ categoria, titulo, sender, cleanText, r
       ]
     })
   });
-                         }
-                                       
+}

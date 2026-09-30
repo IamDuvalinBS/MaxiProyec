@@ -1,5 +1,5 @@
-import { personajeAleatorio } from "../../../motores/gacha-db.js";
-import { asegurarSnakes } from "../../../motores/gacha-snake.js";
+import { personajeAleatorioPonderado } from "../../../motores/gacha-db.js";
+import { asegurarSnakes, PESOS_SNAKE } from "../../../motores/gacha-snake.js";
 import { hacerRoll, gachaListo } from "../../../motores/gacha-core.js";
 
 const COOLDOWN_MS = 10 * 60 * 1000;
@@ -13,7 +13,7 @@ export default {
     await asegurarSnakes();
     await hacerRoll({
       categoria: "snake",
-      obtener: async () => personajeAleatorio("snake"),
+      obtener: async () => personajeAleatorioPonderado("snake", PESOS_SNAKE),
       reply, sender, from,
       cooldownMs: COOLDOWN_MS,
       titulo: "SNAKE SALVAJE",
