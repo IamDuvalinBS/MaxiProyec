@@ -1,14 +1,7 @@
-// motores/gacha-tienda.js
-//
-// Tienda de comida (Pokémon) y orbes (Snake) para subir de nivel.
 import { getAccount } from "./db.js";
 import { TIENDAS, NIVEL_MAX, alimentar } from "./gacha-niveles.js";
 import { tarjeta, monto, CAT, textoStats, gachaListo } from "./gacha-core.js";
 
-// ---------------- tienda de comida / orbes (Pokémon y Snake) ----------------
-//   .cmd            -> muestra la tienda numerada
-//   .cmd 2          -> compra la opción 2 y se la da al de mayor nivel
-//   .cmd 2 #57      -> compra la opción 2 y se la da al #57
 export function crearComandoTienda({ categoria, names, desc }) {
   const t = TIENDAS[categoria];
   const cat = CAT[categoria];

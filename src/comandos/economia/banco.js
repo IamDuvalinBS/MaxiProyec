@@ -15,14 +15,16 @@ export default {
 
     await reply({
       text: tarjeta({
-        emoji: "🏦",
-        titulo: `CUENTA DE @${objetivo.split("@")[0]}`,
+        emoji: "🪎",
+        titulo: "BANCO DE::",
+        subtitulo: `@${objetivo.split("@")[0]}`,
         lineas: [
-          `💰 *En mano* ›› ${monto(cuenta.wallet)}`,
-          `🏛️ *En el banco* ›› ${monto(cuenta.bank)}`,
-          `📊 *Patrimonio total* ›› ${monto(cuenta.wallet + cuenta.bank)}`,
-          `🎖️ *Nivel* ›› ${perfil.level} (${fmt(perfil.xp)}/${fmt(requerida)} XP)`
-        ]
+          `⛁ *CARTERA::* ${monto(cuenta.wallet)}`,
+          `✦ *BANCO::* ${monto(cuenta.bank)}`,
+          `≛ *TOTAL::* ${monto(cuenta.wallet + cuenta.bank)}`,
+          `🎖️ *NIVEL::* ${perfil.level} (${fmt(perfil.xp)}/${fmt(requerida)} XP)`
+        ],
+        tip: "Usa *.dep* para depositar tu dinero, así está a salvo si te roban con *.crimen*."
       }),
       mentions: [objetivo]
     });

@@ -1,13 +1,9 @@
-// motores/gacha-niveles.js
-//
-// Niveles, estadísticas y tiendas del gacha. TODOS los precios y rangos se editan acá arriba.
 import { getAccount, addToWallet } from "./db.js";
 import { mejorDe, setNivel, cantidadItem, sumarItem } from "./gacha-db.js";
 
 export const NIVEL_MAX = { pokemon: 100, brawler: 30, snake: 50 };
 export const TIENE_NIVELES = (categoria) => categoria in NIVEL_MAX;
 
-// La rareza define qué tan fuertes son las estadísticas.
 export const MULT_RAREZA = {
   "Común": 1.0, "Poco común": 1.1, "Rara": 1.2, "Súper rara": 1.3,
   "Épica": 1.45, "Mítica": 1.6, "Legendaria": 1.8, "Ultra legendaria": 2.0
@@ -15,12 +11,10 @@ export const MULT_RAREZA = {
 
 const entre = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
 
-// Devuelve las estadísticas reales de un personaje a cierto nivel.
 export function statsEfectivas(p, nivel = 1) {
   const s = p.stats || { hp: 60, atk: 60, def: 60, spe: 60, tipos: [] };
   const L = Math.max(1, nivel);
   if (p.categoria === "pokemon") {
-    // Fórmula de la franquicia (sin IV/EV) con multiplicador de rareza sobre las stats base.
     const m = MULT_RAREZA[p.rareza] || 1;
     const otra = (b) => Math.floor((2 * b * m * L) / 100) + 5;
     return {
@@ -29,7 +23,6 @@ export function statsEfectivas(p, nivel = 1) {
       tipos: s.tipos || [], nivel: L, nivelCombate: L
     };
   }
-  // Brawlers y snakes: la stat base ya depende de la rareza; el nivel la multiplica.
   const paso = p.categoria === "brawler" ? 0.06 : 0.05;
   const f = 1 + paso * (L - 1);
   return {
@@ -38,7 +31,6 @@ export function statsEfectivas(p, nivel = 1) {
   };
 }
 
-// ---------------- tiendas de comida / orbes (subida VARIABLE) ----------------
 export const TIENDAS = {
   pokemon: {
     comando: "pokecomida", titulo: "COMIDA POKÉMON", emoji: "🍖",
@@ -78,11 +70,9 @@ export function alimentar({ categoria, sender, nItem, charId }) {
   return { ok: true, item, p, antes: p.nivel, despues, ganado, stats: statsEfectivas(p, despues) };
 }
 
-// ---------------- cubitos de fuerza (subida FIJA, solo Brawlers) ----------------
 export const PRECIO_CUBITO = 2000;
 export const ITEM_CUBITO = "cubito";
 
-// Cubitos que cuesta pasar del nivel L al L+1 (fijo).
 export function cubitosParaSubir(L) {
   if (L < 10) return 2;
   if (L < 20) return 4;
@@ -97,7 +87,6 @@ export function comprarCubitos(sender, cantidad) {
   return { ok: true, total, tiene: cantidadItem(sender, ITEM_CUBITO) };
 }
 
-// Sube `veces` niveles (o los que alcance / hasta el máximo si veces = Infinity).
 export function subirBrawler({ sender, charId, veces = 1 }) {
   const p = mejorDe(sender, "brawler", charId);
   if (!p) return { error: charId ? "ajeno" : "sinpersonajes" };

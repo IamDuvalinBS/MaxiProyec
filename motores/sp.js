@@ -1,9 +1,5 @@
 // Motor de Spotify. IMPORTANTE: esto NO descarga canciones completas.
-// Spotify no ofrece, en ningun lado (ni pagando Premium), una forma
-// oficial de exportar el audio completo de una cancion - solo se puede
 // reproducir dentro de su app. Lo que si permite su API publica es buscar
-// info de una cancion y, para algunas, un clip de preview oficial de 30
-// segundos (el mismo que se escucha en la app antes de loguearte).
 import axios from "axios";
 
 let tokenCache = { token: null, exp: 0 };
@@ -49,7 +45,7 @@ export async function buscarCancionSpotify(consulta) {
     artistas: track.artists.map((a) => a.name).join(", "),
     album: track.album?.name || "",
     portada: track.album?.images?.[0]?.url || null,
-    previewUrl: track.preview_url, // OJO: puede venir null, no todas las canciones tienen preview publico
+    previewUrl: track.preview_url,
     spotifyUrl: track.external_urls?.spotify
   };
 }

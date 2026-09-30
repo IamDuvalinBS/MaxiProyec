@@ -1,17 +1,8 @@
-// motores/gacha-snake.js
-//
-// Minijuego "Snake": colección de gusanitos (skins) estilo snake.io.
-//  - 32 skins curadas + ~440 variantes generadas (color x patrón x accesorio x forma).
-//  - Nada se descarga ni se guarda: cada skin se dibuja en un PNG temporal con un lienzo propio
-//    (gacha-png.js, JavaScript puro, sin sharp). En la base solo queda la referencia "snake:<clave>".
 import fs from "fs";
 import { crearPersonaje, contarPersonajes, enTransaccion } from "./gacha-db.js";
 import { Lienzo } from "./gacha-png.js";
 
-// patrón: liso | rayas | puntos | bicolor | degradado | arcoiris
-// accesorio: ninguno | antenas | gafas | cuernos | halo | corona
 const CURADAS = [
-  // ---- Común ----
   { clave: "verde-clasico",  nombre: "Verde Clásico",  rareza: "Común", patron: "liso", pal: ["#3ddc84", "#1fa85a"] },
   { clave: "rojo-fuego",     nombre: "Rojo Fuego",     rareza: "Común", patron: "liso", pal: ["#ff4d4d", "#c92a2a"] },
   { clave: "azul-oceano",    nombre: "Azul Océano",    rareza: "Común", patron: "liso", pal: ["#4dabf7", "#1c7ed6"] },
@@ -20,7 +11,6 @@ const CURADAS = [
   { clave: "rosa-chicle",    nombre: "Rosa Chicle",    rareza: "Común", patron: "liso", pal: ["#f783ac", "#d6336c"] },
   { clave: "morado-uva",     nombre: "Morado Uva",     rareza: "Común", patron: "liso", pal: ["#9775fa", "#6741d9"] },
   { clave: "gris-roca",      nombre: "Gris Roca",      rareza: "Común", patron: "liso", pal: ["#adb5bd", "#6c757d"] },
-  // ---- Poco común ----
   { clave: "cebra",          nombre: "Cebra",          rareza: "Poco común", patron: "rayas",  pal: ["#f8f9fa", "#212529"] },
   { clave: "abeja",          nombre: "Abeja",          rareza: "Poco común", patron: "rayas",  pal: ["#ffd43b", "#212529"] },
   { clave: "caramelo",       nombre: "Caramelo",       rareza: "Poco común", patron: "rayas",  pal: ["#ff6b6b", "#ffffff"] },
@@ -29,7 +19,6 @@ const CURADAS = [
   { clave: "leopardo",       nombre: "Leopardo",       rareza: "Poco común", patron: "puntos", pal: ["#ffa94d", "#5c3d1e"] },
   { clave: "menta",          nombre: "Menta",          rareza: "Poco común", patron: "bicolor",pal: ["#63e6be", "#20c997"] },
   { clave: "coral",          nombre: "Coral",          rareza: "Poco común", patron: "bicolor",pal: ["#ff8787", "#ffd8a8"] },
-  // ---- Rara ----
   { clave: "atardecer",      nombre: "Atardecer",      rareza: "Rara", patron: "degradado", pal: ["#ffa94d", "#f06595", "#7048e8"] },
   { clave: "oceano-profundo",nombre: "Océano Profundo",rareza: "Rara", patron: "degradado", pal: ["#66d9e8", "#1c7ed6", "#0b2545"] },
   { clave: "aurora",         nombre: "Aurora",         rareza: "Rara", patron: "degradado", pal: ["#69db7c", "#22b8cf", "#9775fa"] },
@@ -37,21 +26,17 @@ const CURADAS = [
   { clave: "hielo",          nombre: "Hielo",          rareza: "Rara", patron: "degradado", pal: ["#ffffff", "#a5d8ff", "#4dabf7"] },
   { clave: "bosque-encantado",nombre: "Bosque Encantado",rareza: "Rara", patron: "degradado", pal: ["#d8f5a2", "#51cf66", "#0b5d1e"] },
   { clave: "cereza",         nombre: "Cereza",         rareza: "Rara", patron: "degradado", pal: ["#ffc9c9", "#fa5252", "#7a0c0c"] },
-  // ---- Épica ----
   { clave: "arcoiris",       nombre: "Arcoíris",       rareza: "Épica", patron: "arcoiris",  pal: ["#ff4d4d"] },
   { clave: "galaxia",        nombre: "Galaxia",        rareza: "Épica", patron: "degradado", pal: ["#845ef7", "#3b5bdb", "#0b1b4d"], accesorio: "halo" },
   { clave: "neon",           nombre: "Neón",           rareza: "Épica", patron: "rayas",     pal: ["#22e6ff", "#ff2bd6"] },
   { clave: "oro-puro",       nombre: "Oro Puro",       rareza: "Épica", patron: "degradado", pal: ["#fff3bf", "#fcc419", "#e67700"] },
   { clave: "diablillo",      nombre: "Diablillo",      rareza: "Épica", patron: "rayas",     pal: ["#e03131", "#1a1a1a"], accesorio: "cuernos" },
-  // ---- Legendaria ----
   { clave: "dragon-esmeralda",nombre: "Dragón Esmeralda",rareza: "Legendaria", patron: "degradado", pal: ["#b2f2bb", "#12b886", "#0b6e4f"], accesorio: "cuernos" },
   { clave: "rey-neon",       nombre: "Rey Neón",       rareza: "Legendaria", patron: "arcoiris",  pal: ["#ff4d4d"], accesorio: "corona" },
   { clave: "fantasma-cosmico",nombre: "Fantasma Cósmico",rareza: "Legendaria", patron: "degradado", pal: ["#ffffff", "#b197fc", "#5f3dc4"], accesorio: "halo" },
   { clave: "fenix",          nombre: "Fénix",          rareza: "Legendaria", patron: "degradado", pal: ["#ffec99", "#ff922b", "#e03131"], accesorio: "corona" }
 ];
 
-// ---------------- variantes generadas ----------------
-// Ordenados por tono, así el "compañero" (i+8) queda casi opuesto y contrasta.
 const COLORES = [
   ["rojo", "Rojo", "#ff6b6b", "#c92a2a"], ["naranja", "Naranja", "#ffa94d", "#e8590c"],
   ["amarillo", "Amarillo", "#ffe066", "#f08c00"], ["lima", "Lima", "#c0eb75", "#66a80f"],
@@ -109,16 +94,14 @@ const POR_CLAVE = new Map(SKINS.map((s) => [s.clave, s]));
 const BASE_RAREZA = { "Común": 55, "Poco común": 65, "Rara": 78, "Épica": 92, "Legendaria": 110 };
 const BONO_VALOR = { "Común": 500, "Poco común": 1500, "Rara": 3500, "Épica": 8000, "Legendaria": 18000 };
 
-// Probabilidad relativa de salir en .snake según rareza (las raras salen menos).
 export const PESOS_SNAKE = { "Común": 50, "Poco común": 27, "Rara": 14, "Épica": 6, "Legendaria": 2 };
 
 function estadisticas(sk) {
   const b = BASE_RAREZA[sk.rareza];
-  const v = (n) => hash(sk.clave + n) % 15; // 0..14, fijo por skin
+  const v = (n) => hash(sk.clave + n) % 15;
   return { hp: b + v("a"), atk: b + v("b"), def: b + v("c"), spe: b + v("d"), tipos: [] };
 }
 
-// Inserta las skins que falten (idempotente; se puede ampliar la lista y volver a llamar).
 export async function asegurarSnakes() {
   if (contarPersonajes("snake") >= SKINS.length) return;
   enTransaccion(() => {
@@ -135,7 +118,6 @@ export async function asegurarSnakes() {
   });
 }
 
-// ---------------- dibujo ----------------
 const rgb = (hex) => { const n = parseInt(hex.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
 const mezcla = (a, b, t) => a.map((v, i) => Math.round(v * (1 - t) + b[i] * t));
 function hsl(h, s, l) {
@@ -183,7 +165,6 @@ export function dibujarSkin(sk) {
   const NEGRO = [17, 17, 17];
   L.fondoRadial([43, 36, 80], [10, 9, 22]);
 
-  // orbes de luz de fondo
   const rnd = prng(hash(sk.clave));
   for (let k = 0; k < 34; k++) {
     const x = rnd() * W, y = rnd() * H, r = 3 + Math.round(rnd() * 9);
@@ -192,7 +173,6 @@ export function dibujarSkin(sk) {
     L.circulo(x, y, r, col, 0.75);
   }
 
-  // cuerpo (de la cola a la cabeza)
   const pts = trazado(sk.forma, N);
   pts.forEach((p, i) => {
     L.circulo(p.x, p.y, p.r, colorSegmento(sk, pal, i, p.t));
@@ -234,7 +214,6 @@ export function dibujarSkin(sk) {
   return L;
 }
 
-// Dibuja la skin en un PNG (ruta).
 export async function renderSnake(clave, ruta) {
   const sk = POR_CLAVE.get(clave);
   if (!sk) throw new Error("skin desconocida: " + clave);

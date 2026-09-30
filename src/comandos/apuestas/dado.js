@@ -1,5 +1,5 @@
 import { getAccount } from "../../../motores/db.js";
-import { registrarEspera } from "../../economia/espera.js";
+import { registrarEspera } from "../../nucleo/espera.js";
 import { resolverApuesta, chequearEnfriamiento, liquidar } from "../../economia/apuestas.js";
 import { monto, montoConSigno, entre, pausa, avisoNivel } from "../../economia/formato.js";
 

@@ -1,9 +1,3 @@
-// Motor único de YouTube: resolver link/búsqueda, info del video, buscar
-// varios resultados, y descargar audio o video.
-//
-// Usa youtubei.js (habla con la API interna de YouTube, InnerTube) en vez
-// de @distube/ytdl-core, que scrapeaba el HTML de la página del video y
-// se rompía cada vez que YouTube cambiaba ese HTML.
 import { Innertube, Platform } from "youtubei.js";
 import {
   descargarBuffer,
@@ -12,13 +6,6 @@ import {
   LIMITE_VIDEO_WHATSAPP_MB
 } from "./descargas-core.js";
 
-// Desde hace unas versiones, youtubei.js ya NO trae incluido un
-// interprete de JavaScript para descifrar las URLs de los videos (antes
-// si lo traia). Sin esto, TODOS los formatos fallan con "No valid URL to
-// decipher" / "you must provide your own JavaScript evaluator". Esto le
-// da el evaluador que pide, usando el propio motor de JS de Node
-// (new Function), tal como recomienda la documentacion oficial:
-// https://ytjs.dev/guide/getting-started.html#providing-a-custom-javascript-interpreter
 Platform.shim.eval = async (data, env) => {
   const propiedades = [];
   if (env.n) propiedades.push(`n: exportedVars.nFunction("${env.n}")`);
@@ -27,10 +14,6 @@ Platform.shim.eval = async (data, env) => {
   return new Function(codigo)();
 };
 
-// youtubei.js tira avisos internos larguísimos ("[YOUTUBEJS][Parser]...")
-// cada vez que YouTube agrega un tipo de bloque nuevo que la libreria
-// todavia no reconoce. Son inofensivos (sigue funcionando igual) pero
-// tapan cualquier otro log util en la terminal - se silencian aca.
 const advertirOriginal = console.warn;
 const errorOriginal = console.error;
 function esRuidoDeYoutubei(args) {
@@ -90,10 +73,6 @@ export async function obtenerInfoYoutube(link) {
   const basico = info.basic_info;
   const segundos = basico.duration || 0;
 
-  // No todas las respuestas de YouTube traen la fecha de publicacion en
-  // basic_info (a veces esta, a veces no, segun el video) - se prueban los
-  // nombres de campo mas comunes y si ninguno esta, se omite en vez de
-  // mostrar un dato inventado.
   const fechaCruda = basico.publish_date || basico.upload_date || null;
 
   return {
@@ -123,12 +102,7 @@ export async function buscarVideosYoutube(consulta, limite = 10) {
   }));
 }
 
-// Se usa el mismo cliente por defecto que ya funciona para getBasicInfo.
 // YouTube viene exigiendo cada vez mas un "PO token" (token anti-bot) para
-// el cliente WEB, que es el que usa youtubei.js por defecto - sin eso,
-// a veces ni siquiera manda datos utiles para descifrar el formato (por
-// eso fallaba TODO con "No valid URL to decipher", incluso con el
-// evaluador ya puesto). Los clientes de Android/iOS/TV no piden ese
 // token, asi que se prueban en orden hasta que alguno funcione.
 const CLIENTES_A_PROBAR = ["ANDROID", "IOS", "TV", "WEB"];
 
@@ -156,9 +130,7 @@ async function obtenerInfoParaDescarga(link) {
   throw ultimoError;
 }
 
-// Listas de formatos ordenadas del mas pesado/mejor al mas liviano, leidas
 // directo de streaming_data (no de chooseFormat, que solo da UN candidato
-// y tira error si ese en particular no se puede descifrar).
 function formatosProgresivos(info) {
   return [...(info.streaming_data?.formats || [])]
     .filter((f) => f.has_video && f.has_audio)
@@ -170,10 +142,6 @@ function formatosDeTipo(info, tipo) {
   return filtrados.sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0));
 }
 
-// Prueba descifrar cada formato de la lista, del mejor al peor, y se queda
-// con el PRIMERO que funcione. A veces YouTube rompe el descifrado de
-// algunos formatos puntuales pero no de todos, asi que en vez de fallar
-// con el primero que no anda, se sigue probando antes de rendirse.
 async function primeraUrlQueFuncione(formatos, yt) {
   let ultimoError = new Error("No hay formatos para probar.");
   for (const formato of formatos) {
@@ -206,10 +174,6 @@ export async function descargarVideoYoutube(link) {
       const buffer = await descargarBuffer(url);
       bufferListo = await asegurarVideoCompatibleWhatsApp(buffer);
     } catch (e) {
-      // Puede fallar por el decipher, pero tambien por la descarga del
-      // buffer o por ffmpeg (asegurarVideoCompatibleWhatsApp) - antes esto
-      // se tragaba en silencio y parecia que "ningun formato se pudo
-      // descifrar" cuando en realidad el decipher ya habia funcionado.
       console.log(`[youtub] Fallo el plan A (formato progresivo) despues del decipher: ${e.message}`);
     }
   }

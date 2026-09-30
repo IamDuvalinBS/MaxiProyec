@@ -25,16 +25,17 @@ export default {
     const extra = conBonus ? entre(500, 2500) : 0;
     addToWallet(sender, base + extra);
 
-    const lineas = [`🪙 *Contenido* ›› +${monto(base)}`];
-    if (conBonus) lineas.push(`🌟 *Bonificación especial* ›› +${monto(extra)}`);
-    lineas.push(`💰 *En mano* ›› ${monto(getAccount(sender).wallet)}`);
+    const lineas = [`🪙 *CONTENIDO::* +${monto(base)}`];
+    if (conBonus) lineas.push(`🌟 *BONUS ESPECIAL::* +${monto(extra)}`);
+    lineas.push(`⛁ *CARTERA::* ${monto(getAccount(sender).wallet)}`);
 
     await reply({
       text: tarjeta({
         emoji: "🧰",
-        titulo: conBonus ? "COFRE CON BONIFICACIÓN" : "COFRE ABIERTO",
+        titulo: conBonus ? "COFRE CON BONIFICACIÓN!" : "COFRE ABIERTO",
         relato: elegir(RELATOS),
-        lineas
+        lineas,
+        tip: "Usa *.cofre* de nuevo en 4 horas."
       })
     });
   }

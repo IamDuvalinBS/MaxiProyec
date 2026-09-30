@@ -1,15 +1,4 @@
-// juegos/gatohtml.js
-//
-// GATO en HTML real (rich response de WhatsApp / "Meta AI"), como el .gato
 // de tu amigo. El juego corre DENTRO del mensaje: el bot solo lo envia una
-// vez, y todas las jugadas, el bot rival, el marcador y el sonido se hacen en
-// el celular con JavaScript. Por eso es fluido (no manda mensajes por jugada).
-//
-// Es 100% aparte de gato.js / gatoreal.js: si falla, no afecta a los demas.
-//
-// Formato: botForwardedMessage > richResponseMessage > unifiedResponse con un
-// primitive "FOAHtmlPrimitiveDemoDONOTUSE" (formato interno de WhatsApp, sin
-// documentacion oficial: puede dejar de funcionar segun la version de la app).
 import crypto from "crypto";
 import fs from "fs";
 const HTML_GATO = `<!DOCTYPE html>
@@ -207,9 +196,6 @@ function jugar(i) {
 
 const HTML_MINI = "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"></head><body style=\"background:#0b141a;color:#e9edef;font-family:sans-serif;text-align:center;padding:24px\"><h2>Hola desde HTML</h2><p>Si ves esto, el envio funciona.</p></body></html>";
 
-// Arma el mismo mensaje que generateHtmlContent del fork (@fer2809fl/baileys 7.0.6)
-// y lo manda con relayMessage AGREGANDO el nodo <bot biz_bot="1"/>, que es lo que
-// sendHtml se salta (y por eso WhatsApp lo mostraba como "no compatible").
 async function enviarHTML(sock, from, html, { quoted, headerText, sinNodo } = {}) {
   const sections = [];
   const texto = (t) => ({
@@ -255,8 +241,6 @@ async function enviarHTML(sock, from, html, { quoted, headerText, sinNodo } = {}
   return messageId;
 }
 
-
-// --- MODO ESPIA: guarda en tmp/ como LLEGA un mensaje rich/bot (para copiar su estructura) ---
 let espiaActiva = false;
 function activarEspia(sock) {
   if (espiaActiva) return false;
@@ -297,14 +281,11 @@ export default {
   category: "Juegos (prueba)",
   usage: ".gatohtml",
   handler: async ({ sock, from, msg }) => {
-    //   .gatohtml     -> juego completo
     //   .gatohtml t1  -> HTML minimo (para probar el envio)
-    //   .gatohtml t2  -> juego citando el mensaje + encabezado "Powered by Fernando"
     const texto = (msg?.message?.conversation || msg?.message?.extendedTextMessage?.text || "").trim();
     const modo = (texto.split(/\s+/)[1] || "").toLowerCase();
     try {
       if (modo === "pedir") {
-        // .gatohtml pedir 5219991234567 [.gato]  -> Kuromi le escribe ese comando al otro bot
         const partes = texto.split(/\s+/);
         const numero = (partes[2] || "").replace(/\D/g, "");
         const comando = partes.slice(3).join(" ") || ".gato";

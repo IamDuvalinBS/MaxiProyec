@@ -1,4 +1,3 @@
-// test_chromium_completo.js
 import puppeteer from "puppeteer-core";
 
 const RUTA = "/data/data/com.termux/files/usr/bin/chromium-browser";

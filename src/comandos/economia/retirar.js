@@ -25,12 +25,12 @@ export default {
       text: tarjeta({
         emoji: "💵",
         titulo: "RETIRO REALIZADO",
-        relato: "El dinero solicitado fue entregado y ya se encuentra disponible en mano.",
         lineas: [
-          `📤 *Retirado* ›› ${monto(cantidad)}`,
-          `💰 *En mano* ›› ${monto(cuenta.wallet)}`,
-          `🏛️ *En el banco* ›› ${monto(cuenta.bank)}`
-        ]
+          `📤 *RETIRADO::* ${monto(cantidad)}`,
+          `⛁ *CARTERA::* ${monto(cuenta.wallet)}`,
+          `✦ *BANCO::* ${monto(cuenta.bank)}`
+        ],
+        tip: "Ojo: lo que tengas en mano se lo puede llevar alguien si te roba con *.crimen*."
       })
     });
   }

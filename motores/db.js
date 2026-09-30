@@ -7,18 +7,19 @@ export const startTime = Date.now();
 
 const MONGO_URI = process.env.MONGO_URI;
 
-const accounts = new Map(); // sender -> { wallet, bank, cooldowns, profile }
-const stickerMetas = new Map(); // idSticker -> { pack, author }
+const accounts = new Map();
+const stickerMetas = new Map();
 let collection = null;
 let configCollection = null;
 let stickersCollection = null;
+let besosCollection = null;
 
 export const config = {
   botNameShort: "Mambo",
   botNameLong: "Matikanetannhauser",
   ownerName: "Sin definir",
-  prefix: ".", // se mantiene por compatibilidad, no hace falta tocarlo
-  prefixes: [".", "!", "#"], // agregá acá todos los prefijos que quieras: [".", "!", "#"]
+  prefix: ".",
+  prefixes: [".", "!", "#"],
   channelLink: "https://whatsapp.com/channel/0029Vb92LdaCnA7rdqUbdw38"
 };
 
@@ -36,6 +37,7 @@ export async function connectDB(intentos = 15) {
       collection = db.collection("accounts");
       configCollection = db.collection("config");
       stickersCollection = db.collection("stickers");
+      besosCollection = db.collection("besos");
       console.log(chalk.greenBright.bold("✅ Mongo conectado con éxito"));
 
       const docs = await collection.find({}).toArray();
@@ -57,9 +59,12 @@ export async function connectDB(intentos = 15) {
         stickerMetas.set(doc._id, { pack: doc.pack, author: doc.author });
       }
       console.log(`Metadatos de stickers cargados: ${stickerMetas.size}`);
+
+      const besosDocs = await besosCollection.find({}).toArray();
+      for (const doc of besosDocs) besos.set(doc._id, doc.total || 0);
+      console.log(`Contadores de besos cargados: ${besos.size}`);
       return;
     } catch (e) {
-      // Solo avisa cada 5 intentos, no en cada uno (para no ensuciar la pantalla)
       if (i % 5 === 0 && i < intentos) {
         console.log(chalk.yellow(`MongoDB no dio ninguna respuesta. Intentando nuevamente ${i}/${intentos}`));
       }
@@ -134,9 +139,6 @@ export function checkCooldown(sender, comando, ms) {
   return 0;
 }
 
-// ==================== METADATOS DE STICKERS ====================
-// stickerMetas: idSticker -> { pack, author }
-
 export function getStickerMeta(idSticker) {
   return stickerMetas.get(idSticker) || null;
 }
@@ -145,7 +147,6 @@ export function getAllStickerMetas() {
   return stickerMetas;
 }
 
-// Guarda en memoria al toque (para que este disponible ya mismo) y despues
 // persiste en MongoDB, igual que saveAccount/saveConfig.
 export function setStickerMeta(idSticker, pack, author) {
   stickerMetas.set(idSticker, { pack, author });
@@ -171,5 +172,36 @@ export async function saveStickerMeta(idSticker, intentos = 3) {
     }
   }
   console.log("⚠️ No se pudo guardar el metadato del sticker " + idSticker + " tras varios intentos.");
+}
+
+const besos = new Map();
+
+function claveBesos(jidA, jidB) {
+  return [jidA, jidB].sort().join("|");
+}
+
+export function getBesos(jidA, jidB) {
+  return besos.get(claveBesos(jidA, jidB)) || 0;
+}
+
+export function registrarBeso(jidA, jidB) {
+  const clave = claveBesos(jidA, jidB);
+  const nuevoTotal = (besos.get(clave) || 0) + 1;
+  besos.set(clave, nuevoTotal);
+  guardarBesos(clave, nuevoTotal);
+  return nuevoTotal;
+}
+
+async function guardarBesos(clave, total, intentos = 3) {
+  if (!besosCollection) return;
+  for (let i = 1; i <= intentos; i++) {
+    try {
+      await besosCollection.updateOne({ _id: clave }, { $set: { total } }, { upsert: true });
+      return;
+    } catch (e) {
+      if (i < intentos) await new Promise((r) => setTimeout(r, 2000));
     }
+  }
+  console.log("⚠️ No se pudo guardar el contador de besos de " + clave + " tras varios intentos.");
+}
 

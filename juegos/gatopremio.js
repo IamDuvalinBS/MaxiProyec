@@ -1,14 +1,8 @@
-// juegos/gatopremio.js
-//
-// Variante de .gato CON premio: cooldown real de 10 minutos (persistido en
-// Mongo via checkCooldown, sobrevive reinicios del bot) y el ganador se
-// lleva monedas + XP de verdad. No define un juego nuevo - usa el mismo
-// "gato" ya registrado en gato.js, solo le pasa la bandera conPremio.
 import { iniciarJuego } from "../motores/juegos-core.js";
 import { checkCooldown } from "../motores/db.js";
 import { formatTime } from "../motores/ui.js";
 
-const COOLDOWN_MS = 10 * 60 * 1000; // 10 minutos
+const COOLDOWN_MS = 10 * 60 * 1000;
 
 export default {
   names: [".gatopremio", ".gatoranked"],

@@ -1,12 +1,8 @@
-// motores/gacha-pvp.js
-//
-// Combates PvP (Pokémon, Brawl Stars, Snake) con apuesta en el monedero real del bot.
 import { mejorDe } from "./gacha-db.js";
 import { getAccount, addToWallet } from "./db.js";
 import { statsEfectivas, TIENE_NIVELES } from "./gacha-niveles.js";
 import { tarjeta, monto, arroba, CAT, participanteCitado } from "./gacha-core.js";
 
-// ---------------- PvP ----------------
 const EFECTIVIDAD = {
   normal: { rock: .5, ghost: 0, steel: .5 },
   fire: { fire: .5, water: .5, grass: 2, ice: 2, bug: 2, rock: .5, dragon: .5, steel: 2 },
@@ -34,14 +30,12 @@ function efectividad(tipoAtaque, tiposDefensor) {
   return m;
 }
 
-// El luchador usa las stats REALES según su nivel y su rareza.
 function prepararLuchador(p) {
   const s = statsEfectivas(p, p.nivel || 1);
   return { nombre: p.nombre, tipos: s.tipos, hpMax: s.hp, hp: s.hp, atk: s.atk, def: s.def, spe: s.spe, nivelCombate: s.nivelCombate };
 }
 
 function golpe(a, d) {
-  // Con tipos (Pokémon): mejor tipo propio contra el rival + STAB. Sin tipos (Brawlers/Snakes): daño plano.
   let eff = 1, stab = 1;
   if (a.tipos.length) {
     eff = Math.max(...a.tipos.map((t) => efectividad(t, d.tipos)));
@@ -76,15 +70,12 @@ export function simularCombate(pa, pb) {
   return { ganador: gana, rondas, notas, hpA: A.hp, hpB: B.hp, maxA: A.hpMax, maxB: B.hpMax };
 }
 
-const desafios = new Map(); // `${from}:${rival}` -> { retador, rival, apuesta, charId, vence }
+const desafios = new Map();
 const DESAFIO_MS = 2 * 60 * 1000;
 const APUESTA_MINIMA = 100;
 const claveDesafio = (from, rival) => `${from}:${rival}`;
 const conNivel = (p) => (TIENE_NIVELES(p.categoria) ? `${p.nombre} (Nv.${p.nivel})` : p.nombre);
 
-// Crea el handler de .pokemonpvp / .brawlstarspvp / .snakepvp
-//   .cmd @usuario <apuesta> [#id]     desafía (con #id elegís tu luchador; si no, el de mayor nivel)
-//   .cmd aceptar [#id]                acepta   |   .cmd rechazar
 export function crearHandlerPvp({ categoria, comando, nombreLuchador }) {
   const cat = CAT[categoria];
   return async ({ from, sender, cleanText, msg, reply }) => {
@@ -93,7 +84,6 @@ export function crearHandlerPvp({ categoria, comando, nombreLuchador }) {
     const idTok = partes.find((x) => /^#\d+$/.test(x));
     const charId = idTok ? parseInt(idTok.slice(1), 10) : null;
 
-    // ---- aceptar / rechazar ----
     if (sub === "aceptar" || sub === "rechazar") {
       const clave = claveDesafio(from, sender);
       const d = desafios.get(clave);
@@ -146,7 +136,6 @@ export function crearHandlerPvp({ categoria, comando, nombreLuchador }) {
       });
     }
 
-    // ---- desafiar ----
     const rival = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0] || participanteCitado(msg);
     const apuesta = parseInt(partes.find((x) => /^\d+$/.test(x)) || "", 10);
 

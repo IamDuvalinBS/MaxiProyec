@@ -1,6 +1,3 @@
-// Motor de descargas para redes sociales varias (X/Twitter, TikTok,
-// Facebook, Pinterest, Reddit). Reusa las funciones de compatibilidad con
-// WhatsApp que ya viven en descargas-core.js, para no repetir codigo.
 import axios from "axios";
 import { execFile } from "child_process";
 import { promisify } from "util";
@@ -22,15 +19,11 @@ const HEADERS = {
   "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 };
 
-/* ==================== X / TWITTER ==================== */
-
 function extraerTweetId(link) {
   const m = link.match(/(?:twitter|x)\.com\/[^/]+\/status\/(\d+)/i);
   return m ? m[1] : null;
 }
 
-// Usa la API de sindicacion publica que el propio X usa para sus embeds
-// (la que arma la vista previa de un tweet incrustado en otras webs).
 export async function obtenerMediaTwitter(link) {
   const id = extraerTweetId(link);
   if (!id) throw new Error("Ese link no parece ser de un tweet/post de X valido.");
@@ -53,8 +46,6 @@ export async function obtenerMediaTwitter(link) {
   return medias;
 }
 
-/* ==================== TIKTOK ==================== */
-
 // tikwm.com es una API publica muy usada por bots de este estilo para
 // resolver el link real sin marca de agua. Si algun dia se cae, hay que
 // reemplazarla por otra equivalente.
@@ -69,15 +60,13 @@ export async function obtenerMediaTikTok(link) {
   if (!info) throw new Error("No se pudo procesar ese link de TikTok.");
 
   if (info.images && info.images.length > 0) {
-    return info.images.map((url) => ({ type: "image", url })); // post tipo carrusel de fotos
+    return info.images.map((url) => ({ type: "image", url }));
   }
 
   const videoUrl = info.hdplay || info.play;
   if (!videoUrl) throw new Error("No se encontro el video de ese TikTok.");
   return [{ type: "video", url: videoUrl }];
 }
-
-/* ==================== FACEBOOK ==================== */
 
 export async function obtenerMediaFacebook(link) {
   const { data: html } = await axios.get(link, { headers: HEADERS, timeout: 15000 });
@@ -92,8 +81,6 @@ export async function obtenerMediaFacebook(link) {
   return [{ type: "video", url }];
 }
 
-/* ==================== PINTEREST ==================== */
-
 export async function obtenerMediaPinterest(link) {
   const { data: html } = await axios.get(link, { headers: HEADERS, timeout: 15000 });
 
@@ -105,8 +92,6 @@ export async function obtenerMediaPinterest(link) {
 
   throw new Error("No se pudo encontrar imagen ni video en ese pin.");
 }
-
-/* ==================== REDDIT ==================== */
 
 async function existeUrl(url) {
   try {
@@ -140,9 +125,6 @@ async function fusionarVideoYAudio(videoBuffer, audioBuffer) {
   }
 }
 
-// Reddit separa el video y el audio en dos archivos distintos (formato
-// DASH). Esta funcion devuelve la info y, si hace falta, ya deja el buffer
-// final fusionado con audio y todo.
 export async function obtenerVideoReddit(link) {
   const urlJson = link.split("?")[0].replace(/\/?$/, ".json");
   const { data } = await axios.get(urlJson, { headers: HEADERS, timeout: 15000 });
@@ -154,13 +136,12 @@ export async function obtenerVideoReddit(link) {
     const videoUrl = post.secure_media.reddit_video.fallback_url;
     const videoBuffer = await descargarBuffer(videoUrl);
 
-    // El audio suele vivir en la misma carpeta con el nombre "DASH_audio.mp4"
     const audioUrl = videoUrl.replace(/DASH_\d+\.mp4.*/, "DASH_audio.mp4");
     if (await existeUrl(audioUrl)) {
       const audioBuffer = await descargarBuffer(audioUrl);
       return { type: "video", buffer: await fusionarVideoYAudio(videoBuffer, audioBuffer) };
     }
-    return { type: "video", buffer: videoBuffer }; // clip sin audio (algunos no tienen)
+    return { type: "video", buffer: videoBuffer };
   }
 
   if (post.url && /\.(jpg|jpeg|png|gif)$/i.test(post.url)) {

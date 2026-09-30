@@ -38,13 +38,8 @@ export default {
         emoji: "📋",
         titulo: "RESUMEN DE TRABAJOS",
         relato: `Se completaron ${realizados} trabajos disponibles en esta ocasión.`,
-        lineas: [
-          ...lineas,
-          "",
-          `📊 *Balance total* ›› ${montoConSigno(balance)}`,
-          `✨ *Experiencia* ›› +${xpTotal}`,
-          `💰 *En mano* ›› ${monto(getAccount(sender).wallet)}`
-        ]
+        lineas: [...lineas, "", `📊 *BALANCE::* ${montoConSigno(balance)}`, `✨ *EXPERIENCIA::* +${xpTotal}`],
+        tip: `Tu cartera ahora tiene *${monto(getAccount(sender).wallet)}*.`
       })
     });
     if (nivel) await reply({ text: avisoNivel(nivel) });

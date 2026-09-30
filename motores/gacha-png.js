@@ -1,7 +1,3 @@
-// motores/gacha-png.js
-//
-// Mini-lienzo en JavaScript puro que dibuja formas con bordes suaves y exporta un PNG.
-// No depende de sharp, canvas ni nada nativo, así que funciona igual en Termux, paneles y VPS.
 import zlib from "zlib";
 
 const TABLA_CRC = (() => {
@@ -35,7 +31,6 @@ export class Lienzo {
     this.d = new Uint8Array(w * h * 3);
   }
 
-  // Mezcla un color sobre el píxel i con cobertura a (0..1).
   _px(i, c, a) {
     if (a <= 0) return;
     const d = this.d;
@@ -57,7 +52,6 @@ export class Lienzo {
     }
   }
 
-  // Recorre la caja que rodea a la forma y aplica cobertura(x, y) en cada píxel.
   _pintar(x0, y0, x1, y1, color, alpha, cobertura) {
     const ax = Math.max(0, Math.floor(x0)), bx = Math.min(this.w - 1, Math.ceil(x1));
     const ay = Math.max(0, Math.floor(y0)), by = Math.min(this.h - 1, Math.ceil(y1));
@@ -96,7 +90,6 @@ export class Lienzo {
       });
   }
 
-  // Polígono relleno (regla par-impar) con suavizado 3x3, y borde opcional.
   poligono(pts, color, alpha = 1, borde = null, gborde = 3) {
     const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
     const dentro = (px, py) => {
@@ -122,12 +115,12 @@ export class Lienzo {
     const fila = this.w * 3;
     const crudo = Buffer.alloc((fila + 1) * this.h);
     for (let y = 0; y < this.h; y++) {
-      crudo[y * (fila + 1)] = 0; // filtro "ninguno"
+      crudo[y * (fila + 1)] = 0;
       Buffer.from(this.d.buffer, this.d.byteOffset + y * fila, fila).copy(crudo, y * (fila + 1) + 1);
     }
     const cab = Buffer.alloc(13);
     cab.writeUInt32BE(this.w, 0); cab.writeUInt32BE(this.h, 4);
-    cab[8] = 8; cab[9] = 2; // 8 bits, RGB
+    cab[8] = 8; cab[9] = 2;
     return Buffer.concat([
       Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
       bloque("IHDR", cab),

@@ -1,7 +1,3 @@
-// juegos/_reiniciar.js
-//
-// Comando "invisible" hermano de _input.js: se dispara solo cuando alguien
-// toca el boton "🔁 Jugar de nuevo" que aparece cuando un juego termina.
 import { iniciarJuego } from "../motores/juegos-core.js";
 
 export default {

@@ -26,10 +26,11 @@ export default {
     const opciones = pregunta.opciones.map((o, i) => `${LETRAS[i]}) ${o}`);
     await reply({
       text: tarjeta({
-        emoji: "🧠",
-        titulo: "TRIVIA",
-        relato: pregunta.pregunta,
-        lineas: [...opciones, "", "⏱️ Responde con la letra correcta en los próximos 30 segundos."]
+        emoji: "💭",
+        titulo: "DUVA TRIVIA!",
+        relato: `*${pregunta.pregunta}*`,
+        lineas: opciones,
+        tip: "Responde con la letra correcta (A-B-C-D) en los próximos 30 segundos."
       })
     });
   }

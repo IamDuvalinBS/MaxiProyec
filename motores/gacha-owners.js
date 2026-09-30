@@ -1,12 +1,3 @@
-// motores/gacha-owners.js
-//
-// Quién puede usar los comandos de administración del gacha (.yandere, .yanderandom, .rwinfo, .brawlstars actualizar).
-// Es owner si CUALQUIERA de estas se cumple:
-//   1) ya lo reconoce tu sistema de owners del bot (motores/owner.js),
-//   2) su número está en NUMEROS_FIJOS,
-//   3) su número está en el archivo data/owners-gacha.txt (un número por línea),
-//   4) su número está en la variable de entorno GACHA_OWNERS (separados por coma).
-// Se compara solo el número (sin @s.whatsapp.net ni ":dispositivo"), así que también sirve con IDs @lid.
 import fs from "fs";
 import path from "path";
 import { isOwner } from "./owner.js";

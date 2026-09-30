@@ -1,10 +1,5 @@
-// motores/gacha-core.js
-//
-// Piezas compartidas por todos los comandos del gacha:
-//  - diseño de las tarjetas (roll, reclamo, colecciones, combates)
 //  - imágenes livianas (streaming a disco / skins de snake dibujadas al vuelo)
 //  - cooldowns y reclamos pendientes en memoria (nada de esto toca MongoDB)
-//  - motor de combate PvP con apuesta en el monedero real del bot
 import axios from "axios";
 import fs from "fs";
 import os from "os";
@@ -24,7 +19,6 @@ import { tipoEs } from "./gacha-pokemon.js";
 export { tarjeta, monto, fmt, personajePorId };
 export const arroba = (jid) => `@${jid.split("@")[0]}`;
 
-// Los comandos hacen `await gachaListo` antes de tocar la base.
 export const gachaListo = initGachaDB().catch((e) => {
   console.log("❌ Gacha: no se pudo abrir la base SQLite: " + e.message);
   throw e;
@@ -33,7 +27,6 @@ gachaListo.catch(() => {});
 
 const UA = "Mozilla/5.0 (compatible; MaxiBot/1.0)";
 
-// ---------------- categorías (nombres, emojis y comandos) ----------------
 export const CAT = {
   waifu:   { emoji: "🎴", singular: "waifu",   indef: "una waifu",   reclamado: "WAIFU RECLAMADA",   rollCmd: ".rw",         claimCmd: ".c" },
   pokemon: { emoji: "🔴", singular: "Pokémon", indef: "un Pokémon",  reclamado: "POKÉMON RECLAMADO", rollCmd: ".pokemon",    claimCmd: ".atrapar" },
@@ -41,14 +34,13 @@ export const CAT = {
   snake:   { emoji: "🐍", singular: "snake",   indef: "un snake",    reclamado: "SNAKE ADOPTADO",    rollCmd: ".snake",      claimCmd: ".adoptar" }
 };
 
-// ---------------- imágenes ----------------
 // Nunca se carga una imagen entera en RAM: se baja en streaming a un archivo temporal (o se dibuja la
 // skin de snake), se envía leyendo desde el disco ({ image: { url: ruta } }) y se borra.
 const TMP_DIR = path.join(os.tmpdir(), "maxibot-gacha");
-const LIMITE_BYTES = 15 * 1024 * 1024;     // WhatsApp acepta imágenes de hasta 16 MB
+const LIMITE_BYTES = 15 * 1024 * 1024;
 const MAX_DESCARGAS_SIMULTANEAS = 3;
 fs.mkdirSync(TMP_DIR, { recursive: true });
-for (const f of fs.readdirSync(TMP_DIR)) fs.rm(path.join(TMP_DIR, f), { force: true }, () => {}); // restos de un cierre brusco
+for (const f of fs.readdirSync(TMP_DIR)) fs.rm(path.join(TMP_DIR, f), { force: true }, () => {});
 
 let activas = 0;
 const cola = [];
@@ -96,7 +88,6 @@ async function dibujarSnake(clave) {
   }
 }
 
-// Prueba cada URL en orden (original -> jpeg -> sample). "snake:<clave>" se dibuja localmente.
 export async function prepararImagen(urls) {
   return conCupo(async () => {
     let ultimoError = new Error("sin imágenes");
@@ -110,7 +101,6 @@ export async function prepararImagen(urls) {
   });
 }
 
-// ---------------- cooldown en memoria ----------------
 const cooldowns = new Map();
 export function tomarCooldown(clave, ms) {
   const ahora = Date.now();
@@ -127,15 +117,10 @@ setInterval(() => {
   for (const [k, v] of cooldowns) if (v < ahora) cooldowns.delete(k);
 }, 10 * 60 * 1000).unref();
 
-// ---------------- reclamos pendientes ----------------
-// Línea de tiempo de cada roll:
-//   0 - 45 s  : SOLO puede reclamarlo quien hizo el roll.
-//   45 s - 3 m: queda libre, cualquiera puede reclamarlo.
-//   3 min     : expira para todos.
 export const EXCLUSIVO_MS = 45_000;
 export const VIGENCIA_MS = 3 * 60_000;
 
-const pendientes = new Map(); // idMensaje -> { from, personaje, categoria, dueno, creado, exclusivoHasta, vence }
+const pendientes = new Map();
 
 export function registrarPendiente(idMensaje, from, personaje, dueno) {
   const ahora = Date.now();
@@ -152,7 +137,6 @@ function evaluar(p, sender, ahora) {
   return { estado: "bloqueado", restanteMs: p.exclusivoHasta - ahora };
 }
 
-// Devuelve { estado: "ok" | "bloqueado" | "otra_categoria" | "nada", id?, pendiente?, restanteMs?, categoriaReal? }
 export function buscarPendiente({ from, categoria, idCitado, sender }) {
   const ahora = Date.now();
 
@@ -196,7 +180,6 @@ export function participanteCitado(msg) {
   return msg.message?.extendedTextMessage?.contextInfo?.participant || null;
 }
 
-// ---------------- diseño de las tarjetas ----------------
 function fuenteDe(p) {
   if (p.categoria === "waifu") return p.serie || "Desconocida";
   if (p.categoria === "pokemon") return "Pokémon";
@@ -206,7 +189,6 @@ function fuenteDe(p) {
 
 export const textoStats = (s) => `❤️ ${s.hp}  ⚔️ ${s.atk}  🛡️ ${s.def}  💨 ${s.spe}`;
 
-// Campos de una tarjeta de personaje. `nivel` solo aplica a categorías con niveles.
 export function lineasPersonaje(p, nivel = null) {
   const l = [`🆔 *ID* ›› #${p.id}`, `👤 *Nombre* ›› ${p.nombre}`, `🌐 *Fuente* ›› ${fuenteDe(p)}`];
   if (p.categoria === "waifu" && p.genero) l.push(`⚥ *Género* ›› ${p.genero}`);
@@ -236,7 +218,6 @@ export async function enviarPersonaje({ reply, personaje, titulo, lineasExtra = 
   }
 }
 
-// ---------------- roll genérico ----------------
 export async function hacerRoll({ categoria, obtener, reply, sender, from, cooldownMs, titulo, textoVacio }) {
   const cat = CAT[categoria];
   const clave = `roll:${categoria}:${sender}`;
@@ -278,7 +259,6 @@ export async function hacerRoll({ categoria, obtener, reply, sender, from, coold
   }
 }
 
-// ---------------- comando de reclamo (uno por categoría) ----------------
 export function crearComandoClaim({ categoria, names, desc }) {
   const cat = CAT[categoria];
   return {
@@ -326,7 +306,6 @@ export function crearComandoClaim({ categoria, names, desc }) {
   };
 }
 
-// ---------------- colección ----------------
 export async function mostrarColeccion({ categoria, titulo, sender, cleanText, reply, pista = "" }) {
   const cat = CAT[categoria];
   const pagina = Math.max(1, parseInt(cleanText.split(/\s+/)[1], 10) || 1);

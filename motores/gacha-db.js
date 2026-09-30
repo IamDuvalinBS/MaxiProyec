@@ -1,11 +1,5 @@
-// motores/gacha-db.js
-//
 // Base de datos DEL GACHA, totalmente separada de MongoDB.
 //  - Es un archivo SQLite en disco (no vive en RAM; cache_size fijado en ~2 MB).
-//  - NO guarda imágenes: solo metadatos + la URL de la imagen (unas centenas de bytes por personaje).
-//  - Usa "node:sqlite" (viene con Node 22.5+, cero dependencias) y, si no existe,
-//    cae a "better-sqlite3" (optionalDependencies).
-//  - Ruta configurable con la variable de entorno GACHA_DB_PATH (útil para apuntar a un volumen persistente).
 import fs from "fs";
 import path from "path";
 
@@ -33,9 +27,9 @@ async function abrir() {
 function esquema() {
   db.exec("PRAGMA journal_mode = WAL");
   db.exec("PRAGMA synchronous = NORMAL");
-  db.exec("PRAGMA cache_size = -2000");      // ~2 MB de cache como máximo
-  db.exec("PRAGMA mmap_size = 0");           // sin mapear el archivo en memoria
-  db.exec("PRAGMA temp_store = FILE");       // temporales a disco, no a RAM
+  db.exec("PRAGMA cache_size = -2000");
+  db.exec("PRAGMA mmap_size = 0");
+  db.exec("PRAGMA temp_store = FILE");
   db.exec("PRAGMA journal_size_limit = 4194304");
   db.exec("PRAGMA foreign_keys = ON");
 
@@ -94,7 +88,6 @@ function esquema() {
   `);
 }
 
-// Bases creadas con la versión anterior: agrega la columna "nivel" si falta.
 function migrar() {
   const cols = db.prepare("PRAGMA table_info(propiedad)").all().map((c) => c.name);
   if (!cols.includes("nivel")) db.exec("ALTER TABLE propiedad ADD COLUMN nivel INTEGER NOT NULL DEFAULT 1");
@@ -108,7 +101,6 @@ export async function initGachaDB() {
   return db;
 }
 
-// Cache de sentencias preparadas (se compilan una sola vez).
 const sentencias = new Map();
 function st(sql) {
   let s = sentencias.get(sql);
@@ -142,9 +134,6 @@ function hidratar(row) {
   return { ...row, stats: parse(row.stats), meta: parse(row.meta) };
 }
 
-// ---------------- personajes ----------------
-
-// Devuelve { id } o null si ya existía (categoria + clave duplicada).
 export function crearPersonaje({ categoria, clave, nombre, serie = "", genero = "", rareza = "Común", valor = 1000, img, stats = null, meta = null }) {
   const r = st(
     `INSERT OR IGNORE INTO personajes (categoria, clave, nombre, serie, genero, rareza, valor, img, stats, meta)
@@ -163,7 +152,6 @@ export function personajePorClave(categoria, clave) {
   return hidratar(st("SELECT * FROM personajes WHERE categoria = ? AND clave = ?").get(categoria, String(clave)));
 }
 
-// Aleatorio O(log n): salta a un id al azar en vez de ordenar toda la tabla con RANDOM().
 export function personajeAleatorio(categoria, { soloLibres = false } = {}) {
   const lim = st("SELECT MIN(id) AS a, MAX(id) AS b FROM personajes WHERE categoria = ?").get(categoria);
   if (!lim || lim.a == null) return null;
@@ -174,7 +162,6 @@ export function personajeAleatorio(categoria, { soloLibres = false } = {}) {
     const row = st(sqlSalto).get(categoria, desde);
     if (row) return hidratar(row);
   }
-  // Respaldo (pocos personajes libres): recorrido completo.
   if (soloLibres) {
     const row = st(`SELECT * FROM personajes p WHERE categoria = ? ${libre} ORDER BY RANDOM() LIMIT 1`).get(categoria);
     if (row) return hidratar(row);
@@ -182,7 +169,6 @@ export function personajeAleatorio(categoria, { soloLibres = false } = {}) {
   return hidratar(st("SELECT * FROM personajes WHERE categoria = ? ORDER BY RANDOM() LIMIT 1").get(categoria));
 }
 
-// Como personajeAleatorio, pero elige primero la rareza según `pesos` (las raras salen menos).
 export function personajeAleatorioPonderado(categoria, pesos) {
   const filas = st("SELECT rareza, COUNT(*) AS n FROM personajes WHERE categoria = ? GROUP BY rareza").all(categoria);
   if (!filas.length) return null;
@@ -197,8 +183,6 @@ export function contarPersonajes(categoria) {
   return st("SELECT COUNT(*) AS n FROM personajes WHERE categoria = ?").get(categoria).n;
 }
 
-// ---------------- propiedad ----------------
-
 export function propietarios(charId) {
   return st("SELECT usuario FROM propiedad WHERE char_id = ? ORDER BY obtenido").all(charId).map((r) => r.usuario);
 }
@@ -207,8 +191,6 @@ export function leTiene(usuario, charId) {
   return !!st("SELECT 1 FROM propiedad WHERE usuario = ? AND char_id = ?").get(usuario, charId);
 }
 
-// Waifus: un solo dueño. Pokémon/Brawlers: cada usuario puede tener el suyo.
-// Devuelve "ok" | "ocupado" | "repetido".
 export function reclamar(usuario, personaje) {
   return transaccion(() => {
     if (personaje.categoria === "waifu" && propietarios(personaje.id).length) return "ocupado";
@@ -218,7 +200,6 @@ export function reclamar(usuario, personaje) {
   });
 }
 
-// Orden estable (no cambia al subir de nivel): valor base y luego id.
 export function coleccionDe(usuario, categoria, limite = 15, desplazamiento = 0) {
   return st(
     `SELECT p.*, o.obtenido, o.nivel FROM propiedad o JOIN personajes p ON p.id = o.char_id
@@ -234,7 +215,6 @@ export function contarColeccion(usuario, categoria) {
   ).get(usuario, categoria);
 }
 
-// Sin charId: el de mayor nivel (y luego valor). Con charId: ese, si es del usuario.
 export function mejorDe(usuario, categoria, charId = null) {
   if (charId) {
     return hidratar(st(
@@ -253,7 +233,6 @@ export function setNivel(usuario, charId, nivel) {
   st("UPDATE propiedad SET nivel = ? WHERE usuario = ? AND char_id = ?").run(nivel, usuario, charId);
 }
 
-// ---------------- inventario ----------------
 export function cantidadItem(usuario, item) {
   const r = st("SELECT cantidad FROM inventario WHERE usuario = ? AND item = ?").get(usuario, item);
   return r ? r.cantidad : 0;
@@ -264,7 +243,6 @@ export function sumarItem(usuario, item, delta) {
       ON CONFLICT(usuario, item) DO UPDATE SET cantidad = cantidad + excluded.cantidad`).run(usuario, item, delta);
 }
 
-// ---------------- estadísticas para .rwinfo ----------------
 export function listarPersonajes(categoria, limite = 20, desplazamiento = 0) {
   return st(
     `SELECT p.*, (SELECT COUNT(*) FROM propiedad o WHERE o.char_id = p.id) AS duenos
@@ -282,9 +260,6 @@ export function resumenGacha() {
   return { porCategoria, porRareza, reclamados, yandere };
 }
 
-// ---------------- yande.re: verificador de duplicados ----------------
-
-// Devuelve null si el post es nuevo, o el motivo: "post" | "md5" | "parent".
 export function yandereDuplicado({ post_id, md5, parent_id }) {
   const d = q();
   if (st("SELECT 1 FROM yandere_posts WHERE post_id = ?").get(post_id)) return "post";

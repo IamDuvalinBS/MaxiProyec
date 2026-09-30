@@ -1,7 +1,6 @@
 import { config } from "./db.js";
 import { getProfile } from "./profile.js";
 
-// Numeros/nombres de los admins principales a los que hay que avisar - editalo aca
 const ADMINS_PRINCIPALES = "🏆*IamDuvalin* 2️⃣*IamCris* 3️⃣";
 
 function construirMensaje({ target, autor, sock }) {
@@ -18,11 +17,9 @@ function construirMensaje({ target, autor, sock }) {
 
 - No dar admin sin antes haber avisado a los admins principales. *(Regla n° 1)*
 
-
 > 🌱 -Son reglas básicas. Se pide respetarlas sin abusar del admin..
 
 🪺 \`REQUISITOS::\` 
-
 
 - Compartir el grupo para atraer más gente. 
 > *🧸 Avisen que es un grupo para usar el bot y socializar.*
@@ -47,7 +44,6 @@ NÚMERO:: ${numero}
   };
 }
 
-// Se llama desde index.js cada vez que cambian los participantes de un grupo.
 export async function manejarCambioParticipantes(sock, update) {
   if (update.action !== "promote") return;
   const autor = update.author;

@@ -24,8 +24,6 @@ export function getProfile(sender) {
   return acc.profile;
 }
 
-// Sube experiencia y sube de nivel automaticamente si corresponde.
-// Formula: la xp necesaria para el siguiente nivel es: nivel actual * 100
 export function addXp(sender, amount) {
   const p = getProfile(sender);
   p.xp = (p.xp || 0) + amount;

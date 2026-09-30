@@ -2,7 +2,6 @@ import fs from "fs";
 import path from "path";
 import { config, saveConfig } from "./db.js";
 
-// Owners fijos del bot (formato WhatsApp: numero@s.whatsapp.net).
 const OWNERS_INICIALES = [
   "529613345733@s.whatsapp.net",
   "529613627169@s.whatsapp.net",
@@ -10,13 +9,8 @@ const OWNERS_INICIALES = [
   "155345393565872@lid"
 ];
 
-// Owners extra SIN tocar el código: un número por línea en data/owners.txt (o data/owners-gacha.txt).
-// Sirve también para los IDs internos @lid que WhatsApp usa en algunos grupos (mirá el tuyo con .miid).
-// Se lee en cada consulta, así que no hace falta reiniciar el bot.
-//   Ejemplo (Termux, dentro de la carpeta del bot):  echo "123456789012345" >> data/owners.txt
 const ARCHIVOS_EXTRA = [path.resolve("./data/owners.txt"), path.resolve("./data/owners-gacha.txt")];
 
-// "5216...:12@s.whatsapp.net" / "12345@lid" -> solo los dígitos del número
 const soloNumero = (jid) => String(jid || "").split("@")[0].split(":")[0].replace(/\D/g, "");
 
 function numerosExtra() {
@@ -40,7 +34,6 @@ export function isOwner(sender) {
   if (lista.includes(sender)) return true;
   const n = soloNumero(sender);
   if (!n) return false;
-  // mismo número aunque cambie el sufijo de dispositivo (":12") o el dominio
   if (lista.some((jid) => soloNumero(jid) === n)) return true;
   return numerosExtra().includes(n);
 }
@@ -54,7 +47,6 @@ export async function addOwner(nuevoJid) {
 }
 
 // Envuelve un handler para que SOLO los owners puedan usarlo.
-// Uso: handler: ownerCommand(async (ctx) => { ... })
 export function ownerCommand(handler) {
   return async (ctx) => {
     if (!isOwner(ctx.sender)) {

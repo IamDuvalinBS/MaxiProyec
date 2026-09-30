@@ -20,7 +20,6 @@ export default {
     const partes = cleanText.split(/\s+/).slice(1).map((x) => x.toLowerCase());
     const categoria = ALIAS[partes[0]];
 
-    // ---- lista de una categoría ----
     if (categoria) {
       const total = contarPersonajes(categoria);
       if (!total) return reply({ text: `📭 No hay personajes cargados en ${CAT[categoria].singular}.` });
@@ -38,7 +37,6 @@ export default {
       });
     }
 
-    // ---- resumen general ----
     const { porCategoria, porRareza, reclamados, yandere } = resumenGacha();
     const lineas = [];
     for (const clave of Object.keys(CAT)) {

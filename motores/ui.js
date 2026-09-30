@@ -29,5 +29,4 @@ export function box(titulo, lineas) {
   ].join("\n");
 }
 
-// Registro compartido de comandos (lo llena economia.js al cargar las carpetas)
-export const commandRegistry = new Map(); // primerNombre -> { names, desc, category, usage }
+export const commandRegistry = new Map();

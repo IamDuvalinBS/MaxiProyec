@@ -25,12 +25,12 @@ export default {
       text: tarjeta({
         emoji: "🏛️",
         titulo: "DEPÓSITO REALIZADO",
-        relato: "El dinero fue resguardado correctamente en tu cuenta bancaria.",
         lineas: [
-          `📥 *Depositado* ›› ${monto(cantidad)}`,
-          `💰 *En mano* ›› ${monto(cuenta.wallet)}`,
-          `🏛️ *En el banco* ›› ${monto(cuenta.bank)}`
-        ]
+          `📥 *DEPOSITADO::* ${monto(cantidad)}`,
+          `⛁ *CARTERA::* ${monto(cuenta.wallet)}`,
+          `✦ *BANCO::* ${monto(cuenta.bank)}`
+        ],
+        tip: "Usa *.retirar* cuando necesites ese dinero de vuelta en mano."
       })
     });
   }

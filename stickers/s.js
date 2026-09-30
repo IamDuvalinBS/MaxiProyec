@@ -13,8 +13,6 @@ export default {
     }
 
     try {
-      // Usa el meta que el usuario haya configurado con .setmeta, o el
-      // predeterminado si todavia no configuro nada.
       const stickerBuffer = await crearSticker(buffer, sender);
       await sock.sendMessage(from, { sticker: stickerBuffer });
     } catch (e) {

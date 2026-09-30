@@ -1,9 +1,3 @@
-// motores/gacha-yandere.js
-//
-// Proveedor de waifus: yande.re (Moebooru).
-//  - SOLO posts con rating "safe" (rating:safe), porque el bot vive en grupos de WhatsApp.
-//  - Guarda la URL "sample" (liviana) y no el archivo original.
-//  - Incluye el verificador de duplicados (post, md5, padre/hijo y personaje repetido).
 import axios from "axios";
 import {
   personajePorClave, yandereDuplicado, yandereRegistrar,
@@ -31,7 +25,6 @@ async function api(ruta, params) {
   return data;
 }
 
-// "https://yande.re/post/show/1234567/tags..." -> 1234567
 export function idDesdeLink(texto) {
   if (!texto) return null;
   const m = String(texto).match(/yande\.re\/post\/show\/(\d+)/i);
@@ -61,7 +54,6 @@ export async function postsAleatorios() {
   return [];
 }
 
-// Tipo de un tag (con cache en SQLite para no volver a preguntar nunca).
 async function tipoDeTag(nombre, contador) {
   const guardado = yandereTagTipo(nombre);
   if (guardado !== null) return guardado;
@@ -75,11 +67,10 @@ async function tipoDeTag(nombre, contador) {
     await pausa(200);
     return tipo;
   } catch (e) {
-    return null; // sin red / rate limit: no lo cacheamos
+    return null;
   }
 }
 
-// Orden de calidad: original -> JPEG de alta calidad -> sample. Las URLs se guardan (no las imágenes)
 // y al enviar se prueba en orden hasta que una funcione. El original solo se usa si pesa <= 8 MB.
 const MB = 1024 * 1024;
 export function elegirImagenes(post) {
@@ -93,7 +84,7 @@ export function elegirImagenes(post) {
 
 function bonito(tag) {
   return tag
-    .replace(/_\([^)]*\)$/, "")   // yui_(k-on!) -> yui
+    .replace(/_\([^)]*\)$/, "")
     .replace(/_/g, " ")
     .replace(/\b\p{L}/gu, (c) => c.toUpperCase())
     .trim();
@@ -107,7 +98,6 @@ function rarezaDe(valor) {
   return "Común";
 }
 
-// Convierte un post en waifu y la guarda. Devuelve { ok, personaje?, motivo? }
 export async function procesarPost(post) {
   const info = {
     post_id: post.id,
@@ -115,11 +105,9 @@ export async function procesarPost(post) {
     parent_id: post.parent_id || null
   };
 
-  // 1) Verificador de duplicados (archivo)
   const dup = yandereDuplicado(info);
   if (dup) return { ok: false, motivo: `duplicado (${dup})` };
 
-  // 2) Filtros de contenido
   if (post.rating !== "s") {
     yandereRegistrar({ ...info, estado: "rating" });
     return { ok: false, motivo: "no es rating safe" };
@@ -133,7 +121,6 @@ export async function procesarPost(post) {
   if (!imagenes.length) return { ok: false, motivo: "sin archivo" };
   const img = imagenes[0];
 
-  // 3) Identificar personaje y serie por tipo de tag
   const contador = { n: 0 };
   const personajes = [];
   const series = [];
@@ -151,7 +138,6 @@ export async function procesarPost(post) {
     return { ok: false, motivo: "varios personajes en la imagen" };
   }
 
-  // 4) Verificador de duplicados (personaje)
   const tagPersonaje = personajes[0];
   if (personajePorClave("waifu", tagPersonaje)) {
     yandereRegistrar({ ...info, estado: "duplicado" });
@@ -184,7 +170,6 @@ export async function procesarPost(post) {
   };
 }
 
-// .yanderandom: agrega hasta `cantidad` waifus NUEVAS a partir de posts distintos.
 export async function agregarAleatorias(cantidad = 5, { intentosMaximos = 3 } = {}) {
   const agregadas = [];
   const rechazos = {};
@@ -200,7 +185,6 @@ export async function agregarAleatorias(cantidad = 5, { intentosMaximos = 3 } = 
   return { agregadas, rechazos };
 }
 
-// .yandere <link>: agrega UNA waifu concreta.
 export async function agregarPorLink(link) {
   const id = idDesdeLink(link);
   if (!id) return { ok: false, motivo: "link inválido" };

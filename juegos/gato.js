@@ -1,14 +1,4 @@
-// juegos/gato.js
-//
-// Gato (tic-tac-toe). Tres formas de arrancarlo:
 //   .gato            -> jugas contra el bot (IA local, gratis, sin API).
-//   .gato @persona   -> desafias a esa persona del chat, sin apuestas.
-//
-// Las jugadas son TEXTO PLANO (escribir un numero del 1 al 9), no botones
-// (los botones de WhatsApp no funcionan de forma confiable).
-//
-// La X y la O se dibujan como LINEAS/CIRCULO, no como texto - la fuente
-// pixelada no rinde bien en tamaños grandes, pero las lineas siempre andan.
 import { registrarJuego, iniciarJuego, FUENTE } from "../motores/juegos-core.js";
 import { addToWallet, CURRENCY } from "../motores/db.js";
 import { addXp } from "../motores/profile.js";
@@ -63,11 +53,11 @@ registrarJuego({
       turno: "X",
       jugadorX: sender,
       nombreX: msg?.pushName || null,
-      jugadorO: opciones.oponente || null, // null = juega el bot
+      jugadorO: opciones.oponente || null,
       nombreO: null,
       jugada: 0,
       fin: null,
-      conPremio: !!opciones.conPremio, // true solo si arrancó con .gatopremio
+      conPremio: !!opciones.conPremio,
     };
   },
 
@@ -78,9 +68,6 @@ registrarJuego({
     ];
   },
 
-  // Mención REAL de WhatsApp (dispara notificación) - solo tiene sentido
-  // contra otra persona; contra el bot no hay a quien avisar. El texto es
-  // minimo porque el "TURNO DE ..." grande ya se dibuja adentro de la foto.
   turnoInfo(estado) {
     if (!estado.jugadorO) return null;
     const jidActual = estado.turno === "X" ? estado.jugadorX : estado.jugadorO;
@@ -93,8 +80,6 @@ registrarJuego({
     const oy = (alto - tam) / 2;
     const celda = tam / 3;
 
-    // "TURNO DE ..." dibujado adentro de la imagen (nombre real si ya lo
-    // sabemos por su pushName, si no el numero, y BOT si juega la maquina)
     const jidActual = estado.turno === "X" ? estado.jugadorX : estado.jugadorO;
     const nombreActual = estado.turno === "X" ? estado.nombreX : estado.nombreO;
     const etiquetaTurno = estado.fin
@@ -173,7 +158,6 @@ registrarJuego({
     const tablero = [...estado.tablero];
     tablero[idx] = estado.turno;
 
-    // guarda el nombre real (pushName) de quien acaba de jugar, si no lo teniamos
     let nombreX = estado.nombreX;
     let nombreO = estado.nombreO;
     if (sender === estado.jugadorX && !nombreX && msg?.pushName) nombreX = msg.pushName;
@@ -203,8 +187,6 @@ registrarJuego({
     return estado.fin === "X" ? "Gano X! 🎉" : "Gano O! 🎉";
   },
 
-  // Se dispara UNA sola vez, justo cuando la partida termina (lo llama el
-  // motor). Si el juego no arranco con premio (.gato normal), no hace nada.
   async alGanar(estado, sender, msg) {
     if (!estado.conPremio) return null;
     if (estado.fin === "empate") {
@@ -215,7 +197,7 @@ registrarJuego({
       return { lineas: ["🤖 Gano el bot - no hay premio para nadie."] };
     }
 
-    const monto = Math.floor(Math.random() * 61) + 40; // 40 a 100
+    const monto = Math.floor(Math.random() * 61) + 40;
     addToWallet(ganadorJid, monto);
     const xpGanada = Math.max(1, Math.round(monto / 10));
     const { leveledUp, newLevel } = addXp(ganadorJid, xpGanada);

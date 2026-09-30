@@ -1,16 +1,3 @@
-// juegos/gatoreal.js
-//
-// GATO DE PRUEBA - totalmente aparte de gato.js/gatopremio.js (no comparten
-// nada, ni el estado ni el motor). Sirve para probar dos cosas nuevas antes
-// de tocar los juegos que ya funcionan:
-//
-//   1. Botones REALES de WhatsApp (interactiveMessage / quick_reply) via
-//      @fer2809fl/baileys - se tocan de verdad, una casilla por boton.
-//   2. Render con HTML/CSS (satori + resvg) en vez de canvas a mano -
-//      satori convierte un arbol tipo HTML+flexbox a SVG, y resvg lo pasa
-//      a PNG. Sin Puppeteer/Chromium (eso no corre en Termux).
-//
-// Si esto falla, gato.js y gatopremio.js NO se tocan ni se ven afectados.
 import satori from "satori";
 import { Resvg } from "@resvg/resvg-js";
 import fs from "fs";
@@ -19,9 +6,9 @@ import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const RUTA_FUENTE = path.join(__dirname, "../assets/fonts/retro.ttf");
-const fontData = fs.readFileSync(RUTA_FUENTE); // misma fuente que ya usa gato.js
+const fontData = fs.readFileSync(RUTA_FUENTE);
 
-const partidas = new Map(); // from -> estado (independiente de juegos-core.js)
+const partidas = new Map();
 
 const LINEAS = [
   [0, 1, 2], [3, 4, 5], [6, 7, 8],
@@ -58,7 +45,6 @@ function jugadaBot(tablero) {
   return minimax(tablero, "O").indice;
 }
 
-// --- Render con HTML/CSS (satori) en vez de canvas ---
 function celdaHTML(valor, i) {
   return {
     type: "div",
@@ -132,7 +118,6 @@ async function renderizarHTML(estado) {
   return resvg.render().asPng();
 }
 
-// --- Botones reales (uno por casilla libre, maximo 9) ---
 function armarBotones(estado) {
   return estado.tablero
     .map((v, i) => (v ? null : { id: `gatoreal:${i}`, text: String(i + 1) }))
@@ -178,11 +163,10 @@ export default {
   },
 };
 
-/** Se llama desde index.js cuando tocan uno de los botones gatoreal:<indice>. */
 export async function procesarBotonGatoReal(sock, from, sender, msg, indiceStr) {
   const estado = partidas.get(from);
   if (!estado || estado.fin) return;
-  if (sender !== estado.jugadorX || estado.turno !== "X") return; // no le toca / no es el jugador
+  if (sender !== estado.jugadorX || estado.turno !== "X") return;
 
   const idx = Number(indiceStr);
   if (!Number.isInteger(idx) || estado.tablero[idx]) return;

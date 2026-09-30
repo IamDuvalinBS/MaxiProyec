@@ -25,7 +25,12 @@ export default {
     });
 
     await reply({
-      text: tarjeta({ emoji: "🏆", titulo: "RANKING DE PATRIMONIO", lineas }),
+      text: tarjeta({
+        emoji: "🏆",
+        titulo: "RANKING GLOBAL",
+        lineas,
+        tip: "Usa *.banco* para ver tu propio dinero."
+      }),
       mentions: ranking.filter((u) => !u.nombre).map((u) => u.jid)
     });
   }

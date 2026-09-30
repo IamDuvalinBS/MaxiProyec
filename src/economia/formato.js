@@ -15,10 +15,20 @@ export function montoConSigno(n) {
   return `${n < 0 ? "-" : "+"}${monto(Math.abs(n))}`;
 }
 
-export function tarjeta({ emoji, titulo, relato, lineas = [] }) {
-  const partes = [`「${emoji}」 *${titulo}*`, SEPARADOR];
+export function tarjeta({ emoji, titulo, subtitulo, relato, lineas = [], tip }) {
+  if (subtitulo === undefined && tip === undefined) {
+    const partes = [`「${emoji}」 *${titulo}*`, SEPARADOR];
+    if (relato) partes.push(`> ${relato}`, "");
+    partes.push(...lineas);
+    return partes.join("\n").trimEnd();
+  }
+
+  const partes = [`⧼${emoji}⧽ *${titulo}*`];
+  if (subtitulo) partes.push(`     ➥ ${subtitulo}`);
+  partes.push("");
   if (relato) partes.push(`> ${relato}`, "");
   partes.push(...lineas);
+  if (tip) partes.push("", `> ${tip}`);
   return partes.join("\n").trimEnd();
 }
 

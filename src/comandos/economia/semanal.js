@@ -1,5 +1,6 @@
 import { addToWallet, getAccount, checkCooldown } from "../../../motores/db.js";
 import { tarjeta, monto, elegir, textoEspera } from "../../economia/formato.js";
+import { formatTime } from "../../../motores/ui.js";
 
 const PREMIO = 70000;
 const ESPERA_MS = 7 * 24 * 60 * 60 * 1000;
@@ -24,13 +25,11 @@ export default {
 
     await reply({
       text: tarjeta({
-        emoji: "🎊",
-        titulo: "RECOMPENSA SEMANAL",
+        emoji: "🌺",
+        titulo: "SEMANAL HECHA!",
         relato: elegir(RELATOS),
-        lineas: [
-          `🪙 *Ganancia* ›› +${monto(PREMIO)}`,
-          `💰 *En mano* ›› ${monto(getAccount(sender).wallet)}`
-        ]
+        lineas: [`🪙 *GANADO::* +${monto(PREMIO)}`, `⛁ *CARTERA::* ${monto(getAccount(sender).wallet)}`],
+        tip: `Vuelve en *${formatTime(ESPERA_MS)}* para reclamarla de nuevo.`
       })
     });
   }

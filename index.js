@@ -8,10 +8,9 @@ import pino from "pino";
 import http from "http";
 import { manejarComando } from "./src/nucleo/comandos.js";
 import { checkTriviaAnswer } from "./src/economia/trivia.js";
-import { procesarEspera } from "./src/economia/espera.js";
+import { procesarEspera } from "./src/nucleo/espera.js";
 import { config, manejarCambioParticipantes, procesarTextoAkinator } from "./core.js";
 import { intentarProcesarTexto } from "./motores/juegos-core.js";
-import { resolverEleccionFormato } from "./motores/espera-formato.js";
 
 import readline from "readline";
 import cfonts from "cfonts";
@@ -193,12 +192,6 @@ async function startBot() {
     } else {
       const clave = `${from}:${sender}`;
       if (await procesarEspera(clave, text, { sock, from, sender, msg })) return;
-
-      const comandoElegido = resolverEleccionFormato(clave, text);
-      if (comandoElegido) {
-        await manejarComando(sock, from, sender, comandoElegido, msg);
-        return;
-      }
 
       const fueAkinator = await procesarTextoAkinator(sock, from, sender, text, msg);
       if (!fueAkinator) {

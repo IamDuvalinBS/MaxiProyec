@@ -1,7 +1,7 @@
 import { getAccount, saveAccount } from "../../motores/db.js";
 import { addXp } from "../../motores/profile.js";
 import { leerMonto, monto, textoEspera } from "./formato.js";
-import { enfriar } from "./espera.js";
+import { enfriar } from "../nucleo/espera.js";
 
 export function resolverApuesta(texto, disponible, minimo, maximo) {
   const cantidad = leerMonto(texto, disponible);

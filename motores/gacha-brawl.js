@@ -1,9 +1,4 @@
-// motores/gacha-brawl.js
-//
-// Proveedor de Brawl Stars: Brawlify API (https://api.brawlapi.com/v1/brawlers).
 // No requiere API key (la API oficial de Supercell sí). Trae TODOS los brawlers con su imagen en
-// el CDN de Brawlify; en la base solo se guarda la URL. `sincronizarBrawlers()` se puede volver
-// a correr cuando salga un brawler nuevo.
 import axios from "axios";
 import { crearPersonaje, contarPersonajes } from "./gacha-db.js";
 
@@ -20,11 +15,9 @@ function rangoDe(nombreRareza = "") {
 }
 const RAREZA_ES = { 1: "Común", 2: "Rara", 3: "Súper rara", 4: "Épica", 5: "Mítica", 6: "Legendaria", 7: "Ultra legendaria" };
 
-// La API no da estadísticas de combate, así que se derivan de forma determinística
-// (rareza + clase + id) en la misma escala de "stats base" que usa el motor de combate.
 function estadisticas(id, rango, clase = "") {
   const c = clase.toLowerCase();
-  const semilla = (n) => ((Number(id) * 2654435761 + n * 40503) >>> 0) % 21; // 0..20 fijo por brawler
+  const semilla = (n) => ((Number(id) * 2654435761 + n * 40503) >>> 0) % 21;
   let hp = 60 + rango * 11, atk = 60 + rango * 9, def = 55 + rango * 8, spe = 60 + rango * 7;
   if (c.includes("tank")) { hp += 25; def += 15; spe -= 10; }
   else if (c.includes("assassin")) { atk += 20; spe += 20; hp -= 15; }

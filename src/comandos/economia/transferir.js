@@ -31,13 +31,11 @@ export default {
       text: tarjeta({
         emoji: "💸",
         titulo: "TRANSFERENCIA COMPLETADA",
-        relato: `Se envió dinero a @${destino.split("@")[0]} de forma satisfactoria.`,
-        lineas: [
-          `📤 *Monto enviado* ›› ${monto(cantidad)}`,
-          `💰 *Tu saldo en mano* ›› ${monto(cuenta.wallet)}`
-        ]
+        subtitulo: `@${sender.split("@")[0]} ➜ @${destino.split("@")[0]}`,
+        lineas: [`📤 *ENVIADO::* ${monto(cantidad)}`, `⛁ *TU CARTERA::* ${monto(cuenta.wallet)}`],
+        tip: "Usa *.banco* para confirmar tu saldo actualizado."
       }),
-      mentions: [destino]
+      mentions: [sender, destino]
     });
   }
 };

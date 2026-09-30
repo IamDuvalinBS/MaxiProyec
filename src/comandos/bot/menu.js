@@ -1,5 +1,24 @@
 import fs from "fs";
+import sharp from "sharp";
 import { config, formatUptime, getAllAccounts, commandRegistry, FOTO_PATH } from "../../../core.js";
+
+let miniaturaCache = null;
+
+async function miniaturaSegura() {
+  if (!fs.existsSync(FOTO_PATH)) return undefined;
+  const mtimeMs = fs.statSync(FOTO_PATH).mtimeMs;
+  if (miniaturaCache && miniaturaCache.mtimeMs === mtimeMs) return miniaturaCache.buffer;
+
+  const original = fs.readFileSync(FOTO_PATH);
+  let buffer = original;
+  try {
+    buffer = await sharp(original).resize(300, 300, { fit: "cover" }).jpeg({ quality: 70 }).toBuffer();
+  } catch (e) {
+    buffer = original;
+  }
+  miniaturaCache = { mtimeMs, buffer };
+  return buffer;
+}
 
 const CATEGORIAS = [
   { nombre: "General", icono: "🍭", alias: ["general"] },
@@ -103,7 +122,7 @@ export default {
     const categorias = agruparComandos();
     const texto = argumento ? textoCategoria(argumento, categorias) : textoMenuCompleto(sender, categorias);
 
-    const miniatura = fs.existsSync(FOTO_PATH) ? fs.readFileSync(FOTO_PATH) : undefined;
+    const miniatura = await miniaturaSegura();
     const canal = await resolverCanal(sock);
 
     const contextInfo = {
@@ -121,7 +140,13 @@ export default {
       }
     };
 
-    await sock.sendMessage(from, { text: texto.trim(), mentions: [sender], contextInfo }, { quoted: msg });
+    // versiones viejas de WhatsApp) y el envío falla o nunca llega, se
+    try {
+      await sock.sendMessage(from, { text: texto.trim(), mentions: [sender], contextInfo }, { quoted: msg });
+    } catch (e) {
+      console.log("[.menu] Falló el envío con tarjeta, reintentando en texto simple: " + e.message);
+      await sock.sendMessage(from, { text: texto.trim(), mentions: [sender] }, { quoted: msg });
+    }
   }
 };
     

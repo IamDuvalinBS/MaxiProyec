@@ -31,8 +31,6 @@ export default {
         const buffer = await descargarBuffer(url);
         const stickerBuffer = await crearStickerConMetaFijo(buffer);
         await sock.sendMessage(from, { sticker: stickerBuffer });
-        // Pausa corta entre stickers para no mandar 10 mensajes de golpe
-        // (mismo criterio anti-spam que usa el resto del bot).
         await delayAleatorio(500, 1200);
       } catch (e) {
         console.log(`❌ Error mandando un sticker de .spack (${query}): ` + e.message);

@@ -1,9 +1,4 @@
-// motores/gacha-pokemon.js
-//
 // Proveedor de Pokémon: PokeAPI (https://pokeapi.co). Gratis, sin API key.
-// Las imágenes son el "official artwork" alojado en el repo PokeAPI/sprites (GitHub);
-// en la base solo se guarda la URL. El Pokémon se descarga de la API la primera vez que
-// sale y desde entonces se lee de SQLite.
 import axios from "axios";
 import { crearPersonaje, personajePorClave } from "./gacha-db.js";
 
@@ -54,7 +49,6 @@ async function traer(id) {
   };
 }
 
-// Devuelve un Pokémon al azar (de SQLite si ya lo conocemos, si no de PokeAPI).
 export async function pokemonAleatorio() {
   for (let intento = 0; intento < 4; intento++) {
     const id = Math.floor(Math.random() * ULTIMO_DEX) + 1;
@@ -65,7 +59,6 @@ export async function pokemonAleatorio() {
       crearPersonaje(datos);
       return personajePorClave("pokemon", id);
     } catch (e) {
-      // 404 / red: probamos con otro
     }
   }
   return null;
