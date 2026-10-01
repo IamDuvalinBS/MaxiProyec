@@ -1,30 +1,30 @@
 import fs from "fs";
-import { config, formatUptime, getAllAccounts, commandRegistry, FOTO_PATH } from "../../../core.js";
+import { config, formatUptime, getAllAccounts, commandRegistry, FOTO_PATH, delayAleatorio } from "../../../core.js";
 
-let miniaturaCache = null;
-let sharpNoDisponible = false; // en algunos Termux/Android el binario nativo de sharp no carga; si pasa, se usa la foto tal cual en vez de tirar abajo todo el .menu
+const FIRMA = "Pᴏᴡᴇʀᴇᴅ Bʏ • ItsDuva";
 
-async function miniaturaSegura() {
-  if (!fs.existsSync(FOTO_PATH)) return undefined;
-  const mtimeMs = fs.statSync(FOTO_PATH).mtimeMs;
-  if (miniaturaCache && miniaturaCache.mtimeMs === mtimeMs) return miniaturaCache.buffer;
+function leerFoto() {
+  try {
+    return fs.existsSync(FOTO_PATH) ? fs.readFileSync(FOTO_PATH) : null;
+  } catch {
+    return null;
+  }
+}
 
-  const original = fs.readFileSync(FOTO_PATH);
-  let buffer = original;
-
-  if (!sharpNoDisponible) {
-    try {
-      const { default: sharp } = await import("sharp");
-      buffer = await sharp(original).resize(300, 300, { fit: "cover" }).jpeg({ quality: 70 }).toBuffer();
-    } catch (e) {
-      sharpNoDisponible = true;
-      console.log("[.menu] sharp no disponible en este dispositivo, se usa la foto sin comprimir: " + e.message);
-      buffer = original;
+// Parte un texto largo en mensajes de ~3500 caracteres cortando entre bloques.
+function partirTexto(texto, max = 3500) {
+  const partes = [];
+  let actual = "";
+  for (const bloque of texto.trim().split("\n\n")) {
+    if (actual && (actual + "\n\n" + bloque).length > max) {
+      partes.push(actual);
+      actual = bloque;
+    } else {
+      actual = actual ? actual + "\n\n" + bloque : bloque;
     }
   }
-
-  miniaturaCache = { mtimeMs, buffer };
-  return buffer;
+  if (actual) partes.push(actual);
+  return partes;
 }
 
 const CATEGORIAS = [
@@ -70,22 +70,6 @@ function bloqueCategoria(cat, comandos) {
   return `${cat.icono} ⧼⧼ ${cat.nombre.toUpperCase()} ⧽⧽\n\n${comandos.join("\n\n")}`;
 }
 
-async function resolverCanal(sock) {
-  try {
-    const codigo = (config.channelLink || "").split("/channel/")[1];
-    if (!codigo || typeof sock.newsletterMetadata !== "function") return null;
-    const meta = await sock.newsletterMetadata("invite", codigo);
-    if (!meta || !meta.id) return null;
-    return {
-      newsletterJid: meta.id,
-      newsletterName: meta.name || `${config.botNameShort}-Bot Channel`,
-      serverMessageId: 1
-    };
-  } catch (e) {
-    return null;
-  }
-}
-
 function textoMenuCompleto(sender, categorias) {
   const usuario = `@${sender.split("@")[0]}`;
   let texto = `✿ *¡Holaaa!* . Mucho gusto ${usuario} . *Soy* 『 *${config.botNameLong}* 』 *, aquí tienes la lista de comandos (≧∇≦).*\n\n`;
@@ -99,13 +83,15 @@ function textoMenuCompleto(sender, categorias) {
   texto += `║. .┊⩩ : *ᴜᴘᴛɪᴍᴇ* ›› ${formatUptime()}\n`;
   texto += `║. .┊⩩ : *ᴜsᴇʀ* ›› ${usuario}\n`;
   texto += `║. .┊⩩ : *ᴛᴏᴛᴀʟ ᴜsᴇʀs* ›› ${getAllAccounts().size}\n`;
-  texto += "╚╼┉┅◆┉┅╍◆┉┅╍◆┉┅❥⧽⧽\n\n";
+  texto += "╚╼┉┅◆┉┅╍◆┉┅╍◆┉┅❥⧽⧽";
+  const cabecera = texto.trim();
+  texto = "";
 
   for (const cat of CATEGORIAS) {
     if (!categorias[cat.nombre] || !categorias[cat.nombre].length) continue;
     texto += `${bloqueCategoria(cat, categorias[cat.nombre])}\n\n`;
   }
-  return texto;
+  return [cabecera, texto.trim()];
 }
 
 function textoCategoria(argumento, categorias) {
@@ -127,33 +113,48 @@ export default {
   handler: async ({ sock, from, sender, msg, cleanText }) => {
     const argumento = cleanText.split(/\s+/).slice(1).join(" ").trim();
     const categorias = agruparComandos();
-    const texto = argumento ? textoCategoria(argumento, categorias) : textoMenuCompleto(sender, categorias);
 
-    const miniatura = await miniaturaSegura();
-    const canal = await resolverCanal(sock);
+    let cabecera = "";
+    let cuerpo;
+    if (argumento) {
+      cuerpo = textoCategoria(argumento, categorias);
+    } else {
+      [cabecera, cuerpo] = textoMenuCompleto(sender, categorias);
+    }
 
-    const contextInfo = {
-      isForwarded: true,
-      forwardingScore: 999,
-      ...(canal ? { forwardedNewsletterMessageInfo: canal } : {}),
-      externalAdReply: {
-        title: config.botNameLong,
-        body: "Pᴏᴡᴇʀᴇᴅ Bʏ • ItsDuva",
-        mediaType: 1,
-        thumbnail: miniatura,
-        renderLargerThumbnail: true,
-        showAdAttribution: false,
-        sourceUrl: config.channelLink
+    // Imagen normal con caption: nombre del bot + firma arriba, sin link,
+    // sin tarjeta de anuncio y sin canal reenviado. Funciona en cualquier
+    // telefono. La lista larga de comandos va en mensajes de texto aparte
+    // porque el caption de una imagen tiene limite de caracteres.
+    const titulo = `*${config.botNameLong}*\n${FIRMA}`;
+    let caption = cabecera ? `${titulo}\n\n${cabecera}` : titulo;
+    if (caption.length > 1000) {
+      cuerpo = `${cabecera}\n\n${cuerpo}`.trim();
+      caption = titulo;
+    }
+
+    const foto = leerFoto();
+    let citado = true;
+    if (foto) {
+      try {
+        await sock.sendMessage(from, { image: foto, caption, mentions: [sender] }, { quoted: msg });
+        citado = false;
+      } catch (e) {
+        console.log("[.menu] No se pudo enviar la imagen, se manda solo texto: " + e.message);
+        cuerpo = `${caption}\n\n${cuerpo}`.trim();
       }
-    };
+    } else {
+      cuerpo = `${caption}\n\n${cuerpo}`.trim();
+    }
 
-    // versiones viejas de WhatsApp) y el envío falla o nunca llega, se
-    try {
-      await sock.sendMessage(from, { text: texto.trim(), mentions: [sender], contextInfo }, { quoted: msg });
-    } catch (e) {
-      console.log("[.menu] Falló el envío con tarjeta, reintentando en texto simple: " + e.message);
-      await sock.sendMessage(from, { text: texto.trim(), mentions: [sender] }, { quoted: msg });
+    for (const parte of partirTexto(cuerpo)) {
+      await sock.sendMessage(
+        from,
+        { text: parte, mentions: [sender] },
+        citado ? { quoted: msg } : undefined
+      );
+      citado = false;
+      await delayAleatorio(400, 900);
     }
   }
 };
-    
