@@ -1,8 +1,8 @@
 import fs from "fs";
-import sharp from "sharp";
 import { config, formatUptime, getAllAccounts, commandRegistry, FOTO_PATH } from "../../../core.js";
 
 let miniaturaCache = null;
+let sharpNoDisponible = false; // en algunos Termux/Android el binario nativo de sharp no carga; si pasa, se usa la foto tal cual en vez de tirar abajo todo el .menu
 
 async function miniaturaSegura() {
   if (!fs.existsSync(FOTO_PATH)) return undefined;
@@ -11,11 +11,18 @@ async function miniaturaSegura() {
 
   const original = fs.readFileSync(FOTO_PATH);
   let buffer = original;
-  try {
-    buffer = await sharp(original).resize(300, 300, { fit: "cover" }).jpeg({ quality: 70 }).toBuffer();
-  } catch (e) {
-    buffer = original;
+
+  if (!sharpNoDisponible) {
+    try {
+      const { default: sharp } = await import("sharp");
+      buffer = await sharp(original).resize(300, 300, { fit: "cover" }).jpeg({ quality: 70 }).toBuffer();
+    } catch (e) {
+      sharpNoDisponible = true;
+      console.log("[.menu] sharp no disponible en este dispositivo, se usa la foto sin comprimir: " + e.message);
+      buffer = original;
+    }
   }
+
   miniaturaCache = { mtimeMs, buffer };
   return buffer;
 }

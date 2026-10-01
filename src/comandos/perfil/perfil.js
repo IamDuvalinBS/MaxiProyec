@@ -1,5 +1,6 @@
 import fs from "fs";
-import { getProfile, getAccount, pfpPath } from "../../../motores/profile.js";
+import { getProfile, pfpPath } from "../../../motores/profile.js";
+import { getAccount } from "../../../motores/db.js";
 
 export default {
   names: [".perfil", ".profile"],

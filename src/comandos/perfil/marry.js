@@ -1,4 +1,5 @@
-import { getProfile, saveAccount } from "../../../motores/profile.js";
+import { getProfile } from "../../../motores/profile.js";
+import { saveAccount } from "../../../motores/db.js";
 import { box } from "../../../motores/ui.js";
 
 function fechaHoy() {
