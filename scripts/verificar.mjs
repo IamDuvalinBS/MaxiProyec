@@ -10,7 +10,7 @@ const IMPORTS = /(?:import|export)\s[^;]*?from\s+["'](\.[^"']+)["']|import\(\s*[
 function listar(dir) {
   const archivos = [];
   for (const entrada of fs.readdirSync(dir, { withFileTypes: true })) {
-    if (IGNORAR.has(entrada.name)) continue;
+    if (IGNORAR.has(entrada.name) || entrada.name.startsWith(".")) continue;
     const ruta = path.join(dir, entrada.name);
     if (entrada.isDirectory()) archivos.push(...listar(ruta));
     else if (entrada.name.endsWith(".js") || entrada.name.endsWith(".mjs")) archivos.push(ruta);
