@@ -50,6 +50,7 @@ export async function connectDB(intentos = 15) {
           wallet: doc.wallet || 0,
           bank: doc.bank || 0,
           cooldowns: doc.cooldowns || {},
+          rachas: doc.rachas || {},
           profile: doc.profile
         });
       }
@@ -92,7 +93,7 @@ export async function saveAccount(sender, intentos = 3) {
     try {
       await collection.updateOne(
         { _id: sender },
-        { $set: { wallet: acc.wallet, bank: acc.bank, cooldowns: acc.cooldowns, profile: acc.profile } },
+        { $set: { wallet: acc.wallet, bank: acc.bank, cooldowns: acc.cooldowns, rachas: acc.rachas, profile: acc.profile } },
         { upsert: true }
       );
       return;
@@ -120,10 +121,11 @@ export async function saveConfig(intentos = 3) {
 
 export function getAccount(sender) {
   if (!accounts.has(sender)) {
-    accounts.set(sender, { wallet: 0, bank: 0, cooldowns: {} });
+    accounts.set(sender, { wallet: 0, bank: 0, cooldowns: {}, rachas: {} });
   }
   const acc = accounts.get(sender);
   if (!acc.cooldowns) acc.cooldowns = {};
+  if (!acc.rachas) acc.rachas = {};
   return acc;
 }
 
@@ -148,6 +150,25 @@ export function checkCooldown(sender, comando, ms) {
   acc.cooldowns[comando] = now;
   saveAccount(sender);
   return 0;
+}
+
+export function reiniciarEsperas(claves) {
+  let afectadas = 0;
+  for (const [sender, acc] of accounts) {
+    if (!acc.cooldowns) continue;
+    let cambio = false;
+    for (const clave of claves) {
+      if (clave in acc.cooldowns) {
+        delete acc.cooldowns[clave];
+        cambio = true;
+      }
+    }
+    if (cambio) {
+      afectadas++;
+      saveAccount(sender);
+    }
+  }
+  return afectadas;
 }
 
 export function getStickerMeta(idSticker) {
@@ -258,4 +279,4 @@ export function comandoEstaBaneado(nombre, categoria) {
 
 export function listarBaneos() {
   return { comandos: [...comandosBaneados], categorias: [...categoriasBaneadas] };
-}
+               }
