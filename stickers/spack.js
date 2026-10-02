@@ -9,7 +9,7 @@ export default {
   handler: async ({ cleanText, from, sock, reply }) => {
     const query = cleanText.split(/\s+/).slice(1).join(" ").trim();
     if (!query) {
-      await reply({ text: "✏️ Usá: *.spack <búsqueda>* (ejemplo: .spack Goku)" });
+      await reply({ text: "✏️ Usa: *.spack <búsqueda>* (ejemplo: .spack Goku)" });
       return;
     }
 
