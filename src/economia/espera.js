@@ -25,3 +25,7 @@ export function enfriar(clave, ms) {
   enfriamientos.set(clave, ahora + ms);
   return 0;
 }
+
+export function limpiarEnfriamientos() {
+  enfriamientos.clear();
+}
