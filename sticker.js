@@ -1,7 +1,6 @@
 import { createCanvas, loadImage } from "@napi-rs/canvas";
 import crypto from "crypto";
-import baileys from "@fer2809fl/baileys";
-const { downloadMediaMessage } = baileys;
+import { downloadMediaMessage } from "@fer2809fl/baileys";
 import { getStickerMeta } from "./motores/db.js";
 
 const META_PACK = "MaxiBots";
@@ -98,7 +97,7 @@ export async function crearStickerConMeta(buffer, pack, autor) {
 }
 
 export async function crearSticker(buffer, sender) {
-  const meta = getStickerMeta(sender);
+  const meta = getStickerMeta(claveMeta(sender)) || getStickerMeta(sender);
   const pack = meta?.pack || META_PACK;
   const autor = meta?.author || "@" + String(sender).split("@")[0].split(":")[0];
   return crearStickerConMeta(buffer, pack, autor);
@@ -124,4 +123,8 @@ export async function buscarStickersTenor(query, limite = 10) {
     if (vistos.size >= limite) break;
   }
   return [...vistos];
+}
+
+export function claveMeta(sender) {
+  return String(sender || "").split("@")[0].split(":")[0];
 }
