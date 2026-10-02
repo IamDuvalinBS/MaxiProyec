@@ -1,17 +1,8 @@
 import { addToWallet, getAccount, checkCooldown } from "../../../motores/db.js";
-import { tarjeta, monto, elegir, textoEspera } from "../../economia/formato.js";
-import { formatTime } from "../../../motores/ui.js";
+import { tarjeta, monto, textoEspera } from "../../economia/formato.js";
 
 const PREMIO = 20000;
 const ESPERA_MS = 24 * 60 * 60 * 1000;
-
-const RELATOS = [
-  "Se acreditó tu bonificación correspondiente a la jornada de hoy.",
-  "El banco depositó tu asignación diaria por constancia.",
-  "Tu asistencia fue registrada y se liberó el pago diario.",
-  "Se procesó tu incentivo diario sin ningún inconveniente.",
-  "La tesorería aprobó tu compensación del día."
-];
 
 export default {
   names: [".daily", ".diario"],
@@ -27,9 +18,9 @@ export default {
       text: tarjeta({
         emoji: "🌻",
         titulo: "DIARIO RECLAMADO!",
-        relato: elegir(RELATOS),
+        relato: `Reclamaste tu recompensa diaria. Vuelve en *24 horas* para reclamar nuevamente tu recompensa.`,
         lineas: [`🪙 *GANADO::* +${monto(PREMIO)}`, `⛁ *CARTERA::* ${monto(getAccount(sender).wallet)}`],
-        tip: `Vuelve en *${formatTime(ESPERA_MS)}* para reclamarlo de nuevo.`
+        tip: "Usa *.dep* para guardar tu dinero."
       })
     });
   }

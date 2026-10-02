@@ -3,7 +3,7 @@ import {
   useMultiFileAuthState,
   DisconnectReason,
   fetchLatestBaileysVersion
-} from "@whiskeysockets/baileys";
+} from "@fer2809fl/baileys";
 import pino from "pino";
 import http from "http";
 import { manejarComando } from "./src/nucleo/comandos.js";

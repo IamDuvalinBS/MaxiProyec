@@ -1,7 +1,7 @@
 import { getAccount } from "../../../motores/db.js";
 import { registrarEspera } from "../../nucleo/espera.js";
 import { resolverApuesta, chequearEnfriamiento, liquidar } from "../../economia/apuestas.js";
-import { monto, montoConSigno, entre, pausa, avisoNivel } from "../../economia/formato.js";
+import { tarjeta, monto, montoConSigno, entre, pausa, avisoNivel } from "../../economia/formato.js";
 
 const CARAS = 8;
 const APUESTA_BASE = 100;
@@ -43,14 +43,20 @@ export default {
         const cierre = liquidar(sender, stake, neto);
 
         const texto = cierre
-          ? [
-              "✨ *DADO LANZADO* 🎲",
-              `El dado cayó en número:: *${resultado}*`,
-              `Tu elección:: *${elegido}*`,
-              "",
-              `MONEDAS:: *${montoConSigno(neto)}*`,
-              `EXPERIENCIA:: *+${cierre.xp}*`
-            ].join("\n")
+          ? tarjeta({
+              emoji: "🎲",
+              titulo: acierto ? "DADO ACERTADO" : "DADO FALLADO",
+              relato: acierto
+                ? "Tu predicción coincidió con el resultado y se acreditó el premio."
+                : "Tu predicción no coincidió con el resultado y se descontó la apuesta.",
+              lineas: [
+                `🎯 *TU ELECCIÓN::* ${elegido}`,
+                `🎲 *RESULTADO::* ${resultado}`,
+                `${acierto ? "🪙" : "💸"} *MONEDAS::* ${montoConSigno(neto)}`,
+                `✨ *EXPERIENCIA::* +${cierre.xp}`
+              ],
+              tip: "Usa *.dado* de nuevo para intentar otra vez."
+            })
           : "⚠️ La apuesta fue cancelada porque ya no cuentas con fondos suficientes.";
 
         try {
@@ -64,15 +70,13 @@ export default {
     });
 
     await reply({
-      text: [
-        "🎲 *DADO*",
-        `> Elige en qué número crees que caerá el dado, del *1 al ${CARAS}*.`,
-        "",
-        `Apuesta:: *${monto(stake)}*`,
-        `Premio si aciertas:: *${monto(stake * MULTIPLICADOR)}*`,
-        "",
-        `✍️ Responde con un número del 1 al ${CARAS} en los próximos 30 segundos.`
-      ].join("\n")
+      text: tarjeta({
+        emoji: "🎲",
+        titulo: "DADO",
+        relato: `Elige en qué número crees que caerá el dado, del *1 al ${CARAS}*.`,
+        lineas: [`🎟️ *APUESTA::* ${monto(stake)}`, `🏆 *PREMIO SI ACIERTAS::* ${monto(stake * MULTIPLICADOR)}`],
+        tip: `Responde con un número del 1 al ${CARAS} en los próximos 30 segundos.`
+      })
     });
   }
 };

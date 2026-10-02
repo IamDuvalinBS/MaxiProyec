@@ -1,14 +1,14 @@
 import { getAccount } from "../../../motores/db.js";
 import { getProfile } from "../../../motores/profile.js";
-import { tarjeta, monto, fmt, jidMencionado } from "../../economia/formato.js";
+import { tarjeta, monto, fmt, jidObjetivo } from "../../economia/formato.js";
 
 export default {
   names: [".banco", ".bal", ".bank"],
-  usage: ".banco [@usuario]",
-  desc: "Consultar tu saldo o el de otro usuario",
+  usage: ".banco [@usuario | responder a un mensaje]",
+  desc: "Consultar tu saldo o el de otro usuario (etiquetándolo o respondiendo a su mensaje)",
   category: "Economía",
   handler: async ({ sender, msg, reply }) => {
-    const objetivo = jidMencionado(msg) || sender;
+    const objetivo = jidObjetivo(msg) || sender;
     const cuenta = getAccount(objetivo);
     const perfil = getProfile(objetivo);
     const requerida = perfil.level * 100;
@@ -24,7 +24,7 @@ export default {
           `≛ *TOTAL::* ${monto(cuenta.wallet + cuenta.bank)}`,
           `🎖️ *NIVEL::* ${perfil.level} (${fmt(perfil.xp)}/${fmt(requerida)} XP)`
         ],
-        tip: "Usa *.dep* para depositar tu dinero, así está a salvo si te roban con *.crimen*."
+        tip: "Usa *.dep* para guardar tu dinero y mantenerlo a salvo de las pérdidas por operaciones fallidas."
       }),
       mentions: [objetivo]
     });

@@ -1,5 +1,5 @@
 import fs from "fs";
-import { downloadMediaMessage } from "@whiskeysockets/baileys";
+import { downloadMediaMessage } from "@fer2809fl/baileys";
 import { FOTO_PATH } from "../../../motores/db.js";
 import { ownerCommand } from "../../../motores/owner.js";
 

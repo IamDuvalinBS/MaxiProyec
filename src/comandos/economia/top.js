@@ -1,15 +1,16 @@
 import { getAllAccounts } from "../../../motores/db.js";
-import { tarjeta, monto } from "../../economia/formato.js";
+import { tarjeta, fmt } from "../../economia/formato.js";
+import { CURRENCY } from "../../../motores/db.js";
 
 const MEDALLAS = ["🥇", "🥈", "🥉"];
 
 export default {
-  names: [".top", ".ranking"],
+  names: [".baltop", ".top", ".ranking"],
   desc: "Ver los usuarios con mayor patrimonio",
   category: "Economía",
   handler: async ({ reply }) => {
     const ranking = [...getAllAccounts().entries()]
-      .map(([jid, cuenta]) => ({ jid, total: cuenta.wallet + cuenta.bank, nombre: cuenta.profile?.name }))
+      .map(([jid, cuenta]) => ({ jid, total: cuenta.wallet + cuenta.bank }))
       .filter((u) => u.total > 0)
       .sort((a, b) => b.total - a.total)
       .slice(0, 10);
@@ -19,19 +20,19 @@ export default {
     }
 
     const lineas = ranking.map((u, i) => {
-      const etiqueta = MEDALLAS[i] || `${i + 1}.`;
-      const nombre = u.nombre || `@${u.jid.split("@")[0]}`;
-      return `${etiqueta} ${nombre} ›› ${monto(u.total)}`;
+      const puesto = MEDALLAS[i] || `*${i + 1}*`;
+      return `${puesto} @${u.jid.split("@")[0]} ››\n> ${fmt(u.total)} ${CURRENCY} en el bot.`;
     });
 
     await reply({
       text: tarjeta({
         emoji: "🏆",
         titulo: "RANKING GLOBAL",
+        relato: "La cantidad *global* de las personas con más dinero en el bot.",
         lineas,
-        tip: "Usa *.banco* para ver tu propio dinero."
+        tip: "Usa *.bal* para ver tu propio dinero."
       }),
-      mentions: ranking.filter((u) => !u.nombre).map((u) => u.jid)
+      mentions: ranking.map((u) => u.jid)
     });
   }
 };

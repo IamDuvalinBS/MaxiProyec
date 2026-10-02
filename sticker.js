@@ -1,16 +1,12 @@
-// sticker.js — utilidades de stickers para .s, .spack y .setmeta
-// Usa @napi-rs/canvas (trae binario para Android/Termux, a diferencia de sharp)
-// y fetch nativo. Sin keys ni cuentas.
 import { createCanvas, loadImage } from "@napi-rs/canvas";
 import crypto from "crypto";
-import { downloadMediaMessage } from "@whiskeysockets/baileys";
+import baileys from "@fer2809fl/baileys";
+const { downloadMediaMessage } = baileys;
 import { getStickerMeta } from "./motores/db.js";
 
 const META_PACK = "MaxiBots";
 const META_AUTOR_FIJO = "MaxiBot";
 const UA = "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36";
-
-// ---------- Descargar / extraer ----------
 
 export async function descargarBuffer(url) {
   const res = await fetch(url, { headers: { "user-agent": UA } });
@@ -18,7 +14,6 @@ export async function descargarBuffer(url) {
   return Buffer.from(await res.arrayBuffer());
 }
 
-// Devuelve el buffer de la imagen del mensaje o de la que se esta citando.
 export async function extraerImagenDeMensaje(msg) {
   const m = msg.message || {};
   const ctx = m.extendedTextMessage?.contextInfo || m.imageMessage?.contextInfo;
@@ -36,8 +31,6 @@ export async function extraerImagenDeMensaje(msg) {
   if (!objetivo) return null;
   return downloadMediaMessage(objetivo, "buffer", {});
 }
-
-// ---------- WebP + EXIF (pack / autor) ----------
 
 function exifSticker(pack, autor) {
   const json = Buffer.from(
@@ -72,11 +65,11 @@ function conExif(webp, pack, autor) {
   let cuerpo = webp.subarray(12);
   if (cuerpo.toString("ascii", 0, 4) === "VP8X") {
     cuerpo = Buffer.from(cuerpo);
-    cuerpo[8] |= 0x08; // flag EXIF
+    cuerpo[8] |= 0x08;
   } else {
-    // WebP simple: agregamos un VP8X de 512x512 (todos nuestros stickers lo son)
+
     const vp8x = Buffer.alloc(10);
-    vp8x[0] = 0x18; // EXIF + alpha
+    vp8x[0] = 0x18;
     vp8x.writeUIntLE(511, 4, 3);
     vp8x.writeUIntLE(511, 7, 3);
     cuerpo = Buffer.concat([chunk("VP8X", vp8x), cuerpo]);
@@ -89,9 +82,6 @@ function conExif(webp, pack, autor) {
   return Buffer.concat([cab, todo]);
 }
 
-// ---------- Crear stickers ----------
-
-// Imagen -> WebP 512x512 (contenida, con transparencia). GIF/WebP animado: queda el 1er cuadro.
 async function aWebp512(buffer) {
   const img = await loadImage(buffer);
   const lienzo = createCanvas(512, 512);
@@ -107,7 +97,6 @@ export async function crearStickerConMeta(buffer, pack, autor) {
   return conExif(await aWebp512(buffer), pack, autor);
 }
 
-// Sticker con el meta personalizado de quien lo pide (.setmeta) o el predeterminado.
 export async function crearSticker(buffer, sender) {
   const meta = getStickerMeta(sender);
   const pack = meta?.pack || META_PACK;
@@ -118,10 +107,6 @@ export async function crearSticker(buffer, sender) {
 export async function crearStickerConMetaFijo(buffer) {
   return crearStickerConMeta(buffer, META_PACK, META_AUTOR_FIJO);
 }
-
-// ---------- Buscar stickers (Tenor, sin API key) ----------
-// Lee la pagina publica de busqueda de Tenor. Si algun dia Tenor cambia su HTML,
-// solo hay que tocar esta funcion; .s no depende de ella.
 
 export async function buscarStickersTenor(query, limite = 10) {
   const slug = encodeURIComponent(String(query).trim().toLowerCase().replace(/\s+/g, "-"));

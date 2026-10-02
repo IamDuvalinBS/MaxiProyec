@@ -16,13 +16,6 @@ export function montoConSigno(n) {
 }
 
 export function tarjeta({ emoji, titulo, subtitulo, relato, lineas = [], tip }) {
-  if (subtitulo === undefined && tip === undefined) {
-    const partes = [`「${emoji}」 *${titulo}*`, SEPARADOR];
-    if (relato) partes.push(`> ${relato}`, "");
-    partes.push(...lineas);
-    return partes.join("\n").trimEnd();
-  }
-
   const partes = [`⧼${emoji}⧽ *${titulo}*`];
   if (subtitulo) partes.push(`     ➥ ${subtitulo}`);
   partes.push("");
@@ -69,6 +62,13 @@ export function leerMonto(texto, disponible) {
 export function jidMencionado(msg) {
   const lista = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid;
   return lista && lista.length ? lista[0] : null;
+}
+
+export function jidObjetivo(msg) {
+  const ctx = msg.message?.extendedTextMessage?.contextInfo;
+  const etiquetado = ctx?.mentionedJid?.[0];
+  if (etiquetado) return etiquetado;
+  return ctx?.quotedMessage && ctx.participant ? ctx.participant : null;
 }
 
 export async function enviarYEditar({ sock, from, reply, inicial, final, espera = 1800, mentions }) {

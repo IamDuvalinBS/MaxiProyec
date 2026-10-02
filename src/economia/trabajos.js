@@ -53,7 +53,8 @@ export function crearTrabajo(def) {
               `🪙 *Ganancia* ›› +${monto(r.monto)}`,
               `✨ *Experiencia* ›› +${r.xp}`,
               `💰 *En mano* ›› ${monto(enMano)}`
-            ]
+            ],
+            tip: "Usa *.dep* para guardar tu dinero."
           })
         });
         if (r.subioNivel) await reply({ text: avisoNivel(r.nivel) });
@@ -68,7 +69,8 @@ export function crearTrabajo(def) {
           lineas: [
             `💸 *Pérdida* ›› -${monto(r.monto)}`,
             `💰 *En mano* ›› ${monto(enMano)}`
-          ]
+          ],
+          tip: "Usa *.dep* para guardar tu dinero y protegerlo de futuras pérdidas."
         })
       });
     }

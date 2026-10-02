@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { fileURLToPath, pathToFileURL } from "url";
-import { connectDB, commandRegistry, simularEscritura, delayAleatorio } from "../../core.js";
+import { connectDB, commandRegistry, simularEscritura, delayAleatorio, comandoEstaBaneado } from "../../core.js";
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const CARPETAS_EXCLUIDAS = new Set([
@@ -9,6 +9,7 @@ const CARPETAS_EXCLUIDAS = new Set([
 ]);
 
 const comandos = new Map();
+const categoriaDeComando = new Map();
 
 function descubrirCarpetas() {
   const carpetas = [];
@@ -41,9 +42,11 @@ async function cargarComandos() {
           console.log(`⚠️ Comando inválido en ${relativa}, se omitió.`);
           continue;
         }
+        const categoria = cmd.category || "General";
         for (const nombre of cmd.names) {
           if (comandos.has(nombre)) console.log(`⚠️ El comando ${nombre} está repetido (${relativa}).`);
           comandos.set(nombre, cmd.handler);
+          categoriaDeComando.set(nombre, categoria);
         }
         commandRegistry.set(cmd.names[0], {
           names: cmd.names,
@@ -63,6 +66,8 @@ async function cargarComandos() {
 
 connectDB();
 const cargaLista = cargarComandos();
+
+const COMANDOS_PROTEGIDOS = new Set([".banear", ".desbanear", ".baneos"]);
 
 const historialComandos = new Map();
 
@@ -87,6 +92,11 @@ export async function manejarComando(sock, from, sender, text, msg) {
     await simularEscritura(sock, from, 800 + Math.floor(Math.random() * 1200));
     return sock.sendMessage(from, contenido, { quoted: msg });
   };
+
+  if (!COMANDOS_PROTEGIDOS.has(comando) && comandoEstaBaneado(comando, categoriaDeComando.get(comando))) {
+    await reply({ text: "🚫 Este comando está desactivado por ahora." });
+    return true;
+  }
 
   if (debeEsperarPorSpam(sender)) {
     await delayAleatorio(4000, 8000);

@@ -1,7 +1,6 @@
 import fs from "fs";
-import { config, formatUptime, getAllAccounts, commandRegistry, FOTO_PATH, delayAleatorio } from "../../../core.js";
-
-const FIRMA = "Pᴏᴡᴇʀᴇᴅ Bʏ • ItsDuva";
+import { config, formatUptime, getAllAccounts, commandRegistry, FOTO_PATH } from "../../../core.js";
+import { enviarConBoton } from "../../../motores/botones.js";
 
 function leerFoto() {
   try {
@@ -9,22 +8,6 @@ function leerFoto() {
   } catch {
     return null;
   }
-}
-
-// Parte un texto largo en mensajes de ~3500 caracteres cortando entre bloques.
-function partirTexto(texto, max = 3500) {
-  const partes = [];
-  let actual = "";
-  for (const bloque of texto.trim().split("\n\n")) {
-    if (actual && (actual + "\n\n" + bloque).length > max) {
-      partes.push(actual);
-      actual = bloque;
-    } else {
-      actual = actual ? actual + "\n\n" + bloque : bloque;
-    }
-  }
-  if (actual) partes.push(actual);
-  return partes;
 }
 
 const CATEGORIAS = [
@@ -91,7 +74,7 @@ function textoMenuCompleto(sender, categorias) {
     if (!categorias[cat.nombre] || !categorias[cat.nombre].length) continue;
     texto += `${bloqueCategoria(cat, categorias[cat.nombre])}\n\n`;
   }
-  return [cabecera, texto.trim()];
+  return `${cabecera}\n\n${texto.trim()}`;
 }
 
 function textoCategoria(argumento, categorias) {
@@ -113,48 +96,21 @@ export default {
   handler: async ({ sock, from, sender, msg, cleanText }) => {
     const argumento = cleanText.split(/\s+/).slice(1).join(" ").trim();
     const categorias = agruparComandos();
+    const texto = argumento ? textoCategoria(argumento, categorias) : textoMenuCompleto(sender, categorias);
 
-    let cabecera = "";
-    let cuerpo;
-    if (argumento) {
-      cuerpo = textoCategoria(argumento, categorias);
-    } else {
-      [cabecera, cuerpo] = textoMenuCompleto(sender, categorias);
-    }
+    const enviado = await enviarConBoton({
+      sock,
+      from,
+      msg,
+      texto,
+      footer: config.botNameShort,
+      foto: leerFoto(),
+      boton: config.channelLink ? { texto: "📢 Canal", url: config.channelLink } : null,
+      mentions: [sender]
+    });
 
-    // Imagen normal con caption: nombre del bot + firma arriba, sin link,
-    // sin tarjeta de anuncio y sin canal reenviado. Funciona en cualquier
-    // telefono. La lista larga de comandos va en mensajes de texto aparte
-    // porque el caption de una imagen tiene limite de caracteres.
-    const titulo = `*${config.botNameLong}*\n${FIRMA}`;
-    let caption = cabecera ? `${titulo}\n\n${cabecera}` : titulo;
-    if (caption.length > 1000) {
-      cuerpo = `${cabecera}\n\n${cuerpo}`.trim();
-      caption = titulo;
-    }
-
-    const foto = leerFoto();
-    let citado = true;
-    if (foto) {
-      try {
-        await sock.sendMessage(from, { image: foto, caption, mentions: [sender] }, { quoted: msg });
-        citado = false;
-      } catch (e) {
-        console.log("[.menu] No se pudo enviar la imagen, se manda solo texto: " + e.message);
-        cuerpo = `${caption}\n\n${cuerpo}`.trim();
-      }
-    } else {
-      cuerpo = `${caption}\n\n${cuerpo}`.trim();
-    }
-
-    for (const parte of partirTexto(cuerpo)) {
-      await sock.sendMessage(
-        from,
-        { text: parte, mentions: [sender] },
-        citado ? { quoted: msg } : undefined
-      );
-      citado = false;
-      await delayAleatorio(400, 900);
+    if (!enviado) {
+      await sock.sendMessage(from, { text: texto, mentions: [sender] }, { quoted: msg });
     }
   }
 };

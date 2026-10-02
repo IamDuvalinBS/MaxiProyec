@@ -1,6 +1,6 @@
 import { getAccount } from "../../../motores/db.js";
 import { resolverApuesta, chequearEnfriamiento, liquidar } from "../../economia/apuestas.js";
-import { montoConSigno, monto, elegir, pausa, enviarYEditar, avisoNivel } from "../../economia/formato.js";
+import { tarjeta, montoConSigno, monto, elegir, enviarYEditar, avisoNivel } from "../../economia/formato.js";
 
 const APUESTA_MIN = 100;
 const APUESTA_MAX = 20000;
@@ -31,7 +31,7 @@ export default {
     const apuesta = resolverApuesta(cleanText.split(/\s+/)[1], getAccount(sender).wallet, APUESTA_MIN, APUESTA_MAX);
     if (apuesta.error) {
       return reply({
-        text: `${apuesta.error}\nUso:: *.apuesta <cantidad|todo>*\nApuesta mínima:: *${monto(APUESTA_MIN)}*\nApuesta máxima:: *${monto(APUESTA_MAX)}*`
+        text: `${apuesta.error}\n\n> Uso: *.apuesta <cantidad|todo>*\n> Apuesta mínima: *${monto(APUESTA_MIN)}* · máxima: *${monto(APUESTA_MAX)}*`
       });
     }
 
@@ -45,14 +45,17 @@ export default {
     const cierre = liquidar(sender, stake, neto);
 
     const texto = cierre
-      ? [
-          gana ? "🎰 *CASINO — APUESTA GANADA*" : "🎰 *CASINO — APUESTA PERDIDA*",
-          `> ${elegir(gana ? RELATOS_VICTORIA : RELATOS_DERROTA)}`,
-          "",
-          `Apuesta:: *${monto(stake)}*`,
-          `MONEDAS:: *${montoConSigno(neto)}*`,
-          `EXPERIENCIA:: *+${cierre.xp}*`
-        ].join("\n")
+      ? tarjeta({
+          emoji: gana ? "🎰" : "🎲",
+          titulo: gana ? "APUESTA GANADA" : "APUESTA PERDIDA",
+          relato: elegir(gana ? RELATOS_VICTORIA : RELATOS_DERROTA),
+          lineas: [
+            `🎟️ *APUESTA::* ${monto(stake)}`,
+            `${gana ? "🪙" : "💸"} *RESULTADO::* ${montoConSigno(neto)}`,
+            `✨ *EXPERIENCIA::* +${cierre.xp}`
+          ],
+          tip: "Usa *.dep* para guardar tu dinero antes de apostar."
+        })
       : "⚠️ La apuesta fue cancelada porque ya no cuentas con fondos suficientes.";
 
     await enviarYEditar({ sock, from, reply, inicial: "🎰 Realizando la apuesta...", final: texto, espera: 1500 });

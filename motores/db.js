@@ -13,6 +13,9 @@ let collection = null;
 let configCollection = null;
 let stickersCollection = null;
 let besosCollection = null;
+let baneosCollection = null;
+const comandosBaneados = new Set();
+const categoriasBaneadas = new Set();
 
 export const config = {
   botNameShort: "Mambo",
@@ -38,6 +41,7 @@ export async function connectDB(intentos = 15) {
       configCollection = db.collection("config");
       stickersCollection = db.collection("stickers");
       besosCollection = db.collection("besos");
+      baneosCollection = db.collection("baneos");
       console.log(chalk.greenBright.bold("✅ Mongo conectado con éxito"));
 
       const docs = await collection.find({}).toArray();
@@ -63,6 +67,13 @@ export async function connectDB(intentos = 15) {
       const besosDocs = await besosCollection.find({}).toArray();
       for (const doc of besosDocs) besos.set(doc._id, doc.total || 0);
       console.log(`Contadores de besos cargados: ${besos.size}`);
+
+      const baneosDoc = await baneosCollection.findOne({ _id: "global" });
+      if (baneosDoc) {
+        for (const c of baneosDoc.comandos || []) comandosBaneados.add(c);
+        for (const c of baneosDoc.categorias || []) categoriasBaneadas.add(c);
+      }
+      console.log(`Baneos cargados: ${comandosBaneados.size} comandos, ${categoriasBaneadas.size} categorías`);
       return;
     } catch (e) {
       if (i % 5 === 0 && i < intentos) {
@@ -205,3 +216,46 @@ async function guardarBesos(clave, total, intentos = 3) {
   console.log("⚠️ No se pudo guardar el contador de besos de " + clave + " tras varios intentos.");
 }
 
+
+async function guardarBaneos() {
+  if (!baneosCollection) return;
+  try {
+    await baneosCollection.updateOne(
+      { _id: "global" },
+      { $set: { comandos: [...comandosBaneados], categorias: [...categoriasBaneadas] } },
+      { upsert: true }
+    );
+  } catch (e) {
+    console.log("⚠️ No se pudieron guardar los baneos: " + e.message);
+  }
+}
+
+export function banearComando(nombre) {
+  comandosBaneados.add(nombre.toLowerCase());
+  guardarBaneos();
+}
+
+export function desbanearComando(nombre) {
+  comandosBaneados.delete(nombre.toLowerCase());
+  guardarBaneos();
+}
+
+export function banearCategoria(categoria) {
+  categoriasBaneadas.add(categoria.toLowerCase());
+  guardarBaneos();
+}
+
+export function desbanearCategoria(categoria) {
+  categoriasBaneadas.delete(categoria.toLowerCase());
+  guardarBaneos();
+}
+
+export function comandoEstaBaneado(nombre, categoria) {
+  if (comandosBaneados.has(nombre.toLowerCase())) return true;
+  if (categoria && categoriasBaneadas.has(categoria.toLowerCase())) return true;
+  return false;
+}
+
+export function listarBaneos() {
+  return { comandos: [...comandosBaneados], categorias: [...categoriasBaneadas] };
+}

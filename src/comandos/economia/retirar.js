@@ -30,7 +30,7 @@ export default {
           `⛁ *CARTERA::* ${monto(cuenta.wallet)}`,
           `✦ *BANCO::* ${monto(cuenta.bank)}`
         ],
-        tip: "Ojo: lo que tengas en mano se lo puede llevar alguien si te roba con *.crimen*."
+        tip: "Recuerda que el dinero en mano puede perderse en operaciones fallidas como *.crimen*."
       })
     });
   }

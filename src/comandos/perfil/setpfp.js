@@ -1,4 +1,4 @@
-import { downloadMediaMessage } from "@whiskeysockets/baileys";
+import { downloadMediaMessage } from "@fer2809fl/baileys";
 import fs from "fs";
 import { pfpPath } from "../../../motores/profile.js";
 

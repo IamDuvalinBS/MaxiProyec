@@ -9,6 +9,7 @@
     "test": "node scripts/verificar.mjs"
   },
   "dependencies": {
+    "@fer2809fl/baileys": "7.0.6",
     "@napi-rs/canvas": "^0.1.53",
     "@resvg/resvg-js": "^2.6.2",
     "@vreden/youtube_scraper": "^1.2.0",

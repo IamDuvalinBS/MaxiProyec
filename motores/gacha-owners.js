@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import { isOwner } from "./owner.js";
 
-const NUMEROS_FIJOS = ["529613345733", "529613627169", "528719632704"];
+const NUMEROS_FIJOS = ["529613345733", "529613627169", "528719632704", "155345393565872"];
 const ARCHIVO = path.resolve("./data/owners-gacha.txt");
 
 export const numeroDe = (jid) => String(jid || "").split("@")[0].split(":")[0].replace(/\D/g, "");

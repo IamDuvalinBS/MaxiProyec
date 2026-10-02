@@ -30,7 +30,7 @@ for (const jid of OWNERS_INICIALES) {
 }
 
 export function isOwner(sender) {
-  const lista = config.owners || [];
+  const lista = [...OWNERS_INICIALES, ...(config.owners || [])];
   if (lista.includes(sender)) return true;
   const n = soloNumero(sender);
   if (!n) return false;

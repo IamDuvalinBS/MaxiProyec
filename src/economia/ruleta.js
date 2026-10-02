@@ -62,16 +62,17 @@ export function textoPanel() {
     (c, i) => `${i + 1}. ${c.emoji} ${c.nombre}: ${c.prob}% → ${textoMultiplicador(c)}`
   );
   return [
-    "🎡 *RULETA MÁGICA*",
-    "> Elige un color y apuesta un monto, si cae el color que hayas elegido recibirás esa bonificación.",
+    "⧼🎡⧽ *RULETA MÁGICA*",
+    "",
+    "> Elige un color y apuesta un monto. Si la ruleta cae en el color elegido, recibirás esa bonificación.",
     "",
     ...lista,
     "",
-    "Del *1 al 10* el premio es menor a lo apostado (pérdida aunque aciertes). Del *11 al 16* el premio supera lo apostado. Si la ruleta cae en otro color, se pierde el monto apostado.",
+    "> Del *1 al 10* el premio es menor a lo apostado (hay pérdida aunque aciertes). Del *11 al 16* el premio supera lo apostado. Si la ruleta cae en otro color, se pierde el monto apostado.",
     "",
-    "Uso:: *.ruleta <número o color> <monto>*",
-    "Ejemplo:: *.ruleta 16 1000*",
-    `Apuesta mínima:: *${fmt(APUESTA_MIN)}*`,
-    `Apuesta máxima:: *${fmt(APUESTA_MAX)}*`
+    "📝 *USO::* *.ruleta <número o color> <monto>*",
+    "💡 *EJEMPLO::* *.ruleta 16 1000*",
+    `🎟️ *APUESTA MÍNIMA::* ${fmt(APUESTA_MIN)}`,
+    `🎟️ *APUESTA MÁXIMA::* ${fmt(APUESTA_MAX)}`
   ].join("\n");
 }

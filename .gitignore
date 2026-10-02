@@ -6,3 +6,5 @@ auth_info/
 auth_info_/
 .respaldo-reestructura/
 *.log
+.env
+.respaldo-*/

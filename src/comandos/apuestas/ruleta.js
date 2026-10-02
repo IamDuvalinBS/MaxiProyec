@@ -1,7 +1,7 @@
 import { getAccount } from "../../../motores/db.js";
 import { resolverApuesta, chequearEnfriamiento, liquidar } from "../../economia/apuestas.js";
 import { COLORES, APUESTA_MIN, APUESTA_MAX, buscarColor, girar, textoPanel, textoMultiplicador } from "../../economia/ruleta.js";
-import { monto, montoConSigno, enviarYEditar, avisoNivel } from "../../economia/formato.js";
+import { tarjeta, monto, montoConSigno, enviarYEditar, avisoNivel } from "../../economia/formato.js";
 
 export default {
   names: [".ruleta", ".roulette"],
@@ -18,7 +18,7 @@ export default {
     }
 
     const apuesta = resolverApuesta(cantidad, getAccount(sender).wallet, APUESTA_MIN, APUESTA_MAX);
-    if (apuesta.error) return reply({ text: `${apuesta.error}\nUso:: *.ruleta <número o color> <monto>*` });
+    if (apuesta.error) return reply({ text: `${apuesta.error}\n\n> Uso: *.ruleta <número o color> <monto>*` });
 
     const espera = chequearEnfriamiento(`ruleta:${sender}`, 10000);
     if (espera) return reply({ text: espera });
@@ -35,16 +35,19 @@ export default {
     if (acierto && obtenido.nombre === "Diamante") resultado = `💎 ¡PREMIO MAYOR! Coincidencia con ${textoMultiplicador(elegido)}.`;
 
     const texto = cierre
-      ? [
-          "🎡 *RULETA MÁGICA*",
-          `Color elegido:: *${elegido.emoji} ${elegido.nombre}*`,
-          `Color obtenido:: *${obtenido.emoji} ${obtenido.nombre}*`,
-          `Resultado:: ${resultado}`,
-          "",
-          `Apuesta:: *${monto(stake)}*`,
-          `MONEDAS:: *${montoConSigno(neto)}*`,
-          `EXPERIENCIA:: *+${cierre.xp}*`
-        ].join("\n")
+      ? tarjeta({
+          emoji: acierto ? "🎡" : "🎲",
+          titulo: acierto ? "RULETA ACERTADA" : "RULETA FALLIDA",
+          relato: resultado,
+          lineas: [
+            `🎨 *ELEGIDO::* ${elegido.emoji} ${elegido.nombre}`,
+            `🎯 *OBTENIDO::* ${obtenido.emoji} ${obtenido.nombre}`,
+            `🎟️ *APUESTA::* ${monto(stake)}`,
+            `${neto >= 0 ? "🪙" : "💸"} *MONEDAS::* ${montoConSigno(neto)}`,
+            `✨ *EXPERIENCIA::* +${cierre.xp}`
+          ],
+          tip: "Usa *.ruleta* para ver la tabla de colores y probabilidades."
+        })
       : "⚠️ La apuesta fue cancelada porque ya no cuentas con fondos suficientes.";
 
     await enviarYEditar({ sock, from, reply, inicial: "🎡 Girando la ruleta...", final: texto, espera: 2500 });
