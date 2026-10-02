@@ -21,7 +21,7 @@ export function tarjeta({ emoji, titulo, subtitulo, relato, lineas = [], tip }) 
   partes.push("");
   if (relato) partes.push(`> ${relato}`, "");
   partes.push(...lineas);
-  if (tip) partes.push("", `> ${tip}`);
+  if (tip) partes.push("", ...[].concat(tip).map((linea) => `> ${linea}`));
   return partes.join("\n").trimEnd();
 }
 
