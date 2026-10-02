@@ -74,4 +74,5 @@ export default {
         tip: [`Llevas una racha de ${textoDias(racha)}`, "Usa *.dep* para guardar tu dinero."]
       })
     });
-                                                       }
+  }
+};
