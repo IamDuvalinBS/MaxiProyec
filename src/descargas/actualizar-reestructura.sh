@@ -1,103 +1,163 @@
 #!/usr/bin/env bash
-# actualizar-reestructura.sh — instala el MaxiProyec-reestructurado.zip mas
-# reciente de Descargas, borra lo que quedo obsoleto por la reorganizacion,
-# revisa que ningun .js este roto, instala paquetes nuevos y (opcional) sube
-# todo a GitHub.
+# actualizar.sh: instala el .zip mas reciente de Descargas en el bot, aplica los
+# scripts de parches que traiga, verifica que ningun archivo este roto y, de forma
+# opcional, sube todo a GitHub.
 #
-#   bash actualizar-reestructura.sh          instala y verifica
-#   bash actualizar-reestructura.sh push     ademas hace git commit + git push
+#   bash actualizar.sh                 instala y verifica
+#   bash actualizar.sh push            ademas hace git commit y git push
+#   bash actualizar.sh archivo.zip     usa ese zip en lugar del mas reciente
 #
-# Si algo sale mal a mitad de camino, no te quedas sin bot: el respaldo
-# queda en .respaldo-reestructura/<fecha>/ dentro de la carpeta del bot.
+# Variables opcionales: BOT_DIR, DESCARGAS_DIR, PATRON_ZIP (por defecto MaxiProyec-*.zip)
+# Si algo falla, los cambios se revierten y el respaldo queda en .respaldo-actualizaciones/
 
 BOT="${BOT_DIR:-$HOME/MaxiProyec}"
-DESCARGAS="$HOME/storage/downloads"
+DESCARGAS="${DESCARGAS_DIR:-$HOME/storage/downloads}"
+PATRON="${PATRON_ZIP:-MaxiProyec-*.zip}"
 
-# Carpetas/archivos que la reestructuracion dejo obsoletos: si siguen ahi,
-# el loader de comandos los vuelve a leer y quedan duplicados o rotos.
-OBSOLETOS=(
-  "commands" "bot" "economia.js" "motores/work.js" "motores/trivia.js"
-  "descargas" "reacciones" "perfil" "motores/reactions.js" "motores/ig.js"
-  "motores/espera-formato.js"
+ARCHIVOS_PARCHADOS=(
+  "index.js" "motores/db.js" "src/nucleo/comandos.js" "motores/gacha-core.js"
+  "src/comandos/descargas/youtube.js" "scripts/verificar.mjs" ".gitignore"
 )
+PROHIBIDOS=("auth_info" "auth_info_" "node_modules" ".git" ".env" "cache" "data")
 
-[ -d "$BOT" ] || { echo "❌ No encuentro la carpeta del bot: $BOT (definí BOT_DIR=/ruta)"; exit 1; }
-[ -d "$DESCARGAS" ] || { echo "❌ Falta el permiso de almacenamiento. Ejecutá una vez: termux-setup-storage"; exit 1; }
+PUSH=0
+ZIP=""
+for argumento in "$@"; do
+  case "$argumento" in
+    push) PUSH=1 ;;
+    *.zip) ZIP="$argumento" ;;
+  esac
+done
 
-ZIP=$(ls -t "$DESCARGAS"/MaxiProyec-reestructurado*.zip 2>/dev/null | head -n1)
-[ -n "$ZIP" ] || { echo "❌ No hay ningún MaxiProyec-reestructurado*.zip en Descargas."; exit 1; }
+[ -d "$BOT" ] || { echo "❌ No se encuentra la carpeta del bot: $BOT (define BOT_DIR=/ruta)"; exit 1; }
+
+if [ -z "$ZIP" ]; then
+  [ -d "$DESCARGAS" ] || { echo "❌ Falta el permiso de almacenamiento. Ejecuta una vez: termux-setup-storage"; exit 1; }
+  ZIP=$(ls -t "$DESCARGAS"/$PATRON 2>/dev/null | head -n1)
+fi
+[ -n "$ZIP" ] && [ -f "$ZIP" ] || { echo "❌ No hay ningún archivo $PATRON en $DESCARGAS."; exit 1; }
 echo "📦 Usando: $ZIP"
 
-unzip -tq "$ZIP" >/dev/null 2>&1 || { echo "❌ El zip está dañado o incompleto. Volvé a descargarlo."; exit 1; }
+unzip -tq "$ZIP" >/dev/null 2>&1 || { echo "❌ El zip está dañado o incompleto. Descárgalo nuevamente."; exit 1; }
+
+if unzip -Z1 "$ZIP" | grep -qE '(^/|(^|/)\.\.(/|$))'; then
+  echo "❌ El zip contiene rutas no permitidas. No se instaló nada."
+  exit 1
+fi
 
 TMP=$(mktemp -d)
 ERR=$(mktemp)
-trap 'rm -rf "$TMP" "$ERR"' EXIT
-unzip -oq "$ZIP" -d "$TMP" || { echo "❌ No pude extraer el zip."; exit 1; }
+SALIDA=$(mktemp)
+trap 'rm -rf "$TMP" "$ERR" "$SALIDA"' EXIT
+unzip -oq "$ZIP" -d "$TMP" || { echo "❌ No se pudo extraer el zip."; exit 1; }
 
-# 1) Verificar sintaxis de cada .js ANTES de instalar nada. Si uno solo
-#    esta roto, se cancela todo (mejor eso que un bot que no arranca).
+RAIZ_ZIP="$TMP"
+CONTENIDO=("$TMP"/* "$TMP"/.[!.]*)
+UNICOS=()
+for e in "${CONTENIDO[@]}"; do [ -e "$e" ] && UNICOS+=("$e"); done
+if [ "${#UNICOS[@]}" -eq 1 ] && [ -d "${UNICOS[0]}" ] && [ ! -e "$BOT/$(basename "${UNICOS[0]}")" ]; then
+  RAIZ_ZIP="${UNICOS[0]}"
+fi
+
+for p in "${PROHIBIDOS[@]}"; do
+  if [ -e "$RAIZ_ZIP/$p" ]; then
+    echo "⚠️  Se omite $p por seguridad."
+    rm -rf "$RAIZ_ZIP/$p"
+  fi
+done
+
 MALOS=0
 while IFS= read -r f; do
   if ! node --input-type=module --check < "$f" 2>"$ERR"; then
-    echo "❌ Archivo con errores: ${f#$TMP/}"; head -n 4 "$ERR"; MALOS=1
+    echo "❌ Archivo con errores: ${f#$RAIZ_ZIP/}"; head -n 4 "$ERR"; MALOS=1
   fi
-done < <(find "$TMP" -name '*.js')
-[ "$MALOS" = 0 ] || { echo "⛔ No se instaló nada. Avisame el error de arriba."; exit 1; }
+done < <(find "$RAIZ_ZIP" \( -name '*.js' -o -name '*.mjs' \))
+[ "$MALOS" = 0 ] || { echo "⛔ No se instaló nada. Corrige el error de arriba."; exit 1; }
 
-# 2) Respaldo de lo que se va a reemplazar Y de lo que se va a borrar.
-RESP="$BOT/.respaldo-reestructura/$(date +%Y%m%d-%H%M%S)"
+RESP="$BOT/.respaldo-actualizaciones/$(date +%Y%m%d-%H%M%S)"
+NUEVOS="$TMP.nuevos"
+: > "$NUEVOS"
+trap 'rm -rf "$TMP" "$ERR" "$SALIDA" "$NUEVOS"' EXIT
+
+respaldar() {
+  local rel="$1"
+  if [ -f "$BOT/$rel" ] && [ ! -f "$RESP/$rel" ]; then
+    mkdir -p "$RESP/$(dirname "$rel")"
+    cp "$BOT/$rel" "$RESP/$rel"
+  fi
+}
+
 while IFS= read -r f; do
-  rel="${f#$TMP/}"
-  if [ -f "$BOT/$rel" ]; then mkdir -p "$RESP/$(dirname "$rel")"; cp "$BOT/$rel" "$RESP/$rel"; fi
-done < <(find "$TMP" -type f)
-for o in "${OBSOLETOS[@]}"; do
-  [ -e "$BOT/$o" ] && { mkdir -p "$RESP/$(dirname "$o")"; cp -r "$BOT/$o" "$RESP/$o" 2>/dev/null; }
-done
+  rel="${f#$RAIZ_ZIP/}"
+  if [ -f "$BOT/$rel" ]; then respaldar "$rel"; else echo "$rel" >> "$NUEVOS"; fi
+done < <(find "$RAIZ_ZIP" -type f)
+for rel in "${ARCHIVOS_PARCHADOS[@]}"; do respaldar "$rel"; done
 echo "🗄️  Respaldo guardado en: $RESP"
 
-# 3) Borrar lo obsoleto, despues instalar lo nuevo encima.
-for o in "${OBSOLETOS[@]}"; do
-  rm -rf "$BOT/$o"
-done
-cp -r "$TMP"/. "$BOT"/
-N=$(find "$TMP" -type f | wc -l)
+revertir() {
+  echo "↩️  Revirtiendo los cambios..."
+  [ -d "$RESP" ] && cp -r "$RESP"/. "$BOT"/
+  while IFS= read -r rel; do [ -n "$rel" ] && rm -f "$BOT/$rel"; done < "$NUEVOS"
+  echo "✅ El bot quedó como estaba antes."
+}
+
+cp -r "$RAIZ_ZIP"/. "$BOT"/
+N=$(find "$RAIZ_ZIP" -type f | wc -l)
 echo "✅ Instalados $N archivos en $BOT"
 
-# 4) Paquetes nuevos (ej: sharp, para las miniaturas del menu/reacciones).
 cd "$BOT" || exit 1
-echo "📦 Instalando dependencias..."
-if ! npm install; then
-  echo "⚠️  npm install tuvo conflictos. Reintentando con --legacy-peer-deps..."
-  if ! npm install --legacy-peer-deps; then
-    echo "❌ Sigue sin resolverse. Probá borrar node_modules y package-lock.json:"
-    echo "   rm -rf node_modules package-lock.json && npm install"
+
+while IFS= read -r script; do
+  [ -n "$script" ] || continue
+  echo "🔧 Ejecutando $script"
+  node "$script" > "$SALIDA" 2>&1
+  grep -E '^(APLICADO|NO ENCONTRADO)' "$SALIDA" | sed 's/^/   /'
+done < <(cd "$RAIZ_ZIP" && find scripts -maxdepth 1 -name 'aplicar-parches*.mjs' 2>/dev/null | sort)
+
+if [ -f "$BOT/scripts/verificar.mjs" ]; then
+  node scripts/verificar.mjs > "$SALIDA" 2>&1
+  if grep -q '^Sintaxis inválida' "$SALIDA"; then
+    grep -A3 '^Sintaxis inválida' "$SALIDA" | head -n 12
+    revertir
     exit 1
   fi
+  PROBLEMAS=$(grep -cE '^Import inexistente' "$SALIDA")
+  if [ "$PROBLEMAS" -gt 0 ]; then
+    echo "⚠️  Verificación: $PROBLEMAS import(s) inexistente(s):"
+    grep '^Import inexistente' "$SALIDA" | head -n 5 | sed 's/^/   /'
+  else
+    echo "✅ Verificación sin problemas."
+  fi
 fi
-echo "✅ Dependencias listas."
 
-# 5) Que git no suba respaldos ni la sesion de WhatsApp.
+if [ -f "$RAIZ_ZIP/package.json" ]; then
+  echo "📦 Instalando dependencias..."
+  if ! npm install; then
+    echo "⚠️  npm install tuvo conflictos. Reintentando con --legacy-peer-deps..."
+    npm install --legacy-peer-deps || { echo "❌ Las dependencias no se pudieron instalar."; exit 1; }
+  fi
+  echo "✅ Dependencias listas."
+fi
+
 touch "$BOT/.gitignore"
-for linea in "node_modules/" "auth_info/" "auth_info_/" ".respaldo-reestructura/" "*.log" "data/gacha.db*" "data/owners-gacha.txt"; do
+for linea in "node_modules/" "auth_info/" "auth_info_/" ".respaldo-*/" "*.log" "data/gacha.db*" "data/owners-gacha.txt" "cache/"; do
   grep -qxF "$linea" "$BOT/.gitignore" || echo "$linea" >> "$BOT/.gitignore"
 done
 
-# 6) Subir a GitHub (solo si pedís "push").
-if [ "$1" = "push" ]; then
+if [ "$PUSH" = 1 ]; then
   git add -A
   if git diff --cached --quiet; then
     echo "ℹ️ No hay cambios nuevos para subir."
   else
-    git commit -qm "Reestructuración: descargas, reacciones, perfil, economía ($(date +%F))"
+    git commit -qm "Actualización ($(date +%F))"
     if git push; then
       echo "🚀 Subido a GitHub."
     else
-      echo "⚠️ El push fue rechazado (hay commits en GitHub que no tenés local)."
+      echo "⚠️ El push fue rechazado (hay commits en GitHub que no existen localmente)."
       echo "   Opción A (traer esos cambios primero):  git pull --rebase && git push"
-      echo "   Opción B (tu copia local manda, pisa lo de GitHub):  git push --force"
+      echo "   Opción B (la copia local reemplaza a GitHub):  git push --force"
     fi
   fi
 fi
 
-echo "🔁 Reiniciá el bot (npm start) para que cargue los cambios."
+echo "🔁 Reinicia el bot (npm start) para que cargue los cambios."
