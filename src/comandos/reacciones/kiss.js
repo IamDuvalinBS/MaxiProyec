@@ -92,7 +92,7 @@ const obtenerImagenBeso = async () => {
   return undefined;
 };
 
-console.log("kiss: v8 cargado (solo parejas chico-chica)");
+console.log("kiss: v9 cargado (solo parejas chico-chica)");
 recargar();
 
 export default {
@@ -118,8 +118,6 @@ export default {
         text: esASiMismo ? `> ${nombreDe} se mandó un beso al aire.` : `> ${nombreDe} le dio un beso a ${nombrePara}.`,
         mentions: esASiMismo ? [sender] : [sender, target],
         contextInfo: {
-          isForwarded: true,
-          forwardingScore: 999,
           externalAdReply: {
             title: esASiMismo ? "Beso al aire" : `${total} beso${total === 1 ? "" : "s"} en total`,
             body: "Pᴏᴡᴇʀᴇᴅ Bʏ • ItsDuva",
@@ -136,4 +134,3 @@ export default {
     );
   }
 };
-      
