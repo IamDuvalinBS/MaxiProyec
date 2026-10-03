@@ -5,7 +5,6 @@ import path from "path";
 import { Readable } from "stream";
 import { pipeline } from "stream/promises";
 
-const UMBRAL_RECOMPRIMIR_BYTES = 1.5 * 1024 * 1024;
 const HEADERS = { "User-Agent": "MaxiProyecBot/1.0 (WhatsApp bot, contacto en GitHub IamDuvalinBS)" };
 
 // Descarga directo a un archivo temporal en disco (streaming) en vez de
@@ -18,12 +17,8 @@ async function descargarATemporal(url, ext) {
   return tmpPath;
 }
 
-function compactarSiHaceFalta(entrada, pesoBytes) {
+function convertirAMp4(entrada) {
   return new Promise((resolve) => {
-    if (pesoBytes <= UMBRAL_RECOMPRIMIR_BYTES) {
-      resolve(entrada);
-      return;
-    }
     const salida = entrada.replace(/\.gif$/, ".mp4");
     const args = ["-y", "-i", entrada, "-vf", "scale=400:-2", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "24", "-preset", "veryfast", "-movflags", "faststart", "-an", salida];
     execFile("ffmpeg", args, { timeout: 20000 }, (error) => {
@@ -57,9 +52,8 @@ export function reactionCommand({ apiAction, fraseConOtro, fraseSolo }) {
     let rutaFinal;
     try {
       rutaFinal = await descargarATemporal(url, "gif");
-      const peso = fs.statSync(rutaFinal).size;
-      const compactada = await compactarSiHaceFalta(rutaFinal, peso);
-      rutaFinal = compactada || rutaFinal;
+      rutaFinal = await convertirAMp4(rutaFinal);
+      if (!rutaFinal) throw new Error("ffmpeg falló");
     } catch (e) {
       await reply({ text: "❌ No se pudo descargar la imagen ahora mismo, intentá de nuevo." });
       return;
@@ -73,6 +67,6 @@ export function reactionCommand({ apiAction, fraseConOtro, fraseSolo }) {
     const caption = esASiMismo ? `${nombreDe} ${fraseSolo}` : `${nombreDe} ${fraseConOtro} ${nombrePara}`;
     const mentions = esASiMismo ? [sender] : [sender, target];
 
-    await sock.sendMessage(from, { video: buffer, gifPlayback: true, caption, mentions }, { quoted: msg });
+    await sock.sendMessage(from, { video: buffer, mimetype: "video/mp4", gifPlayback: true, caption, mentions }, { quoted: msg });
   };
 }
