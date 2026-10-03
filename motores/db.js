@@ -34,7 +34,7 @@ export async function connectDB(intentos = 15) {
   console.log(chalk.yellow("Conectando a MongoDB..."));
   for (let i = 1; i <= intentos; i++) {
     try {
-      const client = new MongoClient(MONGO_URI);
+      const client = new MongoClient(MONGO_URI, { maxPoolSize: 3, compressors: ["zlib"] });
       await client.connect();
       const db = client.db("whatsappbot");
       collection = db.collection("accounts");
@@ -44,8 +44,7 @@ export async function connectDB(intentos = 15) {
       baneosCollection = db.collection("baneos");
       console.log(chalk.greenBright.bold("✅ Mongo conectado con éxito"));
 
-      const docs = await collection.find({}).toArray();
-      for (const doc of docs) {
+      for await (const doc of collection.find({})) {
         accounts.set(doc._id, {
           wallet: doc.wallet || 0,
           bank: doc.bank || 0,
@@ -88,23 +87,58 @@ export async function connectDB(intentos = 15) {
   console.log(chalk.redBright.bold("❌ No se pudo conectar a MongoDB tras varios intentos."));
 }
 
-export async function saveAccount(sender, intentos = 3) {
-  if (!collection) return;
-  const acc = getAccount(sender);
-  for (let i = 1; i <= intentos; i++) {
-    try {
-      await collection.updateOne(
-        { _id: sender },
-        { $set: { wallet: acc.wallet, bank: acc.bank, cooldowns: acc.cooldowns, rachas: acc.rachas, negocios: acc.negocios, afk: acc.afk || null, profile: acc.profile } },
-        { upsert: true }
-      );
-      return;
-    } catch (e) {
-      console.log(`Error guardando cuenta (intento ${i}/${intentos}): ` + e.message);
-      if (i < intentos) await new Promise(r => setTimeout(r, 2000));
-    }
+const cuentasPendientes = new Set();
+const cuentasDepuradas = new Set();
+const RETARDO_GUARDADO_MS = 2000;
+const VIGENCIA_MAXIMA_ESPERA_MS = 8 * 24 * 60 * 60 * 1000;
+let temporizadorGuardado = null;
+
+function armarOperacion(sender) {
+  const acc = accounts.get(sender);
+  const ahora = Date.now();
+  for (const clave of Object.keys(acc.cooldowns)) {
+    if (ahora - acc.cooldowns[clave] > VIGENCIA_MAXIMA_ESPERA_MS) delete acc.cooldowns[clave];
   }
-  console.log("⚠️ No se pudo guardar la cuenta de " + sender + " tras varios intentos.");
+  const asignar = { wallet: acc.wallet, bank: acc.bank };
+  const quitar = {};
+  if (Object.keys(acc.cooldowns).length) asignar.cooldowns = acc.cooldowns;
+  else quitar.cooldowns = "";
+  if (acc.profile !== undefined && acc.profile !== null) asignar.profile = acc.profile;
+  else quitar.profile = "";
+  if (acc.legadoMigrado && !cuentasDepuradas.has(sender)) {
+    quitar.rachas = "";
+    quitar.negocios = "";
+    quitar.afk = "";
+    cuentasDepuradas.add(sender);
+  }
+  const actualizacion = { $set: asignar };
+  if (Object.keys(quitar).length) actualizacion.$unset = quitar;
+  return { updateOne: { filter: { _id: sender }, update: actualizacion, upsert: true } };
+}
+
+export async function guardarCuentasPendientes() {
+  if (temporizadorGuardado) {
+    clearTimeout(temporizadorGuardado);
+    temporizadorGuardado = null;
+  }
+  if (!collection || !cuentasPendientes.size) return;
+  const lote = [...cuentasPendientes];
+  cuentasPendientes.clear();
+  try {
+    await collection.bulkWrite(lote.map(armarOperacion), { ordered: false });
+  } catch (e) {
+    console.log("Error guardando cuentas: " + e.message);
+    lote.forEach((sender) => cuentasPendientes.add(sender));
+    temporizadorGuardado = setTimeout(guardarCuentasPendientes, RETARDO_GUARDADO_MS * 5);
+  }
+}
+
+export function saveAccount(sender) {
+  if (!collection) return Promise.resolve();
+  getAccount(sender);
+  cuentasPendientes.add(sender);
+  if (!temporizadorGuardado) temporizadorGuardado = setTimeout(guardarCuentasPendientes, RETARDO_GUARDADO_MS);
+  return Promise.resolve();
 }
 
 export async function saveConfig(intentos = 3) {

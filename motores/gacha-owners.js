@@ -25,7 +25,7 @@ export function esOwnerGacha(sender) {
 export function ownerGacha(handler) {
   return async (ctx) => {
     if (!esOwnerGacha(ctx.sender)) {
-      return ctx.reply({ text: "🚫 Este comando solo puede ser utilizado por owners.\n\nSi sos owner, mirá tu ID con *.miid*." });
+      return ctx.reply({ text: "🚫 Este comando solo puede ser utilizado por owners.\n\nSi sos owner, consulta tu ID con *.miid*." });
     }
     return handler(ctx);
   };

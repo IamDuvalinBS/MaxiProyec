@@ -1,4 +1,4 @@
-import { getAccount, saveAccount } from "../../motores/db.js";
+import { datosDe, guardarDatos } from "../../motores/almacen-local.js";
 
 export const RACHA_MAXIMA = 365;
 export const COSTO_BASE = 50000;
@@ -13,18 +13,18 @@ export function costoRecuperar(cantidad) {
 }
 
 export function estadoRacha(sender, clave, ventanaMs) {
-  const registro = getAccount(sender).rachas[clave];
+  const registro = datosDe(sender).rachas[clave];
   if (!registro || !registro.cantidad) return { cantidad: 0, perdida: false };
   const perdida = Date.now() - registro.ultimo > ventanaMs;
   return { cantidad: registro.cantidad, perdida };
 }
 
 export function registrarReclamo(sender, clave, reiniciar = false, chat = null) {
-  const cuenta = getAccount(sender);
-  const previa = reiniciar ? 0 : cuenta.rachas[clave]?.cantidad || 0;
+  const rachas = datosDe(sender).rachas;
+  const previa = reiniciar ? 0 : rachas[clave]?.cantidad || 0;
   const cantidad = Math.min(RACHA_MAXIMA, previa + 1);
   const completoMaximo = previa < RACHA_MAXIMA && cantidad === RACHA_MAXIMA;
-  cuenta.rachas[clave] = { cantidad, ultimo: Date.now(), chat: chat || cuenta.rachas[clave]?.chat || null, avisado: 0 };
-  saveAccount(sender);
+  rachas[clave] = { cantidad, ultimo: Date.now(), chat: chat || rachas[clave]?.chat || null, avisado: 0 };
+  guardarDatos();
   return { cantidad, completoMaximo };
 }

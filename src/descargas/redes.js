@@ -46,9 +46,6 @@ export async function obtenerMediaTwitter(link) {
   return medias;
 }
 
-// tikwm.com es una API publica muy usada por bots de este estilo para
-// resolver el link real sin marca de agua. Si algun dia se cae, hay que
-// reemplazarla por otra equivalente.
 export async function obtenerMediaTikTok(link) {
   const { data } = await axios.get("https://tikwm.com/api/", {
     params: { url: link, hd: 1 },

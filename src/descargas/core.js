@@ -54,8 +54,6 @@ export async function descargarBuffer(url) {
   return Buffer.from(data);
 }
 
-// Version que va directo a disco (streaming) en vez de armar el archivo
-// entero en un Buffer en RAM primero. Para videos pesados esto evita tener
 export async function descargarATemporal(url, ext) {
   const tmpPath = path.join(os.tmpdir(), `dl_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`);
   const res = await fetch(url, { headers: HEADERS });
@@ -64,7 +62,6 @@ export async function descargarATemporal(url, ext) {
   return tmpPath;
 }
 
-// con la extension pedida, sin duplicar en RAM cuando ya es una ruta.
 function comoRutaTemporal(entrada, ext) {
   if (typeof entrada === "string") return entrada;
   const ruta = path.join(os.tmpdir(), `dl_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`);

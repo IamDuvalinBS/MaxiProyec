@@ -15,7 +15,7 @@ export default {
       reply, sender, from,
       cooldownMs: COOLDOWN_MS,
       titulo: "POKÉMON SALVAJE",
-      textoVacio: "❌ No pude consultar PokeAPI ahora mismo, probá de nuevo en un momento."
+      textoVacio: "❌ No pude consultar PokeAPI ahora mismo, prueba de nuevo en un momento."
     });
   }
 };

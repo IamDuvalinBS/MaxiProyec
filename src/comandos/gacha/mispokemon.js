@@ -9,7 +9,7 @@ export default {
     await gachaListo;
     await mostrarColeccion({
       categoria: "pokemon", titulo: "Tus Pokémon", sender, cleanText, reply,
-      pista: "🍖 Subilos de nivel con *.pokecomida* (usá #id para elegir cuál)."
+      pista: "🍖 Súbelos de nivel con *.pokecomida* (usa #id para elegir cuál)."
     });
   }
 };

@@ -15,7 +15,7 @@ export default {
       `👑 *Owner del gacha* ›› ${owner ? "Sí ✅" : "No ❌"}`
     ];
     if (!owner) {
-      lineas.push("", "Si sos owner, en Termux (dentro de la carpeta del bot) ejecutá:", `echo "${num}" >> data/owners-gacha.txt`, "y ya funciona, sin reiniciar.");
+      lineas.push("", "Si eres owner, en Termux (dentro de la carpeta del bot) ejecuta:", `echo "${num}" >> data/owners-gacha.txt`, "y ya funciona, sin reiniciar.");
     }
     return reply({ text: tarjeta({ emoji: "🪪", titulo: "MI ID", lineas }) });
   }

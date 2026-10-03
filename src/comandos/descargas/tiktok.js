@@ -1,50 +1,39 @@
-import fs from "fs";
 import { obtenerMediaTikTok } from "../../descargas/redes.js";
-import { descargarATemporal, asegurarVideoCompatibleWhatsApp, asegurarImagenCompatibleWhatsApp, LIMITE_VIDEO_WHATSAPP_MB } from "../../descargas/core.js";
+import { enviarMedias } from "../../descargas/envio.js";
+import { tarjetaDescarga, tarjetaUso, tarjetaError, campo } from "../../descargas/tarjetas.js";
 
 export default {
   names: [".tiktok", ".tt"],
   usage: ".tiktok <link>",
   desc: "Descarga videos o fotos de TikTok sin marca de agua",
   category: "Descargas",
-  handler: async ({ cleanText, reply }) => {
+  handler: async ({ sender, cleanText, reply }) => {
     const link = cleanText.trim().split(/\s+/)[1];
     if (!link || !/tiktok\.com/i.test(link)) {
-      return reply({ text: "📌 Mandame un link de TikTok así:\n*.tiktok* https://www.tiktok.com/@usuario/video/123456789" });
+      return reply({
+        text: tarjetaUso({ comando: ".tiktok <enlace>", ejemplo: ".tiktok https://www.tiktok.com/@usuario/video/123456789", nota: "Envía un enlace válido de TikTok." }),
+        mentions: [sender]
+      });
     }
 
-    await reply({ text: "⏳ Descargando de TikTok, dame un segundo..." });
+    await reply({
+      text: tarjetaDescarga({
+        emoji: "🎵",
+        titulo: "TIKTOK DOWNLOAD",
+        sender,
+        campos: [campo("🔗", "Enlace", link)],
+        nota: "Descargando el contenido. Esto puede tardar unos segundos."
+      }),
+      mentions: [sender]
+    });
 
     let medias;
     try {
       medias = await obtenerMediaTikTok(link);
     } catch (e) {
-      return reply({ text: `❌ No pude descargar ese link: ${e.message}` });
+      return reply({ text: tarjetaError("No se pudo obtener el contenido de ese enlace.", e.message) });
     }
 
-    for (const media of medias) {
-      let ruta;
-      try {
-        ruta = await descargarATemporal(media.url, media.type === "video" ? "mp4" : "img");
-        if (media.type === "video") {
-          const pesoMB = fs.statSync(ruta).size / (1024 * 1024);
-          if (pesoMB > LIMITE_VIDEO_WHATSAPP_MB) {
-            await reply({ text: `⚠️ El video pesa ${pesoMB.toFixed(1)}MB, muy grande para WhatsApp. Se salteó.` });
-            continue;
-          }
-          const buffer = await asegurarVideoCompatibleWhatsApp(ruta);
-          ruta = null;
-          await reply({ video: buffer, mimetype: "video/mp4" });
-        } else {
-          const buffer = await asegurarImagenCompatibleWhatsApp(ruta);
-          ruta = null;
-          await reply({ image: buffer, mimetype: "image/jpeg" });
-        }
-      } catch (e) {
-        await reply({ text: `❌ Error descargando/enviando uno de los archivos: ${e.message}` });
-      } finally {
-        if (ruta && fs.existsSync(ruta)) fs.unlinkSync(ruta);
-      }
-    }
+    await enviarMedias(medias, reply);
   }
 };

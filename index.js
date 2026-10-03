@@ -17,6 +17,7 @@ import cfonts from "cfonts";
 import chalk from "chalk";
 import { iniciarAvisosRacha } from "./src/economia/avisos.js";
 import { tieneAfk, desactivarAfk, textoSalidaAfk } from "./src/economia/afk.js";
+import { idDeRespuestaInteractiva } from "./motores/respuestas-botones.js";
 
 function imprimirBanner() {
   console.clear();
@@ -157,6 +158,7 @@ async function startBot() {
     const idBotonPulsado =
       msg.message.buttonsResponseMessage?.selectedButtonId ||
       msg.message.templateButtonReplyMessage?.selectedId ||
+      idDeRespuestaInteractiva(msg) ||
       null;
 
     if (idBotonPulsado) {

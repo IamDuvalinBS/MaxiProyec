@@ -9,7 +9,7 @@ export default {
     await gachaListo;
     await mostrarColeccion({
       categoria: "brawler", titulo: "Tus Brawlers", sender, cleanText, reply,
-      pista: "⚡ Subilos de nivel con *.cubitos* y *.subirbrawler* (usá #id para elegir cuál)."
+      pista: "⚡ Súbelos de nivel con *.cubitos* y *.subirbrawler* (usa #id para elegir cuál)."
     });
   }
 };

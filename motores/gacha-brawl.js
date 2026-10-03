@@ -1,4 +1,3 @@
-// No requiere API key (la API oficial de Supercell sí). Trae TODOS los brawlers con su imagen en
 import axios from "axios";
 import { crearPersonaje, contarPersonajes } from "./gacha-db.js";
 

@@ -38,7 +38,6 @@ export async function postPorId(id) {
   return Array.isArray(lista) && lista[0] ? lista[0] : null;
 }
 
-// Trae una página al azar de posts "safe". Si la página cae fuera de rango, reintenta más cerca del inicio.
 export async function postsAleatorios() {
   const paginas = [azar(1, 400), azar(1, 60), 1];
   for (const page of paginas) {
@@ -71,7 +70,6 @@ async function tipoDeTag(nombre, contador) {
   }
 }
 
-// y al enviar se prueba en orden hasta que una funcione. El original solo se usa si pesa <= 8 MB.
 const MB = 1024 * 1024;
 export function elegirImagenes(post) {
   const lista = [];

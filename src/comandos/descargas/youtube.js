@@ -7,16 +7,35 @@ import {
 } from "../../descargas/youtube-engine.js";
 import { descargarBuffer } from "../../descargas/core.js";
 import { registrarEspera } from "../../nucleo/espera.js";
+import { enviarConBotonesRapidos } from "../../../motores/botones-rapidos.js";
 import { reenviarCacheado, guardarMedioEnviado } from "../../../motores/cache-medios.js";
+import { encabezado, mencion } from "../../economia/estilo.js";
+import {
+  tarjetaDescarga,
+  tarjetaFormato,
+  tarjetaUso,
+  tarjetaError,
+  campo,
+  duracionLarga,
+  fechaCorta,
+  etiquetasComoHashtags
+} from "../../descargas/tarjetas.js";
 
 const DURACION_ESPERA_MS = 5 * 60 * 1000;
+const PIE_DE_PAGINA = "Pᴏᴡᴇʀᴇᴅ Bʏ • ItsDuva";
 
-async function enviarDescarga({ sock, from, msg, link, esAudio }) {
+export async function enviarDescarga({ sock, from, msg, link, esAudio }) {
   const responder = (contenido) => sock.sendMessage(from, contenido, { quoted: msg });
   const claveCache = `yt:${esAudio ? "audio" : "video"}:${link}`;
   if (await reenviarCacheado(sock, from, claveCache, msg)) return;
 
-  await responder({ text: esAudio ? "⏳ Descargando el audio..." : "⏳ Descargando el video..." });
+  await responder({
+    text: [
+      encabezado("⏳", esAudio ? "DESCARGANDO AUDIO" : "DESCARGANDO VIDEO"),
+      "",
+      "> Procesando la solicitud. Esto puede tardar unos segundos."
+    ].join("\n")
+  });
 
   try {
     if (esAudio) {
@@ -27,16 +46,35 @@ async function enviarDescarga({ sock, from, msg, link, esAudio }) {
       guardarMedioEnviado(claveCache, await responder({ video, mimetype: "video/mp4" }));
     }
   } catch (e) {
-    await responder({ text: `❌ No pude descargar el ${esAudio ? "audio" : "video"}: ${e.message}` });
+    await responder({ text: tarjetaError(`No se pudo descargar el ${esAudio ? "audio" : "video"}.`, e.message) });
   }
+}
+
+function tarjetaResultados(consulta, resultados, sender) {
+  const partes = [
+    encabezado("🔎", "YOUTUBE SEARCH"),
+    "",
+    `> Petición solicitada por ${mencion(sender)}.`,
+    "",
+    campo("💭", "Búsqueda", consulta),
+    ""
+  ];
+  resultados.forEach((video, indice) => {
+    partes.push(`*${indice + 1}.* ${video.titulo}`);
+    partes.push(`> ⏳ ${video.duracion} · 📆 ${video.fecha}`);
+    partes.push(`> 🔗 ${video.url}`);
+    partes.push("");
+  });
+  partes.push("> Usa *.play <enlace>* para descargar el video que prefieras.");
+  return partes.join("\n");
 }
 
 export default {
   names: [".play", ".yt", ".ytsearch", ".buscaryt"],
-  usage: ".play <link o nombre> | .ytsearch <lo que quieras buscar>",
-  desc: "'.play' busca un video y te deja elegir audio o video; '.ytsearch' lista los primeros 10 resultados",
+  usage: ".play <enlace o nombre> | .ytsearch <búsqueda>",
+  desc: "'.play' busca un video y permite elegir audio o video con botones; '.ytsearch' lista los primeros 10 resultados",
   category: "Descargas",
-  handler: async ({ sock, from, sender, cleanText, reply }) => {
+  handler: async ({ sock, from, sender, msg, cleanText, reply }) => {
     const partes = cleanText.trim().split(/\s+/);
     const comando = partes[0].toLowerCase();
     const consulta = partes.slice(1).join(" ");
@@ -45,52 +83,68 @@ export default {
     if (!consulta) {
       return reply({
         text: esListado
-          ? "📌 Usalo así:\n*.ytsearch* historias de terror"
-          : "📌 Usalo así:\n*.play* nombre del video\n*.play* https://youtu.be/xxxxxxx"
+          ? tarjetaUso({ comando: ".ytsearch <búsqueda>", ejemplo: ".ytsearch historias de terror" })
+          : tarjetaUso({
+              comando: ".play <nombre o enlace>",
+              ejemplo: ".play https://youtu.be/xxxxxxxxxxx",
+              nota: "Después de la búsqueda podrás elegir entre audio y video."
+            }),
+        mentions: [sender]
       });
     }
 
-    await reply({ text: "⏳ Buscando en YouTube, dame un segundo..." });
+    await reply({
+      text: tarjetaDescarga({
+        emoji: "🔎",
+        titulo: esListado ? "YOUTUBE SEARCH" : "YOUTUBE DOWNLOAD",
+        sender,
+        campos: [campo("💭", "Búsqueda", consulta)],
+        nota: "Buscando en YouTube. Esto puede tardar unos segundos."
+      }),
+      mentions: [sender]
+    });
 
     if (esListado) {
       let resultados;
       try {
         resultados = await buscarVideosYoutube(consulta, 10);
       } catch (e) {
-        return reply({ text: `❌ No pude buscar eso: ${e.message}` });
+        return reply({ text: tarjetaError("No se pudo completar la búsqueda.", e.message) });
       }
-      if (resultados.length === 0) return reply({ text: "😕 No encontré resultados para eso." });
+      if (resultados.length === 0) {
+        return reply({ text: tarjetaError("No se encontraron resultados para esa búsqueda.") });
+      }
 
-      let texto = `🔎 *Resultados para:* ${consulta}\n\n`;
-      resultados.forEach((v, i) => {
-        texto += `*${i + 1}.* ${v.titulo}\n⏱️ ${v.duracion} · 📅 ${v.fecha}\n🔗 ${v.url}\n\n`;
-      });
-
+      const texto = tarjetaResultados(consulta, resultados, sender);
       const primera = resultados[0];
-      if (primera.miniatura) await reply({ image: { url: primera.miniatura }, caption: texto.trim() });
-      else await reply({ text: texto.trim() });
+      if (primera.miniatura) await reply({ image: { url: primera.miniatura }, caption: texto, mentions: [sender] });
+      else await reply({ text: texto, mentions: [sender] });
       return;
     }
 
-    let link, info;
+    let link;
+    let info;
     try {
       link = await resolverLinkYoutube(consulta);
       info = await obtenerInfoYoutube(link);
     } catch (e) {
-      return reply({ text: `❌ No pude buscar eso: ${e.message}` });
+      return reply({ text: tarjetaError("No se pudo obtener la información del video.", e.message) });
     }
 
-    const lineaFecha = info.fecha ? `📅 *PUBLICADO* › ${info.fecha}\n` : "";
-    const texto =
-      `🎬 *YouTube*\n\n` +
-      `📺 *TÍTULO* › ${info.titulo}\n` +
-      `👤 *CANAL* › ${info.canal}\n` +
-      `⏱️ *DURACIÓN* › ${info.duracionTexto}\n` +
-      `👁️ *VISTAS* › ${info.vistas}\n` +
-      lineaFecha +
-      `🔗 *ENLACE* › ${info.enlace}\n\n` +
-      `🎵 Selecciona un formato:\n\nFormatos\nAudio: 1\nVideo: 2\n\n` +
-      `> Elegí en que formato descargar el link\n\nPᴏᴡᴇʀᴇᴅ Bʏ • ItsDuva`;
+    const texto = tarjetaDescarga({
+      emoji: "📺",
+      titulo: "YOUTUBE DOWNLOAD",
+      sender,
+      campos: [
+        campo("💭", "Título", info.titulo),
+        campo("⏳", "Duración", duracionLarga(info.duracionSeg)),
+        campo("👁️", "Vistas", info.vistas),
+        campo("🐋", "Hashtags", etiquetasComoHashtags(info.etiquetas)),
+        campo("📆", "Fecha - publicación", fechaCorta(info.fecha)),
+        campo("📚", "Canal", info.canal),
+        campo("🔗", "Link del video", info.enlace)
+      ]
+    });
 
     registrarEspera(`${from}:${sender}`, {
       duracionMs: DURACION_ESPERA_MS,
@@ -111,12 +165,11 @@ export default {
 
     await reply({
       text: texto,
+      mentions: [sender],
       contextInfo: {
-        isForwarded: true,
-        forwardingScore: 999,
         externalAdReply: {
           title: info.titulo,
-          body: `${info.canal} · Pᴏᴡᴇʀᴇᴅ Bʏ • ItsDuva`,
+          body: `${info.canal} · ${PIE_DE_PAGINA}`,
           mediaType: 1,
           thumbnail: miniatura,
           renderLargerThumbnail: true,
@@ -125,5 +178,20 @@ export default {
         }
       }
     });
+
+    const enviado = await enviarConBotonesRapidos({
+      sock,
+      from,
+      msg,
+      texto: tarjetaFormato(),
+      footer: PIE_DE_PAGINA,
+      botones: [
+        { texto: "🎵 Audio", id: `.ytaudio ${link}` },
+        { texto: "🎬 Video", id: `.ytvideo ${link}` }
+      ],
+      mentions: [sender]
+    });
+
+    if (!enviado) await reply({ text: tarjetaFormato() });
   }
 };

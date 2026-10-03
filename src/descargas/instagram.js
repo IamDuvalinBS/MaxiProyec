@@ -42,8 +42,6 @@ async function obtenerViaEmbed(shortcode) {
   return medias;
 }
 
-// Respaldo por si Instagram cambia el formato del embed. API pública de
-// terceros: si deja de responder, hay que reemplazarla por otra.
 async function obtenerViaApiRespaldo(link) {
   const { data } = await axios.get("https://api.ferdev.my.id/downloader/igdl", { params: { link }, timeout: 15000 });
   const items = data?.data || data?.result || [];

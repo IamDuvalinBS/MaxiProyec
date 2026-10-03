@@ -21,7 +21,7 @@ export function crearComandoTienda({ categoria, names, desc }) {
             emoji: t.emoji, titulo: `TIENDA · ${t.titulo}`,
             lineas: [
               ...filas, "",
-              `💰 *Tenés* ›› ${monto(getAccount(sender).wallet)}`,
+              `💰 *Tienes* ›› ${monto(getAccount(sender).wallet)}`,
               `📈 Nivel máximo ›› ${NIVEL_MAX[categoria]}. La subida es al azar dentro del rango.`,
               "",
               `⚙️ *Comprar* ›› .${t.comando} <nº>`,
@@ -32,9 +32,9 @@ export function crearComandoTienda({ categoria, names, desc }) {
       }
 
       const r = alimentar({ categoria, sender, nItem: parseInt(nTok, 10), charId: idTok ? parseInt(idTok.slice(1), 10) : null });
-      if (r.error === "item") return reply({ text: `❌ No existe la opción ${nTok}. Mirá la tienda con *.${t.comando}*.` });
-      if (r.error === "sinpersonajes") return reply({ text: `❌ Todavía no tenés ${cat.indef}. Conseguilo con *${cat.rollCmd}* y *${cat.claimCmd}*.` });
-      if (r.error === "ajeno") return reply({ text: `❌ No tenés ningún ${cat.singular} con ID ${idTok}.` });
+      if (r.error === "item") return reply({ text: `❌ No existe la opción ${nTok}. Consulta la tienda con *.${t.comando}*.` });
+      if (r.error === "sinpersonajes") return reply({ text: `❌ Todavía no tienes ${cat.indef}. Consíguelo con *${cat.rollCmd}* y *${cat.claimCmd}*.` });
+      if (r.error === "ajeno") return reply({ text: `❌ No tienes ningún ${cat.singular} con ID ${idTok}.` });
       if (r.error === "maximo") return reply({ text: `🏆 *${r.p.nombre}* ya está en el nivel máximo (${NIVEL_MAX[categoria]}).` });
       if (r.error === "saldo") return reply({ text: `❌ Te faltan ${monto(r.item.precio - getAccount(sender).wallet)} en mano para comprar ${r.item.nombre}.` });
 

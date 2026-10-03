@@ -90,6 +90,7 @@ export async function obtenerInfoYoutube(link) {
     vistas: Number(basico.view_count || 0).toLocaleString("es"),
     miniatura: basico.thumbnail?.[0]?.url || null,
     fecha: fechaCruda,
+    etiquetas: Array.isArray(basico.tags) ? basico.tags : Array.isArray(basico.keywords) ? basico.keywords : [],
     enlace: `https://www.youtube.com/watch?v=${extraerIdDeLink(link)}`
   };
 }
@@ -109,8 +110,6 @@ export async function buscarVideosYoutube(consulta, limite = 10) {
   }));
 }
 
-// YouTube viene exigiendo cada vez mas un "PO token" (token anti-bot) para
-// token, asi que se prueban en orden hasta que alguno funcione.
 const CLIENTES_A_PROBAR = ["ANDROID", "IOS", "TV", "WEB"];
 
 async function obtenerInfoParaDescarga(link) {
@@ -256,7 +255,6 @@ async function primeraUrlDeProveedores(link, proveedores) {
   return null;
 }
 
-// bloqueo anti-bot de YouTube); si ninguno responde, cae a descargar
 export async function descargarAudioConProveedores(link) {
   const url = await primeraUrlDeProveedores(link, PROVEEDORES_AUDIO);
   const buffer = url ? await descargarBufferConfiable(url, "mp3") : await descargarAudioYoutube(link);

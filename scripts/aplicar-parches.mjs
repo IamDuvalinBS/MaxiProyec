@@ -57,45 +57,6 @@ function guardar(archivo) {
   if (archivo) fs.writeFileSync(archivo.ruta, archivo.texto, "utf8");
 }
 
-const db = leer("motores/db.js");
-if (db) {
-  reemplazar(
-    db,
-    "carga de negocios y afk",
-    "rachas: doc.rachas || {},",
-    "rachas: doc.rachas || {},\n          negocios: doc.negocios || {},\n          afk: doc.afk || null,",
-    "negocios: doc.negocios || {}"
-  );
-  reemplazar(
-    db,
-    "guardado de negocios y afk",
-    "rachas: acc.rachas, profile: acc.profile",
-    "rachas: acc.rachas, negocios: acc.negocios, afk: acc.afk || null, profile: acc.profile",
-    "negocios: acc.negocios"
-  );
-  reemplazar(
-    db,
-    "cuenta nueva con negocios y afk",
-    "cooldowns: {}, rachas: {} });",
-    "cooldowns: {}, rachas: {}, negocios: {}, afk: null });",
-    "negocios: {}, afk: null"
-  );
-  reemplazar(
-    db,
-    "valores por defecto de cuentas existentes",
-    "  if (!acc.rachas) acc.rachas = {};",
-    "  if (!acc.rachas) acc.rachas = {};\n  if (!acc.negocios) acc.negocios = {};\n  if (acc.afk === undefined) acc.afk = null;",
-    "if (!acc.negocios)"
-  );
-  if (db.texto.includes("export function listarCuentas")) {
-    resultados.push("YA ESTABA      motores/db.js: listarCuentas");
-  } else {
-    db.texto = db.texto.trimEnd() + "\n\nexport function listarCuentas() {\n  return [...accounts.entries()];\n}\n";
-    resultados.push("APLICADO       motores/db.js: listarCuentas");
-  }
-  guardar(db);
-}
-
 const comandos = leer("src/nucleo/comandos.js");
 if (comandos) {
   agregarImport(comandos, 'import { estaAfk } from "../economia/afk.js";', "estaAfk");

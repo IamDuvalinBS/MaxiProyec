@@ -13,11 +13,11 @@ export default {
     const veces = partes.includes("max") ? Infinity : Math.max(1, parseInt(partes.find((x) => /^\d+$/.test(x)) || "1", 10));
 
     const r = subirBrawler({ sender, charId: idTok ? parseInt(idTok.slice(1), 10) : null, veces });
-    if (r.error === "sinpersonajes") return reply({ text: "❌ Todavía no tenés ningún brawler. Conseguí uno con *.brawlstars* y *.drop*." });
-    if (r.error === "ajeno") return reply({ text: `❌ No tenés ningún brawler con ID ${idTok}.` });
+    if (r.error === "sinpersonajes") return reply({ text: "❌ Todavía no tienes ningún brawler. Consigue uno con *.brawlstars* y *.drop*." });
+    if (r.error === "ajeno") return reply({ text: `❌ No tienes ningún brawler con ID ${idTok}.` });
     if (r.error === "maximo") return reply({ text: `🏆 *${r.p.nombre}* ya está en el nivel máximo (${NIVEL_MAX.brawler}).` });
     if (r.error === "cubitos") {
-      return reply({ text: `❌ Para subir a *${r.p.nombre}* al nivel ${r.p.nivel + 1} necesitás ${r.necesarios} cubitos y tenés ${r.tiene}. Comprá con *.cubitos comprar ${r.faltan}*.` });
+      return reply({ text: `❌ Para subir a *${r.p.nombre}* al nivel ${r.p.nivel + 1} necesitas ${r.necesarios} cubitos y tienes ${r.tiene}. Compra con *.cubitos comprar ${r.faltan}*.` });
     }
 
     return reply({

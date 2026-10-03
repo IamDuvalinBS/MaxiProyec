@@ -1,4 +1,4 @@
-import { listarCuentas, saveAccount } from "../../motores/db.js";
+import { listarDatos, guardarDatos } from "../../motores/almacen-local.js";
 import { formatTime } from "../../motores/ui.js";
 import { encabezado, mencion } from "./estilo.js";
 import { textoDias } from "./rachas.js";
@@ -18,8 +18,8 @@ async function revisarRachas() {
   if (!socketActual) return;
   const ahora = Date.now();
 
-  for (const [sender, cuenta] of listarCuentas()) {
-    const racha = cuenta.rachas && cuenta.rachas.daily;
+  for (const [sender, entrada] of listarDatos()) {
+    const racha = entrada.rachas && entrada.rachas.daily;
     if (!racha || !racha.cantidad || !racha.chat) continue;
     if (racha.avisado === racha.ultimo) continue;
 
@@ -36,7 +36,7 @@ async function revisarRachas() {
     try {
       await socketActual.sendMessage(racha.chat, { text: texto, mentions: [sender] });
       racha.avisado = racha.ultimo;
-      saveAccount(sender);
+      guardarDatos();
     } catch (e) {
       console.log(`❌ No se pudo enviar el aviso de racha a ${sender}: ${e.message}`);
     }

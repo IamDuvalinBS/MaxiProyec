@@ -18,7 +18,7 @@ export default {
           emoji: "⚡", titulo: "CUBITOS DE FUERZA",
           lineas: [
             `🟪 *Precio* ›› ${monto(PRECIO_CUBITO)} por cubito`,
-            `🎒 *Tenés* ›› ${cubitosDe(sender)} cubitos`,
+            `🎒 *Tienes* ›› ${cubitosDe(sender)} cubitos`,
             `💰 *Dinero en mano* ›› ${monto(getAccount(sender).wallet)}`,
             "",
             "📈 *Cubitos por nivel (fijo)*",
@@ -34,13 +34,13 @@ export default {
     }
 
     const r = comprarCubitos(sender, cantidad);
-    if (r.error) return reply({ text: `❌ Necesitás ${monto(r.total)} en mano y no te alcanza.` });
+    if (r.error) return reply({ text: `❌ Necesitas ${monto(r.total)} en mano y no te alcanza.` });
     return reply({
       text: tarjeta({
         emoji: "⚡", titulo: "COMPRA REALIZADA",
         lineas: [
           `🟪 *Compraste* ›› ${cantidad} cubitos por ${monto(r.total)}`,
-          `🎒 *Ahora tenés* ›› ${r.tiene} cubitos`,
+          `🎒 *Ahora tienes* ›› ${r.tiene} cubitos`,
           `💰 *Te quedan* ›› ${monto(getAccount(sender).wallet)}`
         ]
       })

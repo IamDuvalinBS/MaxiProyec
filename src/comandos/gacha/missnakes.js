@@ -9,7 +9,7 @@ export default {
     await gachaListo;
     await mostrarColeccion({
       categoria: "snake", titulo: "Tus Snakes", sender, cleanText, reply,
-      pista: "🔮 Subilos de nivel con *.orbes* (usá #id para elegir cuál)."
+      pista: "🔮 Súbelos de nivel con *.orbes* (usa #id para elegir cuál)."
     });
   }
 };

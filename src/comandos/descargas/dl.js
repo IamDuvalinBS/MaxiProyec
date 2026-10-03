@@ -1,18 +1,17 @@
-import fs from "fs";
 import axios from "axios";
-import { descargarATemporal, asegurarVideoCompatibleWhatsApp, asegurarImagenCompatibleWhatsApp, LIMITE_VIDEO_WHATSAPP_MB } from "../../descargas/core.js";
+import { enviarMedias } from "../../descargas/envio.js";
+import { tarjetaDescarga, tarjetaUso, tarjetaError, campo } from "../../descargas/tarjetas.js";
 
-const HEADERS = {
+const CABECERAS = {
   "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 };
 
-// funciona con la mayoria de sitios sin tener que programar uno por uno.
 async function obtenerMediaGenerica(link) {
-  const { data: html } = await axios.get(link, { headers: HEADERS, timeout: 15000 });
+  const { data: html } = await axios.get(link, { headers: CABECERAS, timeout: 15000 });
 
-  const buscar = (prop) => {
-    const m = html.match(new RegExp(`<meta[^>]+property=["']${prop}["'][^>]+content=["']([^"']+)["']`, "i"));
-    return m ? m[1] : null;
+  const buscar = (propiedad) => {
+    const coincidencia = html.match(new RegExp(`<meta[^>]+property=["']${propiedad}["'][^>]+content=["']([^"']+)["']`, "i"));
+    return coincidencia ? coincidencia[1] : null;
   };
 
   const video = buscar("og:video:secure_url") || buscar("og:video:url") || buscar("og:video");
@@ -20,44 +19,45 @@ async function obtenerMediaGenerica(link) {
 
   if (video) return { type: "video", url: video };
   if (imagen) return { type: "image", url: imagen };
-  throw new Error("No encontré ningún video o imagen descargable en esa página.");
+  throw new Error("No se encontró ningún video o imagen descargable en esa página.");
 }
 
 export default {
   names: [".dl", ".descargar"],
   usage: ".dl <link>",
-  desc: "Descarga el video o imagen de un link de cualquier página (usa las etiquetas de vista previa del sitio)",
+  desc: "Descarga el video o la imagen de un enlace de cualquier página (usa la vista previa del sitio)",
   category: "Descargas",
-  handler: async ({ cleanText, reply }) => {
+  handler: async ({ sender, cleanText, reply }) => {
     const link = cleanText.trim().split(/\s+/)[1];
     if (!link || !/^https?:\/\//i.test(link)) {
-      return reply({ text: "📌 Mandame un link así:\n*.dl* https://ejemplo.com/pagina-con-un-video-o-foto" });
+      return reply({
+        text: tarjetaUso({
+          comando: ".dl <enlace>",
+          ejemplo: ".dl https://ejemplo.com/pagina-con-un-video",
+          nota: "Funciona con páginas que publican una vista previa de video o imagen."
+        }),
+        mentions: [sender]
+      });
     }
 
-    await reply({ text: "⏳ Descargando, dame un segundo..." });
+    await reply({
+      text: tarjetaDescarga({
+        emoji: "📥",
+        titulo: "DESCARGA GENERAL",
+        sender,
+        campos: [campo("🔗", "Enlace", link)],
+        nota: "Descargando el contenido. Esto puede tardar unos segundos."
+      }),
+      mentions: [sender]
+    });
 
-    let ruta;
+    let media;
     try {
-      const media = await obtenerMediaGenerica(link);
-      ruta = await descargarATemporal(media.url, media.type === "video" ? "mp4" : "img");
-
-      if (media.type === "video") {
-        const pesoMB = fs.statSync(ruta).size / (1024 * 1024);
-        if (pesoMB > LIMITE_VIDEO_WHATSAPP_MB) {
-          return reply({ text: `⚠️ El video pesa ${pesoMB.toFixed(1)}MB, demasiado grande para enviarlo por WhatsApp.` });
-        }
-        const buffer = await asegurarVideoCompatibleWhatsApp(ruta);
-        ruta = null;
-        await reply({ video: buffer, mimetype: "video/mp4" });
-      } else {
-        const buffer = await asegurarImagenCompatibleWhatsApp(ruta);
-        ruta = null;
-        await reply({ image: buffer, mimetype: "image/jpeg" });
-      }
+      media = await obtenerMediaGenerica(link);
     } catch (e) {
-      await reply({ text: `❌ No pude descargar eso: ${e.message}` });
-    } finally {
-      if (ruta && fs.existsSync(ruta)) fs.unlinkSync(ruta);
+      return reply({ text: tarjetaError("No se pudo obtener el contenido de ese enlace.", e.message) });
     }
+
+    await enviarMedias([media], reply);
   }
 };

@@ -1,5 +1,3 @@
-// Base de datos DEL GACHA, totalmente separada de MongoDB.
-//  - Es un archivo SQLite en disco (no vive en RAM; cache_size fijado en ~2 MB).
 import fs from "fs";
 import path from "path";
 
@@ -18,7 +16,7 @@ async function abrir() {
       return new mod.default(RUTA_DB);
     } catch (e2) {
       throw new Error(
-        "No hay motor SQLite disponible. Usá Node 22.5+ (node:sqlite) o instalá better-sqlite3 (npm i better-sqlite3)."
+        "No hay motor SQLite disponible. Usa Node 22.5+ (node:sqlite) o instalá better-sqlite3 (npm i better-sqlite3)."
       );
     }
   }
@@ -264,7 +262,6 @@ export function yandereDuplicado({ post_id, md5, parent_id }) {
   const d = q();
   if (st("SELECT 1 FROM yandere_posts WHERE post_id = ?").get(post_id)) return "post";
   if (md5 && st("SELECT 1 FROM yandere_posts WHERE md5 = ?").get(md5)) return "md5";
-  // versión alternativa (hijo/padre) de un post que ya registramos
   if (parent_id && st("SELECT 1 FROM yandere_posts WHERE post_id = ? OR parent_id = ?").get(parent_id, parent_id)) return "parent";
   if (st("SELECT 1 FROM yandere_posts WHERE parent_id = ?").get(post_id)) return "parent";
   return null;

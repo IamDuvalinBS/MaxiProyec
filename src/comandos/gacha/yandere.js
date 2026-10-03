@@ -23,7 +23,7 @@ export default {
     try {
       const enviado = await enviarPersonaje({
         reply, personaje: r.personaje, titulo: "WAIFU AGREGADA",
-        lineasExtra: ["✅ Guardada en la base. Respondé con *.claim* para reclamarla (30s)."]
+        lineasExtra: ["✅ Guardada en la base. Responde con *.claim* para reclamarla (30s)."]
       });
       if (enviado?.key?.id) registrarPendiente(enviado.key.id, from, r.personaje, sender);
     } catch (e) {

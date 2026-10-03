@@ -9,3 +9,5 @@ auth_info_/
 .env
 .respaldo-*/
 cache/
+data/economia-local.json
+data/economia-local.json.parcial

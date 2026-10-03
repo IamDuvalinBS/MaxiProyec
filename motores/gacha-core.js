@@ -1,5 +1,3 @@
-//  - imágenes livianas (streaming a disco / skins de snake dibujadas al vuelo)
-//  - cooldowns y reclamos pendientes en memoria (nada de esto toca MongoDB)
 import axios from "axios";
 import fs from "fs";
 import os from "os";
@@ -35,8 +33,6 @@ export const CAT = {
   snake:   { emoji: "🐍", singular: "snake",   indef: "un snake",    reclamado: "SNAKE ADOPTADO",    rollCmd: ".snake",      claimCmd: ".adoptar" }
 };
 
-// Nunca se carga una imagen entera en RAM: se baja en streaming a un archivo temporal (o se dibuja la
-// skin de snake), se envía leyendo desde el disco ({ image: { url: ruta } }) y se borra.
 const TMP_DIR = path.join(os.tmpdir(), "maxibot-gacha");
 const LIMITE_BYTES = 15 * 1024 * 1024;
 const MAX_DESCARGAS_SIMULTANEAS = 3;
@@ -118,7 +114,7 @@ export function tomarCooldown(clave, ms) {
   return 0;
 }
 export function soltarCooldown(clave) { cooldowns.delete(clave); }
-export const textoCooldown = (ms) => `⏳ Todavía no podés volver a usar este comando. Tiempo restante: *${formatTime(ms)}*.`;
+export const textoCooldown = (ms) => `⏳ Todavía no puedes volver a usar este comando. Tiempo restante: *${formatTime(ms)}*.`;
 
 setInterval(() => {
   const ahora = Date.now();
@@ -211,7 +207,6 @@ export function lineasPersonaje(p, nivel = null) {
   return l;
 }
 
-// Envía la imagen del personaje (streaming desde disco, se borra al terminar).
 export async function enviarPersonaje({ reply, personaje, titulo, lineasExtra = [], mentions = [] }) {
   const caption = tarjeta({
     emoji: CAT[personaje.categoria]?.emoji || "🎴",
@@ -254,7 +249,7 @@ export async function hacerRoll({ categoria, obtener, reply, sender, from, coold
         extra.push(
           `🔒 Solo ${arroba(sender)} puede reclamarlo durante *${EXCLUSIVO_MS / 1000}s*.`,
           `🔓 Después queda libre para todos hasta los *${VIGENCIA_MS / 60000} min*.`,
-          `👉 Reclamalo con *${cat.claimCmd}* (o respondiendo a este mensaje).`
+          `👉 Reclámalo con *${cat.claimCmd}* (o respondiendo a este mensaje).`
         );
       }
 
@@ -267,7 +262,7 @@ export async function hacerRoll({ categoria, obtener, reply, sender, from, coold
         console.log(`[gacha] no pude preparar la imagen de "${personaje.nombre}" (${categoria}):`, e.message);
       }
     }
-    await reply({ text: "❌ No pude preparar la imagen, probá de nuevo en un momento." });
+    await reply({ text: "❌ No pude preparar la imagen, prueba de nuevo en un momento." });
   } finally {
     if (!exito) soltarCooldown(clave);
   }
@@ -305,7 +300,7 @@ export function crearComandoClaim({ categoria, names, desc }) {
       }
       if (resultado === "repetido") {
         cerrarPendiente(r.id);
-        return reply({ text: `📦 Ya tenés a *${p.nombre}*.` });
+        return reply({ text: `📦 Ya tienes a *${p.nombre}*.` });
       }
 
       cerrarPendiente(r.id);
@@ -325,7 +320,7 @@ export async function mostrarColeccion({ categoria, titulo, sender, cleanText, r
   const pagina = Math.max(1, parseInt(cleanText.split(/\s+/)[1], 10) || 1);
   const POR_PAGINA = 15;
   const { n, total } = contarColeccion(sender, categoria);
-  if (!n) return reply({ text: `📭 Todavía no tenés nada en *${titulo}*. Probá con *${cat.rollCmd}* y reclamalo con *${cat.claimCmd}*.` });
+  if (!n) return reply({ text: `📭 Todavía no tienes nada en *${titulo}*. Prueba con *${cat.rollCmd}* y reclámalo con *${cat.claimCmd}*.` });
 
   const paginas = Math.ceil(n / POR_PAGINA);
   const p = Math.min(pagina, paginas);

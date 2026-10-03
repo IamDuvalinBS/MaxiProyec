@@ -89,7 +89,7 @@ export function crearHandlerPvp({ categoria, comando, nombreLuchador }) {
       const d = desafios.get(clave);
       if (!d || d.vence < Date.now()) {
         desafios.delete(clave);
-        return reply({ text: "❌ No tenés ningún desafío pendiente en este chat." });
+        return reply({ text: "❌ No tienes ningún desafío pendiente en este chat." });
       }
       if (sub === "rechazar") {
         desafios.delete(clave);
@@ -100,8 +100,8 @@ export function crearHandlerPvp({ categoria, comando, nombreLuchador }) {
       const luchaV = mejorDe(sender, categoria, charId);
       if (!luchaV) {
         return reply({ text: charId
-          ? `❌ No tenés ningún ${nombreLuchador} con ID #${charId}.`
-          : `❌ No tenés ningún ${nombreLuchador}. Conseguí uno con *${cat.rollCmd}* y *${cat.claimCmd}*.` });
+          ? `❌ No tienes ningún ${nombreLuchador} con ID #${charId}.`
+          : `❌ No tienes ningún ${nombreLuchador}. Consigue uno con *${cat.rollCmd}* y *${cat.claimCmd}*.` });
       }
       if (!luchaR) return reply({ text: `❌ ${arroba(d.retador)} ya no tiene ese ${nombreLuchador}.`, mentions: [d.retador] });
       if (getAccount(d.retador).wallet < d.apuesta || getAccount(sender).wallet < d.apuesta) {
@@ -148,19 +148,19 @@ export function crearHandlerPvp({ categoria, comando, nombreLuchador }) {
             `✅ *Aceptar* ›› .${comando} aceptar [#id]`,
             `🏳️ *Rechazar* ›› .${comando} rechazar`,
             "",
-            `Pelea tu ${nombreLuchador} contra el del rival (por defecto el de mayor nivel; con #id elegís cuál). Las estadísticas dependen del nivel y la rareza. El perdedor le paga la apuesta al ganador (mínimo ${APUESTA_MINIMA}, sale del dinero en mano).`
+            `Pelea tu ${nombreLuchador} contra el del rival (por defecto el de mayor nivel; con #id eliges cuál). Las estadísticas dependen del nivel y la rareza. El perdedor le paga la apuesta al ganador (mínimo ${APUESTA_MINIMA}, sale del dinero en mano).`
           ]
         })
       });
     }
-    if (rival === sender) return reply({ text: "❌ No podés desafiarte a vos mismo." });
+    if (rival === sender) return reply({ text: "❌ No puedes desafiarte a ti mismo." });
     if (apuesta < APUESTA_MINIMA) return reply({ text: `❌ La apuesta mínima es ${monto(APUESTA_MINIMA)}.` });
     if (!mejorDe(sender, categoria, charId)) {
       return reply({ text: charId
-        ? `❌ No tenés ningún ${nombreLuchador} con ID #${charId}.`
-        : `❌ Necesitás al menos un ${nombreLuchador}. Conseguí uno con *${cat.rollCmd}* y *${cat.claimCmd}*.` });
+        ? `❌ No tienes ningún ${nombreLuchador} con ID #${charId}.`
+        : `❌ Necesitas al menos un ${nombreLuchador}. Consigue uno con *${cat.rollCmd}* y *${cat.claimCmd}*.` });
     }
-    if (getAccount(sender).wallet < apuesta) return reply({ text: `❌ No tenés ${monto(apuesta)} en mano.` });
+    if (getAccount(sender).wallet < apuesta) return reply({ text: `❌ No tienes ${monto(apuesta)} en mano.` });
     if (getAccount(rival).wallet < apuesta) return reply({ text: `❌ ${arroba(rival)} no tiene ${monto(apuesta)} en mano.`, mentions: [rival] });
 
     desafios.set(claveDesafio(from, rival), { retador: sender, rival, apuesta, charId, vence: Date.now() + DESAFIO_MS });
@@ -171,7 +171,7 @@ export function crearHandlerPvp({ categoria, comando, nombreLuchador }) {
           `⚔️ ${arroba(sender)} desafía a ${arroba(rival)}`,
           `🪙 *Apuesta* ›› ${monto(apuesta)}`,
           "",
-          `${arroba(rival)}, respondé con *.${comando} aceptar* o *.${comando} rechazar* (2 min).`
+          `${arroba(rival)}, responde con *.${comando} aceptar* o *.${comando} rechazar* (2 min).`
         ]
       }),
       mentions: [sender, rival]

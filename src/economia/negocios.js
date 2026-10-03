@@ -1,4 +1,5 @@
 import { getAccount, saveAccount, addToWallet } from "../../motores/db.js";
+import { datosDe, guardarDatos } from "../../motores/almacen-local.js";
 
 export const HORAS_CICLO = 12;
 export const CICLO_MS = HORAS_CICLO * 60 * 60 * 1000;
@@ -28,7 +29,7 @@ export function definicionPorNumero(numero) {
 }
 
 export function negociosDe(sender) {
-  return getAccount(sender).negocios;
+  return datosDe(sender).negocios;
 }
 
 export function pendienteDe(negocio, def, ahora = Date.now()) {
@@ -45,24 +46,26 @@ export function estaVencido(negocio, ahora = Date.now()) {
 
 export function comprarNegocio(sender, def) {
   const cuenta = getAccount(sender);
-  if (cuenta.negocios[def.clave]) return { exito: false, motivo: "poseido" };
+  const negocios = datosDe(sender).negocios;
+  if (negocios[def.clave]) return { exito: false, motivo: "poseido" };
   if (cuenta.wallet < def.precio) return { exito: false, motivo: "fondos", faltante: def.precio - cuenta.wallet };
   const ahora = Date.now();
   cuenta.wallet -= def.precio;
-  cuenta.negocios[def.clave] = { compradoEn: ahora, inicio: ahora, vence: ahora + SEMANA_MS, acumulado: 0 };
+  negocios[def.clave] = { compradoEn: ahora, inicio: ahora, vence: ahora + SEMANA_MS, acumulado: 0 };
   saveAccount(sender);
+  guardarDatos();
   return { exito: true };
 }
 
 export function reclamarNegocios(sender) {
-  const cuenta = getAccount(sender);
+  const negocios = datosDe(sender).negocios;
   const ahora = Date.now();
   const detalle = [];
   const vencidos = [];
   let total = 0;
 
   for (const def of CATALOGO) {
-    const negocio = cuenta.negocios[def.clave];
+    const negocio = negocios[def.clave];
     if (!negocio) continue;
     if (estaVencido(negocio, ahora)) vencidos.push(def);
     const pendiente = pendienteDe(negocio, def, ahora);
@@ -74,15 +77,15 @@ export function reclamarNegocios(sender) {
   }
 
   if (total > 0) addToWallet(sender, total);
-  else saveAccount(sender);
+  guardarDatos();
   return { total, detalle, vencidos };
 }
 
 export function pagosPendientes(sender, ahora = Date.now()) {
-  const cuenta = getAccount(sender);
+  const negocios = datosDe(sender).negocios;
   const lista = [];
   for (const def of CATALOGO) {
-    const negocio = cuenta.negocios[def.clave];
+    const negocio = negocios[def.clave];
     if (!negocio) continue;
     if (negocio.vence - ahora <= VENTANA_PAGO_MS) lista.push({ def, negocio });
   }
@@ -109,5 +112,6 @@ export function pagarMantenimiento(sender) {
   }
   cuenta.wallet -= total;
   saveAccount(sender);
+  guardarDatos();
   return { exito: true, total, pagados: lista.map(({ def }) => def) };
 }

@@ -14,7 +14,7 @@ export default {
   usage: ".yanderandom [cantidad]",
   handler: ownerGacha(async ({ cleanText, reply }) => {
     await gachaListo;
-    if (ocupado) return reply({ text: "⏳ Ya hay una carga en curso, esperá a que termine." });
+    if (ocupado) return reply({ text: "⏳ Ya hay una carga en curso, espera a que termine." });
     const n = Math.min(MAXIMO, Math.max(1, parseInt(cleanText.split(/\s+/)[1], 10) || POR_DEFECTO));
 
     ocupado = true;

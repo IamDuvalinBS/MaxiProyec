@@ -181,7 +181,6 @@ export function dibujarSkin(sk) {
     L.circulo(p.x - p.r * 0.3, p.y - p.r * 0.35, p.r * 0.32, [255, 255, 255], 0.22);
   });
 
-  // cabeza: ojos + accesorio
   const h = pts[N - 1], q = pts[N - 2];
   let dx = h.x - q.x, dy = h.y - q.y;
   const len = Math.hypot(dx, dy) || 1; dx /= len; dy /= len;

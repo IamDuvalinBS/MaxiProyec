@@ -1,31 +1,66 @@
-import { buscarCancionSpotify } from "../../descargas/spotify.js";
+import { buscarCancion } from "../../descargas/spotify.js";
+import { tarjetaDescarga, tarjetaUso, tarjetaError, campo, duracionLarga } from "../../descargas/tarjetas.js";
 
 export default {
   names: [".spotify", ".sb"],
-  usage: ".spotify <nombre de la cancion>",
-  desc: "Busca una canción en Spotify (info, portada y preview oficial de 30s)",
+  usage: ".spotify <nombre de la canción o enlace de Spotify>",
+  desc: "Busca una canción (sin cuentas ni claves) y envía su información, portada y vista previa de 30 segundos",
   category: "Descargas",
-  handler: async ({ cleanText, reply }) => {
+  handler: async ({ sender, cleanText, reply }) => {
     const consulta = cleanText.trim().split(/\s+/).slice(1).join(" ");
-    if (!consulta) return reply({ text: "📌 Usalo así:\n*.spotify* nombre de la cancion" });
-
-    await reply({ text: "⏳ Buscando en Spotify, dame un segundo..." });
-
-    try {
-      const cancion = await buscarCancionSpotify(consulta);
-      const caption = `🎧 *${cancion.titulo}*\n👤 ${cancion.artistas}\n💿 ${cancion.album}\n🔗 ${cancion.spotifyUrl}`;
-
-      if (cancion.portada) await reply({ image: { url: cancion.portada }, caption });
-      else await reply({ text: caption });
-
-      if (cancion.previewUrl) {
-        await reply({ audio: { url: cancion.previewUrl }, mimetype: "audio/mpeg", ptt: false });
-      } else {
-        await reply({ text: "ℹ️ Esa canción no tiene preview disponible en Spotify. La escucha completa solo está dentro de la app de Spotify." });
-      }
-    } catch (e) {
-      const esFaltaCredenciales = e.message.includes("SPOTIFY_CLIENT_ID");
-      await reply({ text: esFaltaCredenciales ? `⚙️ ${e.message}` : `❌ No pude buscar eso: ${e.message}` });
+    if (!consulta) {
+      return reply({
+        text: tarjetaUso({
+          comando: ".spotify <canción o enlace>",
+          ejemplo: ".spotify Shape of You Ed Sheeran",
+          nota: "También acepta un enlace de una canción de Spotify."
+        }),
+        mentions: [sender]
+      });
     }
+
+    await reply({
+      text: tarjetaDescarga({
+        emoji: "🎧",
+        titulo: "SPOTIFY SEARCH",
+        sender,
+        campos: [campo("🔎", "Búsqueda", consulta)],
+        nota: "Buscando la canción. Esto puede tardar unos segundos."
+      }),
+      mentions: [sender]
+    });
+
+    let cancion;
+    try {
+      cancion = await buscarCancion(consulta);
+    } catch (e) {
+      return reply({ text: tarjetaError("No se pudo completar la búsqueda.", e.message) });
+    }
+
+    const caption = tarjetaDescarga({
+      emoji: "🎧",
+      titulo: "SPOTIFY SEARCH",
+      sender,
+      campos: [
+        campo("💭", "Título", cancion.titulo),
+        campo("👤", "Artista", cancion.artistas),
+        campo("💿", "Álbum", cancion.album),
+        campo("⏳", "Duración", duracionLarga(cancion.duracionSeg)),
+        campo("🌐", "Fuente", cancion.fuente),
+        campo("🔗", "Enlace", cancion.enlace || "No disponible")
+      ],
+      nota: "Se envía una vista previa de 30 segundos. Para la canción completa usa *.play <nombre>*."
+    });
+
+    if (cancion.portada) {
+      await reply({ image: { url: cancion.portada }, caption, mentions: [sender], cacheKey: `spotify:imagen:${cancion.id}` });
+    } else {
+      await reply({ text: caption, mentions: [sender] });
+    }
+
+    if (!cancion.previewUrl) {
+      return reply({ text: tarjetaError("Esta canción no tiene vista previa disponible.", "Usa *.play* para descargarla completa desde YouTube.") });
+    }
+    await reply({ audio: { url: cancion.previewUrl }, mimetype: "audio/mpeg", ptt: false, cacheKey: `spotify:audio:${cancion.id}` });
   }
 };

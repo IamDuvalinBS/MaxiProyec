@@ -1,4 +1,3 @@
-// Proveedor de Pokémon: PokeAPI (https://pokeapi.co). Gratis, sin API key.
 import axios from "axios";
 import { crearPersonaje, personajePorClave } from "./gacha-db.js";
 

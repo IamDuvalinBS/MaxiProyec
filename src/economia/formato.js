@@ -16,7 +16,7 @@ export function montoConSigno(n) {
 }
 
 export function tarjeta({ emoji, titulo, subtitulo, relato, lineas = [], tip }) {
-  const partes = [`⧼${emoji}⧽ *${titulo}*`];
+  const partes = [`⧼${emoji}⧽ \`\`\`##\`\`\` *${titulo}*`];
   if (subtitulo) partes.push(`     ➥ ${subtitulo}`);
   partes.push("");
   if (relato) partes.push(`> ${relato}`, "");
