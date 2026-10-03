@@ -93,7 +93,7 @@ const obtenerImagenBeso = async () => {
   return undefined;
 };
 
-console.log("kiss: v10 cargado (solo parejas chico-chica)");
+console.log("kiss: v11 cargado (solo parejas chico-chica)");
 recargar();
 
 export default {
@@ -116,7 +116,7 @@ export default {
     const titulo = esASiMismo ? "Beso al aire" : `${total} beso${total === 1 ? "" : "s"} en total`;
 
     const mensaje = {
-      text: imagen ? `${linea}\n\n${imagen.url}` : `${linea}\n\n*${titulo}*\n${FIRMA}`,
+      text: imagen ? linea : `${linea}\n\n*${titulo}*\n${FIRMA}`,
       mentions: esASiMismo ? [sender] : [sender, target]
     };
     if (imagen) {
@@ -132,4 +132,3 @@ export default {
     await sock.sendMessage(from, mensaje, { quoted: msg });
   }
 };
-        
