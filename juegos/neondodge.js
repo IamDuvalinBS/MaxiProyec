@@ -1,3 +1,4 @@
+import { lanzarJuegoHTML } from "../motores/juegos-records.js";
 // juegos/neondodge.js - Neon Dodge (avioncito que esquiva obstaculos) en HTML dentro del chat
 const GAME_HTML = String.raw`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
@@ -11,18 +12,26 @@ canvas{width:100%;display:block;border:2px solid #0e6e8c;border-radius:12px;back
 .t{text-align:center;font-size:10px;color:#8aa4bd;margin-top:8px;min-height:14px}
 button{width:100%;margin-top:8px;height:48px;border-radius:12px;border:2px solid #22d3ee;background:#0a2a3a;color:#22d3ee;font:bold 13px inherit;font-family:inherit;cursor:pointer}
 button:active{transform:scale(.96)}
+#claim{display:none;margin-top:10px;padding:10px;border:2px solid #ffe14d;border-radius:12px;font-size:11px;text-align:center;color:#ffe14d;background:#2a250a}
+#claim a{display:block;margin:8px 0;padding:10px;border-radius:10px;background:#ffe14d;color:#000;font-weight:bold;text-decoration:none}
+#claim code{font-size:10px;color:#fff;word-break:break-all;-webkit-user-select:text;user-select:text}
 </style></head><body><div class="m"><small>MAXIPROYEC · RETRO ARCADE</small><h1>🚀 NEON DODGE</h1>
 <div class="h"><span>PUNTOS <b id="s">0</b></span><span>RÉCORD <b id="r">0</b></span></div>
 <canvas id="c" width="340" height="440"></canvas>
 <button id="b">▶ JUGAR</button>
 <div class="t" id="t">Arrastra el dedo para mover la nave. Esquiva rocas, toma los orbes cian.</div></div>
+<div id="claim"></div>
 <script>
 (function(){"use strict";
+var SID="__SID__",BOT="__BOT__";
+function claim(p){var c=document.getElementById("claim");if(!c)return;if(p<1){c.style.display="none";return}var m=".puntaje "+SID+" "+p;
+c.style.display="block";c.innerHTML='🏆 ¿Récord? Reclama tu premio:<a href="https://wa.me/'+BOT+'?text='+encodeURIComponent(m)+'">ENVIAR PUNTAJE AL BOT</a><code>'+m+'</code>'}
+
 var $=function(i){return document.getElementById(i)},cv=$("c"),x=cv.getContext("2d"),W=340,H=440;
 var px,tx,obs,orbs,sc,sp,sp_t,or_t,run=false,hi=0,last=0,stars=[];
 for(var i=0;i<40;i++)stars.push([Math.random()*W,Math.random()*H,Math.random()*1.5+.5]);
-function start(){px=tx=W/2;obs=[];orbs=[];sc=0;sp=3;sp_t=30;or_t=200;run=true;$("b").style.display="none";$("t").textContent="¡Esquiva!"}
-function end(){run=false;hi=Math.max(hi,Math.floor(sc));$("r").textContent=hi;$("b").textContent="↻ REINTENTAR";$("b").style.display="block";$("t").textContent="💥 Te estrellaste con "+Math.floor(sc)+" puntos."}
+function start(){px=tx=W/2;obs=[];orbs=[];sc=0;sp=3;sp_t=30;or_t=200;run=true;$("b").style.display="none";$("t").textContent="¡Esquiva!";claim(0)}
+function end(){run=false;hi=Math.max(hi,Math.floor(sc));$("r").textContent=hi;$("b").textContent="↻ REINTENTAR";$("b").style.display="block";$("t").textContent="💥 Te estrellaste con "+Math.floor(sc)+" puntos.";claim(Math.floor(sc))}
 function mv(e){var r=cv.getBoundingClientRect();tx=Math.max(14,Math.min(W-14,(e.clientX-r.left)*W/r.width))}
 cv.addEventListener("pointerdown",function(e){e.preventDefault();mv(e)});
 cv.addEventListener("pointermove",function(e){e.preventDefault();mv(e)});
@@ -50,17 +59,9 @@ requestAnimationFrame(loop);
 
 export default {
   names: [".neondodge", ".avion"],
-  desc: "Neon Dodge: esquiva obstáculos con tu nave, juego HTML dentro del chat",
+  desc: "Neon Dodge: esquiva obstáculos con tu nave. Superar tu récord te da ¥enes",
   category: "Juegos",
   usage: ".neondodge",
-  handler: async ({ sock, from, msg }) => {
-    try {
-      if (typeof sock.sendHtml !== "function") throw new Error("este Baileys no tiene sendHtml");
-      const r = await sock.sendHtml(from, GAME_HTML, [], undefined, {});
-      console.log("[NEONDODGE] sendHtml enviado, id:", r?.messageId);
-    } catch (e) {
-      console.log("[NEONDODGE] ERROR: " + e.stack);
-      await sock.sendMessage(from, { text: "❌ No se pudo enviar el juego: " + e.message }, { quoted: msg });
-    }
-  },
+  handler: async ({ sock, from, sender, msg, reply }) =>
+    lanzarJuegoHTML({ sock, from, sender, msg, reply, juego: "neondodge", html: GAME_HTML }),
 };
