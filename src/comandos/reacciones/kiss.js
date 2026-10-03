@@ -14,19 +14,24 @@ const esBeso = (p) => {
   const tags = p.tag_string_general.split(" ");
   const personas = tags.includes("2girls") || tags.includes("2boys") || (tags.includes("1girl") && tags.includes("1boy"));
   const raro = tags.some((t) => t.includes("kiss") && /cheek|forehead|hand|blow|neck|foot/.test(t));
-  return tags.includes("kiss") && personas && !raro;
+  return personas && !raro;
 };
 
 const obtenerImagenBeso = async () => {
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < 4; i++) {
     try {
-      const pagina = 1 + Math.floor(Math.random() * 10);
+      const pagina = 1 + Math.floor(Math.random() * 8);
       const res = await fetch(`https://safebooru.donmai.us/posts.json?tags=kiss&limit=100&page=${pagina}`, { headers: HEADERS });
-      const posts = (await res.json()).filter((p) => p.rating === "g" && p.tag_count_character > 0 && p.large_file_url && /jpg|jpeg|png|webp/.test(p.file_ext) && esBeso(p));
-      if (!posts.length) continue;
-      const elegido = posts[Math.floor(Math.random() * posts.length)];
-      const img = await loadImage(Buffer.from(await (await fetch(elegido.large_file_url, { headers: HEADERS })).arrayBuffer()));
-      const s = Math.min(1, 800 / Math.max(img.width, img.height));
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const todos = (await res.json()).filter((p) => p.rating === "g" && p.large_file_url && /jpg|jpeg|png|webp/.test(p.file_ext) && p.tag_string_general.split(" ").includes("kiss"));
+      const buenos = todos.filter((p) => p.tag_count_character > 0 && esBeso(p));
+      const lista = buenos.length ? buenos : todos.filter(esBeso);
+      if (!lista.length) continue;
+      const elegido = lista[Math.floor(Math.random() * lista.length)];
+      const archivo = await fetch(elegido.large_file_url, { headers: HEADERS });
+      if (!archivo.ok) throw new Error(`HTTP ${archivo.status} al bajar la imagen`);
+      const img = await loadImage(Buffer.from(await archivo.arrayBuffer()));
+      const s = Math.min(1, 512 / Math.max(img.width, img.height));
       const w = Math.round(img.width * s);
       const h = Math.round(img.height * s);
       const canvas = createCanvas(w, h);
@@ -34,8 +39,10 @@ const obtenerImagenBeso = async () => {
       ctx.fillStyle = "#fff";
       ctx.fillRect(0, 0, w, h);
       ctx.drawImage(img, 0, 0, w, h);
-      return canvas.toBuffer("image/jpeg", 80);
-    } catch {}
+      return canvas.toBuffer("image/jpeg", 70);
+    } catch (e) {
+      console.log("kiss: error obteniendo imagen: " + e.message);
+    }
   }
   return undefined;
 };
@@ -57,12 +64,11 @@ export default {
 
     const nombreDe = `@${sender.split("@")[0]}`;
     const nombrePara = `@${target.split("@")[0]}`;
-    const vecesTexto = total === 1 ? "1 vez" : `${total} veces`;
 
     await sock.sendMessage(
       from,
       {
-        text: `💋 ${nombreDe} y ${nombrePara} se han besado *${vecesTexto}*.`,
+        text: `> ${nombreDe} le dio un beso a ${nombrePara}.`,
         mentions: [sender, target],
         contextInfo: {
           isForwarded: true,
