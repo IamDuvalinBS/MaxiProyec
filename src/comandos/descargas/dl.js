@@ -1,79 +1,118 @@
+// Hecho por Fer2809fl (Fernando)
 import axios from "axios";
-import { enviarMedias } from "../../descargas/envio.js";
-import { descargarConApi, hayProveedores } from "../../descargas/gestor.js";
-import { tarjetaDescarga, tarjetaUso, tarjetaError, campo } from "../../descargas/tarjetas.js";
+import { descargarBuffer } from "../../descargas/core.js";
+import { reenviarCacheado, guardarMedioEnviado } from "../../../motores/cache-medios.js";
+import { encabezado } from "../../economia/estilo.js";
+import {
+  tarjetaDescarga,
+  tarjetaUso,
+  tarjetaError,
+  campo
+} from "../../descargas/tarjetas.js";
 
-const CABECERAS = {
-  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-};
+const PIE_DE_PAGINA = "Pᴏᴡᴇʀᴇᴅ Bʏ • ItsDuva";
+const URL_SPOTIFY = /open\.spotify\.com\/(?:intl-[a-z]+\/)?(track|album|playlist|episode)/i;
 
-async function obtenerMediaGenerica(link) {
-  const { data: html } = await axios.get(link, { headers: CABECERAS, timeout: 15000 });
+const limpiarNombre = (texto, respaldo) =>
+  (texto || respaldo).replace(/[\\/:*?"<>|]/g, "").trim() || respaldo;
 
-  const buscar = (propiedad) => {
-    const coincidencia = html.match(new RegExp(`<meta[^>]+property=["']${propiedad}["'][^>]+content=["']([^"']+)["']`, "i"));
-    return coincidencia ? coincidencia[1] : null;
-  };
+async function spotifyDownload(url) {
+  const extraer = (data) => ({
+    title: data.data?.title || data.title,
+    artist: data.data?.artist || data.artist,
+    album: data.data?.album || data.album,
+    download: data.data?.dl || data.data?.download || data.download,
+    thumbnail: data.data?.image || data.data?.thumbnail || data.image,
+    duration: data.data?.duration || data.duration
+  });
 
-  const video = buscar("og:video:secure_url") || buscar("og:video:url") || buscar("og:video");
-  const imagen = buscar("og:image:secure_url") || buscar("og:image:url") || buscar("og:image");
+  const apis = [
+    `https://api.stellarwa.xyz/dl/spotify?url=${encodeURIComponent(url)}&key=api-7dSKm`,
+    `https://api.alyacore.xyz/dl/spotify?url=${encodeURIComponent(url)}&key=oboe`
+  ];
 
-  if (video) return { type: "video", url: video };
-  if (imagen) return { type: "image", url: imagen };
-  throw new Error("No se encontró ningún video o imagen descargable en esa página.");
+  for (const api of apis) {
+    try {
+      const { data } = await axios.get(api, { timeout: 30000 });
+      const resultado = extraer(data);
+      if (resultado.download) return resultado;
+    } catch {
+      continue;
+    }
+  }
+  return null;
 }
 
 export default {
-  names: [".dl", ".descargar"],
-  usage: ".dl <link>",
-  desc: "Descarga el contenido de un enlace usando las APIs configuradas o, si no hay, la vista previa del sitio",
+  names: [".spotify", ".sp", ".spotifydl", ".spdl"],
+  usage: ".spotify <enlace de Spotify>",
+  desc: "Descarga canciones de Spotify en audio MP3",
   category: "Descargas",
-  handler: async ({ sender, cleanText, reply }) => {
-    const link = cleanText.trim().split(/\s+/)[1];
-    if (!link || !/^https?:\/\//i.test(link)) {
+  handler: async ({ sock, from, sender, msg, cleanText, reply }) => {
+    const partes = cleanText.trim().split(/\s+/);
+    const link = partes[1]?.trim();
+
+    if (!link) {
       return reply({
         text: tarjetaUso({
-          comando: ".dl <enlace>",
-          ejemplo: ".dl https://ejemplo.com/pagina-con-un-video",
-          nota: "Usa las APIs configuradas y, si fallan, la vista previa de video o imagen de la página."
+          comando: ".spotify <enlace>",
+          ejemplo: ".spotify https://open.spotify.com/track/xxxxxxxxxxxxxxxxxxxxxx",
+          nota: "El enlace debe ser de open.spotify.com."
         }),
         mentions: [sender]
       });
     }
 
-    await reply({
-      text: tarjetaDescarga({
-        emoji: "📥",
-        titulo: "DESCARGA GENERAL",
-        sender,
-        campos: [campo("🔗", "Enlace", link)],
-        nota: "Descargando el contenido. Esto puede tardar unos segundos."
-      }),
-      mentions: [sender]
+    if (!URL_SPOTIFY.test(link)) {
+      return reply({
+        text: tarjetaError("Enlace no válido. Debe ser de open.spotify.com (track, album, playlist o episode).")
+      });
+    }
+
+    const claveCache = `sp:audio:${link}`;
+    if (await reenviarCacheado(sock, from, claveCache, msg)) return;
+
+    let dl;
+    try {
+      dl = await spotifyDownload(link);
+      if (!dl?.download) throw new Error("No se pudo obtener el audio.");
+    } catch (e) {
+      return reply({ text: tarjetaError("No se pudo obtener la información de la canción.", e.message) });
+    }
+
+    const texto = tarjetaDescarga({
+      emoji: "🎵",
+      titulo: "SPOTIFY DOWNLOAD",
+      sender,
+      campos: [
+        campo("💭", "Título", dl.title || "Spotify"),
+        campo("🎤", "Artista", dl.artist || "Desconocido"),
+        campo("💿", "Álbum", dl.album || "Single"),
+        campo("⏳", "Duración", dl.duration || "N/A"),
+        campo("🔗", "Link", link)
+      ],
+      nota: "Descargando el audio. Esto puede tardar unos segundos."
     });
 
-    if (hayProveedores()) {
-      try {
-        const { buffer, mimetype, categoria, titulo, nombreArchivo } = await descargarConApi(link);
-        if (categoria === "video") {
-          return await reply({ video: buffer, mimetype, caption: titulo, mentions: [sender] });
-        }
-        if (categoria === "imagen") {
-          return await reply({ image: buffer, caption: titulo, mentions: [sender] });
-        }
-        return await reply({ document: buffer, mimetype, fileName: nombreArchivo, mentions: [sender] });
-      } catch (errorApi) {
-        console.error("Fallo la descarga por API:", errorApi.message);
-      }
+    if (dl.thumbnail) {
+      await reply({ image: { url: dl.thumbnail }, caption: texto, mentions: [sender] });
+    } else {
+      await reply({ text: texto, mentions: [sender] });
     }
 
-    let media;
     try {
-      media = await obtenerMediaGenerica(link);
-    } catch (e) {
-      return reply({ text: tarjetaError("No se pudo obtener el contenido de ese enlace.", e.message) });
-    }
+      const audio = await descargarBuffer(dl.download);
+      const fileName = `${limpiarNombre(dl.title, "spotify")} - ${limpiarNombre(dl.artist, "artist")}.mp3`;
 
-    await enviarMedias([media], reply);
+      const enviado = await reply({
+        audio,
+        mimetype: "audio/mpeg",
+        ptt: false,
+        fileName
+      });
+      guardarMedioEnviado(claveCache, enviado);
+    } catch (e) {
+      await reply({ text: tarjetaError("No se pudo descargar el audio.", e.message) });
+    }
   }
 };
