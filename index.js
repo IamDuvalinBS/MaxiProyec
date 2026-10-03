@@ -16,6 +16,7 @@ import readline from "readline";
 import cfonts from "cfonts";
 import chalk from "chalk";
 import { iniciarAvisosRacha } from "./src/economia/avisos.js";
+import { tieneAfk, desactivarAfk, textoSalidaAfk } from "./src/economia/afk.js";
 
 function imprimirBanner() {
   console.clear();
@@ -186,6 +187,16 @@ async function startBot() {
       .sort((a, b) => b.length - a.length)
       .find((p) => text.startsWith(p));
 
+    if (!msg.key.fromMe && m.type === "notify" && tieneAfk(sender)) {
+      const tipoMensaje = Object.keys(msg.message)[0];
+      const ignorado = ["protocolMessage", "reactionMessage", "senderKeyDistributionMessage"].includes(tipoMensaje);
+      const esComandoAfk = prefijoUsado && /^\s*afk(\s|$)/i.test(text.slice(prefijoUsado.length));
+      if (!ignorado && !esComandoAfk) {
+        const datos = desactivarAfk(sender);
+        await sock.sendMessage(from, { text: textoSalidaAfk(sender, datos), mentions: [sender] }, { quoted: msg });
+      }
+    }
+
     if (prefijoUsado) {
       const resto = text.slice(prefijoUsado.length);
       const match = resto.match(/^\s*(\S+)([\s\S]*)$/);
@@ -209,3 +220,4 @@ async function startBot() {
 }
 
 startBot();
+             
