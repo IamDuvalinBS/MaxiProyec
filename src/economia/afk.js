@@ -1,14 +1,21 @@
-import { getAccount, saveAccount, addToWallet } from "../../motores/db.js";
+import { getAccount, getAllAccounts, saveAccount, addToWallet } from "../../motores/db.js";
+import { monto } from "./formato.js";
+import { encabezado, mencion, tiempoLargo } from "./estilo.js";
 
-export const MONEDAS_POR_MINUTO = 10;
+export const MONEDAS_POR_MINUTO = 2;
+const MOTIVO_MAX = 60;
 
 export function estaAfk(sender) {
   return Boolean(getAccount(sender).afk);
 }
 
+export function tieneAfk(sender) {
+  return Boolean(getAllAccounts().get(sender)?.afk);
+}
+
 export function activarAfk(sender, motivo) {
   const cuenta = getAccount(sender);
-  cuenta.afk = { desde: Date.now(), motivo: motivo || "" };
+  cuenta.afk = { desde: Date.now(), motivo: (motivo || "").slice(0, MOTIVO_MAX) };
   saveAccount(sender);
 }
 
@@ -22,4 +29,17 @@ export function desactivarAfk(sender) {
   if (ganado > 0) addToWallet(sender, ganado);
   else saveAccount(sender);
   return { minutos, ganado, duracionMs };
+}
+
+export function textoSalidaAfk(sender, { minutos, ganado, duracionMs }) {
+  return [
+    encabezado("☀️", "AFK DESACTIVADO"),
+    "",
+    `> ${mencion(sender)} ya no se encuentra AFK.`,
+    "",
+    `ⴵ *Tiempo AFK*:: ${tiempoLargo(duracionMs)}`,
+    `🪙 *Ganado*:: +${monto(ganado)} (${minutos} ${minutos === 1 ? "minuto" : "minutos"})`,
+    "",
+    "> Usa *.dep* para guardar tu dinero."
+  ].join("\n");
 }
