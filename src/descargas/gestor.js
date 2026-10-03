@@ -32,12 +32,12 @@ export const PROVEEDORES_MANUALES = [];
 function proveedoresConfigurados() {
   const lista = [...PROVEEDORES_MANUALES];
   for (let i = 1; i <= MAXIMO_PROVEEDORES; i++) {
-    const plantilla = process.env[`DL_PLANTILLA_${i}`];
+    const plantilla = process.env[`https://api.alyacore.xyz/dl/spotify?url={entrada}&key={clave}${i}`];
     if (plantilla) {
       lista.push({
         nombre: `Proveedor ${i}`,
         plantilla,
-        clave: process.env[`DL_CLAVE_${i}`] || "",
+        clave: process.env[`oboe${i}`] || "",
         cabeceras: {}
       });
     }
