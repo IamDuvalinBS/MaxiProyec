@@ -2,8 +2,8 @@ import { descargarConApi, hayProveedores } from "../../descargas/gestor.js";
 import { tarjetaDescarga, tarjetaUso, tarjetaError, campo } from "../../descargas/tarjetas.js";
 
 export default {
-  names: [".dl", ".descargar"],
-  usage: ".dl <enlace>",
+  names: ["..apidl", ".descargar"],
+  usage: ".apidl <enlace>",
   desc: "Descarga el contenido de un enlace usando las APIs configuradas y lo envía como archivo",
   category: "Descargas",
   handler: async ({ sender, cleanText, reply }) => {
@@ -11,8 +11,8 @@ export default {
     if (!entrada) {
       return reply({
         text: tarjetaUso({
-          comando: ".dl <enlace>",
-          ejemplo: ".dl https://enlace-del-contenido",
+          comando: "..apidl <enlace>",
+          ejemplo: "..apidl https://enlace-del-contenido",
           nota: "Envía el enlace del contenido que deseas descargar."
         }),
         mentions: [sender]
