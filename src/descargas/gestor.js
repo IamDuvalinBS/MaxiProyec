@@ -27,7 +27,13 @@ const EXTENSIONES = {
   zip: "application/zip"
 };
 
-export const PROVEEDORES_MANUALES = [];
+export const PROVEEDORES_MANUALES = [
+   {
+    nombre: "API Uno",
+    plantilla: "https://api.delirius.store/download/spotify?url={entrada}",
+    clave: ""
+  },
+  ]
 
 function proveedoresConfigurados() {
   const lista = [...PROVEEDORES_MANUALES];
