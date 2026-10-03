@@ -31,7 +31,7 @@ function normalizarItunes(pista) {
 }
 
 async function buscarEnDeezer(consulta) {
-  const { data } = await axios.get("https://api.stellarwa.xyz/dl/spotify?url=${encodeURIComponent(url)}&key=api-7dSKm", {
+  const { data } = await axios.get("https://api.deezer.com/search", {
     params: { q: consulta, limit: 1 },
     timeout: TIEMPO_ESPERA_MS
   });
