@@ -81,7 +81,7 @@ const obtenerImagenBeso = async () => {
   return undefined;
 };
 
-console.log("kiss: v5 cargado (solo parejas chico-chica)");
+console.log("kiss: v6 cargado (solo parejas chico-chica)");
 recargar();
 
 export default {
@@ -114,7 +114,6 @@ export default {
             body: "Pᴏᴡᴇʀᴇᴅ Bʏ • ItsDuva",
             mediaType: 1,
             thumbnail: imagen?.buffer,
-            thumbnailUrl: imagen?.url,
             mediaUrl: imagen ? `https://safebooru.donmai.us/posts/${imagen.id}` : undefined,
             sourceId: imagen ? `kiss-${imagen.id}` : undefined,
             renderLargerThumbnail: true,
