@@ -1,5 +1,6 @@
 import axios from "axios";
 import { enviarMedias } from "../../descargas/envio.js";
+import { descargarConApi, hayProveedores } from "../../descargas/gestor.js";
 import { tarjetaDescarga, tarjetaUso, tarjetaError, campo } from "../../descargas/tarjetas.js";
 
 const CABECERAS = {
@@ -25,7 +26,7 @@ async function obtenerMediaGenerica(link) {
 export default {
   names: [".dl", ".descargar"],
   usage: ".dl <link>",
-  desc: "Descarga el video o la imagen de un enlace de cualquier página (usa la vista previa del sitio)",
+  desc: "Descarga el contenido de un enlace usando las APIs configuradas o, si no hay, la vista previa del sitio",
   category: "Descargas",
   handler: async ({ sender, cleanText, reply }) => {
     const link = cleanText.trim().split(/\s+/)[1];
@@ -34,7 +35,7 @@ export default {
         text: tarjetaUso({
           comando: ".dl <enlace>",
           ejemplo: ".dl https://ejemplo.com/pagina-con-un-video",
-          nota: "Funciona con páginas que publican una vista previa de video o imagen."
+          nota: "Usa las APIs configuradas y, si fallan, la vista previa de video o imagen de la página."
         }),
         mentions: [sender]
       });
@@ -50,6 +51,21 @@ export default {
       }),
       mentions: [sender]
     });
+
+    if (hayProveedores()) {
+      try {
+        const { buffer, mimetype, categoria, titulo, nombreArchivo } = await descargarConApi(link);
+        if (categoria === "video") {
+          return await reply({ video: buffer, mimetype, caption: titulo, mentions: [sender] });
+        }
+        if (categoria === "imagen") {
+          return await reply({ image: buffer, caption: titulo, mentions: [sender] });
+        }
+        return await reply({ document: buffer, mimetype, fileName: nombreArchivo, mentions: [sender] });
+      } catch (errorApi) {
+        console.error("Fallo la descarga por API:", errorApi.message);
+      }
+    }
 
     let media;
     try {
