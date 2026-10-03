@@ -1,3 +1,4 @@
+import { lanzarJuegoHTML } from "../motores/juegos-records.js";
 // juegos/dino.js - Dino Runner en HTML dentro del chat (se envia con sock.sendHtml, como .gatohtml)
 const GAME_HTML = String.raw`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
@@ -11,16 +12,24 @@ canvas{width:100%;display:block;border:2px solid #0e6e8c;border-radius:12px;back
 .b{display:flex;gap:8px;margin-top:10px}.b button{flex:1;height:56px;border-radius:12px;border:2px solid #39ff5a;background:#0a2a1a;color:#39ff5a;font:bold 13px inherit;font-family:inherit;cursor:pointer}
 .b button:active{transform:scale(.94)}#d{border-color:#ff3dbd;color:#ff3dbd;background:#2a0a24}
 .t{text-align:center;font-size:10px;color:#8aa4bd;margin-top:8px;min-height:14px}
+#claim{display:none;margin-top:10px;padding:10px;border:2px solid #ffe14d;border-radius:12px;font-size:11px;text-align:center;color:#ffe14d;background:#2a250a}
+#claim a{display:block;margin:8px 0;padding:10px;border-radius:10px;background:#ffe14d;color:#000;font-weight:bold;text-decoration:none}
+#claim code{font-size:10px;color:#fff;word-break:break-all;-webkit-user-select:text;user-select:text}
 </style></head><body><div class="m"><small>MAXIPROYEC · RETRO ARCADE</small><h1>🦖 DINO RUN</h1>
 <div class="h"><span>PUNTOS <b id="s">0</b></span><span>RÉCORD <b id="r">0</b></span></div>
 <canvas id="c" width="340" height="180"></canvas>
 <div class="b"><button id="j">⬆ SALTAR</button><button id="d">⬇ AGACHAR</button></div>
 <div class="t" id="t">Toca SALTAR para empezar. Salta cactus, agáchate ante las aves.</div></div>
+<div id="claim"></div>
 <script>
 (function(){"use strict";
+var SID="__SID__",BOT="__BOT__";
+function claim(p){var c=document.getElementById("claim");if(!c)return;if(p<1){c.style.display="none";return}var m=".puntaje "+SID+" "+p;
+c.style.display="block";c.innerHTML='🏆 ¿Récord? Reclama tu premio:<a href="https://wa.me/'+BOT+'?text='+encodeURIComponent(m)+'">ENVIAR PUNTAJE AL BOT</a><code>'+m+'</code>'}
+
 var $=function(i){return document.getElementById(i)},cv=$("c"),x=cv.getContext("2d"),G=150;
 var py,vy,duck,obs,sp,sc,over,run,nx,hi=0,fr,last=0;
-function reset(){py=0;vy=0;duck=false;obs=[];sp=5;sc=0;over=false;run=true;nx=90;fr=0;$("t").textContent="¡Corre!"}
+function reset(){py=0;vy=0;duck=false;obs=[];sp=5;sc=0;over=false;run=true;nx=90;fr=0;$("t").textContent="¡Corre!";claim(0)}
 function jump(){if(!run||over){reset();return}if(py===0)vy=11.5}
 function rect(a,b,c,d,col){x.fillStyle=col;x.fillRect(a,b,c,d)}
 function loop(ts){var k=Math.min(2,(ts-last)/16.67||1);last=ts;
@@ -32,7 +41,7 @@ function loop(ts){var k=Math.min(2,(ts-last)/16.67||1);last=ts;
   var dh=duck&&py===0?14:30;
   for(var i=obs.length-1;i>=0;i--){var o=obs[i];o.x-=sp*k;if(o.x<-40){obs.splice(i,1);continue}
    if(30+3<o.x+o.w&&30+22-3>o.x&&py+3<o.y+o.h&&py+dh-3>o.y){over=true;hi=Math.max(hi,Math.floor(sc));
-    $("r").textContent=hi;$("t").textContent="💥 Chocaste. Toca SALTAR para reintentar."}}
+    $("r").textContent=hi;$("t").textContent="💥 Chocaste. Toca SALTAR para reintentar.";claim(Math.floor(sc))}}
   $("s").textContent=Math.floor(sc)}
  x.clearRect(0,0,340,180);rect(0,G,340,2,"#0e6e8c");
  for(var j=0;j<6;j++)rect(((j*70-fr*sp*.5)%340+340)%340,G+8,18,2,"#123");
@@ -53,17 +62,9 @@ reset();run=false;requestAnimationFrame(loop);
 
 export default {
   names: [".dino", ".dinosaurio"],
-  desc: "Dino Runner (como el de Google) en HTML dentro del chat",
+  desc: "Dino Runner (como el de Google) en HTML. Superar tu récord te da ¥enes",
   category: "Juegos",
   usage: ".dino",
-  handler: async ({ sock, from, msg }) => {
-    try {
-      if (typeof sock.sendHtml !== "function") throw new Error("este Baileys no tiene sendHtml");
-      const r = await sock.sendHtml(from, GAME_HTML, [], undefined, {});
-      console.log("[DINO] sendHtml enviado, id:", r?.messageId);
-    } catch (e) {
-      console.log("[DINO] ERROR: " + e.stack);
-      await sock.sendMessage(from, { text: "❌ No se pudo enviar el juego: " + e.message }, { quoted: msg });
-    }
-  },
+  handler: async ({ sock, from, sender, msg, reply }) =>
+    lanzarJuegoHTML({ sock, from, sender, msg, reply, juego: "dino", html: GAME_HTML }),
 };
