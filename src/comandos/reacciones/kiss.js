@@ -44,7 +44,7 @@ const rellenar = async () => {
 
 const recargar = () => (cargando ??= rellenar().finally(() => { cargando = null; }));
 
-const siguienteUrl = async () => {
+const siguiente = async () => {
   for (let i = 0; i < 3 && !pool.length; i++) await recargar();
   const [elegido] = pool.splice(Math.floor(Math.random() * pool.length), 1);
   if (!elegido) return undefined;
@@ -52,15 +52,15 @@ const siguienteUrl = async () => {
   if (usadas.length > RECUERDA_USADAS) usadas.shift();
   console.log(`kiss: post ${elegido.id} (reserva: ${pool.length})`);
   if (pool.length < MIN_RESERVA) recargar();
-  return elegido.url;
+  return elegido;
 };
 
 const obtenerImagenBeso = async () => {
   for (let i = 0; i < 2; i++) {
     try {
-      const url = await siguienteUrl();
-      if (!url) return undefined;
-      const archivo = await fetch(url, { headers: HEADERS, signal: AbortSignal.timeout(8000) });
+      const elegido = await siguiente();
+      if (!elegido) return undefined;
+      const archivo = await fetch(elegido.url, { headers: HEADERS, signal: AbortSignal.timeout(8000) });
       if (!archivo.ok) throw new Error(`HTTP ${archivo.status} al bajar la imagen`);
       const img = await loadImage(Buffer.from(await archivo.arrayBuffer()));
       const W = 640;
@@ -73,7 +73,7 @@ const obtenerImagenBeso = async () => {
       const w = Math.round(img.width * s);
       const h = Math.round(img.height * s);
       ctx.drawImage(img, Math.round((W - w) / 2), Math.round((H - h) / 2), w, h);
-      return canvas.toBuffer("image/jpeg", 70);
+      return { buffer: canvas.toBuffer("image/jpeg", 70), id: elegido.id, url: elegido.url };
     } catch (e) {
       console.log("kiss: error obteniendo imagen: " + e.message);
     }
@@ -81,7 +81,7 @@ const obtenerImagenBeso = async () => {
   return undefined;
 };
 
-console.log("kiss: v4 cargado (solo parejas chico-chica)");
+console.log("kiss: v5 cargado (solo parejas chico-chica)");
 recargar();
 
 export default {
@@ -96,7 +96,7 @@ export default {
     const esASiMismo = target === sender;
 
     const total = esASiMismo ? 0 : registrarBeso(sender, target);
-    const miniatura = await obtenerImagenBeso();
+    const imagen = await obtenerImagenBeso();
 
     const nombreDe = `@${sender.split("@")[0]}`;
     const nombrePara = `@${target.split("@")[0]}`;
@@ -113,7 +113,10 @@ export default {
             title: esASiMismo ? "Beso al aire" : `${total} beso${total === 1 ? "" : "s"} en total`,
             body: "Pᴏᴡᴇʀᴇᴅ Bʏ • ItsDuva",
             mediaType: 1,
-            thumbnail: miniatura,
+            thumbnail: imagen?.buffer,
+            thumbnailUrl: imagen?.url,
+            mediaUrl: imagen ? `https://safebooru.donmai.us/posts/${imagen.id}` : undefined,
+            sourceId: imagen ? `kiss-${imagen.id}` : undefined,
             renderLargerThumbnail: true,
             showAdAttribution: false
           }
@@ -123,4 +126,3 @@ export default {
     );
   }
 };
-  
