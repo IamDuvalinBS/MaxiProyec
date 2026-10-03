@@ -7,6 +7,11 @@ const RECUERDA_USADAS = 40;
 
 const EXCLUIDOS = new Set(["comic", "monochrome", "greyscale", "sketch", "lineart", "4koma", "2koma", "multiple_views", "split_screen", "chibi", "manga"]);
 
+const FUENTES = [
+  { tags: "kiss screencap", paginas: 4 },
+  { tags: "kiss ratio:>1.4", paginas: 12 }
+];
+
 const pool = [];
 const usadas = [];
 let cargando = null;
@@ -20,16 +25,16 @@ const esBeso = (p) => {
   return pareja && !noHetero && !raro && !feo;
 };
 
-const buscarPagina = async (pagina) => {
+const buscarPagina = async (tags, pagina) => {
   try {
-    const res = await fetch(`https://safebooru.donmai.us/posts.json?tags=kiss&limit=100&page=${pagina}`, { headers: HEADERS, signal: AbortSignal.timeout(8000) });
+    const res = await fetch(`https://safebooru.donmai.us/posts.json?tags=${encodeURIComponent(tags)}&limit=100&page=${pagina}`, { headers: HEADERS, signal: AbortSignal.timeout(8000) });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const todos = (await res.json()).filter((p) => p.rating === "g" && p.large_file_url && /jpg|jpeg|png|webp/.test(p.file_ext) && p.tag_string_general.split(" ").includes("kiss"));
     const buenos = todos.filter((p) => p.tag_count_character > 0 && esBeso(p));
     const base = buenos.length ? buenos : todos.filter(esBeso);
-    const ancha = base.filter((p) => p.image_width / p.image_height >= 1.3);
+    const ancha = base.filter((p) => p.image_width / p.image_height >= 1.4);
     const conOjos = ancha.filter((p) => p.tag_string_general.split(" ").includes("closed_eyes"));
-    return conOjos.length >= 5 ? conOjos : ancha.length >= 5 ? ancha : base;
+    return conOjos.length >= 5 ? conOjos : ancha;
   } catch (e) {
     console.log("kiss: error cargando imágenes: " + e.message);
     return [];
@@ -37,8 +42,8 @@ const buscarPagina = async (pagina) => {
 };
 
 const rellenar = async () => {
-  const paginas = [...new Set(Array.from({ length: 4 }, () => 1 + Math.floor(Math.random() * 20)))];
-  const posts = (await Promise.all(paginas.map(buscarPagina))).flat();
+  const trabajos = FUENTES.flatMap((f) => [...new Set(Array.from({ length: 2 }, () => 1 + Math.floor(Math.random() * f.paginas)))].map((n) => buscarPagina(f.tags, n)));
+  const posts = (await Promise.all(trabajos)).flat();
   for (const p of posts) {
     if (usadas.includes(p.id) || pool.some((x) => x.id === p.id)) continue;
     pool.push({ id: p.id, url: p.large_file_url });
@@ -87,7 +92,7 @@ const obtenerImagenBeso = async () => {
   return undefined;
 };
 
-console.log("kiss: v7 cargado (solo parejas chico-chica)");
+console.log("kiss: v8 cargado (solo parejas chico-chica)");
 recargar();
 
 export default {
@@ -131,4 +136,4 @@ export default {
     );
   }
 };
-  
+      
