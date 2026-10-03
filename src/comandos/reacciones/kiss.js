@@ -5,6 +5,8 @@ const HEADERS = { "User-Agent": "MaxiProyecBot/1.0 (WhatsApp bot, contacto en Gi
 const MIN_RESERVA = 10;
 const RECUERDA_USADAS = 40;
 
+const EXCLUIDOS = new Set(["comic", "monochrome", "greyscale", "sketch", "lineart", "4koma", "2koma", "multiple_views", "split_screen", "chibi", "manga"]);
+
 const pool = [];
 const usadas = [];
 let cargando = null;
@@ -14,7 +16,8 @@ const esBeso = (p) => {
   const pareja = tags.includes("1boy") && tags.includes("1girl");
   const noHetero = tags.some((t) => /yaoi|yuri|2boys|2girls|multiple|otoko|crossdress|genderswap|trap|androgynous|futanari/.test(t));
   const raro = tags.some((t) => t.includes("kiss") && /cheek|forehead|hand|blow|neck|foot|imminent|almost|incoming|interrupt/.test(t));
-  return pareja && !noHetero && !raro;
+  const feo = tags.some((t) => EXCLUIDOS.has(t));
+  return pareja && !noHetero && !raro && !feo;
 };
 
 const buscarPagina = async (pagina) => {
@@ -67,8 +70,11 @@ const obtenerImagenBeso = async () => {
       const H = 360;
       const canvas = createCanvas(W, H);
       const ctx = canvas.getContext("2d");
-      ctx.fillStyle = "#fff";
-      ctx.fillRect(0, 0, W, H);
+      const chico = createCanvas(32, 18);
+      chico.getContext("2d").drawImage(img, 0, 0, 32, 18);
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+      ctx.drawImage(chico, 0, 0, W, H);
       const s = Math.min(W / img.width, H / img.height);
       const w = Math.round(img.width * s);
       const h = Math.round(img.height * s);
@@ -81,7 +87,7 @@ const obtenerImagenBeso = async () => {
   return undefined;
 };
 
-console.log("kiss: v6 cargado (solo parejas chico-chica)");
+console.log("kiss: v7 cargado (solo parejas chico-chica)");
 recargar();
 
 export default {
@@ -125,3 +131,4 @@ export default {
     );
   }
 };
+  
