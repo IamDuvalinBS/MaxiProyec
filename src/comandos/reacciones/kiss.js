@@ -2,6 +2,7 @@ import { registrarBeso } from "../../../motores/db.js";
 import { createCanvas, loadImage } from "@napi-rs/canvas";
 
 const HEADERS = { "User-Agent": "MaxiProyecBot/1.0 (WhatsApp bot, contacto en GitHub IamDuvalinBS)" };
+const FIRMA = "Pᴏᴡᴇʀᴇᴅ Bʏ • ItsDuva";
 const MIN_RESERVA = 10;
 const RECUERDA_USADAS = 40;
 
@@ -92,7 +93,7 @@ const obtenerImagenBeso = async () => {
   return undefined;
 };
 
-console.log("kiss: v9 cargado (solo parejas chico-chica)");
+console.log("kiss: v10 cargado (solo parejas chico-chica)");
 recargar();
 
 export default {
@@ -111,26 +112,24 @@ export default {
 
     const nombreDe = `@${sender.split("@")[0]}`;
     const nombrePara = `@${target.split("@")[0]}`;
+    const linea = esASiMismo ? `> ${nombreDe} se mandó un beso al aire.` : `> ${nombreDe} le dio un beso a ${nombrePara}.`;
+    const titulo = esASiMismo ? "Beso al aire" : `${total} beso${total === 1 ? "" : "s"} en total`;
 
-    await sock.sendMessage(
-      from,
-      {
-        text: esASiMismo ? `> ${nombreDe} se mandó un beso al aire.` : `> ${nombreDe} le dio un beso a ${nombrePara}.`,
-        mentions: esASiMismo ? [sender] : [sender, target],
-        contextInfo: {
-          externalAdReply: {
-            title: esASiMismo ? "Beso al aire" : `${total} beso${total === 1 ? "" : "s"} en total`,
-            body: "Pᴏᴡᴇʀᴇᴅ Bʏ • ItsDuva",
-            mediaType: 1,
-            thumbnail: imagen?.buffer,
-            mediaUrl: imagen ? `https://safebooru.donmai.us/posts/${imagen.id}` : undefined,
-            sourceId: imagen ? `kiss-${imagen.id}` : undefined,
-            renderLargerThumbnail: true,
-            showAdAttribution: false
-          }
-        }
-      },
-      { quoted: msg }
-    );
+    const mensaje = {
+      text: imagen ? `${linea}\n\n${imagen.url}` : `${linea}\n\n*${titulo}*\n${FIRMA}`,
+      mentions: esASiMismo ? [sender] : [sender, target]
+    };
+    if (imagen) {
+      mensaje.linkPreview = {
+        "matched-text": imagen.url,
+        "canonical-url": imagen.url,
+        title: titulo,
+        description: FIRMA,
+        jpegThumbnail: imagen.buffer
+      };
+    }
+
+    await sock.sendMessage(from, mensaje, { quoted: msg });
   }
 };
+        
