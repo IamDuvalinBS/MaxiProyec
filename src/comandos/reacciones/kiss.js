@@ -11,9 +11,10 @@ let cargando = null;
 
 const esBeso = (p) => {
   const tags = p.tag_string_general.split(" ");
-  const personas = tags.includes("2girls") || tags.includes("2boys") || (tags.includes("1girl") && tags.includes("1boy"));
+  const pareja = tags.includes("1boy") && tags.includes("1girl");
+  const noHetero = tags.some((t) => /yaoi|yuri|2boys|2girls|multiple|otoko|crossdress|genderswap|trap|androgynous|futanari/.test(t));
   const raro = tags.some((t) => t.includes("kiss") && /cheek|forehead|hand|blow|neck|foot|imminent|almost|incoming|interrupt/.test(t));
-  return personas && !raro;
+  return pareja && !noHetero && !raro;
 };
 
 const buscarPagina = async (pagina) => {
@@ -33,7 +34,7 @@ const buscarPagina = async (pagina) => {
 };
 
 const rellenar = async () => {
-  const paginas = [...new Set(Array.from({ length: 3 }, () => 1 + Math.floor(Math.random() * 20)))];
+  const paginas = [...new Set(Array.from({ length: 4 }, () => 1 + Math.floor(Math.random() * 20)))];
   const posts = (await Promise.all(paginas.map(buscarPagina))).flat();
   for (const p of posts) {
     if (usadas.includes(p.id) || pool.some((x) => x.id === p.id)) continue;
@@ -49,6 +50,7 @@ const siguienteUrl = async () => {
   if (!elegido) return undefined;
   usadas.push(elegido.id);
   if (usadas.length > RECUERDA_USADAS) usadas.shift();
+  console.log(`kiss: post ${elegido.id} (reserva: ${pool.length})`);
   if (pool.length < MIN_RESERVA) recargar();
   return elegido.url;
 };
@@ -79,6 +81,7 @@ const obtenerImagenBeso = async () => {
   return undefined;
 };
 
+console.log("kiss: v4 cargado (solo parejas chico-chica)");
 recargar();
 
 export default {
@@ -120,3 +123,4 @@ export default {
     );
   }
 };
+  
