@@ -1,3 +1,4 @@
+import { lanzarJuegoHTML } from "../motores/juegos-records.js";
 // juegos/colorrush.js
 //
 // COLOR RUSH en HTML real (mismo sistema que .gatohtml). El juego corre DENTRO
@@ -37,6 +38,9 @@ html,body{margin:0;padding:0;background:#16060d;color:#fff;font-family:Arial,san
 .modalText{font-size:12px;color:rgba(255,255,255,.7);margin:8px 0 16px;line-height:1.6}
 .modalBtn{width:100%;padding:12px;margin-top:7px;border-radius:11px;border:1px solid #ff4fa3;background:rgba(255,79,163,.1);color:#ff4fa3;font-weight:900;font-size:12px;cursor:pointer;font-family:inherit}
 .modalBtn:active{background:rgba(255,79,163,.2)}
+#claim{display:none;margin-top:10px;padding:10px;border:2px solid #ffe14d;border-radius:12px;font-size:11px;text-align:center;color:#ffe14d;background:#2a250a}
+#claim a{display:block;margin:8px 0;padding:10px;border-radius:10px;background:#ffe14d;color:#000;font-weight:bold;text-decoration:none}
+#claim code{font-size:10px;color:#fff;word-break:break-all;-webkit-user-select:text;user-select:text}
 </style>
 </head>
 <body>
@@ -59,6 +63,7 @@ html,body{margin:0;padding:0;background:#16060d;color:#fff;font-family:Arial,san
 <div class="modal">
 <div id="modalTitle" class="modalTitle">🏁 FIN</div>
 <div id="modalText" class="modalText">Puntos: 0</div>
+<div id="claim"></div>
 <button id="playAgain" class="modalBtn">▶ JUGAR DE NUEVO</button>
 </div>
 </div>
@@ -147,6 +152,7 @@ function endGame(){
   modalTitle.textContent='🏁 FIN';
   modalText.innerHTML='Puntos: '+score+'<br>Nivel alcanzado: '+level+'<br>Aciertos: '+correct;
   overlay.classList.add('show');
+  claim(score);
 }
 
 function reset(){
@@ -155,6 +161,7 @@ function reset(){
   sEl.textContent='0';rEl.textContent='0';lEl.textContent='1';
   mEl.textContent='Cada 5 aciertos subes de nivel y el tiempo corre más rápido.';
   overlay.classList.remove('show');
+  claim(0);
   renderTime();
   round();
   tick();
@@ -171,18 +178,9 @@ tick();
 
 export default {
   names: [".colorrush", ".colores"],
-  desc: "Color Rush: juego de reflejos en HTML dentro del chat (sube de nivel cada 5 aciertos)",
+  desc: "Color Rush: reflejos por colores. Superar tu récord te da ¥enes",
   category: "Juegos",
   usage: ".colorrush",
-  handler: async ({ sock, from, msg }) => {
-    try {
-      // Mismo envio que .gatohtml: sock.sendHtml del fork de Baileys
-      if (typeof sock.sendHtml !== "function") throw new Error("este Baileys no tiene sendHtml");
-      const r = await sock.sendHtml(from, GAME_HTML, [], undefined, {});
-      console.log("[COLORRUSH] sendHtml enviado, id:", r?.messageId);
-    } catch (e) {
-      console.log("[COLORRUSH] ERROR: " + e.stack);
-      await sock.sendMessage(from, { text: "❌ No se pudo enviar el juego: " + e.message }, { quoted: msg });
-    }
-  },
+  handler: async ({ sock, from, sender, msg, reply }) =>
+    lanzarJuegoHTML({ sock, from, sender, msg, reply, juego: "colorrush", html: GAME_HTML }),
 };
