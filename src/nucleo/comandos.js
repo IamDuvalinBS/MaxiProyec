@@ -2,7 +2,6 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath, pathToFileURL } from "url";
 import { connectDB, commandRegistry, simularEscritura, delayAleatorio, comandoEstaBaneado } from "../../core.js";
-import { estaAfk } from "../economia/afk.js";
 import { enviarConCache, reenviarCacheado, guardarRelay, registrarMedio, claveDeDescarga } from "../../motores/cache-medios.js";
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -98,11 +97,6 @@ export async function manejarComando(sock, from, sender, text, msg) {
     if (capturados) registrarMedio(capturados, enviado);
     return enviado;
   };
-
-  if (comando !== ".afk" && estaAfk(sender)) {
-    await reply({ text: "🌙 Te encuentras en modo AFK. Usa *.afk* para salir antes de utilizar otros comandos." });
-    return true;
-  }
 
   if (!COMANDOS_PROTEGIDOS.has(comando) && comandoEstaBaneado(comando, categoriaDeComando.get(comando))) {
     await reply({ text: "🚫 Este comando está desactivado por ahora." });

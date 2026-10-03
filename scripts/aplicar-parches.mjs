@@ -57,19 +57,6 @@ function guardar(archivo) {
   if (archivo) fs.writeFileSync(archivo.ruta, archivo.texto, "utf8");
 }
 
-const comandos = leer("src/nucleo/comandos.js");
-if (comandos) {
-  agregarImport(comandos, 'import { estaAfk } from "../economia/afk.js";', "estaAfk");
-  reemplazar(
-    comandos,
-    "bloqueo de comandos durante el modo AFK",
-    "  if (!COMANDOS_PROTEGIDOS.has(comando) && comandoEstaBaneado(",
-    '  if (comando !== ".afk" && estaAfk(sender)) {\n    await reply({ text: "🌙 Te encuentras en modo AFK. Usa *.afk* para salir antes de utilizar otros comandos." });\n    return true;\n  }\n\n  if (!COMANDOS_PROTEGIDOS.has(comando) && comandoEstaBaneado(',
-    'comando !== ".afk" && estaAfk(sender)'
-  );
-  guardar(comandos);
-}
-
 const indice = leer("index.js");
 if (indice) {
   agregarImport(indice, 'import { iniciarAvisosRacha } from "./src/economia/avisos.js";', "iniciarAvisosRacha } from");

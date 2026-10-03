@@ -45,6 +45,10 @@ process.on("exit", () => {
   if (temporizador) escribirAhora();
 });
 
+export function existenDatos(sender) {
+  return Boolean(datos[sender]);
+}
+
 export function datosDe(sender) {
   if (!datos[sender]) {
     const previa = getAllAccounts().get(sender) || {};
