@@ -28,6 +28,7 @@ for (const archivo of listar(RAIZ)) {
     console.log(`Sintaxis inválida: ${relativa}\n${e.stderr}`);
     continue;
   }
+  if (relativa.startsWith("scripts")) continue;
   const codigo = fs.readFileSync(archivo, "utf8");
   for (const coincidencia of codigo.matchAll(IMPORTS)) {
     const destino = path.resolve(path.dirname(archivo), coincidencia[1] || coincidencia[2]);

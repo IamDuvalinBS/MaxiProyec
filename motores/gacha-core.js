@@ -15,6 +15,7 @@ import { formatTime } from "./ui.js";
 import { renderSnake } from "./gacha-snake.js";
 import { statsEfectivas, NIVEL_MAX, TIENE_NIVELES } from "./gacha-niveles.js";
 import { tipoEs } from "./gacha-pokemon.js";
+import { rutaImagenCacheada, guardarImagenCacheada, hayRelay } from "./cache-medios.js";
 
 export { tarjeta, monto, fmt, personajePorId };
 export const arroba = (jid) => `@${jid.split("@")[0]}`;
@@ -93,7 +94,14 @@ export async function prepararImagen(urls) {
     let ultimoError = new Error("sin imágenes");
     for (const url of urls.filter(Boolean)) {
       try {
-        const ruta = url.startsWith("snake:") ? await dibujarSnake(url.slice(6)) : await bajarAArchivo(url);
+        if (url.startsWith("snake:")) {
+          const rutaSnake = await dibujarSnake(url.slice(6));
+          return { ruta: rutaSnake, limpiar: () => { try { fs.rmSync(rutaSnake, { force: true }); } catch {} } };
+        }
+        const enCache = rutaImagenCacheada(url);
+        if (enCache) return { ruta: enCache, limpiar: () => {} };
+        const ruta = await bajarAArchivo(url);
+        guardarImagenCacheada(url, ruta);
         return { ruta, limpiar: () => { try { fs.rmSync(ruta, { force: true }); } catch {} } };
       } catch (e) { ultimoError = e; }
     }
@@ -205,14 +213,20 @@ export function lineasPersonaje(p, nivel = null) {
 
 // Envía la imagen del personaje (streaming desde disco, se borra al terminar).
 export async function enviarPersonaje({ reply, personaje, titulo, lineasExtra = [], mentions = [] }) {
+  const caption = tarjeta({
+    emoji: CAT[personaje.categoria]?.emoji || "🎴",
+    titulo,
+    lineas: [...lineasPersonaje(personaje), ...(lineasExtra.length ? ["", ...lineasExtra] : [])]
+  });
+  const cacheKey = `gacha:${personaje.categoria}:${personaje.img}`;
+  if (hayRelay(cacheKey)) {
+    try {
+      return await reply({ cacheKey, caption, mentions });
+    } catch (e) {}
+  }
   const img = await prepararImagen([personaje.img, ...(personaje.meta?.alt || [])]);
   try {
-    const caption = tarjeta({
-      emoji: CAT[personaje.categoria]?.emoji || "🎴",
-      titulo,
-      lineas: [...lineasPersonaje(personaje), ...(lineasExtra.length ? ["", ...lineasExtra] : [])]
-    });
-    return await reply({ image: { url: img.ruta }, caption, mentions });
+    return await reply({ image: { url: img.ruta }, caption, mentions, cacheKey });
   } finally {
     img.limpiar();
   }

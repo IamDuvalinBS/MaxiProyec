@@ -15,6 +15,7 @@ import { intentarProcesarTexto } from "./motores/juegos-core.js";
 import readline from "readline";
 import cfonts from "cfonts";
 import chalk from "chalk";
+import { iniciarAvisosRacha } from "./src/economia/avisos.js";
 
 function imprimirBanner() {
   console.clear();
@@ -129,6 +130,7 @@ async function startBot() {
       currentCode = "CONECTADO";
       isConnecting = false;
       console.log(chalk.greenBright.bold("✔ Bot conectado a WhatsApp"));
+      iniciarAvisosRacha(sock);
     }
   });
 
@@ -165,6 +167,8 @@ async function startBot() {
       msg.message.conversation ||
       (msg.message.extendedTextMessage ? msg.message.extendedTextMessage.text : "") ||
       (msg.message.imageMessage ? msg.message.imageMessage.caption : "") ||
+      (msg.message.documentMessage ? msg.message.documentMessage.caption : "") ||
+      (msg.message.documentWithCaptionMessage?.message?.documentMessage?.caption || "") ||
       ""
     ).trim();
 

@@ -26,7 +26,7 @@ export default {
   usage: ".daily | .daily pagar | .daily reiniciar",
   desc: "Reclamar la recompensa diaria y mantener tu racha",
   category: "Economía",
-  handler: async ({ sender, cleanText, reply }) => {
+  handler: async ({ sender, from, cleanText, reply }) => {
     const opcion = (cleanText.trim().split(/\s+/)[1] || "").toLowerCase();
     const cuenta = getAccount(sender);
 
@@ -57,7 +57,7 @@ export default {
 
     checkCooldown(sender, CLAVE, ESPERA_MS);
     addToWallet(sender, PREMIO);
-    const { cantidad: racha, completoMaximo } = registrarReclamo(sender, CLAVE, reiniciar);
+    const { cantidad: racha, completoMaximo } = registrarReclamo(sender, CLAVE, reiniciar, from);
     if (completoMaximo) addToWallet(sender, PREMIO_RACHA_MAXIMA);
 
     const lineas = [`🪙 *GANADO::* +${monto(PREMIO)}`];

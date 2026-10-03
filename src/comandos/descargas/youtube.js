@@ -7,20 +7,24 @@ import {
 } from "../../descargas/youtube-engine.js";
 import { descargarBuffer } from "../../descargas/core.js";
 import { registrarEspera } from "../../nucleo/espera.js";
+import { reenviarCacheado, guardarMedioEnviado } from "../../../motores/cache-medios.js";
 
 const DURACION_ESPERA_MS = 5 * 60 * 1000;
 
 async function enviarDescarga({ sock, from, msg, link, esAudio }) {
   const responder = (contenido) => sock.sendMessage(from, contenido, { quoted: msg });
+  const claveCache = `yt:${esAudio ? "audio" : "video"}:${link}`;
+  if (await reenviarCacheado(sock, from, claveCache, msg)) return;
+
   await responder({ text: esAudio ? "⏳ Descargando el audio..." : "⏳ Descargando el video..." });
 
   try {
     if (esAudio) {
       const audio = await descargarAudioConProveedores(link);
-      await responder({ audio, mimetype: "audio/mpeg", ptt: false });
+      guardarMedioEnviado(claveCache, await responder({ audio, mimetype: "audio/mpeg", ptt: false }));
     } else {
       const video = await descargarVideoConProveedores(link);
-      await responder({ video, mimetype: "video/mp4" });
+      guardarMedioEnviado(claveCache, await responder({ video, mimetype: "video/mp4" }));
     }
   } catch (e) {
     await responder({ text: `❌ No pude descargar el ${esAudio ? "audio" : "video"}: ${e.message}` });

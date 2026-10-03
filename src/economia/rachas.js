@@ -19,12 +19,12 @@ export function estadoRacha(sender, clave, ventanaMs) {
   return { cantidad: registro.cantidad, perdida };
 }
 
-export function registrarReclamo(sender, clave, reiniciar = false) {
+export function registrarReclamo(sender, clave, reiniciar = false, chat = null) {
   const cuenta = getAccount(sender);
   const previa = reiniciar ? 0 : cuenta.rachas[clave]?.cantidad || 0;
   const cantidad = Math.min(RACHA_MAXIMA, previa + 1);
   const completoMaximo = previa < RACHA_MAXIMA && cantidad === RACHA_MAXIMA;
-  cuenta.rachas[clave] = { cantidad, ultimo: Date.now() };
+  cuenta.rachas[clave] = { cantidad, ultimo: Date.now(), chat: chat || cuenta.rachas[clave]?.chat || null, avisado: 0 };
   saveAccount(sender);
   return { cantidad, completoMaximo };
 }

@@ -2,6 +2,8 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath, pathToFileURL } from "url";
 import { connectDB, commandRegistry, simularEscritura, delayAleatorio, comandoEstaBaneado } from "../../core.js";
+import { estaAfk } from "../economia/afk.js";
+import { enviarConCache, reenviarCacheado, guardarRelay, registrarMedio, claveDeDescarga } from "../../motores/cache-medios.js";
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const CARPETAS_EXCLUIDAS = new Set([
@@ -87,11 +89,20 @@ export async function manejarComando(sock, from, sender, text, msg) {
   const handler = comandos.get(comando);
   if (!handler) return false;
 
+  let capturados = null;
+
   const reply = async (contenido) => {
     await delayAleatorio(300, 900);
     await simularEscritura(sock, from, 800 + Math.floor(Math.random() * 1200));
-    return sock.sendMessage(from, contenido, { quoted: msg });
+    const enviado = await enviarConCache(sock, from, contenido, msg);
+    if (capturados) registrarMedio(capturados, enviado);
+    return enviado;
   };
+
+  if (comando !== ".afk" && estaAfk(sender)) {
+    await reply({ text: "🌙 Te encuentras en modo AFK. Usa *.afk* para salir antes de utilizar otros comandos." });
+    return true;
+  }
 
   if (!COMANDOS_PROTEGIDOS.has(comando) && comandoEstaBaneado(comando, categoriaDeComando.get(comando))) {
     await reply({ text: "🚫 Este comando está desactivado por ahora." });
@@ -102,8 +113,13 @@ export async function manejarComando(sock, from, sender, text, msg) {
     await delayAleatorio(4000, 8000);
   }
 
+  const claveDescarga = claveDeDescarga(categoriaDeComando.get(comando), comando, cleanText);
+  if (claveDescarga && (await reenviarCacheado(sock, from, claveDescarga, msg))) return true;
+  if (claveDescarga) capturados = [];
+
   try {
     await handler({ sock, from, sender, cleanText, msg, reply });
+    if (claveDescarga && capturados.length) guardarRelay(claveDescarga, capturados);
   } catch (e) {
     console.log(`❌ ERROR ejecutando el comando "${comando}": ${e.stack || e.message}`);
     await reply({ text: "❌ Ocurrió un error interno ejecutando ese comando." });

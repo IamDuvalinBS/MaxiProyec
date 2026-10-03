@@ -51,6 +51,8 @@ export async function connectDB(intentos = 15) {
           bank: doc.bank || 0,
           cooldowns: doc.cooldowns || {},
           rachas: doc.rachas || {},
+          negocios: doc.negocios || {},
+          afk: doc.afk || null,
           profile: doc.profile
         });
       }
@@ -93,7 +95,7 @@ export async function saveAccount(sender, intentos = 3) {
     try {
       await collection.updateOne(
         { _id: sender },
-        { $set: { wallet: acc.wallet, bank: acc.bank, cooldowns: acc.cooldowns, rachas: acc.rachas, profile: acc.profile } },
+        { $set: { wallet: acc.wallet, bank: acc.bank, cooldowns: acc.cooldowns, rachas: acc.rachas, negocios: acc.negocios, afk: acc.afk || null, profile: acc.profile } },
         { upsert: true }
       );
       return;
@@ -121,11 +123,13 @@ export async function saveConfig(intentos = 3) {
 
 export function getAccount(sender) {
   if (!accounts.has(sender)) {
-    accounts.set(sender, { wallet: 0, bank: 0, cooldowns: {}, rachas: {} });
+    accounts.set(sender, { wallet: 0, bank: 0, cooldowns: {}, rachas: {}, negocios: {}, afk: null });
   }
   const acc = accounts.get(sender);
   if (!acc.cooldowns) acc.cooldowns = {};
   if (!acc.rachas) acc.rachas = {};
+  if (!acc.negocios) acc.negocios = {};
+  if (acc.afk === undefined) acc.afk = null;
   return acc;
 }
 
@@ -280,3 +284,7 @@ export function comandoEstaBaneado(nombre, categoria) {
 export function listarBaneos() {
   return { comandos: [...comandosBaneados], categorias: [...categoriasBaneadas] };
                }
+
+export function listarCuentas() {
+  return [...accounts.entries()];
+}
