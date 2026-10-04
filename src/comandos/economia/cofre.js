@@ -1,7 +1,7 @@
 import { addToWallet, getAccount, checkCooldown } from "../../../motores/db.js";
 import { tarjeta, monto, elegir, entre, textoEspera } from "../../economia/formato.js";
 
-const ESPERA_MS = 4 * 60 * 60 * 1000;
+const ESPERA_MS = 24 * 60 * 60 * 1000;
 const PROB_BONUS = 0.15;
 
 const RELATOS = [
