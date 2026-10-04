@@ -1,70 +1,88 @@
-import { lanzarJuegoHTML } from "../motores/juegos-records.js";
-// juegos/dino.js - Dino Runner en HTML dentro del chat (se envia con sock.sendHtml, como .gatohtml)
+// juegos/dino.js - Dino Runner en HTML (autocontenido). Guarda tu MEJOR puntaje en el propio juego (localStorage), sin base de datos.
+import { config } from "../motores/db.js";
+
 const GAME_HTML = String.raw`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
-body{margin:0;padding:10px;background:#03030a;color:#cfe9ff;font-family:"Courier New",monospace;touch-action:manipulation}
-.m{max-width:420px;margin:0 auto;padding:12px;border:2px solid #0e6e8c;border-radius:20px;background:#060818;box-shadow:0 0 20px #0e6e8c55}
-small{font-size:9px;letter-spacing:2px;color:#4a6c86}h1{margin:2px 0 8px;font-size:24px;color:#ffe14d;letter-spacing:3px}
-.h{display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px;color:#22d3ee}
-canvas{width:100%;display:block;border:2px solid #0e6e8c;border-radius:12px;background:#050716;touch-action:none}
-.b{display:flex;gap:8px;margin-top:10px}.b button{flex:1;height:56px;border-radius:12px;border:2px solid #39ff5a;background:#0a2a1a;color:#39ff5a;font:bold 13px inherit;font-family:inherit;cursor:pointer}
-.b button:active{transform:scale(.94)}#d{border-color:#ff3dbd;color:#ff3dbd;background:#2a0a24}
-.t{text-align:center;font-size:10px;color:#8aa4bd;margin-top:8px;min-height:14px}
-#claim{display:none;margin-top:10px;padding:10px;border:2px solid #ffe14d;border-radius:12px;font-size:11px;text-align:center;color:#ffe14d;background:#2a250a}
-#claim a{display:block;margin:8px 0;padding:10px;border-radius:10px;background:#ffe14d;color:#000;font-weight:bold;text-decoration:none}
-#claim code{font-size:10px;color:#fff;word-break:break-all;-webkit-user-select:text;user-select:text}
-</style></head><body><div class="m"><small>MAXIPROYEC · RETRO ARCADE</small><h1>🦖 DINO RUN</h1>
-<div class="h"><span>PUNTOS <b id="s">0</b></span><span>RÉCORD <b id="r">0</b></span></div>
-<canvas id="c" width="340" height="180"></canvas>
-<div class="b"><button id="j">⬆ SALTAR</button><button id="d">⬇ AGACHAR</button></div>
-<div class="t" id="t">Toca SALTAR para empezar. Salta cactus, agáchate ante las aves.</div></div>
-<div id="claim"></div>
+body{margin:0;padding:10px;background:#0b0b12;color:#fff;font-family:Roboto,Arial,sans-serif;touch-action:manipulation}
+.card{max-width:420px;margin:0 auto;background:#15151f;border:2px solid #2a2a3d;border-radius:26px;overflow:hidden}
+.top{display:flex;justify-content:space-between;align-items:flex-start;padding:18px 20px;border-bottom:2px solid #2a2a3d}
+.top small{font-size:11px;letter-spacing:3px;color:#8b8fa6}.top h1{margin:4px 0 0;font-size:30px;line-height:1.05}
+.sc{text-align:right}.sc b{display:block;font-size:30px;letter-spacing:1px;text-shadow:0 0 14px #fff8}.sc span{font-size:11px;color:#8b8fa6;letter-spacing:1px}
+.g{padding:14px 14px 6px}canvas{width:100%;display:block;background:#0d0d14;border:2px solid #2a2a3d;border-radius:20px;image-rendering:pixelated;touch-action:none}
+.v{text-align:center;color:#9a9eb5;font-size:15px;margin:12px 0 4px}
+.b{display:flex;gap:8px;padding:6px 14px 4px}.b button{flex:1;height:52px;border-radius:14px;border:2px solid #34344d;background:#1d1d2b;color:#d8dbf0;font:bold 13px Roboto,Arial,sans-serif;letter-spacing:1px}
+.b button:active{background:#2b2b40;transform:scale(.96)}
+.foot{display:flex;align-items:center;justify-content:center;gap:6px;padding:10px 0 14px;font-size:11px;color:#7d8197;letter-spacing:.3px}
+</style></head><body><div class="card">
+<div class="top"><div><small>MAXIPROYEC</small><h1>Dino<br>Runner</h1></div><div class="sc"><b id="s">00000</b><span>MEJOR</span><br><span id="r">00000</span></div></div>
+<div class="g"><canvas id="c" width="340" height="120"></canvas><div class="v" id="v">Toca para empezar</div></div>
+<div class="b"><button id="j">▲ SALTAR</button><button id="d">▼ AGACHAR</button></div>
+<div class="foot"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.7"/><path d="M8 7v4.2M8 4.7v.1" stroke-linecap="round"/></svg>Powered by __FIRMA__</div>
+</div>
 <script>
 (function(){"use strict";
-var SID="__SID__",BOT="__BOT__";
-function claim(p){var c=document.getElementById("claim");if(!c)return;if(p<1){c.style.display="none";return}var m=".puntaje "+SID+" "+p;
-c.style.display="block";c.innerHTML='🏆 ¿Récord? Reclama tu premio:<a href="https://wa.me/'+BOT+'?text='+encodeURIComponent(m)+'">ENVIAR PUNTAJE AL BOT</a><code>'+m+'</code>'}
-
-var $=function(i){return document.getElementById(i)},cv=$("c"),x=cv.getContext("2d"),G=150;
-var py,vy,duck,obs,sp,sc,over,run,nx,hi=0,fr,last=0;
-function reset(){py=0;vy=0;duck=false;obs=[];sp=5;sc=0;over=false;run=true;nx=90;fr=0;$("t").textContent="¡Corre!";claim(0)}
-function jump(){if(!run||over){reset();return}if(py===0)vy=11.5}
-function rect(a,b,c,d,col){x.fillStyle=col;x.fillRect(a,b,c,d)}
-function loop(ts){var k=Math.min(2,(ts-last)/16.67||1);last=ts;
- if(run&&!over){fr+=k;sc+=sp*k*.06;sp=Math.min(12,5+sc/120);
-  py+=vy*k;vy-=.65*k;if(py<=0){py=0;vy=0}
-  nx-=sp*k;if(nx<=0){var bird=sc>150&&Math.random()<.3;
-   obs.push(bird?{x:350,w:26,h:14,y:26,b:1}:{x:350,w:14+Math.random()*10,h:24+Math.random()*12,y:0});
-   nx=170+Math.random()*150+sp*8}
-  var dh=duck&&py===0?14:30;
-  for(var i=obs.length-1;i>=0;i--){var o=obs[i];o.x-=sp*k;if(o.x<-40){obs.splice(i,1);continue}
-   if(30+3<o.x+o.w&&30+22-3>o.x&&py+3<o.y+o.h&&py+dh-3>o.y){over=true;hi=Math.max(hi,Math.floor(sc));
-    $("r").textContent=hi;$("t").textContent="💥 Chocaste. Toca SALTAR para reintentar.";claim(Math.floor(sc))}}
-  $("s").textContent=Math.floor(sc)}
- x.clearRect(0,0,340,180);rect(0,G,340,2,"#0e6e8c");
- for(var j=0;j<6;j++)rect(((j*70-fr*sp*.5)%340+340)%340,G+8,18,2,"#123");
- var dh2=duck&&py===0?14:30,dy=G-py-dh2;x.shadowColor="#39ff5a";x.shadowBlur=8;
- rect(30,dy,22,dh2,"#39ff5a");rect(44,dy+4,4,4,"#03030a");
- if(py===0&&!over&&Math.floor(fr/5)%2)rect(32,G-4,6,4,"#03030a");
- obs.forEach(function(o){x.shadowColor=o.b?"#ff3dbd":"#ffe14d";rect(o.x,G-o.y-o.h,o.w,o.h,o.b?"#ff3dbd":"#ffe14d")});
- x.shadowBlur=0;requestAnimationFrame(loop)}
+var KEY="mp_dino_best",mem=0,$=function(i){return document.getElementById(i)};
+function ld(){try{return parseInt(localStorage.getItem(KEY))||0}catch(e){return mem}}
+function sv(v){mem=v;try{localStorage.setItem(KEY,String(v))}catch(e){}}
+var cv=$("c"),x=cv.getContext("2d"),W=340,H=120,G=98;x.imageSmoothingEnabled=false;
+function spr(rows,col,s){var c=document.createElement("canvas");c.width=rows[0].length*s;c.height=rows.length*s;var q=c.getContext("2d");q.fillStyle=col;
+ rows.forEach(function(r,j){for(var i=0;i<r.length;i++)if(r.charAt(i)==="X")q.fillRect(i*s,j*s,s,s)});return c}
+var T=["..........XXXX.",".........XXXXXX",".........XX.XXX",".........XXXXXX",".........XXX...","X.......XXXXXX.","X.....XXXXXXX..","XX..XXXXXXXXX..",".XXXXXXXXXXX...","..XXXXXXXXX....","...XXXXXXX.....","....XX..XX....."];
+var DA=spr(T.concat(["....XX.........."]),"#f4f4f8",2),DB=spr(T.concat([".........XX...."]),"#f4f4f8",2);
+var CA=["..XX..","X.XX..","X.XX.X","XXXX.X","..XXXX","..XX..","..XX..","..XX.."];
+var C2=spr(CA,"#ff6b6b",2),C3=spr(CA,"#ff6b6b",3),BI=spr(["......X.....","....XXXX....","XXXXXXXXXXX.","..XXXXXX....","....XX......"],"#8ab4ff",2);
+var py,vy,duck,obs,sp,sc,st=0,nx,fr,best=ld(),last=0,cl=[],ls="",lv="";
+for(var i=0;i<5;i++)cl.push([Math.random()*W,10+Math.random()*40,16+Math.random()*14]);
+var sEl=$("s"),rEl=$("r"),vEl=$("v");
+function f5(n){return("00000"+Math.floor(n)).slice(-5)}
+function hud(){var a=f5(sc),b=(sp/4).toFixed(1);if(a!==ls){ls=a;sEl.textContent=a}if(b!==lv){lv=b;vEl.textContent="Velocidad "+b+"x"}}
+rEl.textContent=f5(best);
+function reset(){py=0;vy=0;duck=false;obs=[];sp=4;sc=0;st=1;nx=100;fr=0;hud()}
+function jump(){if(st!==1){reset();return}if(py===0)vy=7.4}
+function over(){st=2;var s=Math.floor(sc);if(s>best){best=s;sv(best);rEl.textContent=f5(best)}vEl.textContent="Game over · toca para reintentar";lv=""}
+function spawn(){var r=Math.random();
+ if(sc>300&&r<.28)obs.push({x:W+10,w:24,h:10,y:16,i:BI,n:1});
+ else{var big=Math.random()<.4,i=big?C3:C2,n=Math.random()<.3?2:1;obs.push({x:W+10,w:i.width*n,h:i.height,y:0,i:i,n:n})}
+ nx=150+Math.random()*120+sp*14}
+function loop(ts){var k=Math.min(2.5,(ts-last)/16.67||1);last=ts;
+ if(st===1){sc+=sp*k*.08;sp=Math.min(12,4+sc/200);py+=vy*k;vy-=.55*k;if(py<=0){py=0;vy=0}
+  fr+=sp*k;nx-=sp*k;if(nx<=0)spawn();
+  var dh=duck&&py===0?14:26;
+  for(var i=obs.length-1;i>=0;i--){var o=obs[i];o.x-=sp*k;if(o.x<-60){obs.splice(i,1);continue}
+   if(10+3<o.x+o.w-3&&10+30-4>o.x+3&&py+3<o.y+o.h&&py+dh-3>o.y){over();break}}
+  hud()}
+ x.clearRect(0,0,W,H);x.fillStyle="#2c2c40";
+ cl.forEach(function(c){if(st===1)c[0]-=.3*k;if(c[0]<-30)c[0]=W+10;x.fillRect(c[0],c[1],c[2],3)});
+ x.fillStyle="#5a5a78";for(var j=0;j<14;j++)x.fillRect((j*47+7)%W,(j*29)%70+6,1.5,1.5);
+ x.strokeStyle="#6b6e8a";x.lineWidth=1.5;x.setLineDash([5,5]);x.lineDashOffset=fr%10;x.beginPath();x.moveTo(0,G+.5);x.lineTo(W,G+.5);x.stroke();
+ var dy=G-py;if(duck&&py===0)x.drawImage(DA,10,dy-14,30,14);else x.drawImage(py>0||st!==1||Math.floor(fr/14)%2?DA:DB,10,dy-26);
+ obs.forEach(function(o){for(var n=0;n<o.n;n++)x.drawImage(o.i,o.x+n*o.i.width,G-o.y-o.h)});
+ requestAnimationFrame(loop)}
 cv.addEventListener("pointerdown",function(e){e.preventDefault();jump()});
 $("j").addEventListener("pointerdown",function(e){e.preventDefault();jump()});
 $("d").addEventListener("pointerdown",function(e){e.preventDefault();duck=true});
 ["pointerup","pointerleave","pointercancel"].forEach(function(n){$("d").addEventListener(n,function(){duck=false})});
 document.addEventListener("keydown",function(e){if(e.code==="Space"||e.code==="ArrowUp"){e.preventDefault();jump()}if(e.code==="ArrowDown")duck=true});
 document.addEventListener("keyup",function(e){if(e.code==="ArrowDown")duck=false});
-reset();run=false;requestAnimationFrame(loop);
+sp=4;sc=0;py=0;obs=[];fr=0;hud();requestAnimationFrame(loop);
 })();
 </script></body></html>`;
 
 export default {
   names: [".dino", ".dinosaurio"],
-  desc: "Dino Runner (como el de Google) en HTML. Superar tu récord te da ¥enes",
+  desc: "Dino Runner (como el de Google); guarda tu mejor puntaje",
   category: "Juegos",
   usage: ".dino",
-  handler: async ({ sock, from, sender, msg, reply }) =>
-    lanzarJuegoHTML({ sock, from, sender, msg, reply, juego: "dino", html: GAME_HTML }),
+  handler: async ({ sock, from, msg }) => {
+    try {
+      if (typeof sock.sendHtml !== "function") throw new Error("este Baileys no tiene sendHtml");
+      const html = GAME_HTML.replaceAll("__FIRMA__", config.botNameShort || "MaxiProyec");
+      await sock.sendHtml(from, html, [], undefined, {});
+    } catch (e) {
+      console.log("[DINO] ERROR: " + e.stack);
+      await sock.sendMessage(from, { text: "❌ No se pudo enviar el juego: " + e.message }, { quoted: msg });
+    }
+  },
 };
