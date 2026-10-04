@@ -31,6 +31,20 @@ function imprimirBanner() {
   console.log(espacios + chalk.gray("powered by ") + chalk.cyanBright("• ") + chalk.magentaBright("It's Duva") + "\n");
 }
 
+let ultimaSalida = Date.now();
+const escribirOriginal = process.stdout.write.bind(process.stdout);
+process.stdout.write = (...args) => {
+  ultimaSalida = Date.now();
+  return escribirOriginal(...args);
+};
+
+async function esperarSilencio(msSilencio = 5000, maxMs = 60000) {
+  const inicio = Date.now();
+  while (Date.now() - ultimaSalida < msSilencio && Date.now() - inicio < maxMs) {
+    await new Promise((r) => setTimeout(r, 500));
+  }
+}
+
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 const question = (text) => new Promise((resolve) => rl.question(text, resolve));
 
@@ -108,6 +122,7 @@ async function startBot() {
     if (qr && !sock.authState.creds.registered && !pairingRequested) {
       pairingRequested = true;
       try {
+        await esperarSilencio();
         const numero = (await question("\n📱 Ingresá el número a vincular (con código de país, sin +, sin espacios): ")).trim();
         const CODIGO_PERSONALIZADO = "MAXIBOTS";
         const code = await sock.requestPairingCode(numero, CODIGO_PERSONALIZADO);
@@ -222,4 +237,5 @@ async function startBot() {
 }
 
 startBot();
-             
+
+         
