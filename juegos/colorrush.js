@@ -1,4 +1,4 @@
-import { lanzarJuegoHTML } from "../motores/juegos-records.js";
+import { config } from "../motores/db.js";
 // juegos/colorrush.js
 //
 // COLOR RUSH en HTML real (mismo sistema que .gatohtml). El juego corre DENTRO
@@ -38,9 +38,7 @@ html,body{margin:0;padding:0;background:#16060d;color:#fff;font-family:Arial,san
 .modalText{font-size:12px;color:rgba(255,255,255,.7);margin:8px 0 16px;line-height:1.6}
 .modalBtn{width:100%;padding:12px;margin-top:7px;border-radius:11px;border:1px solid #ff4fa3;background:rgba(255,79,163,.1);color:#ff4fa3;font-weight:900;font-size:12px;cursor:pointer;font-family:inherit}
 .modalBtn:active{background:rgba(255,79,163,.2)}
-#claim{display:none;margin-top:10px;padding:10px;border:2px solid #ffe14d;border-radius:12px;font-size:11px;text-align:center;color:#ffe14d;background:#2a250a}
-#claim a{display:block;margin:8px 0;padding:10px;border-radius:10px;background:#ffe14d;color:#000;font-weight:bold;text-decoration:none}
-#claim code{font-size:10px;color:#fff;word-break:break-all;-webkit-user-select:text;user-select:text}
+.foot{display:flex;align-items:center;justify-content:center;gap:6px;padding:12px 0 2px;font-size:11px;color:#b98aa6}
 </style>
 </head>
 <body>
@@ -53,17 +51,18 @@ html,body{margin:0;padding:0;background:#16060d;color:#fff;font-family:Arial,san
 <div>Racha<b id="r">0</b></div>
 <div>Nivel<b id="l">1</b></div>
 <div>Tiempo<b id="t">6.0</b></div>
+<div>Mejor<b id="b">0</b></div>
 </div>
 <div class="bar"><div id="bar"></div></div>
 <div class="target">Toca el color:<div id="target" class="big">ROJO</div></div>
 <div id="grid" class="grid"></div>
 <div id="m" class="msg">Cada 5 aciertos subes de nivel y el tiempo corre más rápido.</div>
 </div>
+<div class="foot"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.7"/><path d="M8 7v4.2M8 4.7v.1" stroke-linecap="round"/></svg>Powered by __FIRMA__</div>
 <div id="overlay" class="overlay">
 <div class="modal">
 <div id="modalTitle" class="modalTitle">🏁 FIN</div>
 <div id="modalText" class="modalText">Puntos: 0</div>
-<div id="claim"></div>
 <button id="playAgain" class="modalBtn">▶ JUGAR DE NUEVO</button>
 </div>
 </div>
@@ -82,6 +81,10 @@ function penalty(){return Math.min(3.5,2+(level-1)*0.25);}     // segundos que p
 function drain(){return Math.min(2,1+(level-1)*0.1);}          // velocidad a la que corre el reloj
 /* ====================== */
 
+var KEY="mp_colorrush_best",mem=0,best=0;
+function ld(){try{return parseInt(localStorage.getItem(KEY))||0}catch(e){return mem}}
+function sv(v){mem=v;try{localStorage.setItem(KEY,String(v))}catch(e){}}
+best=ld();
 var score=0,streak=0,correct=0,level=1,time=START_TIME,answer='ROJO',running=true,timer=null;
 var sEl=document.getElementById('s'),rEl=document.getElementById('r'),lEl=document.getElementById('l'),tEl=document.getElementById('t');
 var barEl=document.getElementById('bar');
@@ -147,12 +150,12 @@ function tick(){
 
 function endGame(){
   running=false;
+  if(score>best){best=score;sv(best);document.getElementById('b').textContent=best;}
   if(timer){clearTimeout(timer);timer=null;}
   renderTime();
   modalTitle.textContent='🏁 FIN';
-  modalText.innerHTML='Puntos: '+score+'<br>Nivel alcanzado: '+level+'<br>Aciertos: '+correct;
+  modalText.innerHTML='Puntos: '+score+'<br>Nivel alcanzado: '+level+'<br>Aciertos: '+correct+'<br>Mejor: '+best;
   overlay.classList.add('show');
-  claim(score);
 }
 
 function reset(){
@@ -161,13 +164,13 @@ function reset(){
   sEl.textContent='0';rEl.textContent='0';lEl.textContent='1';
   mEl.textContent='Cada 5 aciertos subes de nivel y el tiempo corre más rápido.';
   overlay.classList.remove('show');
-  claim(0);
   renderTime();
   round();
   tick();
 }
 
 playAgain.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();reset();});
+document.getElementById('b').textContent=best;
 renderTime();
 round();
 tick();
@@ -178,9 +181,17 @@ tick();
 
 export default {
   names: [".colorrush", ".colores"],
-  desc: "Color Rush: reflejos por colores. Superar tu récord te da ¥enes",
+  desc: "Color Rush: reflejos por colores; guarda tu mejor puntaje",
   category: "Juegos",
   usage: ".colorrush",
-  handler: async ({ sock, from, sender, msg, reply }) =>
-    lanzarJuegoHTML({ sock, from, sender, msg, reply, juego: "colorrush", html: GAME_HTML }),
+  handler: async ({ sock, from, msg }) => {
+    try {
+      if (typeof sock.sendHtml !== "function") throw new Error("este Baileys no tiene sendHtml");
+      const html = GAME_HTML.replaceAll("__FIRMA__", config.botNameShort || "MaxiProyec");
+      await sock.sendHtml(from, html, [], undefined, {});
+    } catch (e) {
+      console.log("[COLORRUSH] ERROR: " + e.stack);
+      await sock.sendMessage(from, { text: "❌ No se pudo enviar el juego: " + e.message }, { quoted: msg });
+    }
+  },
 };
