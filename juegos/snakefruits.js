@@ -36,17 +36,18 @@ h3{margin:14px 0 8px;font-size:12px;letter-spacing:2px;color:#22e5ff}
 <h3>🍉 TIPO DE FRUTAS</h3><div class="o c2" id="o4"></div>
 <button class="go" id="go">▶ INICIAR PARTIDA</button></div>
 <div id="gm"><div class="h"><div>PUNTOS<b id="s">0</b></div><div>RÉCORD<b id="r">0</b></div><div id="xb">NIVEL<b id="l">1</b></div></div>
-<div class="w"><canvas id="c" width="320" height="320"></canvas><div id="ov"><b>💥 GAME OVER</b><span id="ot"></span><button class="go" id="ag">↻ JUGAR DE NUEVO</button><button class="go" id="ch" style="background:#07162b;border:2px solid #22e5ff">⚙ AJUSTES</button></div></div>
+<div class="w"><canvas id="c" width="324" height="324"></canvas><div id="ov"><b>💥 GAME OVER</b><span id="ot"></span><button class="go" id="ag">↻ JUGAR DE NUEVO</button><button class="go" id="ch" style="background:#07162b;border:2px solid #22e5ff">⚙ AJUSTES</button></div></div>
 <div class="tip">COME FRUTAS · CRECE · NO CHOQUES</div>
 <div class="dp" id="dp"><i></i><button data-d="u">▲</button><i></i><button data-d="l">◀</button><button data-d="d">▼</button><button data-d="r">▶</button></div></div>
 <div class="foot"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.7"/><path d="M8 7v4.2M8 4.7v.1" stroke-linecap="round"/></svg>Powered by __FIRMA__</div>
 </div>
 <script>
 (function(){"use strict";
-var $=function(i){return document.getElementById(i)},N=16,C=20,KEY="mp_snake_best_";
+
+var $=function(i){return document.getElementById(i)},N=12,C=27,KEY="mp_snake_best_";
 function ld(m){try{return parseInt(localStorage.getItem(KEY+m))||0}catch(e){return 0}}
 function sv(m,v){try{localStorage.setItem(KEY+m,String(v))}catch(e){}}
-var LISTS=[[["🐍","Clásico"],["🍓","Festival"],["💀","Caos"],["⚡","Supervivencia"]],[["🟢","Fácil",190],["🔵","Normal",140],["🟣","Difícil",100],["🔴","Extremo",70]],
+var LISTS=[[["🐍","Clásico"],["🍓","Festival"],["💀","Caos"],["⚡","Supervivencia"]],[["🟢","Fácil",320],["🔵","Normal",250],["🟣","Difícil",190],["🔴","Extremo",140]],
 [["🟢","Verde","#39ff7a"],["🔵","Azul","#3da5ff"],["🟣","Morado","#a66cff"],["🔴","Rojo","#ff4d5e"],["🟡","Amarillo","#ffe14d"],["💗","Rosa","#ff7ac8"],["🌈","Arcoíris",""],["⚪","Blanco","#f2f2f8"]],
 [["🍎","1"],["🍎","2"],["🍎","3"],["🍎","5"]],[["🌈","Todas"],["🍎","Clásicas"],["💎","Especiales"],["🎲","Aleatorias"]]];
 var NS=[1,2,3,5],S=[0,0,0,0,0];
@@ -54,7 +55,7 @@ function chips(k){var el=$("o"+k),L=LISTS[k];for(var i=0;i<L.length;i++){var b=d
  el.addEventListener("click",function(e){var t=e.target;if(t._i===undefined)return;S[k]=t._i;for(var j=0;j<el.children.length;j++)el.children[j].className="ch"+(j===t._i?" on":"")})}
 for(var q0=0;q0<5;q0++)chips(q0);
 var cv=$("c"),x=cv.getContext("2d"),NN=N*N;
-function emo(e){var c=document.createElement("canvas");c.width=c.height=C;var q=c.getContext("2d");q.font="15px serif";q.textAlign="center";q.textBaseline="middle";q.fillText(e,C/2,C/2+1);return c}
+function emo(e){var c=document.createElement("canvas");c.width=c.height=C;var q=c.getContext("2d");q.font=(C*.8|0)+"px serif";q.textAlign="center";q.textBaseline="middle";q.fillText(e,C/2,C/2+1);return c}
 var SPR={};function spr(e){return SPR[e]||(SPR[e]=emo(e))}
 var CL=[["🍎",10],["🍊",10],["🍓",10],["🍉",10]],ES=[["💎",50],["⭐",30],["🍒",25]],AL=["🍇","🍌","🥝","🍑","🍍","🥭","🍋","🫐"];
 var BG=document.createElement("canvas");BG.width=BG.height=N*C;(function(){var q=BG.getContext("2d");q.fillStyle="#030814";q.fillRect(0,0,N*C,N*C);q.strokeStyle="#0e6e8c33";q.lineWidth=1;
@@ -63,7 +64,7 @@ var RB=[];for(var h0=0;h0<60;h0++)RB.push("hsl("+h0*6+",95%,60%)");
 var sn=[],g=new Uint8Array(NN),fr=[],ob=[],q=[],head=0,dx=1,dy=0,score=0,eaten=0,lv=1,left=12,run=false,paused=false,snd=true,acc=0,last=0,MODE=0,NF=1,AC=null,cc=["","","",""],off=0;
 var E=[$("s"),$("r"),$("l")];
 function put(i,t){if(cc[i]!==t){cc[i]=t;E[i].textContent=t}}
-function iv(){return Math.max(55,LISTS[1][S[1]][2]-(lv-1)*7)}
+function iv(){return Math.max(95,LISTS[1][S[1]][2]-(lv-1)*5)}
 function beep(f,d){if(!snd)return;try{AC=AC||new (window.AudioContext||window.webkitAudioContext)();var o=AC.createOscillator(),v=AC.createGain();o.frequency.value=f;v.gain.value=.05;o.connect(v);v.connect(AC.destination);o.start();o.stop(AC.currentTime+d)}catch(e){}}
 function pickFruit(){var t=S[4],l;if(t===0)l=CL.concat(ES);else if(t===1)l=CL;else if(t===2)l=ES;else return{e:AL[Math.random()*AL.length|0],p:5+(Math.random()*36|0)};
  var f=l[Math.random()*l.length|0];return{e:f[0],p:f[1]}}
@@ -79,13 +80,13 @@ function die(){run=false;var b=ld(MODE);if(score>b){b=score;sv(MODE,b)}put(1,Str
 function step(){
  if(q.length){var d=q.shift();dx=d[0];dy=d[1]}
  var hx=head%N,hy=head/N|0,nx=hx+dx,ny=hy+dy;
- if(MODE===1){nx=(nx+N)%N;ny=(ny+N)%N}else if(nx<0||ny<0||nx>=N||ny>=N){die();return false}
+ if(nx<0||ny<0||nx>=N||ny>=N){die();return false}
  var ni=ny*N+nx,k=fruitAt(ni);
  if(k<0){g[sn.shift()]=0}
  if(g[ni]){die();return false}
  sn.push(ni);g[ni]=1;head=ni;
  if(k>=0){var f=fr[k];fr.splice(k,1);eaten++;score+=f.p*(MODE===1?2:1);lv=1+Math.floor(eaten/5);beep(700+Math.min(500,eaten*15),.07);
-  if(MODE===2&&eaten%3===0&&ob.length<14){var c=freeCell(true);if(c>=0){g[c]=2;ob.push(c)}}
+  if(MODE===2&&eaten%3===0&&ob.length<9){var c=freeCell(true);if(c>=0){g[c]=2;ob.push(c)}}
   if(MODE===3)left=Math.min(15,left+3);
   topUp();put(0,String(score));if(MODE!==3)put(2,String(lv))}
  return true}
@@ -95,7 +96,7 @@ function draw(){x.drawImage(BG,0,0);var i,k;
  var col=LISTS[2][S[2]][2],len=sn.length;off=(off+1)%60;
  for(k=0;k<len;k++){i=sn[k];x.fillStyle=col||RB[(k*3+off)%60];x.fillRect(i%N*C+1,(i/N|0)*C+1,C-2,C-2)}
  var hx=head%N*C+C/2,hy=(head/N|0)*C+C/2;x.fillStyle="#ffffffcc";x.fillRect(hx-C/2+1,hy-C/2+1,C-2,C-2);
- x.fillStyle="#050a1c";var ex=dx*4,ey=dy*4;if(dx!==0){x.fillRect(hx+ex-1,hy-5,3,3);x.fillRect(hx+ex-1,hy+3,3,3)}else{x.fillRect(hx-5,hy+ey-1,3,3);x.fillRect(hx+3,hy+ey-1,3,3)}
+ x.fillStyle="#050a1c";var ex=dx*6,ey=dy*6;if(dx!==0){x.fillRect(hx+ex-2,hy-8,4,4);x.fillRect(hx+ex-2,hy+4,4,4)}else{x.fillRect(hx-8,hy+ey-2,4,4);x.fillRect(hx+4,hy+ey-2,4,4)}
  if(paused){x.fillStyle="#030814cc";x.fillRect(0,0,N*C,N*C);x.fillStyle="#22e5ff";x.font="bold 26px Courier New";x.textAlign="center";x.fillText("PAUSA",N*C/2,N*C/2)}}
 function dir(a,b){var l=q.length?q[q.length-1]:[dx,dy];if((a===-l[0]&&b===-l[1])||(a===l[0]&&b===l[1]))return;if(q.length<2)q.push([a,b])}
 function loop(ts){var dt=Math.min(100,ts-last||16);last=ts;
