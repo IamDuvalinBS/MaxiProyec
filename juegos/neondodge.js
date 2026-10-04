@@ -25,6 +25,7 @@ button:active{transform:scale(.96)}
 </div>
 <script>
 (function(){"use strict";
+
 var KEY="mp_neondodge_best",mem=0,$=function(i){return document.getElementById(i)};
 function ld(){try{return parseInt(localStorage.getItem(KEY))||0}catch(e){return mem}}
 function sv(v){mem=v;try{localStorage.setItem(KEY,String(v))}catch(e){}}
