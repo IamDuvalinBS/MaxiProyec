@@ -16,7 +16,6 @@ export default {
       obtener: async () => personajeAleatorioPonderado("snake", PESOS_SNAKE),
       reply, sender, from,
       cooldownMs: COOLDOWN_MS,
-      titulo: "SNAKE SALVAJE",
       textoVacio: "❌ No hay skins cargadas todavía."
     });
   }

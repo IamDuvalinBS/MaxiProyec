@@ -5,9 +5,9 @@ const pvp = crearHandlerPvp({ categoria: "snake", comando: "snakepvp", nombreLuc
 
 export default {
   names: [".snakepvp"],
-  desc: "Pelea tu mejor Snake contra el de otro usuario apostando dinero",
+  desc: "Desafía a otro usuario con tu Snake: .snakepvp <@usuario> <apuesta> <ID> (el combate se juega por rondas)",
   category: "Gacha",
-  usage: ".snakepvp @usuario <apuesta> [#id]",
+  usage: ".snakepvp <@usuario> <apuesta> <ID>",
   handler: async (ctx) => {
     await gachaListo;
     return pvp(ctx);

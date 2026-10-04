@@ -14,7 +14,6 @@ export default {
       obtener: async () => personajeAleatorio("waifu", { soloLibres: true }),
       reply, sender, from,
       cooldownMs: COOLDOWN_MS,
-      titulo: "ROLL WAIFU",
       textoVacio: "❌ Todavía no hay waifus en la base. Un owner tiene que usar *.yanderandom* para cargar algunas."
     });
   }

@@ -5,9 +5,9 @@ const pvp = crearHandlerPvp({ categoria: "brawler", comando: "brawlstarspvp", no
 
 export default {
   names: [".brawlstarspvp", ".brawlpvp"],
-  desc: "Pelea tu mejor Brawler contra el de otro usuario apostando dinero",
+  desc: "Desafía a otro usuario con tu Brawler: .brawlstarspvp <@usuario> <apuesta> <ID> (el combate se juega por rondas)",
   category: "Gacha",
-  usage: ".brawlstarspvp @usuario <apuesta> [#id]",
+  usage: ".brawlstarspvp <@usuario> <apuesta> <ID>",
   handler: async (ctx) => {
     await gachaListo;
     return pvp(ctx);

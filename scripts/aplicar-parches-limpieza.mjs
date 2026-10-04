@@ -30,7 +30,7 @@ const REEMPLAZOS = [
   ["Elegí", "Elige"], ["elegí", "elige"],
   ["Elegís", "Eliges"], ["elegís", "eliges"],
   ["vos mismo", "ti mismo"],
-  ["Si sos", "Si eres"], ["si sos", "si eres"]
+  ["Sos", "Eres"], ["sos", "eres"]
 ];
 
 function aplicarVoseo(texto) {

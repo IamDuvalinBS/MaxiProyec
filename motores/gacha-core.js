@@ -9,13 +9,20 @@ import {
   initGachaDB, reclamar, coleccionDe, contarColeccion, personajePorId, propietarios
 } from "./gacha-db.js";
 import { tarjeta, monto, fmt } from "../src/economia/formato.js";
+import { encabezado } from "../src/economia/estilo.js";
 import { formatTime } from "./ui.js";
 import { renderSnake } from "./gacha-snake.js";
-import { statsEfectivas, NIVEL_MAX, TIENE_NIVELES } from "./gacha-niveles.js";
-import { tipoEs } from "./gacha-pokemon.js";
+import { TIENE_NIVELES } from "./gacha-niveles.js";
+import { CAT } from "./gacha-categorias.js";
+import { ticketsDe, sorteoTicket } from "./gacha-tickets.js";
+import {
+  bloqueCabecera, bloquesDePersonaje, repartirBloques, lineasPersonaje, textoStats
+} from "./gacha-estilo.js";
+
+export const bloquesDePersonajeParaTicket = (personaje) => bloquesDePersonaje(personaje, 1);
 import { rutaImagenCacheada, guardarImagenCacheada, hayRelay } from "./cache-medios.js";
 
-export { tarjeta, monto, fmt, personajePorId };
+export { tarjeta, monto, fmt, personajePorId, CAT, lineasPersonaje, textoStats };
 export const arroba = (jid) => `@${jid.split("@")[0]}`;
 
 export const gachaListo = initGachaDB().catch((e) => {
@@ -25,52 +32,96 @@ export const gachaListo = initGachaDB().catch((e) => {
 gachaListo.catch(() => {});
 
 const UA = "Mozilla/5.0 (compatible; MaxiBot/1.0)";
-
-export const CAT = {
-  waifu:   { emoji: "🎴", singular: "waifu",   indef: "una waifu",   reclamado: "WAIFU RECLAMADA",   rollCmd: ".rw",         claimCmd: ".c" },
-  pokemon: { emoji: "🔴", singular: "Pokémon", indef: "un Pokémon",  reclamado: "POKÉMON RECLAMADO", rollCmd: ".pokemon",    claimCmd: ".atrapar" },
-  brawler: { emoji: "⭐", singular: "brawler", indef: "un brawler",  reclamado: "BRAWLER RECLAMADO", rollCmd: ".brawlstars", claimCmd: ".drop" },
-  snake:   { emoji: "🐍", singular: "snake",   indef: "un snake",    reclamado: "SNAKE ADOPTADO",    rollCmd: ".snake",      claimCmd: ".adoptar" }
-};
-
 const TMP_DIR = path.join(os.tmpdir(), "maxibot-gacha");
 const LIMITE_BYTES = 15 * 1024 * 1024;
 const MAX_DESCARGAS_SIMULTANEAS = 3;
+const TIEMPO_RESPUESTA_MS = 15000;
+const TIEMPO_INACTIVIDAD_MS = 20000;
+const PRESUPUESTO_IMAGEN_MS = 50000;
+
 fs.mkdirSync(TMP_DIR, { recursive: true });
 for (const f of fs.readdirSync(TMP_DIR)) fs.rm(path.join(TMP_DIR, f), { force: true }, () => {});
 
 let activas = 0;
 const cola = [];
+
 async function conCupo(fn) {
   if (activas >= MAX_DESCARGAS_SIMULTANEAS) await new Promise((r) => cola.push(r));
   activas++;
-  try { return await fn(); }
-  finally { activas--; cola.shift()?.(); }
+  try {
+    return await fn();
+  } finally {
+    activas--;
+    cola.shift()?.();
+  }
 }
 
 const rutaTemporal = (ext = "") => path.join(TMP_DIR, `${Date.now()}-${crypto.randomBytes(4).toString("hex")}${ext}`);
 
+function borrar(ruta) {
+  try {
+    fs.rmSync(ruta, { force: true });
+  } catch (e) {
+    console.log(`[gacha] No se pudo borrar ${ruta}: ${e.message}`);
+  }
+}
+
 async function bajarAArchivo(url) {
-  const headers = { "User-Agent": UA };
+  const headers = { "User-Agent": UA, "Accept-Encoding": "identity" };
   if (/yande\.re/i.test(url)) headers.Referer = "https://yande.re/";
-  const res = await axios.get(url, { responseType: "stream", timeout: 25000, maxContentLength: LIMITE_BYTES, headers });
+
+  const res = await axios.get(url, {
+    responseType: "stream",
+    timeout: TIEMPO_RESPUESTA_MS,
+    family: 4,
+    maxRedirects: 3,
+    maxContentLength: LIMITE_BYTES,
+    headers
+  });
+
   const largo = Number(res.headers?.["content-length"] || 0);
-  if (largo > LIMITE_BYTES) { res.data.destroy(); throw new Error("imagen demasiado pesada"); }
+  if (largo > LIMITE_BYTES) {
+    res.data.destroy();
+    throw new Error("imagen demasiado pesada");
+  }
+
   const ruta = rutaTemporal();
   let bytes = 0;
+  let inactividad = null;
+  const vigilar = () => {
+    clearTimeout(inactividad);
+    inactividad = setTimeout(() => res.data.destroy(new Error("la descarga se quedó sin datos")), TIEMPO_INACTIVIDAD_MS);
+  };
+
   const tope = new Transform({
-    transform(chunk, _e, cb) {
+    transform(chunk, _codificacion, cb) {
       bytes += chunk.length;
+      vigilar();
       cb(bytes > LIMITE_BYTES ? new Error("imagen demasiado pesada") : null, chunk);
     }
   });
+
   try {
+    vigilar();
     await pipeline(res.data, tope, fs.createWriteStream(ruta));
     if (!bytes) throw new Error("respuesta vacía");
     return ruta;
   } catch (e) {
-    try { fs.rmSync(ruta, { force: true }); } catch {}
+    borrar(ruta);
     throw e;
+  } finally {
+    clearTimeout(inactividad);
+  }
+}
+
+const esErrorDeTiempo = (e) => /timeout|timed out|ETIMEDOUT|ECONNABORTED|ECONNRESET|sin datos/i.test(`${e.code || ""} ${e.message || ""}`);
+
+async function bajarConReintento(url) {
+  try {
+    return await bajarAArchivo(url);
+  } catch (e) {
+    if (!esErrorDeTiempo(e)) throw e;
+    return bajarAArchivo(url);
   }
 }
 
@@ -80,7 +131,7 @@ async function dibujarSnake(clave) {
     await renderSnake(clave, ruta);
     return ruta;
   } catch (e) {
-    try { fs.rmSync(ruta, { force: true }); } catch {}
+    borrar(ruta);
     throw e;
   }
 }
@@ -88,24 +139,29 @@ async function dibujarSnake(clave) {
 export async function prepararImagen(urls) {
   return conCupo(async () => {
     let ultimoError = new Error("sin imágenes");
+    const inicio = Date.now();
     for (const url of urls.filter(Boolean)) {
+      if (Date.now() - inicio > PRESUPUESTO_IMAGEN_MS) break;
       try {
         if (url.startsWith("snake:")) {
           const rutaSnake = await dibujarSnake(url.slice(6));
-          return { ruta: rutaSnake, limpiar: () => { try { fs.rmSync(rutaSnake, { force: true }); } catch {} } };
+          return { ruta: rutaSnake, limpiar: () => borrar(rutaSnake) };
         }
         const enCache = rutaImagenCacheada(url);
         if (enCache) return { ruta: enCache, limpiar: () => {} };
-        const ruta = await bajarAArchivo(url);
+        const ruta = await bajarConReintento(url);
         guardarImagenCacheada(url, ruta);
-        return { ruta, limpiar: () => { try { fs.rmSync(ruta, { force: true }); } catch {} } };
-      } catch (e) { ultimoError = e; }
+        return { ruta, limpiar: () => borrar(ruta) };
+      } catch (e) {
+        ultimoError = e;
+      }
     }
     throw ultimoError;
   });
 }
 
 const cooldowns = new Map();
+
 export function tomarCooldown(clave, ms) {
   const ahora = Date.now();
   const vence = cooldowns.get(clave) || 0;
@@ -113,8 +169,12 @@ export function tomarCooldown(clave, ms) {
   cooldowns.set(clave, ahora + ms);
   return 0;
 }
-export function soltarCooldown(clave) { cooldowns.delete(clave); }
-export const textoCooldown = (ms) => `⏳ Todavía no puedes volver a usar este comando. Tiempo restante: *${formatTime(ms)}*.`;
+
+export function soltarCooldown(clave) {
+  cooldowns.delete(clave);
+}
+
+export const textoCooldown = (ms) => `⏳ Debes esperar *${formatTime(ms)}* para volver a usar este comando.`;
 
 setInterval(() => {
   const ahora = Date.now();
@@ -153,7 +213,9 @@ export function buscarPendiente({ from, categoria, idCitado, sender }) {
     }
   }
 
-  let libre = null, bloqueado = null, otra = null;
+  let libre = null;
+  let bloqueado = null;
+  let otra = null;
   for (const [id, p] of pendientes) {
     if (p.from !== from) continue;
     if (p.categoria !== categoria) {
@@ -174,7 +236,9 @@ export function buscarPendiente({ from, categoria, idCitado, sender }) {
   return { estado: "nada" };
 }
 
-export function cerrarPendiente(id) { pendientes.delete(id); }
+export function cerrarPendiente(id) {
+  pendientes.delete(id);
+}
 
 export function idMensajeCitado(msg) {
   return msg.message?.extendedTextMessage?.contextInfo?.stanzaId || null;
@@ -184,47 +248,55 @@ export function participanteCitado(msg) {
   return msg.message?.extendedTextMessage?.contextInfo?.participant || null;
 }
 
-function fuenteDe(p) {
-  if (p.categoria === "waifu") return p.serie || "Desconocida";
-  if (p.categoria === "pokemon") return "Pokémon";
-  if (p.categoria === "brawler") return "Brawl Stars";
-  return "Snake";
-}
+class ErrorDeImagen extends Error {}
 
-export const textoStats = (s) => `❤️ ${s.hp}  ⚔️ ${s.atk}  🛡️ ${s.def}  💨 ${s.spe}`;
-
-export function lineasPersonaje(p, nivel = null) {
-  const l = [`🆔 *ID* ›› #${p.id}`, `👤 *Nombre* ›› ${p.nombre}`, `🌐 *Fuente* ›› ${fuenteDe(p)}`];
-  if (p.categoria === "waifu" && p.genero) l.push(`⚥ *Género* ›› ${p.genero}`);
-  if (p.categoria === "pokemon" && p.stats?.tipos?.length) l.push(`🧬 *Tipo* ›› ${p.stats.tipos.map(tipoEs).join(" / ")}`);
-  if (p.categoria === "brawler" && p.serie.includes("·")) l.push(`🎯 *Clase* ›› ${p.serie.split("·")[1].trim()}`);
-  l.push(`✨ *Rareza* ›› ${p.rareza}`);
-  if (TIENE_NIVELES(p.categoria)) {
-    const n = nivel ?? 1;
-    l.push(`📊 *Nivel* ›› ${n}/${NIVEL_MAX[p.categoria]}`, textoStats(statsEfectivas(p, n)));
-  }
-  l.push(`💴 *Valor* ›› ${monto(p.valor)}`);
-  return l;
-}
-
-export async function enviarPersonaje({ reply, personaje, titulo, lineasExtra = [], mentions = [] }) {
-  const caption = tarjeta({
-    emoji: CAT[personaje.categoria]?.emoji || "🎴",
-    titulo,
-    lineas: [...lineasPersonaje(personaje), ...(lineasExtra.length ? ["", ...lineasExtra] : [])]
-  });
+export async function enviarPersonaje({ reply, personaje, titulo, lineasExtra = [], mentions = [], permitirSinImagen = true }) {
+  const cabecera = bloqueCabecera(personaje.categoria, titulo, lineasExtra);
+  const { principal, resto } = repartirBloques([cabecera, ...bloquesDePersonaje(personaje, 1)]);
   const cacheKey = `gacha:${personaje.categoria}:${personaje.img}`;
+
+  const enviarResto = async () => {
+    if (resto) await reply({ text: resto, mentions });
+  };
+
   if (hayRelay(cacheKey)) {
     try {
-      return await reply({ cacheKey, caption, mentions });
-    } catch (e) {}
+      const reenviado = await reply({ cacheKey, caption: principal, mentions });
+      await enviarResto();
+      return reenviado;
+    } catch (e) {
+      console.log(`[gacha] El reenvío almacenado no estuvo disponible: ${e.message}`);
+    }
   }
-  const img = await prepararImagen([personaje.img, ...(personaje.meta?.alt || [])]);
+
+  let img;
   try {
-    return await reply({ image: { url: img.ruta }, caption, mentions, cacheKey });
+    img = await prepararImagen([personaje.img, ...(personaje.meta?.alt || [])]);
+  } catch (e) {
+    if (!permitirSinImagen) throw new ErrorDeImagen(e.message);
+    console.log(`[gacha] Se envía sin imagen a "${personaje.nombre}": ${e.message}`);
+    const aviso = "> 🖼️ La imagen no está disponible en este momento. El personaje se puede reclamar con normalidad.";
+    const enviado = await reply({ text: `${principal}\n\n${aviso}`, mentions });
+    await enviarResto();
+    return enviado;
+  }
+
+  try {
+    const enviado = await reply({ image: { url: img.ruta }, caption: principal, mentions, cacheKey });
+    await enviarResto();
+    return enviado;
   } finally {
     img.limpiar();
   }
+}
+
+function tarjetaTicket(sender, cat) {
+  return [
+    encabezado("🎟️", "TICKET OBTENIDO"),
+    "",
+    `> ${arroba(sender)} tuviste suerte y obtuviste *1 ticket* de ${cat.plural}.`,
+    `> Úsalo con *${cat.ticketCmd} <ID>* para conseguir el personaje que elijas.`
+  ].join("\n");
 }
 
 export async function hacerRoll({ categoria, obtener, reply, sender, from, cooldownMs, titulo, textoVacio }) {
@@ -235,34 +307,39 @@ export async function hacerRoll({ categoria, obtener, reply, sender, from, coold
 
   let exito = false;
   try {
-    for (let intento = 0; intento < 3; intento++) {
+    const INTENTOS = 2;
+    for (let intento = 0; intento < INTENTOS; intento++) {
       const personaje = await obtener();
       if (!personaje) return reply({ text: textoVacio });
 
       const duenos = categoria === "waifu" ? propietarios(personaje.id) : [];
-      const extra = [`🙋 *Solicitado por* ›› ${arroba(sender)}`];
       const mentions = [sender];
+      const extra = [];
       if (duenos.length) {
-        extra.push(`👑 *Reclamada por* ›› ${arroba(duenos[0])}`);
+        extra.push(`Este personaje ya fue reclamado por *${arroba(duenos[0])}*.`);
         mentions.push(duenos[0]);
       } else {
         extra.push(
-          `🔒 Solo ${arroba(sender)} puede reclamarlo durante *${EXCLUSIVO_MS / 1000}s*.`,
-          `🔓 Después queda libre para todos hasta los *${VIGENCIA_MS / 60000} min*.`,
-          `👉 Reclámalo con *${cat.claimCmd}* (o respondiendo a este mensaje).`
+          `Personaje disponible para *${arroba(sender)}*. Tienes *${EXCLUSIVO_MS / 1000}s* para reclamarlo usando *${cat.claimCmd}* o respondiendo a este mensaje.`,
+          `Pasado ese tiempo queda libre para todos durante *${VIGENCIA_MS / 60000} min*.`
         );
       }
 
       try {
-        const enviado = await enviarPersonaje({ reply, personaje, titulo, lineasExtra: extra, mentions });
+        const enviado = await enviarPersonaje({
+          reply, personaje, titulo, lineasExtra: extra, mentions,
+          permitirSinImagen: intento === INTENTOS - 1
+        });
         if (!duenos.length && enviado?.key?.id) registrarPendiente(enviado.key.id, from, personaje, sender);
         exito = true;
+        if (sorteoTicket(sender, categoria)) await reply({ text: tarjetaTicket(sender, cat), mentions: [sender] });
         return;
       } catch (e) {
-        console.log(`[gacha] no pude preparar la imagen de "${personaje.nombre}" (${categoria}):`, e.message);
+        if (!(e instanceof ErrorDeImagen)) throw e;
+        console.log(`[gacha] No se pudo preparar la imagen de "${personaje.nombre}" (${categoria}): ${e.message}`);
       }
     }
-    await reply({ text: "❌ No pude preparar la imagen, prueba de nuevo en un momento." });
+    await reply({ text: "❌ No se pudo preparar la imagen. Inténtalo de nuevo en un momento." });
   } finally {
     if (!exito) soltarCooldown(clave);
   }
@@ -278,15 +355,15 @@ export function crearComandoClaim({ categoria, names, desc }) {
 
       if (r.estado === "otra_categoria") {
         const otra = CAT[r.categoriaReal];
-        return reply({ text: `❌ Eso es ${otra.indef}, se reclama con *${otra.claimCmd}*.` });
+        return reply({ text: `❌ Ese personaje es ${otra.indef} y se reclama con *${otra.claimCmd}*.` });
       }
       if (r.estado === "nada") {
-        return reply({ text: `❌ No hay ${cat.indef} para reclamar ahora (venció el tiempo o ya lo reclamaron). Se genera con *${cat.rollCmd}*.` });
+        return reply({ text: `❌ No hay ${cat.indef} disponible para reclamar. Puede que el tiempo haya vencido o que ya lo hayan reclamado. Genera uno nuevo con *${cat.rollCmd}*.` });
       }
       if (r.estado === "bloqueado") {
         const dueno = r.pendiente.dueno;
         return reply({
-          text: `🔒 Este roll es de ${arroba(dueno)}. Queda libre para todos en *${Math.ceil(r.restanteMs / 1000)}s*.`,
+          text: `🔒 Este personaje pertenece a la tirada de ${arroba(dueno)}. Quedará libre para todos en *${Math.ceil(r.restanteMs / 1000)}s*.`,
           mentions: [dueno]
         });
       }
@@ -296,45 +373,74 @@ export function crearComandoClaim({ categoria, names, desc }) {
       const resultado = reclamar(sender, p);
       if (resultado === "ocupado") {
         cerrarPendiente(r.id);
-        return reply({ text: "💨 Alguien fue más rápido, ya la reclamaron." });
+        return reply({ text: "💨 Otra persona lo reclamó primero." });
       }
       if (resultado === "repetido") {
         cerrarPendiente(r.id);
-        return reply({ text: `📦 Ya tienes a *${p.nombre}*.` });
+        return reply({ text: `📦 Ya tienes a *${p.nombre}* en tu colección.` });
       }
 
       cerrarPendiente(r.id);
-      const lineas = [...lineasPersonaje(p, 1), "", `🙋 *Reclamado por* ›› ${arroba(sender)}`];
       const mentions = [sender];
+      const lineas = [`*${arroba(sender)}* reclamó a *${p.nombre}*.`];
       if (pendiente.dueno !== sender) {
-        lineas.push(`🎁 *Roll de* ›› ${arroba(pendiente.dueno)}`);
+        lineas.push(`La tirada original era de *${arroba(pendiente.dueno)}*.`);
         mentions.push(pendiente.dueno);
       }
-      await reply({ text: tarjeta({ emoji: cat.emoji, titulo: cat.reclamado, lineas }), mentions });
+      const bloques = [bloqueCabecera(categoria, cat.reclamado, lineas), ...bloquesDePersonaje(p, 1)];
+      await reply({ text: bloques.join("\n\n"), mentions });
     }
   };
 }
 
-export async function mostrarColeccion({ categoria, titulo, sender, cleanText, reply, pista = "" }) {
+export async function mostrarColeccion({ categoria, sender, cleanText, reply }) {
   const cat = CAT[categoria];
   const pagina = Math.max(1, parseInt(cleanText.split(/\s+/)[1], 10) || 1);
   const POR_PAGINA = 15;
   const { n, total } = contarColeccion(sender, categoria);
-  if (!n) return reply({ text: `📭 Todavía no tienes nada en *${titulo}*. Prueba con *${cat.rollCmd}* y reclámalo con *${cat.claimCmd}*.` });
+  const tickets = ticketsDe(sender, categoria);
+
+  if (!n) {
+    return reply({
+      text: [
+        encabezado(cat.emoji, cat.tituloColeccion),
+        "",
+        `> Todavía no tienes ${cat.unidades} en tu cuenta. Genera uno con *${cat.rollCmd}* y reclámalo con *${cat.claimCmd}*.`
+      ].join("\n")
+    });
+  }
 
   const paginas = Math.ceil(n / POR_PAGINA);
   const p = Math.min(pagina, paginas);
   const conNivel = TIENE_NIVELES(categoria);
-  const filas = coleccionDe(sender, categoria, POR_PAGINA, (p - 1) * POR_PAGINA).map((c, i) =>
-    `${(p - 1) * POR_PAGINA + i + 1}. *${c.nombre}*${conNivel ? ` · Nv.${c.nivel}` : ""} · ${c.rareza} · #${c.id}`);
-
-  return reply({
-    text: tarjeta({
-      emoji: cat.emoji, titulo: titulo.toUpperCase(),
-      lineas: [
-        `📦 *Total* ›› ${n}`, `💰 *Valor* ›› ${monto(total)}`, "", ...filas, "",
-        `📄 Página ${p}/${paginas}`, ...(pista ? [pista] : [])
-      ]
-    })
+  const filas = coleccionDe(sender, categoria, POR_PAGINA, (p - 1) * POR_PAGINA).flatMap((c) => {
+    const detalle = [conNivel ? `Nivel ${c.nivel}` : null, c.rareza, `ID :: #${c.id}`];
+    if (categoria === "waifu" && c.serie) detalle.push(c.serie);
+    return [`✦ *${c.nombre}*`, `> · ${detalle.filter(Boolean).join(" · ")}`];
   });
+
+  const partes = [
+    encabezado(cat.emoji, cat.tituloColeccion),
+    "",
+    `> ${cat.descripcionColeccion}`,
+    "",
+    `⧼${cat.emojiTotal}⧽ *${cat.etiquetaTotal}* ››`,
+    `> ${fmt(n)} ${cat.unidades} en tu cuenta.`,
+    `⧼${cat.emojiValor}⧽ *Valor total* ››`,
+    `> ${monto(total)} en total.`,
+    `⧼🎟️⧽ *${cat.etiquetaTickets}* ››`,
+    `> ${tickets} ${tickets === 1 ? "ticket" : "tickets"} en tu cuenta.`,
+    "",
+    `〔${cat.emojiLista}〕 *${cat.tituloLista}*`,
+    "",
+    ...filas,
+    "",
+    paginas > p
+      ? `> Página ${p}/${paginas}. Usa *${cat.coleccionCmd} ${p + 1}* para ver la siguiente página.`
+      : `> Página ${p}/${paginas}.`,
+    `> ${cat.subirNivel}`,
+    `> Para obtener uno por su ID usa *${cat.ticketCmd} <ID>*.`
+  ];
+
+  return reply({ text: partes.join("\n") });
 }

@@ -9,8 +9,6 @@ export const MULT_RAREZA = {
   "Épica": 1.45, "Mítica": 1.6, "Legendaria": 1.8, "Ultra legendaria": 2.0
 };
 
-const entre = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
-
 export function statsEfectivas(p, nivel = 1) {
   const s = p.stats || { hp: 60, atk: 60, def: 60, spe: 60, tipos: [] };
   const L = Math.max(1, nivel);
@@ -33,41 +31,77 @@ export function statsEfectivas(p, nivel = 1) {
 
 export const TIENDAS = {
   pokemon: {
-    comando: "pokecomida", titulo: "COMIDA POKÉMON", emoji: "🍖",
+    titulo: "POKEMON FOOD",
+    emoji: "🥙",
+    nombre: "comida",
+    plural: "comidas",
+    comandoTienda: ".pokecomida",
+    comandoComprar: ".pokefood",
+    comandoDar: ".pokedar",
     items: [
-      { nombre: "Baya Aranja",    emoji: "🫐", precio: 1500,  min: 1,  max: 2 },
-      { nombre: "Pokélito",       emoji: "🍬", precio: 4500,  min: 2,  max: 4 },
-      { nombre: "Galleta Lava",   emoji: "🍪", precio: 11000, min: 4,  max: 7 },
-      { nombre: "Curry Especial", emoji: "🍛", precio: 26000, min: 7,  max: 12 },
-      { nombre: "Caramelo Raro",  emoji: "🍭", precio: 60000, min: 12, max: 20 }
+      { nombre: "Baya Aranja", emoji: "🫐", precio: 1500, niveles: 1 },
+      { nombre: "Pokélito", emoji: "🍬", precio: 4500, niveles: 3 },
+      { nombre: "Galleta Lava", emoji: "🍪", precio: 11000, niveles: 5 },
+      { nombre: "Curry Especial", emoji: "🍛", precio: 26000, niveles: 9 },
+      { nombre: "Caramelo Raro", emoji: "🍭", precio: 60000, niveles: 16 }
     ]
   },
   snake: {
-    comando: "orbes", titulo: "ORBES SNAKE", emoji: "🔮",
+    titulo: "ORBES SNAKE",
+    emoji: "🔮",
+    nombre: "orbe",
+    plural: "orbes",
+    comandoTienda: ".orbes",
+    comandoComprar: ".orbe",
+    comandoDar: ".darorbe",
     items: [
-      { nombre: "Orbe Chico",     emoji: "🟢", precio: 1000,  min: 1,  max: 2 },
-      { nombre: "Orbe Brillante", emoji: "🔵", precio: 4000,  min: 3,  max: 5 },
-      { nombre: "Orbe Arcoíris",  emoji: "🌈", precio: 12000, min: 6,  max: 10 },
-      { nombre: "Mega Orbe",      emoji: "💎", precio: 35000, min: 12, max: 18 }
+      { nombre: "Orbe Chico", emoji: "🟢", precio: 1000, niveles: 1 },
+      { nombre: "Orbe Brillante", emoji: "🔵", precio: 4000, niveles: 4 },
+      { nombre: "Orbe Arcoíris", emoji: "🌈", precio: 12000, niveles: 8 },
+      { nombre: "Mega Orbe", emoji: "💎", precio: 35000, niveles: 15 }
     ]
   }
 };
 
-export function alimentar({ categoria, sender, nItem, charId }) {
-  const tienda = TIENDAS[categoria];
-  const item = tienda.items[nItem - 1];
+export const claveComida = (categoria, n) => `${categoria}:comida:${n}`;
+
+export const comidaDe = (sender, categoria, n) => cantidadItem(sender, claveComida(categoria, n));
+
+export function comprarComida({ categoria, sender, nItem, cantidad = 1 }) {
+  const item = TIENDAS[categoria].items[nItem - 1];
   if (!item) return { error: "item" };
+  const total = item.precio * cantidad;
+  if (getAccount(sender).wallet < total) return { error: "saldo", item, total };
+
+  addToWallet(sender, -total);
+  sumarItem(sender, claveComida(categoria, nItem), cantidad);
+  return { ok: true, item, cantidad, total, tiene: comidaDe(sender, categoria, nItem) };
+}
+
+export function darComida({ categoria, sender, nItem, charId, cantidad = 1 }) {
+  const item = TIENDAS[categoria].items[nItem - 1];
+  if (!item) return { error: "item" };
+
   const p = mejorDe(sender, categoria, charId);
   if (!p) return { error: charId ? "ajeno" : "sinpersonajes" };
+
   const max = NIVEL_MAX[categoria];
   if (p.nivel >= max) return { error: "maximo", p };
-  if (getAccount(sender).wallet < item.precio) return { error: "saldo", item, p };
 
-  addToWallet(sender, -item.precio);
-  const ganado = Math.min(entre(item.min, item.max), max - p.nivel);
+  const tiene = comidaDe(sender, categoria, nItem);
+  if (tiene < 1) return { error: "sincomida", item, p };
+
+  const necesarias = Math.ceil((max - p.nivel) / item.niveles);
+  const unidades = Math.min(cantidad, tiene, necesarias);
+  const ganado = Math.min(unidades * item.niveles, max - p.nivel);
   const despues = p.nivel + ganado;
+
+  sumarItem(sender, claveComida(categoria, nItem), -unidades);
   setNivel(sender, p.id, despues);
-  return { ok: true, item, p, antes: p.nivel, despues, ganado, stats: statsEfectivas(p, despues) };
+  return {
+    ok: true, item, p, unidades, ganado, antes: p.nivel, despues,
+    restantes: tiene - unidades, stats: statsEfectivas(p, despues)
+  };
 }
 
 export const PRECIO_CUBITO = 2000;

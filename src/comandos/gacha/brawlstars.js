@@ -7,7 +7,7 @@ const COOLDOWN_MS = 10 * 60 * 1000;
 
 export default {
   names: [".brawlstars", ".brawl"],
-  desc: "Genera un Brawler al azar para reclamar con .claim (cada 10 minutos)",
+  desc: "Genera un Brawler al azar para reclamar con .drop (cada 10 minutos)",
   category: "Gacha",
   usage: ".brawlstars",
   handler: async ({ from, sender, cleanText, reply }) => {
@@ -36,7 +36,6 @@ export default {
       obtener: async () => personajeAleatorio("brawler"),
       reply, sender, from,
       cooldownMs: COOLDOWN_MS,
-      titulo: "BRAWLER",
       textoVacio: "❌ No hay brawlers cargados todavía."
     });
   }

@@ -5,7 +5,7 @@ const COOLDOWN_MS = 10 * 60 * 1000;
 
 export default {
   names: [".pokemon"],
-  desc: "Genera un Pokémon al azar para reclamar con .claim (cada 10 minutos)",
+  desc: "Genera un Pokémon al azar para reclamar con .atrapar (cada 10 minutos)",
   category: "Gacha",
   handler: async ({ from, sender, reply }) => {
     await gachaListo;
@@ -14,7 +14,6 @@ export default {
       obtener: pokemonAleatorio,
       reply, sender, from,
       cooldownMs: COOLDOWN_MS,
-      titulo: "POKÉMON SALVAJE",
       textoVacio: "❌ No pude consultar PokeAPI ahora mismo, prueba de nuevo en un momento."
     });
   }

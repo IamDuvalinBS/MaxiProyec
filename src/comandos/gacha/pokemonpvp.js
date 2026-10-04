@@ -5,9 +5,9 @@ const pvp = crearHandlerPvp({ categoria: "pokemon", comando: "pokemonpvp", nombr
 
 export default {
   names: [".pokemonpvp"],
-  desc: "Pelea tu mejor Pokémon contra el de otro usuario apostando dinero",
+  desc: "Desafía a otro usuario con tu Pokémon: .pokemonpvp <@usuario> <apuesta> <ID> (el combate se juega por rondas)",
   category: "Gacha",
-  usage: ".pokemonpvp @usuario <apuesta> [#id]",
+  usage: ".pokemonpvp <@usuario> <apuesta> <ID>",
   handler: async (ctx) => {
     await gachaListo;
     return pvp(ctx);

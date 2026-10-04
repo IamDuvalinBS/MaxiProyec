@@ -2,6 +2,6 @@ import { crearComandoTienda } from "../../../motores/gacha-tienda.js";
 
 export default crearComandoTienda({
   categoria: "pokemon",
-  names: [".pokecomida", ".pokefood"],
-  desc: "Tienda de comida: compra una comida por su número para subir de nivel a tu Pokémon"
+  names: [".pokecomida"],
+  desc: "Muestra la tienda de comida Pokémon con sus precios y los niveles que da cada artículo"
 });

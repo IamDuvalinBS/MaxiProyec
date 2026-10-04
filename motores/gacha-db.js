@@ -290,3 +290,10 @@ export function yandereCrearPersonaje(datos, post) {
     return creado;
   });
 }
+
+export function topColeccionistas(categoria, limite = 10) {
+  return st(
+    `SELECT o.usuario AS usuario, COUNT(*) AS n FROM propiedad o JOIN personajes p ON p.id = o.char_id
+     WHERE p.categoria = ? GROUP BY o.usuario ORDER BY n DESC, MIN(o.obtenido) ASC LIMIT ?`
+  ).all(categoria, limite).map((r) => ({ usuario: r.usuario, cantidad: r.n }));
+}

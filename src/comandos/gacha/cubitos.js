@@ -1,49 +1,33 @@
-import { gachaListo, tarjeta, monto } from "../../../motores/gacha-core.js";
+import { gachaListo, monto } from "../../../motores/gacha-core.js";
 import { getAccount } from "../../../motores/db.js";
-import { PRECIO_CUBITO, comprarCubitos, cubitosDe, cubitosParaSubir, NIVEL_MAX } from "../../../motores/gacha-niveles.js";
+import { encabezado } from "../../../src/economia/estilo.js";
+import { PRECIO_CUBITO, cubitosDe, cubitosParaSubir, NIVEL_MAX } from "../../../motores/gacha-niveles.js";
 
 export default {
   names: [".cubitos", ".cubitosdefuerza"],
-  desc: "Cubitos de fuerza para subir de nivel a tus Brawlers (nivel fijo, máximo 30)",
+  desc: "Muestra la tienda de cubitos de fuerza para subir de nivel a tus Brawlers",
   category: "Gacha",
-  usage: ".cubitos [comprar] <cantidad>",
-  handler: async ({ sender, cleanText, reply }) => {
+  usage: ".cubitos",
+  handler: async ({ sender, reply }) => {
     await gachaListo;
-    const partes = cleanText.split(/\s+/).slice(1);
-    const cantidad = parseInt(partes.find((x) => /^\d+$/.test(x)) || "", 10);
-
-    if (!cantidad) {
-      return reply({
-        text: tarjeta({
-          emoji: "⚡", titulo: "CUBITOS DE FUERZA",
-          lineas: [
-            `🟪 *Precio* ›› ${monto(PRECIO_CUBITO)} por cubito`,
-            `🎒 *Tienes* ›› ${cubitosDe(sender)} cubitos`,
-            `💰 *Dinero en mano* ›› ${monto(getAccount(sender).wallet)}`,
-            "",
-            "📈 *Cubitos por nivel (fijo)*",
-            `• Nv. 1 → 10 ›› ${cubitosParaSubir(1)} por nivel`,
-            `• Nv. 10 → 20 ›› ${cubitosParaSubir(10)} por nivel`,
-            `• Nv. 20 → ${NIVEL_MAX.brawler} ›› ${cubitosParaSubir(20)} por nivel`,
-            "",
-            "⚙️ *Comprar* ›› .cubitos comprar <cantidad>",
-            "🚀 *Subir de nivel* ›› .subirbrawler [#id] [cantidad|max]"
-          ]
-        })
-      });
-    }
-
-    const r = comprarCubitos(sender, cantidad);
-    if (r.error) return reply({ text: `❌ Necesitas ${monto(r.total)} en mano y no te alcanza.` });
-    return reply({
-      text: tarjeta({
-        emoji: "⚡", titulo: "COMPRA REALIZADA",
-        lineas: [
-          `🟪 *Compraste* ›› ${cantidad} cubitos por ${monto(r.total)}`,
-          `🎒 *Ahora tienes* ›› ${r.tiene} cubitos`,
-          `💰 *Te quedan* ›› ${monto(getAccount(sender).wallet)}`
-        ]
-      })
-    });
+    const texto = [
+      encabezado("⚡", "SHOP - CUBITOS DE FUERZA"),
+      "",
+      `🟪 *Cubito de fuerza* ›› *${monto(PRECIO_CUBITO)}*`,
+      "> Se gastan para subir de nivel a tus brawlers. El costo depende del nivel.",
+      "",
+      "📈 *Cubitos necesarios por nivel*",
+      `> · Del nivel 1 al 10: ${cubitosParaSubir(1)} por nivel.`,
+      `> · Del nivel 10 al 20: ${cubitosParaSubir(10)} por nivel.`,
+      `> · Del nivel 20 al ${NIVEL_MAX.brawler}: ${cubitosParaSubir(20)} por nivel.`,
+      "",
+      `⛁ *DINERO*:: ${monto(getAccount(sender).wallet)}`,
+      `🎒 *Tus cubitos*:: ${cubitosDe(sender)}`,
+      `✿ *Nivel Max.*:: ${NIVEL_MAX.brawler} Niveles`,
+      "",
+      "> Para comprar usa *.comprarcubitos <cantidad>*.",
+      "> Para usarlos en un brawler usa *.subirbrawler [ID] [cantidad|max]*."
+    ].join("\n");
+    return reply({ text: texto });
   }
 };
