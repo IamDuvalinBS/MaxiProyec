@@ -14,7 +14,7 @@ const RELATOS = [
 
 export default {
   names: [".cofre", ".chest"],
-  desc: "Abrir un cofre misterioso (cada 4 horas)",
+  desc: "Abre un cofre misterioso (cada 24 horas)",
   category: "Economía",
   handler: async ({ sender, reply }) => {
     const espera = checkCooldown(sender, "cofre", ESPERA_MS);
@@ -35,7 +35,7 @@ export default {
         titulo: conBonus ? "COFRE CON BONIFICACIÓN!" : "COFRE ABIERTO",
         relato: elegir(RELATOS),
         lineas,
-        tip: "Usa *.cofre* de nuevo en 4 horas."
+        tip: "Usa *.cofre* de nuevo en 24 horas."
       })
     });
   }
