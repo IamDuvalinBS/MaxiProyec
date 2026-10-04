@@ -1,10 +1,8 @@
-import { preguntas} from "../../src/economia/preguntas.js";
 import { addToWallet } from "../../motores/db.js";
 import { addXp } from "../../motores/profile.js";
 import { tarjeta, monto, avisoNivel } from "./formato.js";
 
 const pendientes = new Map();
-const preguntas = new questions();
 const LETRAS = ["A", "B", "C", "D"];
 
 export function setPendingTrivia(clave, datos) {
