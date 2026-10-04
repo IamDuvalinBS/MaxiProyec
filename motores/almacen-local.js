@@ -1,25 +1,38 @@
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import { getAllAccounts } from "./db.js";
+import { getAccount, getAllAccounts, saveAccount } from "./db.js";
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const DIRECTORIO = path.join(RAIZ, "data");
 const ARCHIVO = path.join(DIRECTORIO, "economia-local.json");
 const RETARDO_GUARDADO_MS = 2000;
 
-let datos = {};
+let local = {};
 let temporizador = null;
 
-try {
-  if (fs.existsSync(ARCHIVO)) datos = JSON.parse(fs.readFileSync(ARCHIVO, "utf8"));
-} catch (e) {
-  console.log(`❌ No se pudo leer el almacén local: ${e.message}`);
-  datos = {};
+function normalizarEntrada(entrada) {
+  if (!entrada || typeof entrada !== "object") return { avisos: {} };
+  if (entrada.rachas || entrada.negocios || "afk" in entrada) {
+    const avisos = entrada.avisos || {};
+    for (const [clave, valor] of Object.entries(entrada.rachas || {})) {
+      if (valor && typeof valor === "object" && valor.chat) {
+        avisos[clave] = { chat: valor.chat, avisado: valor.avisado || 0 };
+      }
+    }
+    return { avisos, legado: { rachas: entrada.rachas || {}, negocios: entrada.negocios || {}, afk: entrada.afk || null } };
+  }
+  return { avisos: entrada.avisos || {}, legado: entrada.legado };
 }
 
-function vacio(entrada) {
-  return !Object.keys(entrada.rachas).length && !Object.keys(entrada.negocios).length && !entrada.afk;
+try {
+  if (fs.existsSync(ARCHIVO)) {
+    const crudo = JSON.parse(fs.readFileSync(ARCHIVO, "utf8"));
+    for (const [sender, entrada] of Object.entries(crudo)) local[sender] = normalizarEntrada(entrada);
+  }
+} catch (e) {
+  console.log(`❌ No se pudo leer el archivo auxiliar: ${e.message}`);
+  local = {};
 }
 
 function escribirAhora() {
@@ -30,14 +43,15 @@ function escribirAhora() {
   try {
     fs.mkdirSync(DIRECTORIO, { recursive: true });
     const contenido = {};
-    for (const [sender, entrada] of Object.entries(datos)) {
-      if (!vacio(entrada)) contenido[sender] = entrada;
+    for (const [sender, entrada] of Object.entries(local)) {
+      const conAvisos = Object.keys(entrada.avisos || {}).length > 0;
+      if (conAvisos || entrada.legado) contenido[sender] = entrada;
     }
     const temporal = `${ARCHIVO}.parcial`;
     fs.writeFileSync(temporal, JSON.stringify(contenido));
     fs.renameSync(temporal, ARCHIVO);
   } catch (e) {
-    console.log(`❌ No se pudo guardar el almacén local: ${e.message}`);
+    console.log(`❌ No se pudo guardar el archivo auxiliar: ${e.message}`);
   }
 }
 
@@ -45,31 +59,73 @@ process.on("exit", () => {
   if (temporizador) escribirAhora();
 });
 
-export function existenDatos(sender) {
-  return Boolean(datos[sender]);
-}
-
-export function datosDe(sender) {
-  if (!datos[sender]) {
-    const previa = getAllAccounts().get(sender) || {};
-    datos[sender] = {
-      rachas: previa.rachas && Object.keys(previa.rachas).length ? previa.rachas : {},
-      negocios: previa.negocios && Object.keys(previa.negocios).length ? previa.negocios : {},
-      afk: previa.afk || null
-    };
-    if (previa.rachas || previa.negocios || previa.afk) {
-      previa.legadoMigrado = true;
-      if (!vacio(datos[sender])) guardarDatos();
-    }
-  }
-  return datos[sender];
-}
-
-export function guardarDatos() {
+export function guardarAvisos() {
   if (temporizador) return;
   temporizador = setTimeout(escribirAhora, RETARDO_GUARDADO_MS);
 }
 
-export function listarDatos() {
-  return Object.entries(datos);
+export function cantidadDeRacha(cuenta, clave) {
+  const valor = cuenta && cuenta.rachas ? cuenta.rachas[clave] : 0;
+  if (valor && typeof valor === "object") return Number(valor.cantidad) || 0;
+  return Number(valor) || 0;
+}
+
+export function migrarDeDisco(sender) {
+  const entrada = local[sender];
+  if (!entrada || !entrada.legado) return;
+
+  const cuenta = getAccount(sender);
+  const { rachas, negocios, afk } = entrada.legado;
+
+  for (const [clave, valor] of Object.entries(rachas || {})) {
+    const cantidad = valor && typeof valor === "object" ? Number(valor.cantidad) || 0 : Number(valor) || 0;
+    if (cantidad && !cantidadDeRacha(cuenta, clave)) cuenta.rachas[clave] = cantidad;
+  }
+  for (const [clave, negocio] of Object.entries(negocios || {})) {
+    if (!cuenta.negocios[clave]) {
+      cuenta.negocios[clave] = { inicio: negocio.inicio, vence: negocio.vence, acumulado: negocio.acumulado || 0 };
+    }
+  }
+  if (afk && !cuenta.afk) cuenta.afk = afk;
+
+  delete entrada.legado;
+  saveAccount(sender);
+  guardarAvisos();
+}
+
+export function migrarTodoDeDisco() {
+  for (const sender of Object.keys(local)) migrarDeDisco(sender);
+}
+
+export function datosDe(sender) {
+  migrarDeDisco(sender);
+  const cuenta = getAccount(sender);
+  if (!cuenta.rachas) cuenta.rachas = {};
+  if (!cuenta.negocios) cuenta.negocios = {};
+  if (cuenta.afk === undefined) cuenta.afk = null;
+  for (const [clave, valor] of Object.entries(cuenta.rachas)) {
+    if (valor && typeof valor === "object") {
+      if (valor.chat) registrarAviso(sender, clave, valor.chat, valor.avisado || 0);
+      cuenta.rachas[clave] = Number(valor.cantidad) || 0;
+    }
+  }
+  return cuenta;
+}
+
+export function guardarDatos(sender) {
+  saveAccount(sender);
+}
+
+export function registrarAviso(sender, clave, chat, avisado = 0) {
+  if (!local[sender]) local[sender] = { avisos: {} };
+  local[sender].avisos[clave] = { chat, avisado };
+  guardarAvisos();
+}
+
+export function avisoDe(sender, clave) {
+  return local[sender] && local[sender].avisos ? local[sender].avisos[clave] || null : null;
+}
+
+export function cuentasConDatos() {
+  return getAllAccounts().entries();
 }

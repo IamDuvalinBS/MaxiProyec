@@ -1,4 +1,5 @@
 import { crearSesion } from "./utilidades-parches.mjs";
+import { ARMAR_OPERACION } from "./texto-guardado.mjs";
 
 const sesion = crearSesion();
 
@@ -19,34 +20,11 @@ const NUEVA_CARGA = [
 
 const NUEVO_GUARDADO = [
   "const cuentasPendientes = new Set();",
-  "const cuentasDepuradas = new Set();",
   "const RETARDO_GUARDADO_MS = 2000;",
   "const VIGENCIA_MAXIMA_ESPERA_MS = 8 * 24 * 60 * 60 * 1000;",
   "let temporizadorGuardado = null;",
   "",
-  "function armarOperacion(sender) {",
-  "  const acc = accounts.get(sender);",
-  "  const ahora = Date.now();",
-  "  for (const clave of Object.keys(acc.cooldowns)) {",
-  "    if (ahora - acc.cooldowns[clave] > VIGENCIA_MAXIMA_ESPERA_MS) delete acc.cooldowns[clave];",
-  "  }",
-  "  const asignar = { wallet: acc.wallet, bank: acc.bank };",
-  "  const quitar = {};",
-  "  if (Object.keys(acc.cooldowns).length) asignar.cooldowns = acc.cooldowns;",
-  '  else quitar.cooldowns = "";',
-  "  if (acc.profile !== undefined && acc.profile !== null) asignar.profile = acc.profile;",
-  '  else quitar.profile = "";',
-  "  if (acc.legadoMigrado && !cuentasDepuradas.has(sender)) {",
-  '    quitar.rachas = "";',
-  '    quitar.negocios = "";',
-  '    quitar.afk = "";',
-  "    cuentasDepuradas.add(sender);",
-  "  }",
-  "  const actualizacion = { $set: asignar };",
-  "  if (Object.keys(quitar).length) actualizacion.$unset = quitar;",
-  "  return { updateOne: { filter: { _id: sender }, update: actualizacion, upsert: true } };",
-  "}",
-  "",
+  ARMAR_OPERACION,
   "export async function guardarCuentasPendientes() {",
   "  if (temporizadorGuardado) {",
   "    clearTimeout(temporizadorGuardado);",

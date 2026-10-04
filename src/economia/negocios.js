@@ -1,4 +1,4 @@
-import { getAccount, saveAccount, addToWallet } from "../../motores/db.js";
+import { getAccount, addToWallet } from "../../motores/db.js";
 import { datosDe, guardarDatos } from "../../motores/almacen-local.js";
 
 export const HORAS_CICLO = 12;
@@ -51,9 +51,8 @@ export function comprarNegocio(sender, def) {
   if (cuenta.wallet < def.precio) return { exito: false, motivo: "fondos", faltante: def.precio - cuenta.wallet };
   const ahora = Date.now();
   cuenta.wallet -= def.precio;
-  negocios[def.clave] = { compradoEn: ahora, inicio: ahora, vence: ahora + SEMANA_MS, acumulado: 0 };
-  saveAccount(sender);
-  guardarDatos();
+  negocios[def.clave] = { inicio: ahora, vence: ahora + SEMANA_MS, acumulado: 0 };
+  guardarDatos(sender);
   return { exito: true };
 }
 
@@ -77,7 +76,7 @@ export function reclamarNegocios(sender) {
   }
 
   if (total > 0) addToWallet(sender, total);
-  guardarDatos();
+  guardarDatos(sender);
   return { total, detalle, vencidos };
 }
 
@@ -111,7 +110,6 @@ export function pagarMantenimiento(sender) {
     }
   }
   cuenta.wallet -= total;
-  saveAccount(sender);
-  guardarDatos();
+  guardarDatos(sender);
   return { exito: true, total, pagados: lista.map(({ def }) => def) };
 }

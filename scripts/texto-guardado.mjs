@@ -1,0 +1,21 @@
+export const ARMAR_OPERACION = [
+  "function armarOperacion(sender) {",
+  "  const acc = accounts.get(sender);",
+  "  const ahora = Date.now();",
+  "  for (const clave of Object.keys(acc.cooldowns)) {",
+  "    if (ahora - acc.cooldowns[clave] > VIGENCIA_MAXIMA_ESPERA_MS) delete acc.cooldowns[clave];",
+  "  }",
+  "  const asignar = { wallet: acc.wallet, bank: acc.bank };",
+  "  const quitar = {};",
+  "  const opcionales = { cooldowns: acc.cooldowns, rachas: acc.rachas, negocios: acc.negocios, afk: acc.afk, profile: acc.profile };",
+  "  for (const [clave, valor] of Object.entries(opcionales)) {",
+  '    const vacio = valor === undefined || valor === null || (typeof valor === "object" && Object.keys(valor).length === 0);',
+  '    if (vacio) quitar[clave] = "";',
+  "    else asignar[clave] = valor;",
+  "  }",
+  "  const actualizacion = { $set: asignar };",
+  "  if (Object.keys(quitar).length) actualizacion.$unset = quitar;",
+  "  return { updateOne: { filter: { _id: sender }, update: actualizacion, upsert: true } };",
+  "}",
+  ""
+].join("\n");

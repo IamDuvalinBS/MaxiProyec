@@ -1,5 +1,5 @@
 import { getAllAccounts, addToWallet } from "../../motores/db.js";
-import { datosDe, existenDatos, guardarDatos } from "../../motores/almacen-local.js";
+import { datosDe, guardarDatos, migrarDeDisco } from "../../motores/almacen-local.js";
 import { monto } from "./formato.js";
 import { encabezado, mencion, tiempoLargo } from "./estilo.js";
 
@@ -7,11 +7,9 @@ export const MONEDAS_POR_MINUTO = 2;
 const MOTIVO_MAX = 60;
 
 export function tieneAfk(sender) {
-  if (!existenDatos(sender)) {
-    const previa = getAllAccounts().get(sender);
-    if (!previa || !previa.afk) return false;
-  }
-  return Boolean(datosDe(sender).afk);
+  migrarDeDisco(sender);
+  const cuenta = getAllAccounts().get(sender);
+  return Boolean(cuenta && cuenta.afk);
 }
 
 export function estaAfk(sender) {
@@ -19,18 +17,19 @@ export function estaAfk(sender) {
 }
 
 export function activarAfk(sender, motivo) {
-  datosDe(sender).afk = { desde: Date.now(), motivo: (motivo || "").slice(0, MOTIVO_MAX) };
-  guardarDatos();
+  const cuenta = datosDe(sender);
+  cuenta.afk = { desde: Date.now(), motivo: (motivo || "").slice(0, MOTIVO_MAX) };
+  guardarDatos(sender);
 }
 
 export function desactivarAfk(sender) {
-  const datos = datosDe(sender);
-  const afk = datos.afk;
+  const cuenta = datosDe(sender);
+  const afk = cuenta.afk;
   const duracionMs = afk ? Date.now() - afk.desde : 0;
   const minutos = Math.floor(duracionMs / 60000);
   const ganado = minutos * MONEDAS_POR_MINUTO;
-  datos.afk = null;
-  guardarDatos();
+  cuenta.afk = null;
+  guardarDatos(sender);
   if (ganado > 0) addToWallet(sender, ganado);
   return { minutos, ganado, duracionMs };
 }

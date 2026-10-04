@@ -1,4 +1,4 @@
-import { listarDatos, guardarDatos } from "../../motores/almacen-local.js";
+import { cuentasConDatos, avisoDe, guardarAvisos, migrarTodoDeDisco, cantidadDeRacha } from "../../motores/almacen-local.js";
 import { formatTime } from "../../motores/ui.js";
 import { encabezado, mencion } from "./estilo.js";
 import { textoDias } from "./rachas.js";
@@ -16,27 +16,30 @@ function pausa(ms) {
 
 async function revisarRachas() {
   if (!socketActual) return;
+  migrarTodoDeDisco();
   const ahora = Date.now();
 
-  for (const [sender, entrada] of listarDatos()) {
-    const racha = entrada.rachas && entrada.rachas.daily;
-    if (!racha || !racha.cantidad || !racha.chat) continue;
-    if (racha.avisado === racha.ultimo) continue;
+  for (const [sender, cuenta] of cuentasConDatos()) {
+    const cantidad = cantidadDeRacha(cuenta, "daily");
+    const aviso = avisoDe(sender, "daily");
+    const ultimo = cuenta.cooldowns && cuenta.cooldowns.daily;
+    if (!cantidad || !aviso || !aviso.chat || !ultimo) continue;
+    if (aviso.avisado === ultimo) continue;
 
-    const restante = racha.ultimo + VENTANA_RACHA_MS - ahora;
+    const restante = ultimo + VENTANA_RACHA_MS - ahora;
     if (restante <= 0 || restante > AVISO_ANTES_MS) continue;
 
     const texto = [
       encabezado("⏰", "RACHA EN RIESGO!"),
       "",
-      `> ${mencion(sender)} tu racha de *${textoDias(racha.cantidad)}* en *.daily* se perderá en *${formatTime(restante)}*.`,
+      `> ${mencion(sender)} tu racha de *${textoDias(cantidad)}* en *.daily* se perderá en *${formatTime(restante)}*.`,
       "> Usa *.daily* antes de que finalice el tiempo para conservarla."
     ].join("\n");
 
     try {
-      await socketActual.sendMessage(racha.chat, { text: texto, mentions: [sender] });
-      racha.avisado = racha.ultimo;
-      guardarDatos();
+      await socketActual.sendMessage(aviso.chat, { text: texto, mentions: [sender] });
+      aviso.avisado = ultimo;
+      guardarAvisos();
     } catch (e) {
       console.log(`❌ No se pudo enviar el aviso de racha a ${sender}: ${e.message}`);
     }

@@ -101,15 +101,11 @@ function armarOperacion(sender) {
   }
   const asignar = { wallet: acc.wallet, bank: acc.bank };
   const quitar = {};
-  if (Object.keys(acc.cooldowns).length) asignar.cooldowns = acc.cooldowns;
-  else quitar.cooldowns = "";
-  if (acc.profile !== undefined && acc.profile !== null) asignar.profile = acc.profile;
-  else quitar.profile = "";
-  if (acc.legadoMigrado && !cuentasDepuradas.has(sender)) {
-    quitar.rachas = "";
-    quitar.negocios = "";
-    quitar.afk = "";
-    cuentasDepuradas.add(sender);
+  const opcionales = { cooldowns: acc.cooldowns, rachas: acc.rachas, negocios: acc.negocios, afk: acc.afk, profile: acc.profile };
+  for (const [clave, valor] of Object.entries(opcionales)) {
+    const vacio = valor === undefined || valor === null || (typeof valor === "object" && Object.keys(valor).length === 0);
+    if (vacio) quitar[clave] = "";
+    else asignar[clave] = valor;
   }
   const actualizacion = { $set: asignar };
   if (Object.keys(quitar).length) actualizacion.$unset = quitar;

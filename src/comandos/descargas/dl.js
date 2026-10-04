@@ -1,4 +1,3 @@
-// Hecho por Fer2809fl (Fernando)
 import axios from "axios";
 import { descargarBuffer } from "../../descargas/core.js";
 import { reenviarCacheado, guardarMedioEnviado } from "../../../motores/cache-medios.js";
