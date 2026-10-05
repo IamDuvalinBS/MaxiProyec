@@ -17,7 +17,8 @@ canvas{width:100%;display:block;background:#0d0d14;border:2px solid #2a2a3d;bord
 .b{display:flex;gap:8px;padding:6px 14px 4px}.b button{flex:1;height:52px;border-radius:14px;border:2px solid #34344d;background:#1d1d2b;color:#d8dbf0;font:bold 13px Roboto,Arial,sans-serif;letter-spacing:1px}
 .b button:active{background:#2b2b40;transform:scale(.96)}
 .foot{display:flex;align-items:center;justify-content:center;gap:6px;padding:10px 0 14px;font-size:11px;color:#7d8197;letter-spacing:.3px}
-</style></head><body><div class="card">
+.card{position:relative}.sd{position:absolute;top:10px;right:12px;width:36px;height:36px;margin:0;border-radius:11px;border:2px solid #34344d;background:#1d1d2b;font-size:16px;line-height:1;padding:0;z-index:6;color:#fff}
+</style></head><body><div class="card"><button class="sd" id="sd">🔊</button>
 <div class="top"><small>MAXIPROYEC</small><div class="row"><h1>Dino<br>Runner</h1><div class="sc"><b id="s">00000</b><span>MEJOR</span><br><span id="r">00000</span></div></div></div>
 <div class="g"><canvas id="c" width="340" height="120"></canvas><div class="v" id="v">Toca para empezar</div></div>
 <div class="b"><button id="j">▲ SALTAR</button><button id="d">▼ AGACHAR</button></div>
@@ -25,6 +26,14 @@ canvas{width:100%;display:block;background:#0d0d14;border:2px solid #2a2a3d;bord
 </div>
 <script>
 (function(){"use strict";
+var snd=true,AC=null,SL={};
+try{snd=localStorage.getItem("mp_snd")!=="0"}catch(e){}
+function au(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)()}catch(e){snd=false;return null}}if(AC.state==="suspended")AC.resume();return AC}
+function fx(k,g,f,d,t,v,f2){if(!snd||document.hidden)return;var n=Date.now();if(n-(SL[k]||0)<g)return;SL[k]=n;var c=au();if(!c)return;var o=c.createOscillator(),a=c.createGain(),s=c.currentTime;o.type=t||"square";o.frequency.setValueAtTime(f,s);if(f2)o.frequency.exponentialRampToValueAtTime(f2,s+d);a.gain.setValueAtTime(v||.05,s);a.gain.exponentialRampToValueAtTime(.0001,s+d);o.connect(a);a.connect(c.destination);o.start(s);o.stop(s+d+.03)}
+(function(){var b=document.getElementById("sd");b.textContent=snd?"🔊":"🔇";b.addEventListener("click",function(){snd=!snd;try{localStorage.setItem("mp_snd",snd?"1":"0")}catch(e){}b.textContent=snd?"🔊":"🔇";if(snd){au();fx("t",0,660,.08,"sine",.06,990)}})})();
+var lm=0;
+
+
 var KEY="mp_dino_best",mem=0,$=function(i){return document.getElementById(i)};
 function ld(){try{return parseInt(localStorage.getItem(KEY))||0}catch(e){return mem}}
 function sv(v){mem=v;try{localStorage.setItem(KEY,String(v))}catch(e){}}
@@ -40,11 +49,11 @@ for(var i=0;i<5;i++)cl.push([Math.random()*W,10+Math.random()*40,16+Math.random(
 for(var j=0;j<14;j++){SX.push((j*47+7)%W);SY.push((j*29)%70+6)}
 var sEl=$("s"),rEl=$("r"),vEl=$("v");
 function f5(n){return("00000"+Math.floor(n)).slice(-5)}
-function hud(){var a=f5(sc),b=(sp/4).toFixed(1);if(a!==ls){ls=a;sEl.textContent=a}if(b!==lv){lv=b;vEl.textContent="Velocidad "+b+"x"}}
+function hud(){var a=f5(sc),b=(sp/4).toFixed(1),mm=(sc/100)|0;if(mm>lm){lm=mm;if(st===1)fx("m",0,880,.07,"square",.035)}if(a!==ls){ls=a;sEl.textContent=a}if(b!==lv){lv=b;vEl.textContent="Velocidad "+b+"x"}}
 rEl.textContent=f5(best);
-function reset(){py=0;vy=0;duck=false;obs=[];sp=4;sc=0;st=1;nx=100;fr=0;lv="";hud()}
-function jump(){if(st!==1){reset();return}if(py===0)vy=7.4}
-function over(){st=2;var s=Math.floor(sc);if(s>best){best=s;sv(best);rEl.textContent=f5(best)}hud();vEl.textContent="Game over · toca para reintentar";lv=""}
+function reset(){py=0;vy=0;duck=false;obs=[];sp=4;sc=0;st=1;nx=100;fr=0;lv="";lm=0;hud()}
+function jump(){if(st!==1){reset();return}if(py===0){vy=7.4;fx("j",60,380,.09,"square",.04,760)}}
+function over(){st=2;fx("o",0,320,.45,"sawtooth",.06,50);var s=Math.floor(sc);if(s>best){best=s;sv(best);rEl.textContent=f5(best)}hud();vEl.textContent="Game over · toca para reintentar";lv=""}
 function spawn(){
  if(sc>300&&Math.random()<.28)obs.push({x:W+10,w:24,h:10,y:16,i:BI,n:1});
  else{var i=Math.random()<.4?C3:C2,n=Math.random()<.3?2:1;obs.push({x:W+10,w:i.width*n,h:i.height,y:0,i:i,n:n})}
