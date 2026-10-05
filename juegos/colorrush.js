@@ -31,11 +31,12 @@ html,body{margin:0;padding:0;background:#16060d;color:#fff;font-family:Arial,san
 .modalText{font-size:12px;color:rgba(255,255,255,.7);margin:8px 0 16px;line-height:1.6}
 .modalBtn{width:100%;padding:12px;margin-top:7px;border-radius:11px;border:1px solid #ff4fa3;background:rgba(255,79,163,.1);color:#ff4fa3;font-weight:900;font-size:12px;cursor:pointer;font-family:inherit}
 .modalBtn:active{background:rgba(255,79,163,.2)}
+.panel{position:relative}.sd{position:absolute;top:10px;right:12px;width:36px;height:36px;margin:0;border-radius:11px;border:2px solid #ff4fa3;background:#2b0a22;font-size:16px;line-height:1;padding:0;z-index:6;color:#fff}
 </style>
 </head>
 <body>
 <div id="root">
-<div class="panel">
+<div class="panel"><button class="sd" id="sd">🔊</button>
 <div class="brand">MAXIPROYEC · REFLEX LAB</div>
 <div class="title">🎨 COLOR RUSH</div>
 <div class="hud">
@@ -62,6 +63,13 @@ html,body{margin:0;padding:0;background:#16060d;color:#fff;font-family:Arial,san
 <script>
 (function(){
 "use strict";
+var snd=true,AC=null,SL={};
+try{snd=localStorage.getItem("mp_snd")!=="0"}catch(e){}
+function au(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)()}catch(e){snd=false;return null}}if(AC.state==="suspended")AC.resume();return AC}
+function fx(k,g,f,d,t,v,f2){if(!snd||document.hidden)return;var n=Date.now();if(n-(SL[k]||0)<g)return;SL[k]=n;var c=au();if(!c)return;var o=c.createOscillator(),a=c.createGain(),s=c.currentTime;o.type=t||"square";o.frequency.setValueAtTime(f,s);if(f2)o.frequency.exponentialRampToValueAtTime(f2,s+d);a.gain.setValueAtTime(v||.05,s);a.gain.exponentialRampToValueAtTime(.0001,s+d);o.connect(a);a.connect(c.destination);o.start(s);o.stop(s+d+.03)}
+(function(){var b=document.getElementById("sd");b.textContent=snd?"🔊":"🔇";b.addEventListener("click",function(){snd=!snd;try{localStorage.setItem("mp_snd",snd?"1":"0")}catch(e){}b.textContent=snd?"🔊":"🔇";if(snd){au();fx("t",0,660,.08,"sine",.06,990)}})})();
+
+
 var names=[['ROJO','#ff3355'],['AZUL','#3388ff'],['VERDE','#28d17c'],['AMARILLO','#ffd633'],['MORADO','#a66cff'],['CIAN','#20e0d0']];
 var START_TIME=6,LEVEL_EVERY=5;
 function maxTime(){return Math.max(3.5,6.5-(level-1)*0.35);}
@@ -100,14 +108,14 @@ function round(){
 }
 function pick(v){
   if(!running)return;
-  if(v===answer){
+  if(v===answer){fx("c",30,720,.07,"sine",.06,1050);
     score+=10+streak*2+(level-1)*2;streak++;correct++;
     var newLevel=1+Math.floor(correct/LEVEL_EVERY);
-    if(newLevel>level){level=newLevel;mEl.textContent='🔥 ¡Nivel '+level+'! El tiempo corre más rápido';}
+    if(newLevel>level){fx("l",0,520,.22,"triangle",.06,1100);level=newLevel;mEl.textContent='🔥 ¡Nivel '+level+'! El tiempo corre más rápido';}
     else mEl.textContent='⚡ ¡Correcto!';
     time=Math.min(maxTime(),time+bonus());
   }else{
-    streak=0;time=Math.max(0,time-penalty());
+    fx("w",0,170,.2,"square",.05,90);streak=0;time=Math.max(0,time-penalty());
     mEl.textContent='❌ Fallaste (-'+penalty().toFixed(1)+'s)';
   }
   sEl.textContent=score;rEl.textContent=streak;lEl.textContent=level;
@@ -124,9 +132,10 @@ function tick(g){
   timer=setTimeout(function(){tick(g);},100);
 }
 function endGame(){
-  running=false;gen++;
+  fx("e",0,320,.4,"sawtooth",.06,60);running=false;gen++;
   if(timer){clearTimeout(timer);timer=null;}
   if(score>best){best=score;sv(best);bEl.textContent=best;}
+  
   renderTime();
   $('modalTitle').textContent='🏁 FIN';
   $('modalText').innerHTML='Puntos: '+score+'<br>Nivel alcanzado: '+level+'<br>Aciertos: '+correct+'<br>Mejor: '+best;
@@ -134,10 +143,11 @@ function endGame(){
 }
 function reset(){
   if(timer){clearTimeout(timer);timer=null;}
-  gen++;score=0;streak=0;correct=0;level=1;time=START_TIME;running=true;lastT=Date.now();
+  fx("s",0,520,.08,"sine",.05,780);gen++;score=0;streak=0;correct=0;level=1;time=START_TIME;running=true;lastT=Date.now();
   sEl.textContent='0';rEl.textContent='0';lEl.textContent='1';
   mEl.textContent='Cada 5 aciertos subes de nivel y el tiempo corre más rápido.';
   overlay.classList.remove('show');
+  
   renderTime();round();tick(gen);
 }
 grid.addEventListener('pointerdown',function(e){e.preventDefault();var t=e.target;if(t&&t._n)pick(t._n);});
