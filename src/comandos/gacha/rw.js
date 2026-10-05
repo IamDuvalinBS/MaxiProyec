@@ -1,7 +1,7 @@
 import { personajeAleatorio } from "../../../motores/gacha-db.js";
 import { hacerRoll, gachaListo } from "../../../motores/gacha-core.js";
 
-const COOLDOWN_MS = 10 * 60 * 1000;
+const COOLDOWN_MS = 20 * 60 * 1000;
 
 export default {
   names: [".rw", ".rollwaifu"],
