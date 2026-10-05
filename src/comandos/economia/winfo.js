@@ -8,8 +8,8 @@ const HORA_MS = 60 * 60 * 1000;
 const COMANDOS_BASE = [
   { nombre: "Daily", clave: "daily", ms: 24 * HORA_MS },
   { nombre: "Semanal", clave: "semanal", ms: 7 * 24 * HORA_MS },
-  { nombre: "Cofre", clave: "cofre", ms: 4 * HORA_MS },
-  { nombre: "Trivia", clave: "trivia", ms: 2 * 60 * 1000 }
+  { nombre: "Cofre", clave: "cofre", ms: 24 * HORA_MS },
+  { nombre: "Trivia", clave: "trivia", ms: 30 * 60 * 1000 }
 ];
 
 function nombreDe(trabajo) {
