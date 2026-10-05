@@ -1,4 +1,4 @@
-module.exports = {
+export default {
     name: "promote",
     execute: async (bot, msg, args) => {
         if (!msg.key.remoteJid.endsWith('@g.us')) return;
