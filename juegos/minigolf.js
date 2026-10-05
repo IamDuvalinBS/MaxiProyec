@@ -24,7 +24,8 @@ h1{margin:4px 0 8px;font-size:34px;line-height:1.05}
 .an{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}.an .bt{margin:0;height:54px;font-size:15px;padding:0}
 .hint{text-align:center;font-size:14px;color:#a6e8b6;margin:10px 0 2px;min-height:34px}
 .foot{display:flex;align-items:center;justify-content:center;gap:6px;padding:12px 0 0;font-size:11px;color:#7fae8c}
-</style></head><body><div class="m"><small>MAXIPROYEC · GREEN COURSE</small><h1>⛳ MINI GOLF</h1>
+.m{position:relative}.sd{position:absolute;top:10px;right:12px;width:36px;height:36px;margin:0;border-radius:11px;border:2px solid #55e676;background:#0d2c18;font-size:16px;line-height:1;padding:0;z-index:6;color:#fff}
+</style></head><body><div class="m"><button class="sd" id="sd">🔊</button><small>MAXIPROYEC · GREEN COURSE</small><h1>⛳ MINI GOLF</h1>
 <div id="mn"><div class="d">Elige cómo quieres jugar los 18 hoyos.</div>
 <button class="bt p" id="m1">🎯 ELEGIR HOYO</button><button class="bt" id="m2">🎲 HOYO ALEATORIO</button><button class="bt" id="m3">🏆 CIRCUITO COMPLETO</button><div class="hint" id="bs"></div></div>
 <div id="sl" style="display:none"><div class="d" style="font-weight:bold;letter-spacing:2px;font-size:16px">SELECCIONA UN HOYO</div><div class="g4" id="gh"></div><button class="bt" id="vb">↩ VOLVER</button></div>
@@ -41,6 +42,13 @@ h1{margin:4px 0 8px;font-size:34px;line-height:1.05}
 </div>
 <script>
 (function(){"use strict";
+var snd=true,AC=null,SL={};
+try{snd=localStorage.getItem("mp_snd")!=="0"}catch(e){}
+function au(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)()}catch(e){snd=false;return null}}if(AC.state==="suspended")AC.resume();return AC}
+function fx(k,g,f,d,t,v,f2){if(!snd||document.hidden)return;var n=Date.now();if(n-(SL[k]||0)<g)return;SL[k]=n;var c=au();if(!c)return;var o=c.createOscillator(),a=c.createGain(),s=c.currentTime;o.type=t||"square";o.frequency.setValueAtTime(f,s);if(f2)o.frequency.exponentialRampToValueAtTime(f2,s+d);a.gain.setValueAtTime(v||.05,s);a.gain.exponentialRampToValueAtTime(.0001,s+d);o.connect(a);a.connect(c.destination);o.start(s);o.stop(s+d+.03)}
+(function(){var b=document.getElementById("sd");b.textContent=snd?"🔊":"🔇";b.addEventListener("click",function(){snd=!snd;try{localStorage.setItem("mp_snd",snd?"1":"0")}catch(e){}b.textContent=snd?"🔊":"🔇";if(snd){au();fx("t",0,660,.08,"sine",.06,990)}})})();
+function bnc(){fx("b",70,170,.04,"square",.035,110)}
+
 var $=function(i){return document.getElementById(i)},W=300,H=400,K=1.5,R=6,L=14,T=14,RT=286,B=386,KEY="mp_minigolf_best";
 function ld(){try{return parseInt(localStorage.getItem(KEY))||0}catch(e){return 0}}
 function sv(v){try{localStorage.setItem(KEY,String(v))}catch(e){}}
@@ -109,25 +117,25 @@ function colRect(rx,ry,rw,rh,mx,my){var cx=Math.max(rx,Math.min(bx,rx+rw)),cy=Ma
  if(d2>=R*R)return;
  if(d2>1e-6){var d=Math.sqrt(d2);nx=dx/d;ny=dy/d;bx=cx+nx*R;by=cy+ny*R}
  else{var l=bx-rx,r2=rx+rw-bx,t=by-ry,b2=ry+rh-by,m=Math.min(l,r2,t,b2);if(m===l){nx=-1;ny=0;bx=rx-R}else if(m===r2){nx=1;ny=0;bx=rx+rw+R}else if(m===t){nx=0;ny=-1;by=ry-R}else{nx=0;ny=1;by=ry+rh+R}}
- var rel=(vx-mx)*nx+(vy-my)*ny;if(rel<0){vx-=1.85*rel*nx;vy-=1.85*rel*ny}}
+ var rel=(vx-mx)*nx+(vy-my)*ny;if(rel<0){vx-=1.85*rel*nx;vy-=1.85*rel*ny;bnc()}}
 function colMill(o){var c=Math.cos(o.a)*o.l/2,s=Math.sin(o.a)*o.l/2,ax=o.x-c,ay=o.y-s,ex=2*c,ey=2*s,t=Math.max(0,Math.min(1,((bx-ax)*ex+(by-ay)*ey)/(ex*ex+ey*ey))),qx=ax+ex*t,qy=ay+ey*t,dx=bx-qx,dy=by-qy,d=Math.sqrt(dx*dx+dy*dy),rr=R+4;
  if(d>=rr||d<1e-6)return;var nx=dx/d,ny=dy/d;bx=qx+nx*rr;by=qy+ny*rr;
- var mx=-o.s*(qy-o.y),my=o.s*(qx-o.x),rel=(vx-mx)*nx+(vy-my)*ny;if(rel<0){vx-=1.9*rel*nx;vy-=1.9*rel*ny}}
+ var mx=-o.s*(qy-o.y),my=o.s*(qx-o.x),rel=(vx-mx)*nx+(vy-my)*ny;if(rel<0){vx-=1.9*rel*nx;vy-=1.9*rel*ny;bnc()}}
 function colB(o){var dx=bx-o.x,dy=by-o.y,d=Math.sqrt(dx*dx+dy*dy),rr=R+o.r;if(d>=rr||d<1e-6)return;var nx=dx/d,ny=dy/d;bx=o.x+nx*rr;by=o.y+ny*rr;var rel=vx*nx+vy*ny;
- if(rel<0){vx-=2*rel*nx;vy-=2*rel*ny;var s=Math.sqrt(vx*vx+vy*vy);if(s<4.5){vx=nx*4.5;vy=ny*4.5}else{vx*=1.06;vy*=1.06}}}
+ if(rel<0){vx-=2*rel*nx;vy-=2*rel*ny;bnc();var s=Math.sqrt(vx*vx+vy*vy);if(s<4.5){vx=nx*4.5;vy=ny*4.5}else{vx*=1.06;vy*=1.06}}}
 function inside(o){return bx>o.x&&bx<o.x+o.w&&by>o.y&&by<o.y+o.h}
 function phys(k){var i,o,q,sp=Math.sqrt(vx*vx+vy*vy),n=Math.max(1,Math.min(10,Math.ceil(sp*k/2.2))),dt=k/n,fz=.976;
  for(i=0;i<ob.length;i++){o=ob[i];if(o.t==="s"&&inside(o))fz=.9;else if(o.t==="i"&&inside(o))fz=.995}
  for(q=0;q<n;q++){bx+=vx*dt;by+=vy*dt;
-  if(bx<L+R){bx=L+R;vx=Math.abs(vx)*.9}else if(bx>RT-R){bx=RT-R;vx=-Math.abs(vx)*.9}
-  if(by<T+R){by=T+R;vy=Math.abs(vy)*.9}else if(by>B-R){by=B-R;vy=-Math.abs(vy)*.9}
+  if(bx<L+R){bx=L+R;vx=Math.abs(vx)*.9;bnc()}else if(bx>RT-R){bx=RT-R;vx=-Math.abs(vx)*.9;bnc()}
+  if(by<T+R){by=T+R;vy=Math.abs(vy)*.9;bnc()}else if(by>B-R){by=B-R;vy=-Math.abs(vy)*.9;bnc()}
   for(i=0;i<ob.length;i++){o=ob[i];
    if(o.t==="w")colRect(o.x,o.y,o.w,o.h,0,0);
    else if(o.t==="v"){var vm=Math.cos(o.ph)*o.amp*o.sp;colRect(o.x,o.y,o.w,o.h,o.ax?0:vm,o.ax?vm:0)}
    else if(o.t==="m")colMill(o);else if(o.t==="b")colB(o);
-   else if(o.t==="a"&&inside(o)){strokes++;bx=px;by=py;vx=vy=0;st=1;aimHole();hud();hint("💦 ¡Al agua! +1 golpe",1800);if(strokes>=10)finish(true);return}}
+   else if(o.t==="a"&&inside(o)){fx("w",0,320,.3,"sawtooth",.05,90);strokes++;bx=px;by=py;vx=vy=0;st=1;aimHole();hud();hint("💦 ¡Al agua! +1 golpe",1800);if(strokes>=10)finish(true);return}}
   var ddx=hx-bx,ddy=hy-by,d=Math.sqrt(ddx*ddx+ddy*ddy);
-  if(d<9&&Math.sqrt(vx*vx+vy*vy)<9){st=3;sink=0;vx=vy=0;return}
+  if(d<9&&Math.sqrt(vx*vx+vy*vy)<9){st=3;sink=0;vx=vy=0;fx("g",0,520,.16,"sine",.07,380);fx("g2",0,780,.22,"sine",.05,1040);return}
   if(d<22){vx+=ddx*.012*dt;vy+=ddy*.012*dt}}
  var f=Math.pow(fz,k);vx*=f;vy*=f;
  if(Math.sqrt(vx*vx+vy*vy)<.12){vx=vy=0;px=bx;py=by;st=1;aimHole();hud();if(strokes>=10)finish(true)}}
@@ -138,14 +146,14 @@ function startS(i){mode="s";hi=i;total=0;loadHole(mk(HL[i]));scr_(2)}
 function startR(){mode="r";hi=0;total=0;loadHole(gen());scr_(2)}
 function startC(){mode="c";hi=0;total=0;loadHole(mk(HL[0]));scr_(2)}
 function fin(){if(!best||total<best){best=total;sv(best)}ov("🏆 CIRCUITO COMPLETO",total+" golpes · par "+CPAR+" · mejor "+best,["↻ OTRO CIRCUITO",startC],["☰ MENÚ",toMenu])}
-function finish(pick){st=4;total+=strokes;hud();var p=hd.p,d=strokes-p,t;
+function finish(pick){fx("f",0,pick?200:660,.3,"sine",.06,pick?120:990);st=4;total+=strokes;hud();var p=hd.p,d=strokes-p,t;
  if(pick)t="🙈 RECOGIDA";else if(strokes===1)t="🎯 ¡HOYO EN UNO!";else if(d<=-2)t="🦅 EAGLE";else if(d===-1)t="🐦 BIRDIE";else if(d===0)t="✅ PAR";else if(d===1)t="😬 BOGEY";else t="🥴 +"+d;
  var tx=strokes+" golpes · par "+p,b1,b2=["☰ MENÚ",toMenu];
  if(mode==="c")b1=hi<17?["SIGUIENTE HOYO ▶",function(){hi++;loadHole(mk(HL[hi]))}]:["VER RESULTADO 🏆",fin];
  else if(mode==="r")b1=["🎲 OTRO ALEATORIO",function(){loadHole(gen())}];
  else b1=["↻ REPETIR",function(){loadHole(mk(HL[hi]))}];
  ov(t,tx,b1,b2)}
-function hit(){if(st!==1)return;var v=3+10.5*pw;vx=Math.cos(ang)*v;vy=Math.sin(ang)*v;strokes++;px=bx;py=by;st=2;hud();dirty=true}
+function hit(){if(st!==1)return;fx("k",0,260,.09,"triangle",.07,120);var v=3+10.5*pw;vx=Math.cos(ang)*v;vy=Math.sin(ang)*v;strokes++;px=bx;py=by;st=2;hud();dirty=true}
 function aimAt(e){if(st!==1)return;var r=cv.getBoundingClientRect(),mx=(e.clientX-r.left)*W/r.width,my=(e.clientY-r.top)*H/r.height,dx=mx-bx,dy=my-by,d=Math.sqrt(dx*dx+dy*dy);if(d<4)return;ang=Math.atan2(dy,dx);pw=Math.max(.12,Math.min(1,d/150));setPw()}
 function paint(){x.drawImage(ST,0,0,W,H);var i,o,c,s;
  for(i=0;i<ob.length;i++){o=ob[i];
