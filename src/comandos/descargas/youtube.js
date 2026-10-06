@@ -9,6 +9,7 @@ import {
 import { descargarBuffer } from "../../descargas/core.js";
 import { registrarEspera } from "../../nucleo/espera.js";
 import { enviarConBotonesRapidos } from "../../../motores/botones-rapidos.js";
+import { delayAleatorio, simularEscritura } from "../../../motores/antiban.js";
 import { reenviarCacheado, guardarMedioEnviado } from "../../../motores/cache-medios.js";
 import { encabezado, mencion } from "../../economia/estilo.js";
 import {
@@ -23,7 +24,6 @@ import {
 } from "../../descargas/tarjetas.js";
 
 const DURACION_ESPERA_MS = 5 * 60 * 1000;
-const ZW = "\u200b";
 
 // Misma técnica que .kiss: lienzo 640x360, fondo difuso hecho con la propia imagen y la imagen completa centrada
 // (así cualquier formato, incluso Shorts verticales, cabe en la previa sin recortarse).
@@ -205,43 +205,43 @@ export default {
       miniatura = undefined;
     }
 
-    // 1) La miniatura como foto
-    if (miniatura) {
-      try {
-        await reply({ image: miniatura });
-      } catch (e) {
-        console.log(`[youtube] No se pudo enviar la miniatura como foto: ${e.message}`);
-      }
-    }
-
-    // 2) La tarjeta de información con la miniatura en la previa (como .kiss), sin mostrar el link
+    // Todo en UN solo mensaje: tarjeta de previa (con firma) + foto de la miniatura + info del video + botones.
+    // Se mantiene el bloque "Selección de formato" porque también se puede responder 1 (audio) o 2 (video).
     const previa = miniatura ? await crearMiniaturaPrevia(miniatura) : null;
-    const mensaje = { text: previa ? `${texto}\n\n${ZW}` : texto, mentions: [sender] };
-    if (previa) {
-      mensaje.linkPreview = {
-        "matched-text": ZW,
-        "canonical-url": info.enlace,
-        title: info.titulo,
-        description: `${info.canal} · ${PIE_DE_PAGINA}`,
-        jpegThumbnail: previa
-      };
-    }
-    await reply(mensaje);
+    const textoCompleto = `${texto}\n\n${tarjetaFormato()}`;
+
+    await delayAleatorio(300, 900);
+    await simularEscritura(sock, from, 800 + Math.floor(Math.random() * 1200));
 
     const enviado = await enviarConBotonesRapidos({
       sock,
       from,
       msg,
-      texto: tarjetaFormato(),
+      texto: textoCompleto,
       footer: PIE_DE_PAGINA,
       botones: [
         { texto: "🎵 Audio", id: `.ytaudio ${link}` },
         { texto: "🎬 Video", id: `.ytvideo ${link}` }
       ],
-      mentions: [sender]
+      mentions: [sender],
+      imagen: miniatura,
+      vistaPrevia: previa
+        ? { title: info.titulo, body: `${info.canal} · ${PIE_DE_PAGINA}`, thumbnail: previa, sourceUrl: info.enlace }
+        : undefined
     });
 
-    if (!enviado) await reply({ text: tarjetaFormato() });
+    // Si no se pudieron armar los botones, se manda lo mismo (foto + info + opciones 1/2) en un mensaje normal.
+    if (!enviado) {
+      if (miniatura) {
+        try {
+          await reply({ image: miniatura, caption: textoCompleto, mentions: [sender] });
+          return;
+        } catch (e) {
+          console.log(`[youtube] No se pudo enviar la foto con la información: ${e.message}`);
+        }
+      }
+      await reply({ text: textoCompleto, mentions: [sender] });
+    }
   }
 };
-        
+      
