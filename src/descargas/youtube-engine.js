@@ -3,6 +3,7 @@ import axios from "axios";
 import fs from "fs";
 import os from "os";
 import path from "path";
+import { pipeline } from "stream/promises";
 import { ytmp3 as vredenYtmp3, ytmp4 as vredenYtmp4 } from "@vreden/youtube_scraper";
 import { youtube as btchYoutube } from "btch-downloader";
 import {
@@ -196,7 +197,9 @@ export async function descargarVideoYoutube(link) {
 
   const pesoMB = bufferListo.length / (1024 * 1024);
   if (pesoMB > LIMITE_VIDEO_WHATSAPP_MB) {
-    throw new Error(`Ese video pesa ${pesoMB.toFixed(1)}MB, demasiado grande para WhatsApp.`);
+    const ruta = path.join(os.tmpdir(), `yt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.mp4`);
+    fs.writeFileSync(ruta, bufferListo);
+    return { ruta, nombre: `youtube-${extraerIdDeLink(link)}.mp4`, pesoMB };
   }
 
   return bufferListo;
@@ -212,14 +215,14 @@ export async function descargarAudioYoutube(link) {
 
 async function descargarATemporal(url, ext) {
   const tmpPath = path.join(os.tmpdir(), `yt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`);
-  const { data: stream } = await axios.get(url, { responseType: "stream", timeout: 120000 });
-  const writer = fs.createWriteStream(tmpPath);
-  stream.pipe(writer);
-  await new Promise((resolve, reject) => {
-    writer.on("finish", resolve);
-    writer.on("error", reject);
-  });
-  return tmpPath;
+  try {
+    const { data: stream } = await axios.get(url, { responseType: "stream", timeout: 120000 });
+    await pipeline(stream, fs.createWriteStream(tmpPath));
+    return tmpPath;
+  } catch (e) {
+    try { fs.unlinkSync(tmpPath); } catch (err) {}
+    throw e;
+  }
 }
 
 async function descargarBufferConfiable(url, ext) {
@@ -238,8 +241,14 @@ const PROVEEDORES_AUDIO = [
   { nombre: "Btch", obtenerUrl: async (link) => { const d = await btchYoutube(link); return d?.status && d?.mp3 ? d.mp3 : null; } }
 ];
 
+// Vreden usa 360p si no se le indica calidad. Se prueba de mayor a menor y se baja de escalón si falla.
+const CALIDADES_VIDEO = [1080, 720, 480, 360];
+
 const PROVEEDORES_VIDEO = [
-  { nombre: "Vreden", obtenerUrl: async (link) => { const d = await vredenYtmp4(link); return d?.status && d?.download?.url ? d.download.url : null; } },
+  ...CALIDADES_VIDEO.map((calidad) => ({
+    nombre: `Vreden ${calidad}p`,
+    obtenerUrl: async (link) => { const d = await vredenYtmp4(link, calidad); return d?.status && d?.download?.url ? d.download.url : null; }
+  })),
   { nombre: "Btch", obtenerUrl: async (link) => { const d = await btchYoutube(link); return d?.status && d?.mp4 ? d.mp4 : null; } }
 ];
 
@@ -261,14 +270,34 @@ export async function descargarAudioConProveedores(link) {
   return asegurarAudioCompatibleWhatsApp(buffer);
 }
 
+// Devuelve un Buffer (video normal, hasta LIMITE_VIDEO_WHATSAPP_MB) o, si pesa más, un objeto
+// { ruta, nombre, pesoMB } con el archivo en disco para mandarlo como DOCUMENTO (WhatsApp admite hasta 2GB).
+// Quien reciba el objeto debe borrar `ruta` después de enviarlo.
 export async function descargarVideoConProveedores(link) {
-  const url = await primeraUrlDeProveedores(link, PROVEEDORES_VIDEO);
-  if (!url) return descargarVideoYoutube(link);
+  const idVideo = extraerIdDeLink(link);
 
-  const buffer = await descargarBufferConfiable(url, "mp4");
-  const pesoMB = buffer.length / (1024 * 1024);
-  if (pesoMB > LIMITE_VIDEO_WHATSAPP_MB) {
-    throw new Error(`Ese video pesa ${pesoMB.toFixed(1)}MB, supera el límite de ${LIMITE_VIDEO_WHATSAPP_MB}MB para WhatsApp.`);
+  for (const p of PROVEEDORES_VIDEO) {
+    let rutaTmp = null;
+    try {
+      const url = await p.obtenerUrl(link);
+      if (!url) continue;
+      rutaTmp = await descargarATemporal(url, "mp4");
+      const pesoMB = fs.statSync(rutaTmp).size / (1024 * 1024);
+      if (pesoMB < 0.01) throw new Error("el archivo descargado está vacío o es inválido");
+      console.log(`[youtube] Video descargado con ${p.nombre} (${pesoMB.toFixed(1)}MB)`);
+
+      if (pesoMB > LIMITE_VIDEO_WHATSAPP_MB) {
+        return { ruta: rutaTmp, nombre: `youtube-${idVideo}.mp4`, pesoMB };
+      }
+      // Se pasa la ruta (no un Buffer): core.js trabaja sobre el archivo y lo borra al terminar.
+      return await asegurarVideoCompatibleWhatsApp(rutaTmp);
+    } catch (e) {
+      console.log(`[youtube] Proveedor ${p.nombre} falló: ${e.message}`);
+      if (rutaTmp && fs.existsSync(rutaTmp)) {
+        try { fs.unlinkSync(rutaTmp); } catch (err) {}
+      }
+    }
   }
-  return asegurarVideoCompatibleWhatsApp(buffer);
+
+  return descargarVideoYoutube(link);
 }
