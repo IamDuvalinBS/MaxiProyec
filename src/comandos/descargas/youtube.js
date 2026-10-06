@@ -23,6 +23,33 @@ import {
 } from "../../descargas/tarjetas.js";
 
 const DURACION_ESPERA_MS = 5 * 60 * 1000;
+const ZW = "\u200b";
+
+// Misma técnica que .kiss: lienzo 640x360, fondo difuso hecho con la propia imagen y la imagen completa centrada
+// (así cualquier formato, incluso Shorts verticales, cabe en la previa sin recortarse).
+async function crearMiniaturaPrevia(buffer) {
+  try {
+    const { createCanvas, loadImage } = await import("@napi-rs/canvas");
+    const img = await loadImage(buffer);
+    const W = 640;
+    const H = 360;
+    const canvas = createCanvas(W, H);
+    const ctx = canvas.getContext("2d");
+    const chico = createCanvas(32, 18);
+    chico.getContext("2d").drawImage(img, 0, 0, 32, 18);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(chico, 0, 0, W, H);
+    const s = Math.min(W / img.width, H / img.height);
+    const w = Math.round(img.width * s);
+    const h = Math.round(img.height * s);
+    ctx.drawImage(img, Math.round((W - w) / 2), Math.round((H - h) / 2), w, h);
+    return canvas.toBuffer("image/jpeg", 70);
+  } catch (e) {
+    console.log(`[youtube] No se pudo armar la previa de la miniatura: ${e.message}`);
+    return null;
+  }
+}
 const PIE_DE_PAGINA = "Pᴏᴡᴇʀᴇᴅ Bʏ • ItsDuva";
 
 export async function enviarDescarga({ sock, from, msg, link, esAudio }) {
@@ -178,21 +205,28 @@ export default {
       miniatura = undefined;
     }
 
-    await reply({
-      text: texto,
-      mentions: [sender],
-      contextInfo: {
-        externalAdReply: {
-          title: info.titulo,
-          body: `${info.canal} · ${PIE_DE_PAGINA}`,
-          mediaType: 1,
-          thumbnail: miniatura,
-          renderLargerThumbnail: true,
-          showAdAttribution: false,
-          sourceUrl: info.enlace
-        }
+    // 1) La miniatura como foto
+    if (miniatura) {
+      try {
+        await reply({ image: miniatura });
+      } catch (e) {
+        console.log(`[youtube] No se pudo enviar la miniatura como foto: ${e.message}`);
       }
-    });
+    }
+
+    // 2) La tarjeta de información con la miniatura en la previa (como .kiss), sin mostrar el link
+    const previa = miniatura ? await crearMiniaturaPrevia(miniatura) : null;
+    const mensaje = { text: previa ? `${texto}\n\n${ZW}` : texto, mentions: [sender] };
+    if (previa) {
+      mensaje.linkPreview = {
+        "matched-text": ZW,
+        "canonical-url": info.enlace,
+        title: info.titulo,
+        description: `${info.canal} · ${PIE_DE_PAGINA}`,
+        jpegThumbnail: previa
+      };
+    }
+    await reply(mensaje);
 
     const enviado = await enviarConBotonesRapidos({
       sock,
@@ -210,3 +244,4 @@ export default {
     if (!enviado) await reply({ text: tarjetaFormato() });
   }
 };
+        
