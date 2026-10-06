@@ -36,6 +36,10 @@ console.warn = (...args) => {
 };
 console.error = (...args) => {
   if (esRuidoDeYoutubei(args)) return;
+  if (args[0] === "Converting error:") {
+    console.log(`[youtube] savetube (Vreden) no devolvió el enlace de descarga: ${args[1]?.message || args[1]}`);
+    return;
+  }
   errorOriginal(...args);
 };
 
@@ -371,6 +375,19 @@ const PROVEEDORES_VIDEO = [
   { nombre: "Btch", obtenerUrl: async (link) => { const d = await btchYoutube(link); return d?.status && d?.mp4 ? d.mp4 : null; } }
 ];
 
+// El motor local de respaldo suele fallar con errores técnicos ("No valid URL to decipher") que no le sirven a nadie;
+// si todo falló se muestra un motivo claro. Los motivos útiles (video muy largo) se dejan tal cual.
+const MENSAJE_SIN_SERVICIO = "Los servicios de descarga no respondieron en este momento. Intenta de nuevo en unos minutos.";
+async function respaldoLocal(descargar) {
+  try {
+    return await descargar();
+  } catch (e) {
+    console.log(`[youtube] El motor local de respaldo también falló: ${String(e.message).split("\n")[0]}`);
+    if (/dura mas de/i.test(e.message)) throw e;
+    throw new Error(MENSAJE_SIN_SERVICIO);
+  }
+}
+
 // Si un proveedor se cuelga, se pasa al siguiente en vez de quedarse esperando.
 const TIEMPO_MAX_PROVEEDOR_MS = 25000;
 function conTiempoLimite(promesa, ms) {
@@ -386,7 +403,10 @@ export async function descargarAudioConProveedores(link) {
     let rutaTmp = null;
     try {
       const url = await conTiempoLimite(p.obtenerUrl(link), TIEMPO_MAX_PROVEEDOR_MS);
-      if (!url) continue;
+      if (!url) {
+        console.log(`[youtube] Proveedor ${p.nombre} no devolvió enlace`);
+        continue;
+      }
       rutaTmp = await descargarATemporal(url, "mp3");
       if (fs.statSync(rutaTmp).size < 10 * 1024) throw new Error("el archivo descargado está vacío o es inválido");
       console.log(`[youtube] Audio descargado con ${p.nombre}`);
@@ -400,7 +420,7 @@ export async function descargarAudioConProveedores(link) {
     }
   }
 
-  return asegurarAudioCompatibleWhatsApp(await descargarAudioYoutube(link));
+  return asegurarAudioCompatibleWhatsApp(await respaldoLocal(() => descargarAudioYoutube(link)));
 }
 
 // Devuelve un Buffer (video normal, hasta LIMITE_VIDEO_WHATSAPP_MB) o, si pesa más, un objeto
@@ -413,7 +433,10 @@ export async function descargarVideoConProveedores(link) {
     let rutaTmp = null;
     try {
       const url = await conTiempoLimite(p.obtenerUrl(link), TIEMPO_MAX_PROVEEDOR_MS);
-      if (!url) continue;
+      if (!url) {
+        console.log(`[youtube] Proveedor ${p.nombre} no devolvió enlace`);
+        continue;
+      }
       rutaTmp = await descargarATemporal(url, "mp4");
       const pesoMB = fs.statSync(rutaTmp).size / (1024 * 1024);
       if (pesoMB < 0.01) throw new Error("el archivo descargado está vacío o es inválido");
@@ -432,5 +455,6 @@ export async function descargarVideoConProveedores(link) {
     }
   }
 
-  return descargarVideoYoutube(link);
+  return respaldoLocal(() => descargarVideoYoutube(link));
       }
+           
