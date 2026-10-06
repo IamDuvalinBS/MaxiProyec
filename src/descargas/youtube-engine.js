@@ -3,6 +3,9 @@ import axios from "axios";
 import fs from "fs";
 import os from "os";
 import path from "path";
+import http from "http";
+import https from "https";
+import { Transform } from "stream";
 import { pipeline } from "stream/promises";
 import { ytmp3 as vredenYtmp3, ytmp4 as vredenYtmp4 } from "@vreden/youtube_scraper";
 import { youtube as btchYoutube } from "btch-downloader";
@@ -38,9 +41,35 @@ console.error = (...args) => {
 
 let clientePromise = null;
 function obtenerCliente() {
-  if (!clientePromise) clientePromise = Innertube.create();
+  if (!clientePromise) {
+    clientePromise = Innertube.create().catch((e) => {
+      clientePromise = null; // si falló, la próxima petición lo intenta de nuevo
+      throw e;
+    });
+  }
   return clientePromise;
 }
+
+// Caché pequeño en memoria (10 min, máx. 50 entradas): repetir una búsqueda o un video no vuelve a consultar YouTube.
+const CACHE_VIGENCIA_MS = 10 * 60 * 1000;
+const CACHE_MAX_ENTRADAS = 50;
+function crearCache() {
+  const mapa = new Map();
+  return {
+    get(clave) {
+      const e = mapa.get(clave);
+      if (!e) return undefined;
+      if (Date.now() - e.t > CACHE_VIGENCIA_MS) { mapa.delete(clave); return undefined; }
+      return e.v;
+    },
+    set(clave, valor) {
+      if (mapa.size >= CACHE_MAX_ENTRADAS) mapa.delete(mapa.keys().next().value);
+      mapa.set(clave, { v: valor, t: Date.now() });
+    }
+  };
+}
+const cacheBusquedas = crearCache();
+const cacheInfo = crearCache();
 
 function textoDe(valor) {
   if (valor === null || valor === undefined) return null;
@@ -60,12 +89,18 @@ function extraerIdDeLink(link) {
 export async function resolverLinkYoutube(consulta) {
   if (esLinkYoutube(consulta)) return consulta;
 
+  const clave = consulta.trim().toLowerCase();
+  const guardado = cacheBusquedas.get(clave);
+  if (guardado) return guardado;
+
   const yt = await obtenerCliente();
   const resultados = await yt.search(consulta, { type: "video" });
   const videos = resultados.videos ?? (resultados.results || []).filter((r) => r.type === "Video");
   const video = videos[0];
   if (!video) throw new Error("No encontre ningun video con esa busqueda.");
-  return `https://www.youtube.com/watch?v=${video.id}`;
+  const link = `https://www.youtube.com/watch?v=${video.id}`;
+  cacheBusquedas.set(clave, link);
+  return link;
 }
 
 function formatearDuracion(segundos) {
@@ -76,14 +111,18 @@ function formatearDuracion(segundos) {
 }
 
 export async function obtenerInfoYoutube(link) {
+  const idVideo = extraerIdDeLink(link);
+  const guardada = cacheInfo.get(idVideo);
+  if (guardada) return guardada;
+
   const yt = await obtenerCliente();
-  const info = await yt.getBasicInfo(extraerIdDeLink(link));
+  const info = await yt.getBasicInfo(idVideo);
   const basico = info.basic_info;
   const segundos = basico.duration || 0;
 
   const fechaCruda = basico.publish_date || basico.upload_date || null;
 
-  return {
+  const resultado = {
     titulo: textoDe(basico.title),
     canal: basico.channel?.name || basico.author || "Desconocido",
     duracionSeg: segundos,
@@ -92,8 +131,10 @@ export async function obtenerInfoYoutube(link) {
     miniatura: basico.thumbnail?.[0]?.url || null,
     fecha: fechaCruda,
     etiquetas: Array.isArray(basico.tags) ? basico.tags : Array.isArray(basico.keywords) ? basico.keywords : [],
-    enlace: `https://www.youtube.com/watch?v=${extraerIdDeLink(link)}`
+    enlace: `https://www.youtube.com/watch?v=${idVideo}`
   };
+  cacheInfo.set(idVideo, resultado);
+  return resultado;
 }
 
 export async function buscarVideosYoutube(consulta, limite = 10) {
@@ -213,26 +254,104 @@ export async function descargarAudioYoutube(link) {
   return descargarBuffer(url);
 }
 
+// ---------- Descarga rápida a disco ----------
+// Si el servidor admite "Range" y el archivo es grande, se baja en varios pedazos a la vez (cada conexión
+// aporta su propia velocidad) escribiendo directo en su lugar del archivo: no usa RAM extra.
+// Si algo no cuadra (sin Range, un pedazo falla, etc.) se baja normal con una sola conexión, como siempre.
+const RED = {
+  httpAgent: new http.Agent({ keepAlive: true, maxSockets: 16 }),
+  httpsAgent: new https.Agent({ keepAlive: true, maxSockets: 16 })
+};
+const CONEXIONES_PARALELAS = 4;
+const TAMANO_MINIMO_SEGMENTO = 1024 * 1024;
+const REINTENTOS_SEGMENTO = 2;
+
+async function descargarSegmento(url, ruta, inicio, fin, signal) {
+  let ultimoError;
+  for (let intento = 0; intento <= REINTENTOS_SEGMENTO; intento++) {
+    if (signal.aborted) throw new Error("descarga cancelada");
+    try {
+      const res = await axios.get(url, {
+        ...RED,
+        signal,
+        responseType: "stream",
+        headers: { Range: `bytes=${inicio}-${fin}` },
+        timeout: 120000,
+        validateStatus: (estado) => estado === 206
+      });
+      let escritos = 0;
+      const contador = new Transform({
+        transform(trozo, _enc, cb) { escritos += trozo.length; cb(null, trozo); }
+      });
+      await pipeline(res.data, contador, fs.createWriteStream(ruta, { flags: "r+", start: inicio }), { signal });
+      if (escritos !== fin - inicio + 1) throw new Error(`pedazo incompleto (${escritos} de ${fin - inicio + 1} bytes)`);
+      return;
+    } catch (e) {
+      ultimoError = e;
+      if (signal.aborted) break;
+    }
+  }
+  throw ultimoError;
+}
+
+async function descargarSegmentado(url, ruta, total) {
+  const conexiones = Math.min(CONEXIONES_PARALELAS, Math.max(1, Math.floor(total / TAMANO_MINIMO_SEGMENTO)));
+  const manejador = await fs.promises.open(ruta, "w");
+  await manejador.truncate(total);
+  await manejador.close();
+
+  const control = new AbortController();
+  const tamano = Math.ceil(total / conexiones);
+  const tareas = [];
+  for (let i = 0; i < conexiones; i++) {
+    const inicio = i * tamano;
+    const fin = Math.min(total - 1, inicio + tamano - 1);
+    if (inicio > fin) break;
+    tareas.push(descargarSegmento(url, ruta, inicio, fin, control.signal));
+  }
+  try {
+    await Promise.all(tareas);
+  } catch (e) {
+    control.abort();
+    await Promise.allSettled(tareas); // que ningún pedazo siga escribiendo antes de limpiar
+    throw e;
+  }
+}
+
 async function descargarATemporal(url, ext) {
   const tmpPath = path.join(os.tmpdir(), `yt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`);
   try {
-    const { data: stream } = await axios.get(url, { responseType: "stream", timeout: 120000 });
+    // Un primer pedido de 1 byte dice si el servidor admite pedazos y cuánto pesa el archivo.
+    let sondeo = null;
+    try {
+      sondeo = await axios.get(url, { ...RED, responseType: "stream", headers: { Range: "bytes=0-0" }, timeout: 120000 });
+    } catch (e) {
+      sondeo = null;
+    }
+
+    if (sondeo && sondeo.status === 206) {
+      sondeo.data.resume();
+      const total = Number(/\/(\d+)\s*$/.exec(sondeo.headers["content-range"] || "")?.[1] || 0);
+      if (total >= CONEXIONES_PARALELAS * TAMANO_MINIMO_SEGMENTO) {
+        try {
+          await descargarSegmentado(url, tmpPath, total);
+          return tmpPath;
+        } catch (e) {
+          console.log(`[youtube] Descarga en pedazos falló (${e.message}); se baja con una sola conexión`);
+        }
+      }
+      sondeo = null;
+    }
+
+    // Una sola conexión. Si el servidor ignoró "Range" y respondió el archivo completo, se aprovecha esa misma respuesta.
+    const stream = sondeo && sondeo.status === 200
+      ? sondeo.data
+      : (await axios.get(url, { ...RED, responseType: "stream", timeout: 120000 })).data;
     await pipeline(stream, fs.createWriteStream(tmpPath));
     return tmpPath;
   } catch (e) {
     try { fs.unlinkSync(tmpPath); } catch (err) {}
     throw e;
-  }
-}
-
-async function descargarBufferConfiable(url, ext) {
-  const tmpPath = await descargarATemporal(url, ext);
-  try {
-    return fs.readFileSync(tmpPath);
-  } finally {
-    if (fs.existsSync(tmpPath)) {
-      try { fs.unlinkSync(tmpPath); } catch (e) {}
-    }
   }
 }
 
@@ -242,7 +361,7 @@ const PROVEEDORES_AUDIO = [
 ];
 
 // Vreden usa 360p si no se le indica calidad. Se prueba de mayor a menor y se baja de escalón si falla.
-const CALIDADES_VIDEO = [1080, 720, 480, 360];
+const CALIDADES_VIDEO = [720, 480, 360];
 
 const PROVEEDORES_VIDEO = [
   ...CALIDADES_VIDEO.map((calidad) => ({
@@ -252,22 +371,36 @@ const PROVEEDORES_VIDEO = [
   { nombre: "Btch", obtenerUrl: async (link) => { const d = await btchYoutube(link); return d?.status && d?.mp4 ? d.mp4 : null; } }
 ];
 
-async function primeraUrlDeProveedores(link, proveedores) {
-  for (const p of proveedores) {
-    try {
-      const url = await p.obtenerUrl(link);
-      if (url) return url;
-    } catch (e) {
-      console.log(`[youtube] Proveedor ${p.nombre} falló: ${e.message}`);
-    }
-  }
-  return null;
+// Si un proveedor se cuelga, se pasa al siguiente en vez de quedarse esperando.
+const TIEMPO_MAX_PROVEEDOR_MS = 25000;
+function conTiempoLimite(promesa, ms) {
+  let temporizador;
+  const limite = new Promise((_, rechazar) => {
+    temporizador = setTimeout(() => rechazar(new Error(`no respondió en ${ms / 1000}s`)), ms);
+  });
+  return Promise.race([promesa, limite]).finally(() => clearTimeout(temporizador));
 }
 
 export async function descargarAudioConProveedores(link) {
-  const url = await primeraUrlDeProveedores(link, PROVEEDORES_AUDIO);
-  const buffer = url ? await descargarBufferConfiable(url, "mp3") : await descargarAudioYoutube(link);
-  return asegurarAudioCompatibleWhatsApp(buffer);
+  for (const p of PROVEEDORES_AUDIO) {
+    let rutaTmp = null;
+    try {
+      const url = await conTiempoLimite(p.obtenerUrl(link), TIEMPO_MAX_PROVEEDOR_MS);
+      if (!url) continue;
+      rutaTmp = await descargarATemporal(url, "mp3");
+      if (fs.statSync(rutaTmp).size < 10 * 1024) throw new Error("el archivo descargado está vacío o es inválido");
+      console.log(`[youtube] Audio descargado con ${p.nombre}`);
+      // Se pasa la ruta (no un Buffer): core.js trabaja sobre el archivo y lo borra al terminar.
+      return await asegurarAudioCompatibleWhatsApp(rutaTmp);
+    } catch (e) {
+      console.log(`[youtube] Proveedor ${p.nombre} falló: ${String(e.message).split("\n")[0]}`);
+      if (rutaTmp && fs.existsSync(rutaTmp)) {
+        try { fs.unlinkSync(rutaTmp); } catch (err) {}
+      }
+    }
+  }
+
+  return asegurarAudioCompatibleWhatsApp(await descargarAudioYoutube(link));
 }
 
 // Devuelve un Buffer (video normal, hasta LIMITE_VIDEO_WHATSAPP_MB) o, si pesa más, un objeto
@@ -279,7 +412,7 @@ export async function descargarVideoConProveedores(link) {
   for (const p of PROVEEDORES_VIDEO) {
     let rutaTmp = null;
     try {
-      const url = await p.obtenerUrl(link);
+      const url = await conTiempoLimite(p.obtenerUrl(link), TIEMPO_MAX_PROVEEDOR_MS);
       if (!url) continue;
       rutaTmp = await descargarATemporal(url, "mp4");
       const pesoMB = fs.statSync(rutaTmp).size / (1024 * 1024);
@@ -292,7 +425,7 @@ export async function descargarVideoConProveedores(link) {
       // Se pasa la ruta (no un Buffer): core.js trabaja sobre el archivo y lo borra al terminar.
       return await asegurarVideoCompatibleWhatsApp(rutaTmp);
     } catch (e) {
-      console.log(`[youtube] Proveedor ${p.nombre} falló: ${e.message}`);
+      console.log(`[youtube] Proveedor ${p.nombre} falló: ${String(e.message).split("\n")[0]}`);
       if (rutaTmp && fs.existsSync(rutaTmp)) {
         try { fs.unlinkSync(rutaTmp); } catch (err) {}
       }
@@ -300,4 +433,4 @@ export async function descargarVideoConProveedores(link) {
   }
 
   return descargarVideoYoutube(link);
-}
+      }
