@@ -1,3 +1,4 @@
+import fs from "fs";
 import {
   resolverLinkYoutube,
   obtenerInfoYoutube,
@@ -43,7 +44,21 @@ export async function enviarDescarga({ sock, from, msg, link, esAudio }) {
       guardarMedioEnviado(claveCache, await responder({ audio, mimetype: "audio/mpeg", ptt: false }));
     } else {
       const video = await descargarVideoConProveedores(link);
-      guardarMedioEnviado(claveCache, await responder({ video, mimetype: "video/mp4" }));
+      if (Buffer.isBuffer(video)) {
+        guardarMedioEnviado(claveCache, await responder({ video, mimetype: "video/mp4" }));
+      } else {
+        // Pesa más que el límite de video de WhatsApp: se manda como documento, leyendo del disco (sin cargarlo en RAM).
+        try {
+          guardarMedioEnviado(claveCache, await responder({
+            document: { url: video.ruta },
+            mimetype: "video/mp4",
+            fileName: video.nombre,
+            caption: `🎬 Video de ${video.pesoMB.toFixed(1)}MB enviado como documento por su tamaño.`
+          }));
+        } finally {
+          try { fs.unlinkSync(video.ruta); } catch (err) {}
+        }
+      }
     }
   } catch (e) {
     await responder({ text: tarjetaError(`No se pudo descargar el ${esAudio ? "audio" : "video"}.`, e.message) });
