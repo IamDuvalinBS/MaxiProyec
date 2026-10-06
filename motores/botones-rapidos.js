@@ -16,7 +16,8 @@ async function cargarLibreria() {
 // Opcionales (si no se pasan, el mensaje sale igual que siempre):
 //   imagen:      Buffer con la foto que va arriba del mensaje (encabezado con foto, sin previa de link)
 //   vistaPrevia: { title, body, thumbnail, sourceUrl } tarjeta de previa (título + firma + miniatura chica)
-export async function enviarConBotonesRapidos({ sock, from, msg, texto, footer, botones, mentions = [], imagen, vistaPrevia }) {
+//   esperar:     Promise opcional (ej. la pausa de "escribiendo..."); la foto se sube mientras tanto y el mensaje sale al terminar
+export async function enviarConBotonesRapidos({ sock, from, msg, texto, footer, botones, mentions = [], imagen, vistaPrevia, esperar }) {
   const lib = await cargarLibreria();
   if (!lib) return false;
 
@@ -71,6 +72,9 @@ export async function enviarConBotonesRapidos({ sock, from, msg, texto, footer, 
     if (lib.WA_DEFAULT_EPHEMERAL) opciones.ephemeralExpiration = lib.WA_DEFAULT_EPHEMERAL;
 
     const armado = await lib.generateWAMessageFromContent(from, contenido, opciones);
+    if (esperar) {
+      try { await esperar; } catch (e) {}
+    }
     await sock.relayMessage(from, armado.message, { messageId: armado.key.id });
     return true;
   } catch (e) {

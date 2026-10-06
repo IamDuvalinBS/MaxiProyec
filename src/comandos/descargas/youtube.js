@@ -57,20 +57,23 @@ export async function enviarDescarga({ sock, from, msg, link, esAudio }) {
   const claveCache = `yt:${esAudio ? "audio" : "video"}:${link}`;
   if (await reenviarCacheado(sock, from, claveCache, msg)) return;
 
-  await responder({
+  // El aviso sale mientras ya se está descargando; el resultado se manda siempre después del aviso.
+  const aviso = responder({
     text: [
       encabezado("⏳", esAudio ? "DESCARGANDO AUDIO" : "DESCARGANDO VIDEO"),
       "",
       "> Procesando la solicitud. Esto puede tardar unos segundos."
     ].join("\n")
-  });
+  }).catch(() => {});
 
   try {
     if (esAudio) {
       const audio = await descargarAudioConProveedores(link);
+      await aviso;
       guardarMedioEnviado(claveCache, await responder({ audio, mimetype: "audio/mpeg", ptt: false }));
     } else {
       const video = await descargarVideoConProveedores(link);
+      await aviso;
       if (Buffer.isBuffer(video)) {
         guardarMedioEnviado(claveCache, await responder({ video, mimetype: "video/mp4" }));
       } else {
@@ -88,6 +91,7 @@ export async function enviarDescarga({ sock, from, msg, link, esAudio }) {
       }
     }
   } catch (e) {
+    await aviso;
     await responder({ text: tarjetaError(`No se pudo descargar el ${esAudio ? "audio" : "video"}.`, e.message) });
   }
 }
@@ -135,7 +139,8 @@ export default {
       });
     }
 
-    await reply({
+    // El aviso "Buscando..." sale (con sus pausas) mientras ya se está buscando: no se esperan uno al otro.
+    const aviso = reply({
       text: tarjetaDescarga({
         emoji: "🔎",
         titulo: esListado ? "YOUTUBE SEARCH" : "YOUTUBE DOWNLOAD",
@@ -144,12 +149,15 @@ export default {
         nota: "Buscando en YouTube. Esto puede tardar unos segundos."
       }),
       mentions: [sender]
-    });
+    }).catch(() => {});
 
     if (esListado) {
+      const busqueda = buscarVideosYoutube(consulta, 10);
+      busqueda.catch(() => {});
+      await aviso;
       let resultados;
       try {
-        resultados = await buscarVideosYoutube(consulta, 10);
+        resultados = await busqueda;
       } catch (e) {
         return reply({ text: tarjetaError("No se pudo completar la búsqueda.", e.message) });
       }
@@ -164,11 +172,36 @@ export default {
       return;
     }
 
+    // Enlace, información, miniatura y previa se preparan en paralelo con el aviso.
+    const preparar = (async () => {
+      const link = await resolverLinkYoutube(consulta);
+      const info = await obtenerInfoYoutube(link);
+      let miniatura;
+      try {
+        miniatura = info.miniatura ? await descargarBuffer(info.miniatura) : undefined;
+      } catch (e) {
+        miniatura = undefined;
+      }
+      const previa = miniatura ? await crearMiniaturaPrevia(miniatura) : null;
+      return { link, info, miniatura, previa };
+    })();
+    preparar.catch(() => {});
+
+    await aviso;
+
+    // La pausa de "escribiendo..." también corre mientras se termina de preparar todo.
+    const pausa = (async () => {
+      await delayAleatorio(300, 900);
+      await simularEscritura(sock, from, 800 + Math.floor(Math.random() * 1200));
+    })();
+    pausa.catch(() => {});
+
     let link;
     let info;
+    let miniatura;
+    let previa;
     try {
-      link = await resolverLinkYoutube(consulta);
-      info = await obtenerInfoYoutube(link);
+      ({ link, info, miniatura, previa } = await preparar);
     } catch (e) {
       return reply({ text: tarjetaError("No se pudo obtener la información del video.", e.message) });
     }
@@ -198,20 +231,9 @@ export default {
       }
     });
 
-    let miniatura;
-    try {
-      miniatura = info.miniatura ? await descargarBuffer(info.miniatura) : undefined;
-    } catch (e) {
-      miniatura = undefined;
-    }
-
     // Todo en UN solo mensaje: tarjeta de previa (con firma) + foto de la miniatura + info del video + botones.
     // Se mantiene el bloque "Selección de formato" porque también se puede responder 1 (audio) o 2 (video).
-    const previa = miniatura ? await crearMiniaturaPrevia(miniatura) : null;
     const textoCompleto = `${texto}\n\n${tarjetaFormato()}`;
-
-    await delayAleatorio(300, 900);
-    await simularEscritura(sock, from, 800 + Math.floor(Math.random() * 1200));
 
     const enviado = await enviarConBotonesRapidos({
       sock,
@@ -224,6 +246,7 @@ export default {
         { texto: "🎬 Video", id: `.ytvideo ${link}` }
       ],
       mentions: [sender],
+      esperar: pausa,
       imagen: miniatura,
       vistaPrevia: previa
         ? { title: info.titulo, body: `${info.canal} · ${PIE_DE_PAGINA}`, thumbnail: previa, sourceUrl: info.enlace }
@@ -244,4 +267,4 @@ export default {
     }
   }
 };
-      
+                   
