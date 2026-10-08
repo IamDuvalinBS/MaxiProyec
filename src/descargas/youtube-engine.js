@@ -1,4 +1,3 @@
-import { Innertube, Platform } from "youtubei.js";
 import axios from "axios";
 import fs from "fs";
 import os from "os";
@@ -7,8 +6,6 @@ import http from "http";
 import https from "https";
 import { Transform } from "stream";
 import { pipeline } from "stream/promises";
-import { ytmp3 as vredenYtmp3, ytmp4 as vredenYtmp4 } from "@vreden/youtube_scraper";
-import { youtube as btchYoutube } from "btch-downloader";
 import {
   descargarBuffer,
   asegurarVideoCompatibleWhatsApp,
@@ -16,14 +13,6 @@ import {
   combinarVideoAudioWhatsApp,
   LIMITE_VIDEO_WHATSAPP_MB
 } from "./core.js";
-
-Platform.shim.eval = async (data, env) => {
-  const propiedades = [];
-  if (env.n) propiedades.push(`n: exportedVars.nFunction("${env.n}")`);
-  if (env.sig) propiedades.push(`sig: exportedVars.sigFunction("${env.sig}")`);
-  const codigo = `${data.output}\nreturn { ${propiedades.join(", ")} }`;
-  return new Function(codigo)();
-};
 
 const advertirOriginal = console.warn;
 const errorOriginal = console.error;
@@ -46,7 +35,17 @@ console.error = (...args) => {
 let clientePromise = null;
 function obtenerCliente() {
   if (!clientePromise) {
-    clientePromise = Innertube.create().catch((e) => {
+    clientePromise = (async () => {
+      const { Innertube, Platform } = await import("youtubei.js");
+      Platform.shim.eval = async (data, env) => {
+        const propiedades = [];
+        if (env.n) propiedades.push(`n: exportedVars.nFunction("${env.n}")`);
+        if (env.sig) propiedades.push(`sig: exportedVars.sigFunction("${env.sig}")`);
+        const codigo = `${data.output}\nreturn { ${propiedades.join(", ")} }`;
+        return new Function(codigo)();
+      };
+      return Innertube.create();
+    })().catch((e) => {
       clientePromise = null; // si falló, la próxima petición lo intenta de nuevo
       throw e;
     });
@@ -360,8 +359,8 @@ async function descargarATemporal(url, ext) {
 }
 
 const PROVEEDORES_AUDIO = [
-  { nombre: "Vreden", obtenerUrl: async (link) => { const d = await vredenYtmp3(link); return d?.status && d?.download?.url ? d.download.url : null; } },
-  { nombre: "Btch", obtenerUrl: async (link) => { const d = await btchYoutube(link); return d?.status && d?.mp3 ? d.mp3 : null; } }
+  { nombre: "Vreden", obtenerUrl: async (link) => { const d = await (await import("@vreden/youtube_scraper")).ytmp3(link); return d?.status && d?.download?.url ? d.download.url : null; } },
+  { nombre: "Btch", obtenerUrl: async (link) => { const d = await (await import("btch-downloader")).youtube(link); return d?.status && d?.mp3 ? d.mp3 : null; } }
 ];
 
 // Vreden usa 360p si no se le indica calidad. Se prueba de mayor a menor y se baja de escalón si falla.
@@ -370,9 +369,9 @@ const CALIDADES_VIDEO = [720, 480, 360];
 const PROVEEDORES_VIDEO = [
   ...CALIDADES_VIDEO.map((calidad) => ({
     nombre: `Vreden ${calidad}p`,
-    obtenerUrl: async (link) => { const d = await vredenYtmp4(link, calidad); return d?.status && d?.download?.url ? d.download.url : null; }
+    obtenerUrl: async (link) => { const d = await (await import("@vreden/youtube_scraper")).ytmp4(link, calidad); return d?.status && d?.download?.url ? d.download.url : null; }
   })),
-  { nombre: "Btch", obtenerUrl: async (link) => { const d = await btchYoutube(link); return d?.status && d?.mp4 ? d.mp4 : null; } }
+  { nombre: "Btch", obtenerUrl: async (link) => { const d = await (await import("btch-downloader")).youtube(link); return d?.status && d?.mp4 ? d.mp4 : null; } }
 ];
 
 // El motor local de respaldo suele fallar con errores técnicos ("No valid URL to decipher") que no le sirven a nadie;
@@ -457,4 +456,5 @@ export async function descargarVideoConProveedores(link) {
 
   return respaldoLocal(() => descargarVideoYoutube(link));
       }
-           
+
+                    
