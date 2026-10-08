@@ -9,7 +9,7 @@ import http from "http";
 import { manejarComando } from "./src/nucleo/comandos.js";
 import { checkTriviaAnswer } from "./src/economia/trivia.js";
 import { procesarEspera } from "./src/nucleo/espera.js";
-import { config, manejarCambioParticipantes, procesarTextoAkinator } from "./core.js";
+import { config, manejarCambioParticipantes } from "./core.js";
 import { intentarProcesarTexto } from "./motores/juegos-core.js";
 
 import readline from "readline";
@@ -105,7 +105,10 @@ async function startBot() {
     keepAliveIntervalMs: 10000,
     connectTimeoutMs: 60000,
     defaultQueryTimeoutMs: 60000,
-    markOnlineOnConnect: false
+    markOnlineOnConnect: false,
+    syncFullHistory: false,
+    shouldSyncHistoryMessage: () => false,
+    generateHighQualityLinkPreview: false
   });
 
   console.log("Intentando conectar con WhatsApp...");
@@ -225,17 +228,13 @@ async function startBot() {
       const clave = `${from}:${sender}`;
       if (await procesarEspera(clave, text, { sock, from, sender, msg })) return;
 
-      const fueAkinator = await procesarTextoAkinator(sock, from, sender, text, msg);
-      if (!fueAkinator) {
-        const fueJugada = await intentarProcesarTexto(sock, from, sender, text, msg);
-        if (!fueJugada) {
-          await checkTriviaAnswer(sock, from, sender, text, msg);
-        }
+      const fueJugada = await intentarProcesarTexto(sock, from, sender, text, msg);
+      if (!fueJugada) {
+        await checkTriviaAnswer(sock, from, sender, text, msg);
       }
     }
   });
 }
 
 startBot();
-
-         
+             
