@@ -51,7 +51,7 @@ export default {
         titulo: "DUVA TRIVIA!",
         relato: `*${base.pregunta}*`,
         lineas: opciones,
-        tip: "Responde con la letra correcta (A-B-C-D) en los próximos 30 segundos."
+        tip: "Responde con la letra correcta (A-B-C-D) en los próximos 15 segundos."
       })
     });
   }
