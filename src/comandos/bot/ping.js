@@ -12,7 +12,7 @@ export default {
     const ms = Date.now() - inicio;
     const estado = ms < UMBRAL_ALTO_MS ? "Normal" : "Alto";
 
-    const texto = ["📡 *LATENCIA - PING*", `Ping:: *${ms}ms*`, `Estado:: *${estado}*`].join("\n");
+    const texto = ["📡 *PING - ¡PONG! //Latencia*", `Ping:: *${ms}ms*`, `Estado:: *${estado}*`].join("\n");
     await sock.sendMessage(from, { text: texto, edit: enviado.key });
   }
 };
