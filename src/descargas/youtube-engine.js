@@ -369,6 +369,8 @@ const CALIDADES_VIDEO = [720, 480, 360];
 const PROVEEDORES_VIDEO = [
   ...CALIDADES_VIDEO.map((calidad) => ({
     nombre: `Vreden ${calidad}p`,
+    // Las calidades altas tardan más en prepararse del lado del servicio: se les da más tiempo para no bajar de calidad sin necesidad.
+    tiempoMs: calidad >= 720 ? 45000 : calidad >= 480 ? 30000 : 20000,
     obtenerUrl: async (link) => { const d = await (await import("@vreden/youtube_scraper")).ytmp4(link, calidad); return d?.status && d?.download?.url ? d.download.url : null; }
   })),
   { nombre: "Btch", obtenerUrl: async (link) => { const d = await (await import("btch-downloader")).youtube(link); return d?.status && d?.mp4 ? d.mp4 : null; } }
@@ -388,7 +390,7 @@ async function respaldoLocal(descargar) {
 }
 
 // Si un proveedor se cuelga, se pasa al siguiente en vez de quedarse esperando.
-const TIEMPO_MAX_PROVEEDOR_MS = 12000;
+const TIEMPO_MAX_PROVEEDOR_MS = 20000;
 function conTiempoLimite(promesa, ms) {
   let temporizador;
   const limite = new Promise((_, rechazar) => {
@@ -402,7 +404,7 @@ export async function descargarAudioConProveedores(link) {
     let rutaTmp = null;
     try {
       const t0 = Date.now();
-      const url = await conTiempoLimite(p.obtenerUrl(link), TIEMPO_MAX_PROVEEDOR_MS);
+      const url = await conTiempoLimite(p.obtenerUrl(link), p.tiempoMs || TIEMPO_MAX_PROVEEDOR_MS);
       if (!url) {
         console.log(`[youtube] Proveedor ${p.nombre} no devolvió enlace`);
         continue;
@@ -435,7 +437,7 @@ export async function descargarVideoConProveedores(link) {
     let rutaTmp = null;
     try {
       const t0 = Date.now();
-      const url = await conTiempoLimite(p.obtenerUrl(link), TIEMPO_MAX_PROVEEDOR_MS);
+      const url = await conTiempoLimite(p.obtenerUrl(link), p.tiempoMs || TIEMPO_MAX_PROVEEDOR_MS);
       if (!url) {
         console.log(`[youtube] Proveedor ${p.nombre} no devolvió enlace`);
         continue;
@@ -463,4 +465,4 @@ export async function descargarVideoConProveedores(link) {
   return respaldoLocal(() => descargarVideoYoutube(link));
       }
 
-  
+                              

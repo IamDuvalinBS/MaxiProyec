@@ -81,6 +81,7 @@ export async function asegurarVideoCompatibleWhatsApp(entradaOriginal) {
   try {
     const { video, audio } = await analizarPistas(entrada);
 
+    console.log(`[descargas-core] Pistas: video ${video ? `${video.codec_name}/${video.profile || "-"}/${video.pix_fmt}` : "no detectado"}, audio ${audio ? audio.codec_name : "no detectado"}`);
     const videoOk = !!video && video.codec_name === "h264" && video.pix_fmt === "yuv420p" &&
       (!video.profile || PERFILES_H264_OK.has(video.profile));
     const audioOk = !!audio && audio.codec_name === "aac";
@@ -215,4 +216,5 @@ export async function asegurarImagenCompatibleWhatsApp(entradaOriginal) {
     if (fs.existsSync(entrada)) fs.unlinkSync(entrada);
     if (fs.existsSync(salida)) fs.unlinkSync(salida);
   }
-      }
+}
+  
