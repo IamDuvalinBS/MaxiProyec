@@ -1,5 +1,3 @@
-import satori from "satori";
-import { Resvg } from "@resvg/resvg-js";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -108,6 +106,8 @@ async function renderizarHTML(estado) {
     },
   };
 
+  const { default: satori } = await import("satori");
+  const { Resvg } = await import("@resvg/resvg-js");
   const svg = await satori(arbol, {
     width: 480,
     height: 700,
