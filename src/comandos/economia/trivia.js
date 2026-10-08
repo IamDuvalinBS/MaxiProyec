@@ -3,8 +3,8 @@ import { PREGUNTAS } from "../../economia/preguntas.js";
 import { setPendingTrivia } from "../../economia/trivia.js";
 import { tarjeta, entre, textoEspera } from "../../economia/formato.js";
 
-const ESPERA_MS = 30 * 60 * 1000;
-const TIEMPO_RESPUESTA_MS = 30 * 1000;
+const ESPERA_MS = 15 * 60 * 1000;
+const TIEMPO_RESPUESTA_MS = 10 * 1000;
 const LETRAS = ["A", "B", "C", "D"];
 
 let mazo = [];
