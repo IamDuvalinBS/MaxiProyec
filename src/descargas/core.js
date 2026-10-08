@@ -62,8 +62,8 @@ function comoRutaTemporal(entrada, ext) {
 
 const CODEC_VIDEO_RAPIDO = [
   "-c:v", "libx264",
-  "-preset", "ultrafast",
-  "-crf", "23",
+  "-preset", "superfast",
+  "-crf", "24",
   "-profile:v", "main",
   "-level", "4.0",
   "-pix_fmt", "yuv420p",
@@ -216,5 +216,4 @@ export async function asegurarImagenCompatibleWhatsApp(entradaOriginal) {
     if (fs.existsSync(entrada)) fs.unlinkSync(entrada);
     if (fs.existsSync(salida)) fs.unlinkSync(salida);
   }
-}
-  
+  }
