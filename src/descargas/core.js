@@ -35,15 +35,6 @@ async function analizarPistas(rutaArchivo) {
   }
 }
 
-function videoYaCompatible(video, audio) {
-  if (!video || !audio) return false;
-  if (video.codec_name !== "h264") return false;
-  if (video.pix_fmt !== "yuv420p") return false;
-  if (video.profile && !PERFILES_H264_OK.has(video.profile)) return false;
-  if (audio.codec_name !== "aac") return false;
-  return true;
-}
-
 export async function descargarBuffer(url) {
   const { data } = await axios.get(url, {
     responseType: "arraybuffer",
@@ -69,39 +60,49 @@ function comoRutaTemporal(entrada, ext) {
   return ruta;
 }
 
+const CODEC_VIDEO_RAPIDO = [
+  "-c:v", "libx264",
+  "-preset", "ultrafast",
+  "-crf", "23",
+  "-profile:v", "main",
+  "-level", "4.0",
+  "-pix_fmt", "yuv420p",
+  "-threads", "0"
+];
+const CODEC_AUDIO_AAC = ["-c:a", "aac", "-b:a", "192k"];
+
 export async function asegurarVideoCompatibleWhatsApp(entradaOriginal) {
   const tmp = os.tmpdir();
   const sufijo = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
   const entrada = comoRutaTemporal(entradaOriginal, "mp4");
   const salida = path.join(tmp, `dc_out_${sufijo}.mp4`);
+  const inicio = Date.now();
 
   try {
     const { video, audio } = await analizarPistas(entrada);
 
-    if (videoYaCompatible(video, audio)) {
+    const videoOk = !!video && video.codec_name === "h264" && video.pix_fmt === "yuv420p" &&
+      (!video.profile || PERFILES_H264_OK.has(video.profile));
+    const audioOk = !!audio && audio.codec_name === "aac";
+
+    // Se copia lo que ya es compatible y solo se re-codifica lo que haga falta.
+    const planes = [];
+    if (videoOk && audioOk) planes.push({ nombre: "copiando todo", args: ["-c", "copy"] });
+    if (videoOk && audio) planes.push({ nombre: "copiando video, convirtiendo audio", args: ["-c:v", "copy", ...CODEC_AUDIO_AAC] });
+    if (audioOk && video) planes.push({ nombre: "convirtiendo video, copiando audio", args: [...CODEC_VIDEO_RAPIDO, "-c:a", "copy"] });
+    planes.push({ nombre: "convirtiendo video y audio", args: [...CODEC_VIDEO_RAPIDO, ...CODEC_AUDIO_AAC] });
+
+    for (const plan of planes) {
       try {
-        await execFileAsync("ffmpeg", ["-y", "-i", entrada, "-c", "copy", "-movflags", "+faststart", salida]);
-        console.log("[descargas-core] Video ya era compatible, se remuxeo sin re-codificar");
+        await execFileAsync("ffmpeg", ["-y", "-i", entrada, ...plan.args, "-movflags", "+faststart", salida]);
+        console.log(`[descargas-core] Video listo (${plan.nombre}) en ${((Date.now() - inicio) / 1000).toFixed(1)}s`);
         return fs.readFileSync(salida);
       } catch (e) {
-        console.log(`[descargas-core] Remux rapido fallo, se re-codifica completo: ${e.message}`);
+        console.log(`[descargas-core] Falló "${plan.nombre}": ${String(e.message).split("\n")[0]}`);
+        if (fs.existsSync(salida)) fs.unlinkSync(salida);
       }
     }
-
-    await execFileAsync("ffmpeg", [
-      "-y",
-      "-i", entrada,
-      "-c:v", "libx264",
-      "-preset", "veryfast",
-      "-profile:v", "baseline",
-      "-level", "3.0",
-      "-pix_fmt", "yuv420p",
-      "-c:a", "aac",
-      "-b:a", "128k",
-      "-movflags", "+faststart",
-      salida
-    ]);
-    return fs.readFileSync(salida);
+    throw new Error("ffmpeg no pudo procesar el video");
   } finally {
     if (fs.existsSync(entrada)) fs.unlinkSync(entrada);
     if (fs.existsSync(salida)) fs.unlinkSync(salida);
@@ -125,13 +126,8 @@ export async function combinarVideoAudioWhatsApp(bufferVideo, bufferAudio) {
       "-i", entradaAudio,
       "-map", "0:v:0",
       "-map", "1:a:0",
-      "-c:v", "libx264",
-      "-preset", "veryfast",
-      "-profile:v", "baseline",
-      "-level", "3.0",
-      "-pix_fmt", "yuv420p",
-      "-c:a", "aac",
-      "-b:a", "128k",
+      ...CODEC_VIDEO_RAPIDO,
+      ...CODEC_AUDIO_AAC,
       "-movflags", "+faststart",
       "-shortest",
       salida
@@ -219,4 +215,4 @@ export async function asegurarImagenCompatibleWhatsApp(entradaOriginal) {
     if (fs.existsSync(entrada)) fs.unlinkSync(entrada);
     if (fs.existsSync(salida)) fs.unlinkSync(salida);
   }
-}
+      }
