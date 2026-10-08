@@ -388,7 +388,7 @@ async function respaldoLocal(descargar) {
 }
 
 // Si un proveedor se cuelga, se pasa al siguiente en vez de quedarse esperando.
-const TIEMPO_MAX_PROVEEDOR_MS = 25000;
+const TIEMPO_MAX_PROVEEDOR_MS = 12000;
 function conTiempoLimite(promesa, ms) {
   let temporizador;
   const limite = new Promise((_, rechazar) => {
@@ -401,12 +401,15 @@ export async function descargarAudioConProveedores(link) {
   for (const p of PROVEEDORES_AUDIO) {
     let rutaTmp = null;
     try {
+      const t0 = Date.now();
       const url = await conTiempoLimite(p.obtenerUrl(link), TIEMPO_MAX_PROVEEDOR_MS);
       if (!url) {
         console.log(`[youtube] Proveedor ${p.nombre} no devolvió enlace`);
         continue;
       }
+      const t1 = Date.now();
       rutaTmp = await descargarATemporal(url, "mp3");
+      console.log(`[youtube] Tiempos: enlace ${((t1 - t0) / 1000).toFixed(1)}s, descarga ${((Date.now() - t1) / 1000).toFixed(1)}s`);
       if (fs.statSync(rutaTmp).size < 10 * 1024) throw new Error("el archivo descargado está vacío o es inválido");
       console.log(`[youtube] Audio descargado con ${p.nombre}`);
       // Se pasa la ruta (no un Buffer): core.js trabaja sobre el archivo y lo borra al terminar.
@@ -431,12 +434,15 @@ export async function descargarVideoConProveedores(link) {
   for (const p of PROVEEDORES_VIDEO) {
     let rutaTmp = null;
     try {
+      const t0 = Date.now();
       const url = await conTiempoLimite(p.obtenerUrl(link), TIEMPO_MAX_PROVEEDOR_MS);
       if (!url) {
         console.log(`[youtube] Proveedor ${p.nombre} no devolvió enlace`);
         continue;
       }
+      const t1 = Date.now();
       rutaTmp = await descargarATemporal(url, "mp4");
+      console.log(`[youtube] Tiempos: enlace ${((t1 - t0) / 1000).toFixed(1)}s, descarga ${((Date.now() - t1) / 1000).toFixed(1)}s`);
       const pesoMB = fs.statSync(rutaTmp).size / (1024 * 1024);
       if (pesoMB < 0.01) throw new Error("el archivo descargado está vacío o es inválido");
       console.log(`[youtube] Video descargado con ${p.nombre} (${pesoMB.toFixed(1)}MB)`);
@@ -457,4 +463,4 @@ export async function descargarVideoConProveedores(link) {
   return respaldoLocal(() => descargarVideoYoutube(link));
       }
 
-                    
+  
