@@ -156,26 +156,38 @@ export async function buscarVideosYoutube(consulta, limite = 10) {
   }));
 }
 
-const CLIENTES_A_PROBAR = ["ANDROID", "IOS", "TV", "WEB"];
+// ANDROID/IOS dan 400 (piden PO token) y "TV" a veces no es válido: se prueban primero los que sí suelen servir
+// y se recuerda el que funcionó para no repetir intentos fallidos.
+const CLIENTES_A_PROBAR = ["TV", "WEB_EMBEDDED", "MWEB", "WEB"];
+const tieneUrl = (f) => !!(f.url || f.signature_cipher || f.cipher);
+let clienteBueno = null;
 
 async function obtenerInfoParaDescarga(link) {
   const yt = await obtenerCliente();
   const id = extraerIdDeLink(link);
   let ultimoError = new Error("No pude obtener info descargable para ese video.");
 
-  for (const cliente of CLIENTES_A_PROBAR) {
+  const orden = clienteBueno
+    ? [clienteBueno, ...CLIENTES_A_PROBAR.filter((c) => c !== clienteBueno)]
+    : CLIENTES_A_PROBAR;
+
+  for (const cliente of orden) {
     try {
-      const info = await yt.getInfo(id, cliente);
-      const tieneFormatos =
-        (info.streaming_data?.formats?.length || 0) > 0 ||
-        (info.streaming_data?.adaptive_formats?.length || 0) > 0;
-      if (tieneFormatos) {
-        console.log(`[youtub] Cliente ${cliente} devolvió formatos utilizables`);
+      let info;
+      try {
+        info = await yt.getInfo(id, { client: cliente });
+      } catch (e) {
+        // Versiones viejas de youtubei.js reciben el cliente como texto.
+        if (/invalid client/i.test(e.message)) continue;
+        throw e;
+      }
+      const todos = [...(info.streaming_data?.formats || []), ...(info.streaming_data?.adaptive_formats || [])];
+      if (todos.some(tieneUrl)) {
+        clienteBueno = cliente;
+        console.log(`[youtube] Cliente ${cliente} OK`);
         return { yt, info };
       }
-      console.log(`[youtub] Cliente ${cliente} respondió sin streaming_data util`);
     } catch (e) {
-      console.log(`[youtub] Cliente ${cliente} fallo: ${e.message}`);
       ultimoError = e;
     }
   }
@@ -402,8 +414,7 @@ async function descargarATemporal(url, ext) {
 }
 
 const PROVEEDORES_AUDIO = [
-  { nombre: "Vreden", obtenerUrl: async (link) => { const d = await (await import("@vreden/youtube_scraper")).ytmp3(link); return d?.status && d?.download?.url ? d.download.url : null; } },
-  { nombre: "Btch", obtenerUrl: async (link) => { const d = await (await import("btch-downloader")).youtube(link); return d?.status && d?.mp3 ? d.mp3 : null; } }
+  { nombre: "Vreden", obtenerUrl: async (link) => { const d = await (await import("@vreden/youtube_scraper")).ytmp3(link); return d?.status && d?.download?.url ? d.download.url : null; } }
 ];
 
 // Vreden usa 360p si no se le indica calidad. Se prueba de mayor a menor y se baja de escalón si falla.
@@ -415,8 +426,7 @@ const PROVEEDORES_VIDEO = [
     // Las calidades altas tardan más en prepararse del lado del servicio: se les da más tiempo para no bajar de calidad sin necesidad.
     tiempoMs: calidad >= 720 ? 45000 : calidad >= 480 ? 30000 : 20000,
     obtenerUrl: async (link) => { const d = await (await import("@vreden/youtube_scraper")).ytmp4(link, calidad); return d?.status && d?.download?.url ? d.download.url : null; }
-  })),
-  { nombre: "Btch", obtenerUrl: async (link) => { const d = await (await import("btch-downloader")).youtube(link); return d?.status && d?.mp4 ? d.mp4 : null; } }
+  }))
 ];
 
 // El motor local de respaldo suele fallar con errores técnicos ("No valid URL to decipher") que no le sirven a nadie;
@@ -513,6 +523,8 @@ export async function descargarVideoConProveedores(link) {
       if (rutaTmp && fs.existsSync(rutaTmp)) {
         try { fs.unlinkSync(rutaTmp); } catch (err) {}
       }
+      // Servicio caído: no tiene caso probar las demás calidades.
+      if (/no respondió en/.test(e.message)) break;
     }
   }
 
