@@ -496,4 +496,26 @@ export async function descargarVideoConProveedores(link) {
         console.log(`[youtube] Proveedor ${p.nombre} no devolvió enlace`);
         continue;
       }
-      const t1 = Date.no
+      const t1 = Date.now();
+      rutaTmp = await descargarATemporal(url, "mp4");
+      console.log(`[youtube] Tiempos: enlace ${((t1 - t0) / 1000).toFixed(1)}s, descarga ${((Date.now() - t1) / 1000).toFixed(1)}s`);
+      const pesoMB = fs.statSync(rutaTmp).size / (1024 * 1024);
+      if (pesoMB < 0.01) throw new Error("el archivo descargado está vacío o es inválido");
+      console.log(`[youtube] Video descargado con ${p.nombre} (${pesoMB.toFixed(1)}MB)`);
+
+      if (pesoMB > LIMITE_VIDEO_WHATSAPP_MB) {
+        return { ruta: rutaTmp, nombre: `youtube-${idVideo}.mp4`, pesoMB };
+      }
+      // Se pasa la ruta (no un Buffer): core.js trabaja sobre el archivo y lo borra al terminar.
+      return await asegurarVideoCompatibleWhatsApp(rutaTmp);
+    } catch (e) {
+      console.log(`[youtube] Proveedor ${p.nombre} falló: ${String(e.message).split("\n")[0]}`);
+      if (rutaTmp && fs.existsSync(rutaTmp)) {
+        try { fs.unlinkSync(rutaTmp); } catch (err) {}
+      }
+    }
+  }
+
+  return respaldoLocal(() => descargarVideoYoutube(link));
+      }
+           
