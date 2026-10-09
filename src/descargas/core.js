@@ -212,7 +212,7 @@ export async function asegurarAudioCompatibleWhatsApp(entradaOriginal) {
 
     const salida = path.join(tmp, `da_out_${sufijo}.mp3`);
     try {
-      await execFileAsync("ffmpeg", ["-y", "-i", entrada, "-c:a", "libmp3lame", "-b:a", "192k", salida]);
+      await execFileAsync("ffmpeg", ["-y", "-i", entrada, "-vn", "-c:a", "libmp3lame", "-b:a", "192k", salida]);
       return fs.readFileSync(salida);
     } finally {
       if (fs.existsSync(salida)) fs.unlinkSync(salida);
