@@ -2,6 +2,8 @@ import axios from "axios";
 import fs from "fs";
 import os from "os";
 import path from "path";
+import { execFile } from "child_process";
+import { promisify } from "util";
 import http from "http";
 import https from "https";
 import { Transform } from "stream";
@@ -465,8 +467,117 @@ function conTiempoLimite(promesa, ms) {
   return Promise.race([promesa, limite]).finally(() => clearTimeout(temporizador));
 }
 
+// ---------- Motor yt-dlp (opcional) ----------
+// Si yt-dlp está instalado (pip install -U "yt-dlp[default]") es el primer motor; si no, todo sigue como antes.
+// Cuidado con la RAM del teléfono: solo corre YTDLP_SIMULTANEAS descargas a la vez (las demás esperan turno)
+// y todo se escribe a disco, nunca se guarda en memoria hasta el final.
+const execFileAsync = promisify(execFile);
+const YTDLP_SIMULTANEAS = 1;
+let ytdlpActivos = 0;
+const ytdlpEspera = [];
+
+function esperarTurnoYtdlp() {
+  return new Promise((resolver) => {
+    if (ytdlpActivos < YTDLP_SIMULTANEAS) { ytdlpActivos++; resolver(); }
+    else ytdlpEspera.push(resolver);
+  });
+}
+function liberarTurnoYtdlp() {
+  const siguiente = ytdlpEspera.shift();
+  if (siguiente) siguiente(); // el turno pasa directo al siguiente en la fila
+  else ytdlpActivos--;
+}
+
+let ytdlpDisponible = null;
+async function hayYtdlp() {
+  if (ytdlpDisponible !== null) return ytdlpDisponible;
+  try {
+    await execFileAsync("yt-dlp", ["--version"], { timeout: 15000 });
+    ytdlpDisponible = true;
+  } catch (e) {
+    if (e.code === "ENOENT") {
+      ytdlpDisponible = false;
+      console.log('[youtube] yt-dlp no está instalado; se usa el motor interno (para instalarlo: pip install -U "yt-dlp[default]")');
+    }
+    return false;
+  }
+  return ytdlpDisponible;
+}
+
+function limpiarArchivosYtdlp(base) {
+  try {
+    for (const n of fs.readdirSync(os.tmpdir())) {
+      if (n.startsWith(base)) { try { fs.unlinkSync(path.join(os.tmpdir(), n)); } catch (err) {} }
+    }
+  } catch (err) {}
+}
+
+// Devuelve la ruta del archivo descargado (quien la reciba debe borrarla).
+async function ejecutarYtdlp(link, formato, extra) {
+  if (!(await hayYtdlp())) throw new Error("yt-dlp no instalado");
+  const base = `ytdlp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  await esperarTurnoYtdlp();
+  try {
+    const t0 = Date.now();
+    await execFileAsync("yt-dlp", [
+      "--quiet", "--no-warnings", "--no-playlist",
+      "--js-runtimes", "node",
+      "--socket-timeout", "20",
+      "--retries", "3",
+      "-f", formato,
+      ...extra,
+      "-o", path.join(os.tmpdir(), `${base}.%(ext)s`),
+      link
+    ], { timeout: 180000, killSignal: "SIGKILL", maxBuffer: 1024 * 1024 });
+
+    const archivos = fs.readdirSync(os.tmpdir())
+      .filter((n) => n.startsWith(base))
+      .map((n) => ({ ruta: path.join(os.tmpdir(), n), peso: fs.statSync(path.join(os.tmpdir(), n)).size }))
+      .sort((a, b) => b.peso - a.peso);
+    if (!archivos.length) throw new Error("yt-dlp no generó ningún archivo");
+    for (const sobrante of archivos.slice(1)) { try { fs.unlinkSync(sobrante.ruta); } catch (err) {} }
+    console.log(`[youtube] yt-dlp descargó en ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+    return archivos[0].ruta;
+  } catch (e) {
+    limpiarArchivosYtdlp(base);
+    const detalle = String(e.stderr || e.message).trim().split("\n").filter(Boolean).pop() || "error desconocido";
+    throw new Error(`yt-dlp falló: ${detalle}`);
+  } finally {
+    liberarTurnoYtdlp();
+  }
+}
+
+async function videoConYtdlp(link) {
+  const info = await obtenerInfoYoutube(link).catch(() => null);
+  if (info && info.duracionSeg > 20 * 60) {
+    throw new Error("Ese video dura mas de 20 minutos, muy probable que pese demasiado para WhatsApp.");
+  }
+  // H264 hasta 720p + AAC (compatible con WhatsApp, sin reconvertir); si no hay, el mp4 con video y audio juntos.
+  const ruta = await ejecutarYtdlp(
+    link,
+    "bv*[vcodec^=avc1][height<=720]+ba[acodec^=mp4a]/b[vcodec^=avc1][height<=720]/b[ext=mp4]",
+    ["--merge-output-format", "mp4"]
+  );
+  const pesoMB = fs.statSync(ruta).size / (1024 * 1024);
+  if (pesoMB > LIMITE_VIDEO_WHATSAPP_MB) {
+    return { ruta, nombre: `youtube-${extraerIdDeLink(link)}.mp4`, pesoMB };
+  }
+  return asegurarVideoCompatibleWhatsApp(ruta); // core.js trabaja sobre el archivo y lo borra al terminar
+}
+
+async function audioConYtdlp(link) {
+  const ruta = await ejecutarYtdlp(link, "ba[ext=m4a]/ba", []);
+  return asegurarAudioCompatibleWhatsApp(ruta);
+}
+
 export async function descargarAudioConProveedores(link) {
-  // El motor local va primero: es lo que hoy responde rápido. Los proveedores quedan de respaldo.
+  try {
+    return await audioConYtdlp(link);
+  } catch (e) {
+    if (!/no instalado/.test(e.message)) console.log(`[youtube] ${String(e.message).split("\n")[0]}`);
+  }
+
+  // El motor local va después: es lo que hoy responde rápido. Los proveedores quedan de respaldo.
   try {
     return await asegurarAudioCompatibleWhatsApp(await descargarAudioYoutube(link));
   } catch (e) {
@@ -506,7 +617,14 @@ export async function descargarAudioConProveedores(link) {
 export async function descargarVideoConProveedores(link) {
   const idVideo = extraerIdDeLink(link);
 
-  // El motor local (itag 18, 360p con audio) es lo que hoy responde en ~1 s: va primero.
+  try {
+    return await videoConYtdlp(link);
+  } catch (e) {
+    if (/dura mas de/i.test(e.message)) throw e;
+    if (!/no instalado/.test(e.message)) console.log(`[youtube] ${String(e.message).split("\n")[0]}`);
+  }
+
+  // El motor local (itag 18, 360p con audio) es lo que responde en ~1 s cuando yt-dlp no está.
   try {
     return await descargarVideoYoutube(link);
   } catch (e) {
