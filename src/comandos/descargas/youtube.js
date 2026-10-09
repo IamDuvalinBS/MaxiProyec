@@ -25,30 +25,6 @@ import {
 const DURACION_ESPERA_MS = 5 * 60 * 1000;
 const PIE_DE_PAGINA = "Pᴏᴡᴇʀᴇᴅ Bʏ • ItsDuva";
 
-async function crearMiniaturaPrevia(buffer) {
-  try {
-    const { createCanvas, loadImage } = await import("@napi-rs/canvas");
-    const img = await loadImage(buffer);
-    const W = 640;
-    const H = 360;
-    const canvas = createCanvas(W, H);
-    const ctx = canvas.getContext("2d");
-    const chico = createCanvas(32, 18);
-    chico.getContext("2d").drawImage(img, 0, 0, 32, 18);
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = "high";
-    ctx.drawImage(chico, 0, 0, W, H);
-    const s = Math.min(W / img.width, H / img.height);
-    const w = Math.round(img.width * s);
-    const h = Math.round(img.height * s);
-    ctx.drawImage(img, Math.round((W - w) / 2), Math.round((H - h) / 2), w, h);
-    return canvas.toBuffer("image/jpeg", 70);
-  } catch (e) {
-    console.log(`[play2] No se pudo armar la previa de la miniatura: ${e.message}`);
-    return null;
-  }
-}
-
 export async function enviarDescarga({ sock, from, msg, link, esAudio }) {
   const responder = (contenido) => sock.sendMessage(from, contenido, { quoted: msg });
   const claveCache = `yt:${esAudio ? "audio" : "video"}:${link}`;
@@ -129,7 +105,7 @@ function tarjetaResultados(consulta, resultados, sender) {
 }
 
 // ───────────────── Botones 🎵 Audio / 🎬 Video (compatible con 7.0.6 y 7.0.7) ─────────────────
-// Usa sock.sendQuickReplyButtons (existe desde 7.0.6) y un listener propio que escucha el
+// Usa sock.sendMixedButtons (igual que el menú del otro bot, existe desde 7.0.6) y un listener propio que escucha el
 // toque del botón, así no depende de sendActionButtons ni del router.
 
 const BOTONES_ACTIVOS = new Map(); // id del botón -> { link, esAudio, expira }
@@ -231,50 +207,39 @@ function registrarBoton(link, esAudio) {
 }
 
 /**
- * Envía la tarjeta con los botones 🎵 Audio / 🎬 Video.
+ * Envía la tarjeta con los botones 🎵 Audio / 🎬 Video con el mismo método que usa el menú
+ * del otro bot: sock.sendMixedButtons(jid, texto, [{ name, params }], { footer, image, quoted, mentions }).
  * Devuelve el mensaje enviado, o null si falló (el error se imprime en consola).
  */
-async function enviarTarjetaConBotones({ sock, from, msg, sender, link, info, texto, miniatura, previa }) {
-  if (typeof sock.sendQuickReplyButtons !== "function") {
-    console.log("[play2] El socket no tiene sendQuickReplyButtons: la librería instalada no es tu fork @fer2809fl/baileys (7.0.6+).");
+async function enviarTarjetaConBotones({ sock, from, msg, sender, link, texto, miniatura }) {
+  if (typeof sock.sendMixedButtons !== "function") {
+    console.log("[play2] El socket no tiene sendMixedButtons: la librería instalada no es tu fork @fer2809fl/baileys (7.0.6+).");
     return null;
   }
 
   escucharBotones(sock);
 
+  const botones = [
+    {
+      name: "quick_reply",
+      params: { display_text: "🎵 Audio", id: registrarBoton(link, true) }
+    },
+    {
+      name: "quick_reply",
+      params: { display_text: "🎬 Video", id: registrarBoton(link, false) }
+    }
+  ];
+
   const extra = {
     footer: PIE_DE_PAGINA,
     quoted: msg,
-    mentions: [sender],
-    preview: false // evita que el fork arme otra vista previa por el link del texto
+    mentions: [sender]
   };
 
   if (miniatura) extra.image = miniatura;
 
-  if (previa) {
-    extra.contextInfo = {
-      externalAdReply: {
-        title: info.titulo,
-        body: `${info.canal} · ${PIE_DE_PAGINA}`,
-        mediaType: 1,
-        thumbnail: previa,
-        sourceUrl: info.enlace,
-        showAdAttribution: false,
-        renderLargerThumbnail: false
-      }
-    };
-  }
-
   try {
-    return await sock.sendQuickReplyButtons(
-      from,
-      texto,
-      [
-        { text: "🎵 Audio", id: registrarBoton(link, true) },
-        { text: "🎬 Video", id: registrarBoton(link, false) }
-      ],
-      extra
-    );
+    return await sock.sendMixedButtons(from, texto, botones, extra);
   } catch (e) {
     console.log(`[play2] Falló el envío con botones: ${e.stack || e.message}`);
     return null;
@@ -372,11 +337,7 @@ export default {
         miniatura = undefined;
       }
 
-      const previa = miniatura
-        ? await crearMiniaturaPrevia(miniatura)
-        : null;
-
-      return { link, info, miniatura, previa };
+      return { link, info, miniatura };
     })();
 
     preparar.catch(() => {});
@@ -397,10 +358,9 @@ export default {
     let link;
     let info;
     let miniatura;
-    let previa;
 
     try {
-      ({ link, info, miniatura, previa } = await preparar);
+      ({ link, info, miniatura } = await preparar);
     } catch (e) {
       return reply({
         text: tarjetaError(
@@ -455,10 +415,8 @@ export default {
       msg,
       sender,
       link,
-      info,
       texto: textoCompleto,
-      miniatura,
-      previa
+      miniatura
     });
 
     if (enviado) return;
