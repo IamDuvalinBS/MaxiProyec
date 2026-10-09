@@ -110,6 +110,31 @@ export async function asegurarVideoCompatibleWhatsApp(entradaOriginal) {
   }
 }
 
+// Une un video H264 y un audio AAC que YA son compatibles: solo copia las pistas, tarda segundos.
+export async function unirVideoAudioSinReconvertir(rutaVideo, rutaAudio) {
+  const salida = path.join(os.tmpdir(), `uc_out_${Date.now()}_${Math.random().toString(36).slice(2)}.mp4`);
+  const inicio = Date.now();
+  try {
+    await execFileAsync("ffmpeg", [
+      "-y",
+      "-i", rutaVideo,
+      "-i", rutaAudio,
+      "-map", "0:v:0",
+      "-map", "1:a:0",
+      "-c", "copy",
+      "-movflags", "+faststart",
+      "-shortest",
+      salida
+    ]);
+    console.log(`[descargas-core] Video y audio unidos sin reconvertir en ${((Date.now() - inicio) / 1000).toFixed(1)}s`);
+    return fs.readFileSync(salida);
+  } finally {
+    for (const ruta of [rutaVideo, rutaAudio, salida]) {
+      try { if (fs.existsSync(ruta)) fs.unlinkSync(ruta); } catch (e) {}
+    }
+  }
+}
+
 export async function combinarVideoAudioWhatsApp(bufferVideo, bufferAudio) {
   const tmp = os.tmpdir();
   const sufijo = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
@@ -216,4 +241,5 @@ export async function asegurarImagenCompatibleWhatsApp(entradaOriginal) {
     if (fs.existsSync(entrada)) fs.unlinkSync(entrada);
     if (fs.existsSync(salida)) fs.unlinkSync(salida);
   }
-  }
+}
+  

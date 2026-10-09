@@ -11,6 +11,7 @@ import {
   asegurarVideoCompatibleWhatsApp,
   asegurarAudioCompatibleWhatsApp,
   combinarVideoAudioWhatsApp,
+  unirVideoAudioSinReconvertir,
   LIMITE_VIDEO_WHATSAPP_MB
 } from "./core.js";
 
@@ -249,6 +250,48 @@ export async function descargarVideoYoutube(link) {
   return bufferListo;
 }
 
+const esH264 = (f) => /avc1/i.test(f.mime_type || "");
+const esAac = (f) => /mp4a/i.test(f.mime_type || "");
+
+// Pide a YouTube el video en H264 (hasta 720p) y el audio en AAC por separado y los une copiando las pistas.
+// Vreden entrega AV1, que WhatsApp no reproduce bien y tarda minutos en convertirse en el celular; esto evita la conversión.
+export async function descargarVideoH264Directo(link) {
+  const { yt, info } = await conTiempoLimite(obtenerInfoParaDescarga(link), 30000);
+
+  const duracionMin = (info.basic_info.duration || 0) / 60;
+  if (duracionMin > 20) throw new Error("Ese video dura mas de 20 minutos, muy probable que pese demasiado para WhatsApp.");
+
+  const lista = info.streaming_data?.adaptive_formats || [];
+  const videos = lista
+    .filter((f) => f.has_video && !f.has_audio && esH264(f) && (f.height || 0) <= 720)
+    .sort((a, b) => (b.height || 0) - (a.height || 0) || (b.bitrate || 0) - (a.bitrate || 0));
+  const audios = lista
+    .filter((f) => f.has_audio && !f.has_video && esAac(f))
+    .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0));
+  if (!videos.length || !audios.length) throw new Error("YouTube no ofrece video H264 y audio AAC separados para este enlace.");
+
+  const formatoVideo = videos[0];
+  const formatoAudio = audios[0];
+  console.log(`[youtube] H264 directo: video ${formatoVideo.height}p (itag ${formatoVideo.itag}), audio itag ${formatoAudio.itag}`);
+
+  const urlDe = async (f) => f.url ?? (await f.decipher(yt.session.player));
+  const [urlVideo, urlAudio] = await Promise.all([urlDe(formatoVideo), urlDe(formatoAudio)]);
+
+  const t0 = Date.now();
+  let rutaVideo = null;
+  let rutaAudio = null;
+  try {
+    [rutaVideo, rutaAudio] = await Promise.all([descargarATemporal(urlVideo, "mp4"), descargarATemporal(urlAudio, "m4a")]);
+  } catch (e) {
+    for (const ruta of [rutaVideo, rutaAudio]) { try { if (ruta) fs.unlinkSync(ruta); } catch (err) {} }
+    throw e;
+  }
+  console.log(`[youtube] H264 directo: descarga ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+
+  // unirVideoAudioSinReconvertir borra los archivos temporales al terminar.
+  return unirVideoAudioSinReconvertir(rutaVideo, rutaAudio);
+}
+
 export async function descargarAudioYoutube(link) {
   const { yt, info } = await obtenerInfoParaDescarga(link);
   const audios = formatosDeTipo(info, "audio");
@@ -433,6 +476,17 @@ export async function descargarAudioConProveedores(link) {
 export async function descargarVideoConProveedores(link) {
   const idVideo = extraerIdDeLink(link);
 
+  try {
+    const buffer = await descargarVideoH264Directo(link);
+    const pesoMB = buffer.length / (1024 * 1024);
+    if (pesoMB <= LIMITE_VIDEO_WHATSAPP_MB) return buffer;
+    const ruta = path.join(os.tmpdir(), `yt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.mp4`);
+    fs.writeFileSync(ruta, buffer);
+    return { ruta, nombre: `youtube-${idVideo}.mp4`, pesoMB };
+  } catch (e) {
+    console.log(`[youtube] H264 directo no disponible, se usan los proveedores: ${String(e.message).split("\n")[0]}`);
+  }
+
   for (const p of PROVEEDORES_VIDEO) {
     let rutaTmp = null;
     try {
@@ -442,27 +496,4 @@ export async function descargarVideoConProveedores(link) {
         console.log(`[youtube] Proveedor ${p.nombre} no devolvió enlace`);
         continue;
       }
-      const t1 = Date.now();
-      rutaTmp = await descargarATemporal(url, "mp4");
-      console.log(`[youtube] Tiempos: enlace ${((t1 - t0) / 1000).toFixed(1)}s, descarga ${((Date.now() - t1) / 1000).toFixed(1)}s`);
-      const pesoMB = fs.statSync(rutaTmp).size / (1024 * 1024);
-      if (pesoMB < 0.01) throw new Error("el archivo descargado está vacío o es inválido");
-      console.log(`[youtube] Video descargado con ${p.nombre} (${pesoMB.toFixed(1)}MB)`);
-
-      if (pesoMB > LIMITE_VIDEO_WHATSAPP_MB) {
-        return { ruta: rutaTmp, nombre: `youtube-${idVideo}.mp4`, pesoMB };
-      }
-      // Se pasa la ruta (no un Buffer): core.js trabaja sobre el archivo y lo borra al terminar.
-      return await asegurarVideoCompatibleWhatsApp(rutaTmp);
-    } catch (e) {
-      console.log(`[youtube] Proveedor ${p.nombre} falló: ${String(e.message).split("\n")[0]}`);
-      if (rutaTmp && fs.existsSync(rutaTmp)) {
-        try { fs.unlinkSync(rutaTmp); } catch (err) {}
-      }
-    }
-  }
-
-  return respaldoLocal(() => descargarVideoYoutube(link));
-      }
-
-                              
+      const t1 = Date.no
