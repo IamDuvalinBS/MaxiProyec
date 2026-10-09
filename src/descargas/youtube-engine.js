@@ -316,9 +316,12 @@ export async function descargarAudioYoutube(link) {
 // Si el servidor admite "Range" y el archivo es grande, se baja en varios pedazos a la vez (cada conexión
 // aporta su propia velocidad) escribiendo directo en su lugar del archivo: no usa RAM extra.
 // Si algo no cuadra (sin Range, un pedazo falla, etc.) se baja normal con una sola conexión, como siempre.
+// Mismo User-Agent que usa core.js al bajar el itag 18 (que sí funciona); sin él YouTube puede responder 403.
+const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 const RED = {
   httpAgent: new http.Agent({ keepAlive: true, maxSockets: 16 }),
-  httpsAgent: new https.Agent({ keepAlive: true, maxSockets: 16 })
+  httpsAgent: new https.Agent({ keepAlive: true, maxSockets: 16 }),
+  headers: { "User-Agent": USER_AGENT }
 };
 const CONEXIONES_PARALELAS = 4;
 const TAMANO_MINIMO_SEGMENTO = 1024 * 1024;
@@ -333,7 +336,7 @@ async function descargarSegmento(url, ruta, inicio, fin, signal) {
         ...RED,
         signal,
         responseType: "stream",
-        headers: { Range: `bytes=${inicio}-${fin}` },
+        headers: { ...RED.headers, Range: `bytes=${inicio}-${fin}` },
         timeout: 120000,
         validateStatus: (estado) => estado === 206
       });
@@ -382,7 +385,7 @@ async function descargarATemporal(url, ext) {
     // Un primer pedido de 1 byte dice si el servidor admite pedazos y cuánto pesa el archivo.
     let sondeo = null;
     try {
-      sondeo = await axios.get(url, { ...RED, responseType: "stream", headers: { Range: "bytes=0-0" }, timeout: 120000 });
+      sondeo = await axios.get(url, { ...RED, responseType: "stream", headers: { ...RED.headers, Range: "bytes=0-0" }, timeout: 120000 });
     } catch (e) {
       sondeo = null;
     }
