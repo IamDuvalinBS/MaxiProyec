@@ -100,7 +100,7 @@ function tarjetaResultados(consulta, resultados, sender) {
     partes.push("");
   });
 
-  partes.push("> Usa *.play2 <enlace>* para descargar el video que prefieras.");
+  partes.push("> Usa *.play <enlace>* para descargar el video que prefieras.");
   return partes.join("\n");
 }
 
@@ -160,7 +160,7 @@ function escucharBotones(sock) {
         if (!m?.message || m.key?.fromMe) continue;
 
         const id = leerIdDeBoton(m.message);
-        if (!id || !id.startsWith("play2|")) continue;
+        if (!id || !id.startsWith("play|")) continue;
 
         const entrada = BOTONES_ACTIVOS.get(id);
         const chat = m.key.remoteJid;
@@ -177,7 +177,7 @@ function escucharBotones(sock) {
           BOTONES_ACTIVOS.delete(id);
           await sock.sendMessage(
             chat,
-            { text: "⌛ Este botón ya expiró. Vuelve a usar *.play2*." },
+            { text: "⌛ Este botón ya expiró. Vuelve a usar *.play*." },
             { quoted: m }
           );
           continue;
@@ -191,7 +191,7 @@ function escucharBotones(sock) {
           esAudio: entrada.esAudio
         });
       } catch (e) {
-        console.log(`[play2] Error al procesar el botón: ${e.stack || e.message}`);
+        console.log(`[play] Error al procesar el botón: ${e.stack || e.message}`);
       }
     }
   });
@@ -201,7 +201,7 @@ function registrarBoton(link, esAudio) {
   const ahora = Date.now();
   for (const [k, v] of BOTONES_ACTIVOS) if (v.expira <= ahora) BOTONES_ACTIVOS.delete(k);
 
-  const id = `play2|${esAudio ? "a" : "v"}|${ahora.toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+  const id = `play|${esAudio ? "a" : "v"}|${ahora.toString(36)}${Math.random().toString(36).slice(2, 8)}`;
   BOTONES_ACTIVOS.set(id, { link, esAudio, expira: ahora + VIDA_BOTONES_MS });
   return id;
 }
@@ -213,7 +213,7 @@ function registrarBoton(link, esAudio) {
  */
 async function enviarTarjetaConBotones({ sock, from, msg, sender, link, texto, miniatura }) {
   if (typeof sock.sendMixedButtons !== "function") {
-    console.log("[play2] El socket no tiene sendMixedButtons: la librería instalada no es tu fork @fer2809fl/baileys (7.0.6+).");
+    console.log("[play] El socket no tiene sendMixedButtons: la librería instalada no es tu fork @fer2809fl/baileys (7.0.6+).");
     return null;
   }
 
@@ -233,7 +233,10 @@ async function enviarTarjetaConBotones({ sock, from, msg, sender, link, texto, m
   const extra = {
     footer: PIE_DE_PAGINA,
     quoted: msg,
-    mentions: [sender]
+    mentions: [sender],
+    // Algunas versiones de sendMixedButtons ignoran "mentions" y solo leen contextInfo: sin esto la etiqueta
+    // sale como número suelto (@1553...) en vez del nombre. Se manda también por aquí.
+    contextInfo: { mentionedJid: [sender] }
   };
 
   if (miniatura) extra.image = miniatura;
@@ -241,33 +244,33 @@ async function enviarTarjetaConBotones({ sock, from, msg, sender, link, texto, m
   try {
     return await sock.sendMixedButtons(from, texto, botones, extra);
   } catch (e) {
-    console.log(`[play2] Falló el envío con botones: ${e.stack || e.message}`);
+    console.log(`[play] Falló el envío con botones: ${e.stack || e.message}`);
     return null;
   }
 }
 
 export default {
-  names: [".play2", ".yt2", ".ytsearch2", ".buscaryt2"],
-  usage: ".play2 <enlace o nombre> | .ytsearch2 <búsqueda>",
-  desc: "'.play2' busca un video y permite elegir audio o video con botones; '.ytsearch2' lista los primeros 10 resultados",
+  names: [".play", ".yt", ".ytsearch", ".buscaryt"],
+  usage: ".play <enlace o nombre> | .ytsearch <búsqueda>",
+  desc: "'.play' busca un video y permite elegir audio o video con botones; '.ytsearch' lista los primeros 10 resultados",
   category: "Descargas",
 
   handler: async ({ sock, from, sender, msg, cleanText, reply }) => {
     const partes = cleanText.trim().split(/\s+/);
     const comando = partes[0].toLowerCase();
     const consulta = partes.slice(1).join(" ");
-    const esListado = comando === ".ytsearch2" || comando === ".buscaryt2";
+    const esListado = comando === ".ytsearch" || comando === ".buscaryt";
 
     if (!consulta) {
       return reply({
         text: esListado
           ? tarjetaUso({
-              comando: ".ytsearch2 <búsqueda>",
-              ejemplo: ".ytsearch2 historias de terror"
+              comando: ".ytsearch <búsqueda>",
+              ejemplo: ".ytsearch historias de terror"
             })
           : tarjetaUso({
-              comando: ".play2 <nombre o enlace>",
-              ejemplo: ".play2 https://youtu.be/xxxxxxxxxxx",
+              comando: ".play <nombre o enlace>",
+              ejemplo: ".play https://youtu.be/xxxxxxxxxxx",
               nota: "Después de la búsqueda podrás elegir entre audio y video."
             }),
         mentions: [sender]
@@ -285,7 +288,7 @@ export default {
       mentions: [sender]
     }).catch(() => {});
 
-    // ───────────────────────────── .ytsearch2 ─────────────────────────────
+    // ───────────────────────────── .ytsearch ─────────────────────────────
     if (esListado) {
       const busqueda = buscarVideosYoutube(consulta, 10);
       busqueda.catch(() => {});
@@ -323,7 +326,7 @@ export default {
       return;
     }
 
-    // ───────────────────────────── .play2 ─────────────────────────────
+    // ───────────────────────────── .play ─────────────────────────────
     const preparar = (async () => {
       const link = await resolverLinkYoutube(consulta);
       const info = await obtenerInfoYoutube(link);
@@ -431,7 +434,7 @@ export default {
         });
         return;
       } catch (e) {
-        console.log(`[play2] No se pudo enviar la foto con la información: ${e.message}`);
+        console.log(`[play] No se pudo enviar la foto con la información: ${e.message}`);
       }
     }
 
