@@ -128,27 +128,125 @@ function tarjetaResultados(consulta, resultados, sender) {
   return partes.join("\n");
 }
 
+// ───────────────── Botones 🎵 Audio / 🎬 Video (compatible con 7.0.6 y 7.0.7) ─────────────────
+// Usa sock.sendQuickReplyButtons (existe desde 7.0.6) y un listener propio que escucha el
+// toque del botón, así no depende de sendActionButtons ni del router.
+
+const BOTONES_ACTIVOS = new Map(); // id del botón -> { link, esAudio, expira }
+const SOCKETS_ESCUCHANDO = new WeakSet();
+const MENSAJES_PROCESADOS = new Set();
+const VIDA_BOTONES_MS = 10 * 60 * 1000;
+
+function desenvolver(message) {
+  let m = message;
+  for (let i = 0; i < 6 && m; i++) {
+    const interno =
+      m.ephemeralMessage?.message ||
+      m.viewOnceMessage?.message ||
+      m.viewOnceMessageV2?.message ||
+      m.viewOnceMessageV2Extension?.message ||
+      m.documentWithCaptionMessage?.message ||
+      m.editedMessage?.message;
+    if (!interno) break;
+    m = interno;
+  }
+  return m;
+}
+
+function leerIdDeBoton(message) {
+  const m = desenvolver(message);
+  if (!m) return null;
+
+  const nf = m.interactiveResponseMessage?.nativeFlowResponseMessage;
+  if (nf) {
+    try {
+      const p = JSON.parse(nf.paramsJson || "{}");
+      return p.id ?? p.selectedRowId ?? null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  if (m.buttonsResponseMessage) return m.buttonsResponseMessage.selectedButtonId ?? null;
+  if (m.templateButtonReplyMessage) return m.templateButtonReplyMessage.selectedId ?? null;
+  return null;
+}
+
+function escucharBotones(sock) {
+  if (!sock?.ev?.on || SOCKETS_ESCUCHANDO.has(sock.ev)) return;
+  SOCKETS_ESCUCHANDO.add(sock.ev);
+
+  sock.ev.on("messages.upsert", async ({ messages, type }) => {
+    if (type !== "notify") return;
+
+    for (const m of messages || []) {
+      try {
+        if (!m?.message || m.key?.fromMe) continue;
+
+        const id = leerIdDeBoton(m.message);
+        if (!id || !id.startsWith("play2|")) continue;
+
+        const entrada = BOTONES_ACTIVOS.get(id);
+        const chat = m.key.remoteJid;
+
+        if (m.key.id) {
+          if (MENSAJES_PROCESADOS.has(m.key.id)) continue;
+          MENSAJES_PROCESADOS.add(m.key.id);
+          if (MENSAJES_PROCESADOS.size > 500) {
+            MENSAJES_PROCESADOS.delete(MENSAJES_PROCESADOS.values().next().value);
+          }
+        }
+
+        if (!entrada || entrada.expira <= Date.now()) {
+          BOTONES_ACTIVOS.delete(id);
+          await sock.sendMessage(
+            chat,
+            { text: "⌛ Este botón ya expiró. Vuelve a usar *.play2*." },
+            { quoted: m }
+          );
+          continue;
+        }
+
+        await enviarDescarga({
+          sock,
+          from: chat,
+          msg: m,
+          link: entrada.link,
+          esAudio: entrada.esAudio
+        });
+      } catch (e) {
+        console.log(`[play2] Error al procesar el botón: ${e.stack || e.message}`);
+      }
+    }
+  });
+}
+
+function registrarBoton(link, esAudio) {
+  const ahora = Date.now();
+  for (const [k, v] of BOTONES_ACTIVOS) if (v.expira <= ahora) BOTONES_ACTIVOS.delete(k);
+
+  const id = `play2|${esAudio ? "a" : "v"}|${ahora.toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+  BOTONES_ACTIVOS.set(id, { link, esAudio, expira: ahora + VIDA_BOTONES_MS });
+  return id;
+}
+
 /**
- * Envía la tarjeta con los botones 🎵 Audio / 🎬 Video usando los métodos
- * nativos del fork @fer2809fl/baileys (sock.sendActionButtons).
- * Cada botón ejecuta la descarga directamente al tocarlo, sin pasar por el router.
+ * Envía la tarjeta con los botones 🎵 Audio / 🎬 Video.
  * Devuelve el mensaje enviado, o null si falló (el error se imprime en consola).
  */
 async function enviarTarjetaConBotones({ sock, from, msg, sender, link, info, texto, miniatura, previa }) {
-  if (typeof sock.sendActionButtons !== "function") {
-    console.log("[play2] El socket no tiene sendActionButtons: revisa que estés usando @fer2809fl/baileys 7.0.7+ (el paquete de npm con ese nombre hoy es un placeholder, instala desde GitHub: Fer2809fl/Bail).");
+  if (typeof sock.sendQuickReplyButtons !== "function") {
+    console.log("[play2] El socket no tiene sendQuickReplyButtons: la librería instalada no es tu fork @fer2809fl/baileys (7.0.6+).");
     return null;
   }
 
-  const accion = (esAudio) => ({ sock: s, msg: m, chat }) =>
-    enviarDescarga({ sock: s, from: chat, msg: m, link, esAudio });
+  escucharBotones(sock);
 
   const extra = {
     footer: PIE_DE_PAGINA,
     quoted: msg,
     mentions: [sender],
-    preview: false, // evita que el fork intente armar otra vista previa por el link del texto
-    actionTtl: "10m"
+    preview: false // evita que el fork arme otra vista previa por el link del texto
   };
 
   if (miniatura) extra.image = miniatura;
@@ -168,12 +266,12 @@ async function enviarTarjetaConBotones({ sock, from, msg, sender, link, info, te
   }
 
   try {
-    return await sock.sendActionButtons(
+    return await sock.sendQuickReplyButtons(
       from,
       texto,
       [
-        { text: "🎵 Audio", action: accion(true) },
-        { text: "🎬 Video", action: accion(false) }
+        { text: "🎵 Audio", id: registrarBoton(link, true) },
+        { text: "🎬 Video", id: registrarBoton(link, false) }
       ],
       extra
     );
