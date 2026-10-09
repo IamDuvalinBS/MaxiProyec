@@ -307,9 +307,19 @@ export async function descargarVideoH264Directo(link) {
 export async function descargarAudioYoutube(link) {
   const { yt, info } = await obtenerInfoParaDescarga(link);
   const audios = formatosDeTipo(info, "audio");
-  if (audios.length === 0) throw new Error("No encontré ningún formato de audio para ese video.");
-  const url = await primeraUrlQueFuncione(audios, yt);
-  return descargarBuffer(url);
+  if (audios.length > 0) {
+    try {
+      const url = await primeraUrlQueFuncione(audios, yt);
+      return await descargarBuffer(url);
+    } catch (e) {
+      // YouTube suele dar 403 en los formatos de solo audio; el formato con video+audio (itag 18) sí se deja bajar.
+      console.log(`[youtube] Audio suelto no disponible (${String(e.message).split("\n")[0]}); se saca del formato con video`);
+    }
+  }
+  const progresivos = formatosProgresivos(info);
+  if (progresivos.length === 0) throw new Error("No encontré ningún formato de audio para ese video.");
+  const url = await primeraUrlQueFuncione(progresivos, yt);
+  return descargarBuffer(url); // core.js se encarga de quedarse solo con el audio y pasarlo a mp3
 }
 
 // ---------- Descarga rápida a disco ----------
@@ -456,6 +466,13 @@ function conTiempoLimite(promesa, ms) {
 }
 
 export async function descargarAudioConProveedores(link) {
+  // El motor local va primero: es lo que hoy responde rápido. Los proveedores quedan de respaldo.
+  try {
+    return await asegurarAudioCompatibleWhatsApp(await descargarAudioYoutube(link));
+  } catch (e) {
+    console.log(`[youtube] Audio local no disponible, se usan los proveedores: ${String(e.message).split("\n")[0]}`);
+  }
+
   for (const p of PROVEEDORES_AUDIO) {
     let rutaTmp = null;
     try {
@@ -480,7 +497,7 @@ export async function descargarAudioConProveedores(link) {
     }
   }
 
-  return asegurarAudioCompatibleWhatsApp(await respaldoLocal(() => descargarAudioYoutube(link)));
+  throw new Error(MENSAJE_SIN_SERVICIO);
 }
 
 // Devuelve un Buffer (video normal, hasta LIMITE_VIDEO_WHATSAPP_MB) o, si pesa más, un objeto
@@ -488,6 +505,14 @@ export async function descargarAudioConProveedores(link) {
 // Quien reciba el objeto debe borrar `ruta` después de enviarlo.
 export async function descargarVideoConProveedores(link) {
   const idVideo = extraerIdDeLink(link);
+
+  // El motor local (itag 18, 360p con audio) es lo que hoy responde en ~1 s: va primero.
+  try {
+    return await descargarVideoYoutube(link);
+  } catch (e) {
+    console.log(`[youtube] Motor local no disponible, se prueban las otras opciones: ${String(e.message).split("\n")[0]}`);
+    if (/dura mas de/i.test(e.message)) throw e;
+  }
 
   try {
     const buffer = await descargarVideoH264Directo(link);
@@ -531,6 +556,6 @@ export async function descargarVideoConProveedores(link) {
     }
   }
 
-  return respaldoLocal(() => descargarVideoYoutube(link));
-      }
+  throw new Error(MENSAJE_SIN_SERVICIO);
+}
            
