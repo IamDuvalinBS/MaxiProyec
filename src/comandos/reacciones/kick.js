@@ -1,7 +1,7 @@
 import { reactionCommand } from "../../reacciones/motor.js";
 
 export default {
-  names: [".kick", ".patada"],
+  names: [".patear", ".patada"],
   usage: ".kick [@usuario]",
   desc: "Reacción de anime: kick",
   category: "Diversión",
