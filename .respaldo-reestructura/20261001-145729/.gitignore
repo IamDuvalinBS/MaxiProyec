@@ -1,8 +1,0 @@
-.respaldo-gacha/
-data/gacha.db*
-data/owners-gacha.txt
-node_modules/
-auth_info/
-auth_info_/
-.respaldo-reestructura/
-*.log
