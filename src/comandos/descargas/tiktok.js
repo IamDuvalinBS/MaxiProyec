@@ -1,39 +1,14 @@
-import { obtenerMediaTikTok } from "../../descargas/redes.js";
-import { enviarMedias } from "../../descargas/envio.js";
-import { tarjetaDescarga, tarjetaUso, tarjetaError, campo } from "../../descargas/tarjetas.js";
+import { obtenerMediaTikTok, buscarTikTok } from "../../descargas/redes.js";
+import { crearComandoRed } from "../../descargas/comando-red.js";
 
-export default {
+export default crearComandoRed({
   names: [".tiktok", ".tt"],
-  usage: ".tiktok <link>",
-  desc: "Descarga videos o fotos de TikTok sin marca de agua",
-  category: "Descargas",
-  handler: async ({ sender, cleanText, reply }) => {
-    const link = cleanText.trim().split(/\s+/)[1];
-    if (!link || !/tiktok\.com/i.test(link)) {
-      return reply({
-        text: tarjetaUso({ comando: ".tiktok <enlace>", ejemplo: ".tiktok https://www.tiktok.com/@usuario/video/123456789", nota: "Envía un enlace válido de TikTok." }),
-        mentions: [sender]
-      });
-    }
-
-    await reply({
-      text: tarjetaDescarga({
-        emoji: "🎵",
-        titulo: "TIKTOK DOWNLOAD",
-        sender,
-        campos: [campo("🔗", "Enlace", link)],
-        nota: "Descargando el contenido. Esto puede tardar unos segundos."
-      }),
-      mentions: [sender]
-    });
-
-    let medias;
-    try {
-      medias = await obtenerMediaTikTok(link);
-    } catch (e) {
-      return reply({ text: tarjetaError("No se pudo obtener el contenido de ese enlace.", e.message) });
-    }
-
-    await enviarMedias(medias, reply);
-  }
-};
+  desc: "Descarga videos, fotos e historias de TikTok sin marca de agua, o busca y envía 5 videos (hasta 10: .tt 8 búsqueda)",
+  emoji: "🎵",
+  titulo: "TIKTOK DOWNLOAD",
+  regexLink: /tiktok\.com/i,
+  ejemploLink: ".tt https://www.tiktok.com/@usuario/video/123456789",
+  ejemploBusqueda: ".tt corte clásico   |   .tt 8 corte clásico",
+  obtenerPorLink: obtenerMediaTikTok,
+  buscar: buscarTikTok
+});
