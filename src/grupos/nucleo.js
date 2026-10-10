@@ -5,6 +5,8 @@ const VIGENCIA_ENLACE_MS = 10 * 60 * 1000;
 const metadatosGuardados = new Map();
 const metadatosPendientes = new Map();
 const enlacesGuardados = new Map();
+const expulsiones = new Map();
+const VIGENCIA_EXPULSION_MS = 30 * 1000;
 
 export function esGrupo(jid) {
   return typeof jid === "string" && jid.endsWith("@g.us");
@@ -19,7 +21,7 @@ export function limpiarJid(jid) {
 export function jidDe(participante) {
   if (!participante) return null;
   if (typeof participante === "string") return participante;
-  return participante.id || participante.phoneNumber || participante.jid || null;
+  return participante.phoneNumber || participante.jid || participante.id || null;
 }
 
 export function numeroDe(jid) {
@@ -34,7 +36,7 @@ export function aviso(emoji, titulo, texto) {
   return `⧼${emoji}⧽ *${titulo}*\n\n> ${texto}`;
 }
 
-function idsDe(participante) {
+export function idsDe(participante) {
   return [participante.id, participante.lid, participante.jid, participante.phoneNumber]
     .filter(Boolean)
     .map(limpiarJid);
@@ -146,4 +148,15 @@ export function comandoGrupo({ emoji, titulo, admin = true, botAdmin = false }, 
 
     return ejecutar({ ...ctx, meta, quien, bot, responder, avisar });
   };
+}
+
+export function marcarExpulsion(grupo, ids) {
+  const vence = Date.now() + VIGENCIA_EXPULSION_MS;
+  for (const id of ids) expulsiones.set(`${grupo}:${numeroDe(id)}`, vence);
+}
+
+export function fueExpulsadoPorBot(grupo, ids) {
+  const ahora = Date.now();
+  for (const [clave, vence] of expulsiones) if (vence < ahora) expulsiones.delete(clave);
+  return ids.some((id) => (expulsiones.get(`${grupo}:${numeroDe(id)}`) || 0) > ahora);
 }
