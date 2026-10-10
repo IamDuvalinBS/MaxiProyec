@@ -32,10 +32,15 @@ export async function enviarConBoton({ sock, from, msg, texto, footer, foto, bot
 
     const botones = boton
       ? [
-          {
-            name: "cta_url",
-            buttonParamsJson: JSON.stringify({ display_text: boton.texto, url: boton.url, merchant_url: boton.url })
-          }
+          boton.copiar
+            ? {
+                name: "cta_copy",
+                buttonParamsJson: JSON.stringify({ display_text: boton.texto, copy_code: boton.copiar })
+              }
+            : {
+                name: "cta_url",
+                buttonParamsJson: JSON.stringify({ display_text: boton.texto, url: boton.url, merchant_url: boton.url })
+              }
         ]
       : [];
 

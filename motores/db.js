@@ -14,6 +14,7 @@ let configCollection = null;
 let stickersCollection = null;
 let besosCollection = null;
 let baneosCollection = null;
+let warnsCollection = null;
 const comandosBaneados = new Set();
 const categoriasBaneadas = new Set();
 
@@ -42,6 +43,7 @@ export async function connectDB(intentos = 15) {
       stickersCollection = db.collection("stickers");
       besosCollection = db.collection("besos");
       baneosCollection = db.collection("baneos");
+      warnsCollection = db.collection("warns");
       console.log(chalk.greenBright.bold("✅ Mongo conectado con éxito"));
 
       for await (const doc of collection.find({})) {
@@ -317,4 +319,23 @@ export function listarBaneos() {
 
 export function listarCuentas() {
   return [...accounts.entries()];
+}
+
+export async function sumarAdvertencia(grupo, usuario) {
+  if (!warnsCollection) return null;
+  const campo = `w.${usuario}`;
+  await warnsCollection.updateOne({ _id: grupo }, { $inc: { [campo]: 1 } }, { upsert: true });
+  const doc = await warnsCollection.findOne({ _id: grupo }, { projection: { [campo]: 1 } });
+  return Number(doc?.w?.[usuario]) || 1;
+}
+
+export async function limpiarAdvertencias(grupo, usuario) {
+  if (!warnsCollection) return null;
+  const campo = `w.${usuario}`;
+  const doc = await warnsCollection.findOne({ _id: grupo }, { projection: { [campo]: 1 } });
+  const previas = Number(doc?.w?.[usuario]) || 0;
+  if (!previas) return 0;
+  await warnsCollection.updateOne({ _id: grupo }, { $unset: { [campo]: "" } });
+  await warnsCollection.deleteOne({ _id: grupo, w: {} });
+  return previas;
 }
