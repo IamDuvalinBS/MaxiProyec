@@ -1,4 +1,4 @@
-import { addToWallet, getAccount, saveAccount } from "../../motores/db.js";
+import { addToWallet } from "../../motores/db.js";
 import { addXp } from "../../motores/profile.js";
 import { tarjeta, monto, avisoNivel } from "./formato.js";
 
@@ -7,15 +7,6 @@ const LETRAS = ["A", "B", "C", "D"];
 
 export function setPendingTrivia(clave, datos) {
   pendientes.set(clave, datos);
-}
-
-// Vacía el banco del usuario y devuelve cuánto le quitó.
-function vaciarBanco(sender) {
-  const acc = getAccount(sender);
-  const saldo = acc.bank || 0;
-  acc.bank = 0;
-  saveAccount(sender);
-  return saldo;
 }
 
 export async function checkTriviaAnswer(sock, from, sender, text, msg) {
@@ -32,20 +23,6 @@ export async function checkTriviaAnswer(sock, from, sender, text, msg) {
   pendientes.delete(clave);
 
   const enviar = (contenido) => sock.sendMessage(from, contenido, { quoted: msg });
-
-  // 🃏 BROMA: sin respuesta correcta, el bot se lleva todo el banco
-  if (pendiente.broma) {
-    const quitado = vaciarBanco(sender);
-    await enviar({
-      text: tarjeta({
-        emoji: "💀",
-        titulo: "CAÍSTE EN LA BROMA",
-        relato: "Ninguna opción era correcta. El bot se llevó todo el dinero de tu banco. 😈",
-        lineas: [`🏦 *Perdiste* ›› -${monto(quitado)}`]
-      })
-    });
-    return true;
-  }
 
   if (respuesta !== pendiente.correcta) {
     await enviar({
