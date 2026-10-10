@@ -144,28 +144,72 @@ function decodificarEntidades(s) {
   return String(s).replace(/&amp;/g, "&").replace(/&#x27;|&#39;/g, "'").replace(/&quot;/g, '"');
 }
 
-// Búsqueda web (DuckDuckGo) para plataformas sin búsqueda pública (Instagram, Facebook).
-async function buscarEnlacesWeb(consulta, normalizar, maximo) {
+// Búsqueda web para plataformas sin búsqueda pública (Instagram, Facebook): primero DuckDuckGo y, si no alcanza o lo bloquean, Bing.
+// Cada motor devuelve la lista de URLs reales que encontró en la página.
+async function motorDuckDuckGo(consulta) {
   const { data: html } = await axios.post(
     "https://html.duckduckgo.com/html/",
     new URLSearchParams({ q: consulta }).toString(),
-    { headers: { ...HEADERS, "Content-Type": "application/x-www-form-urlencoded" }, timeout: 15000 }
+    { headers: { ...HEADERS, "Content-Type": "application/x-www-form-urlencoded", "Accept-Language": "es-MX,es;q=0.9" }, timeout: 15000 }
   );
-  const vistos = new Set();
-  const enlaces = [];
+  const urls = [];
   for (const m of String(html).matchAll(/href="([^"]*uddg=[^"]+)"/g)) {
     const u = decodificarEntidades(m[1]).match(/[?&]uddg=([^&]+)/);
     if (!u) continue;
-    let real;
-    try { real = decodeURIComponent(u[1]); } catch (e) { continue; }
-    const canonico = normalizar(real);
-    if (!canonico || vistos.has(canonico)) continue;
-    vistos.add(canonico);
-    enlaces.push(canonico);
+    try { urls.push(decodeURIComponent(u[1])); } catch (e) { /* enlace dañado */ }
+  }
+  return urls;
+}
+
+async function motorBing(consulta) {
+  const { data: html } = await axios.get("https://www.bing.com/search", {
+    params: { q: consulta, count: 30, setlang: "es" },
+    headers: { ...HEADERS, "Accept-Language": "es-MX,es;q=0.9" },
+    timeout: 15000
+  });
+  const urls = [];
+  for (const m of String(html).matchAll(/href="(https?:\/\/[^"]+)"/g)) {
+    let url = decodificarEntidades(m[1]);
+    // Bing esconde el destino real en el parámetro u=a1<base64>.
+    const envuelto = url.match(/^https?:\/\/(?:www\.)?bing\.com\/ck\/a\?.*?[?&]u=a1([^&]+)/);
+    if (envuelto) {
+      try { url = Buffer.from(envuelto[1].replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8"); } catch (e) { continue; }
+    }
+    urls.push(url);
+  }
+  return urls;
+}
+
+const MOTORES_WEB = [["DuckDuckGo", motorDuckDuckGo], ["Bing", motorBing]];
+
+async function buscarEnlacesWeb(consulta, normalizar, maximo) {
+  const errores = [];
+  const vistos = new Set();
+  const enlaces = [];
+
+  for (const [nombre, motor] of MOTORES_WEB) {
+    try {
+      const urls = await motor(consulta);
+      for (const url of urls) {
+        const canonico = normalizar(url);
+        if (canonico && !vistos.has(canonico)) { vistos.add(canonico); enlaces.push(canonico); }
+      }
+      console.log(`[redes] ${nombre}: ${urls.length} enlaces en la página, ${enlaces.length} útiles para "${consulta}"`);
+    } catch (e) {
+      errores.push(`${nombre}: ${String(e.message).split("\n")[0]}`);
+      console.log(`[redes] ${nombre} falló: ${e.message}`);
+    }
     if (enlaces.length >= maximo) break;
   }
-  return enlaces;
+
+  if (!enlaces.length && errores.length === MOTORES_WEB.length) {
+    throw new Error(`Los buscadores web no respondieron (${errores.join("; ")}).`);
+  }
+  return enlaces.slice(0, maximo);
 }
+
+const SIN_BUSQUEDA_PUBLICA =
+  "No encontré videos para esa búsqueda. Instagram y Facebook no tienen búsqueda pública, así que funciona mucho mejor con un enlace directo.";
 
 // ───────────────────────── X (Twitter) ─────────────────────────
 function extraerTweetId(link) {
@@ -220,7 +264,16 @@ export async function obtenerMediaTwitter(link) {
 }
 
 // ───────────────────────── TikTok (tikwm; yt-dlp como respaldo) ─────────────────────────
-const absoluta = (u) => (!u ? null : String(u).startsWith("/") ? `https://tikwm.com${u}` : u);
+const TIKWM = "https://www.tikwm.com";
+// Los mismos encabezados que usa la propia página de tikwm: sin ellos puede responder 403.
+const HEADERS_TIKWM = {
+  ...HEADERS,
+  Accept: "application/json, text/javascript, */*; q=0.01",
+  Origin: TIKWM,
+  Referer: `${TIKWM}/`,
+  "X-Requested-With": "XMLHttpRequest"
+};
+const absoluta = (u) => (!u ? null : String(u).startsWith("/") ? `${TIKWM}${u}` : u);
 
 function pieTikTok(v) {
   // El usuario se deja tal cual (los guiones bajos son parte del nombre); solo se limpia el espacio sobrante.
@@ -237,11 +290,11 @@ function pieTikTok(v) {
 async function pedirTikwm(ruta, params, metodo = "GET") {
   for (let intento = 0; intento < 3; intento++) {
     const { data } = metodo === "POST"
-      ? await axios.post(`https://tikwm.com${ruta}`, new URLSearchParams(params).toString(), {
-          headers: { ...HEADERS, "Content-Type": "application/x-www-form-urlencoded" },
+      ? await axios.post(`${TIKWM}${ruta}`, new URLSearchParams(params).toString(), {
+          headers: { ...HEADERS_TIKWM, "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8" },
           timeout: 20000
         })
-      : await axios.get(`https://tikwm.com${ruta}`, { params, headers: HEADERS, timeout: 20000 });
+      : await axios.get(`${TIKWM}${ruta}`, { params, headers: HEADERS_TIKWM, timeout: 20000 });
 
     if (data?.code === 0 && data.data) return data.data;
     if (/limit/i.test(String(data?.msg))) { await pausa(1300); continue; } // la API gratuita permite 1 petición por segundo
@@ -272,16 +325,39 @@ export async function obtenerMediaTikTok(link) {
   throw errorApi;
 }
 
+const normalizarTikTok = (url) => {
+  const m = url.match(/tiktok\.com\/(@[\w.\-]+)\/video\/(\d+)/i);
+  return m ? `https://www.tiktok.com/${m[1]}/video/${m[2]}` : null;
+};
+
 export async function buscarTikTok(consulta, cantidad) {
-  const data = await pedirTikwm(
-    "/api/feed/search",
-    { keywords: consulta, count: Math.min(30, cantidad + 5), cursor: 0, web: 1, hd: 1 },
-    "POST"
-  );
-  return (data.videos || [])
-    .filter((v) => v.play || v.hdplay)
-    .slice(0, cantidad + 3) // unos extra por si alguno pesa demasiado
-    .map((v) => ({ type: "video", url: absoluta(v.play || v.hdplay), caption: pieTikTok(v) }));
+  let errorApi = null;
+  try {
+    const data = await pedirTikwm(
+      "/api/feed/search",
+      { keywords: consulta, count: Math.min(30, cantidad + 5), cursor: 0, web: 1, hd: 1 },
+      "POST"
+    );
+    const lista = (data.videos || [])
+      .filter((v) => v.play || v.hdplay)
+      .slice(0, cantidad + 3) // unos extra por si alguno pesa demasiado
+      .map((v) => ({ type: "video", url: absoluta(v.play || v.hdplay), caption: pieTikTok(v) }));
+    if (lista.length) return lista;
+  } catch (e) {
+    errorApi = e;
+    console.log(`[redes] La búsqueda de tikwm falló (${e.message}); se prueba con el buscador web`);
+  }
+
+  // Respaldo: buscar enlaces de TikTok en la web y bajar cada uno (tikwm, y yt-dlp si tikwm falla).
+  const enlaces = await buscarEnlacesWeb(`${consulta} site:tiktok.com/@ video`, normalizarTikTok, cantidad * 2).catch(() => []);
+  if (!enlaces.length) throw errorApi || new Error("No encontré videos de TikTok para esa búsqueda.");
+  return enlaces.map((link) => ({
+    type: "video",
+    resolver: async () => {
+      await pausa(1200); // la API gratuita de tikwm permite 1 petición por segundo
+      return (await obtenerMediaTikTok(link)).filter((m) => m.type === "video").slice(0, 1);
+    }
+  }));
 }
 
 // ───────────────────────── Facebook ─────────────────────────
@@ -314,6 +390,7 @@ export async function buscarFacebook(consulta, cantidad) {
     const mas = await buscarEnlacesWeb(`${consulta} site:facebook.com/watch`, normalizarFacebook, cantidad * 2).catch(() => []);
     enlaces = [...new Set([...enlaces, ...mas])].slice(0, cantidad * 2);
   }
+  if (!enlaces.length) throw new Error(SIN_BUSQUEDA_PUBLICA);
   return enlaces.map((link) => ({
     type: "video",
     resolver: async () => (await obtenerMediaFacebook(link)).filter((m) => m.type === "video").slice(0, 1).map((m) => ({ ...m, caption: `🔗 ${link}` }))
@@ -351,6 +428,7 @@ const normalizarInstagram = (url) => {
 
 export async function buscarInstagram(consulta, cantidad) {
   const enlaces = await buscarEnlacesWeb(`${consulta} site:instagram.com/reel`, normalizarInstagram, cantidad * 2);
+  if (!enlaces.length) throw new Error(SIN_BUSQUEDA_PUBLICA);
   return enlaces.map((link) => ({
     type: "video",
     resolver: async () => (await obtenerMediaInstagram(link)).filter((m) => m.type === "video").slice(0, 1).map((m) => ({ ...m, caption: `🔗 ${link}` }))
@@ -507,4 +585,61 @@ export async function obtenerVideoReddit(link) {
     buffer = await descargarBuffer(m.url);
   }
   return { type: m.type, buffer };
+}
+
+// ───────────────────────── Diagnóstico (.diagred) ─────────────────────────
+// Prueba cada servicio y devuelve una línea por prueba, para saber exactamente qué falla desde tu red.
+export async function diagnosticarRedes() {
+  const lineas = [];
+  const probar = async (nombre, fn) => {
+    const t0 = Date.now();
+    try {
+      const resultado = await fn();
+      lineas.push(`✅ ${nombre}: ${resultado} (${((Date.now() - t0) / 1000).toFixed(1)}s)`);
+    } catch (e) {
+      lineas.push(`❌ ${nombre}: ${String(e.message).split("\n")[0].slice(0, 160)}`);
+    }
+  };
+
+  const TIKTOK_PRUEBA = "https://www.tiktok.com/@scout2015/video/6718335390845095173";
+
+  await probar("yt-dlp instalado", async () => {
+    const { stdout } = await execFileAsync("yt-dlp", ["--version"], { timeout: 15000 });
+    return `versión ${stdout.trim()}`;
+  });
+  await probar("curl-cffi (lo exige Instagram)", async () => {
+    const { stdout } = await execFileAsync("yt-dlp", ["--list-impersonate-targets"], { timeout: 20000 });
+    if (!/chrome|safari|edge|firefox/i.test(stdout)) throw new Error('no detectado: pip install -U "yt-dlp[default,curl-cffi]"');
+    return "detectado";
+  });
+  await probar("TikTok enlace (tikwm)", async () => {
+    const info = await pedirTikwm("/api/", { url: TIKTOK_PRUEBA, hd: 1 });
+    return info.play || info.hdplay ? "devolvió el video" : "respondió sin video";
+  });
+  await probar("TikTok búsqueda (tikwm)", async () => {
+    const data = await pedirTikwm("/api/feed/search", { keywords: "mambo", count: 3, cursor: 0, web: 1, hd: 1 }, "POST");
+    return `${(data.videos || []).length} videos`;
+  });
+  await probar("TikTok enlace (yt-dlp)", async () => {
+    const { stdout } = await execFileAsync("yt-dlp", ["--simulate", "--no-warnings", "--no-playlist", "--print", "title", TIKTOK_PRUEBA], { timeout: 60000 });
+    return `título "${stdout.trim().slice(0, 40)}"`;
+  });
+  for (const [nombre, motor] of MOTORES_WEB) {
+    await probar(`Buscador ${nombre}`, async () => {
+      const urls = await motor("mambo site:instagram.com/reel");
+      const reels = urls.filter((u) => normalizarInstagram(u)).length;
+      if (!urls.length) throw new Error("la página no trajo enlaces (posible captcha o bloqueo)");
+      return `${urls.length} enlaces, ${reels} de reels de Instagram`;
+    });
+  }
+  await probar("Pinterest búsqueda", async () => {
+    const r = await pinterestApi(
+      "BaseSearchResource",
+      "/search/videos/?q=gatos&rs=typed",
+      { options: { query: "gatos", scope: "videos", rs: "typed", bookmarks: [] }, context: {} }
+    );
+    return `${(r?.results || []).length} resultados`;
+  });
+
+  return lineas;
 }
