@@ -6,7 +6,7 @@ export default {
   usage: ".testbye",
   desc: "Probar la despedida con tu usuario",
   category: "Grupos",
-  handler: comandoGrupo({ emoji: "🪺", titulo: "TESTBYE" }, async ({ sock, from, sender }) => {
-    await enviarDespedida(sock, from, sender);
+  handler: comandoGrupo({ emoji: "🪺", titulo: "TESTBYE" }, async ({ sock, from, sender, quien }) => {
+    await enviarDespedida(sock, from, sender, quien ? quien.ids : [sender]);
   })
 };

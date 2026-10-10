@@ -6,7 +6,7 @@ export default {
   usage: ".testwelcome",
   desc: "Probar la bienvenida con tu usuario",
   category: "Grupos",
-  handler: comandoGrupo({ emoji: "🏰", titulo: "TESTWELCOME" }, async ({ sock, from, sender }) => {
-    await enviarBienvenida(sock, from, sender);
+  handler: comandoGrupo({ emoji: "🏰", titulo: "TESTWELCOME" }, async ({ sock, from, sender, quien }) => {
+    await enviarBienvenida(sock, from, sender, quien ? quien.ids : [sender]);
   })
 };

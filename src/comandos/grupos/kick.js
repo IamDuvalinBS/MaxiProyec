@@ -2,7 +2,7 @@ import { comandoGrupo, objetivoDe, buscarParticipante, buscarBot, olvidarMetadat
 import { tarjetaMarcada, mencion } from "../../economia/estilo.js";
 
 export default {
-  names: [".kick", ".eliminar", ".expulsar"],
+  names: [".kick", ".expulsar"],
   usage: ".kick @usuario | responder a un mensaje",
   desc: "Eliminar a un usuario del grupo",
   category: "Grupos",
