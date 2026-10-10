@@ -1,20 +1,11 @@
+import { checkCooldown } from "../../../motores/db.js";
+import { PREGUNTAS } from "../../economia/preguntas.js";
 import { setPendingTrivia } from "../../economia/trivia.js";
-import { tarjeta, textoEspera } from "../../economia/formato.js";
+import { tarjeta, entre, textoEspera } from "../../economia/formato.js";
 
+const ESPERA_MS = 15 * 60 * 1000;
 const TIEMPO_RESPUESTA_MS = 15 * 1000;
 const LETRAS = ["A", "B", "C", "D"];
-
-// Preguntas de broma: NINGUNA opción es correcta
-const PREGUNTAS_BROMA = [
-  {
-    pregunta: "¿Cuál es la capital de Francia?",
-    opciones: ["Londres", "Madrid", "Roma", "Berlín"]
-  },
-  {
-    pregunta: "¿Cuánto es 2 + 2?",
-    opciones: ["3", "5", "6", "22"]
-  }
-];
 
 let mazo = [];
 
@@ -28,28 +19,32 @@ function mezclar(lista) {
 }
 
 function siguientePregunta() {
-  if (mazo.length === 0) mazo = mezclar(PREGUNTAS_BROMA);
+  if (mazo.length === 0) mazo = mezclar(PREGUNTAS);
   return mazo.pop();
 }
 
 export default {
-  names: [".trivia"],
-  desc: "Responder una pregunta de cultura general",
+  names: [".trivia", ".preguntas"],
+  desc: "Responder una pregunta de cultura general (cada 30 minutos)",
   category: "Economía",
   handler: async ({ from, sender, reply }) => {
-    // Sin cooldown: se puede usar las veces que quieran
+    const espera = checkCooldown(sender, "trivia", ESPERA_MS);
+    if (espera > 0) return reply({ text: textoEspera(espera) });
+
     const base = siguientePregunta();
-    const opcionesMezcladas = mezclar(base.opciones);
+    const opcionesMezcladas = mezclar(
+      base.opciones.map((texto, i) => ({ texto, ok: i === base.correcta }))
+    );
+    const indiceCorrecto = opcionesMezcladas.findIndex((o) => o.ok);
 
     setPendingTrivia(`${from}:${sender}`, {
-      correcta: "NINGUNA", // ninguna letra A-D coincide, así que siempre pierden
-      broma: true,         // bandera para que el manejador de respuestas les quite todo
-      premio: 0,
-      xp: 0,
+      correcta: LETRAS[indiceCorrecto],
+      premio: entre(100, 300),
+      xp: entre(5, 15),
       expira: Date.now() + TIEMPO_RESPUESTA_MS
     });
 
-    const opciones = opcionesMezcladas.map((texto, i) => `${LETRAS[i]}) ${texto}`);
+    const opciones = opcionesMezcladas.map((o, i) => `${LETRAS[i]}) ${o.texto}`);
     await reply({
       text: tarjeta({
         emoji: "💭",
