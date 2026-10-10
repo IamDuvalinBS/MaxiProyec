@@ -1,4 +1,4 @@
-import { comandoGrupo, objetivoDe, buscarParticipante, buscarBot, olvidarMetadatos, marcarExpulsion } from "../../grupos/nucleo.js";
+import { comandoGrupo, objetivoDe, buscarParticipante, buscarBot, olvidarMetadatos } from "../../grupos/nucleo.js";
 import { tarjetaMarcada, mencion } from "../../economia/estilo.js";
 
 export default {
@@ -17,7 +17,6 @@ export default {
     if (objetivo === buscarBot(sock, meta)) return avisar("No es posible eliminar al propio bot.");
     if (objetivo === quien) return avisar("No puedes eliminarte a ti mismo.");
 
-    marcarExpulsion(from, objetivo.ids);
     try {
       await sock.groupParticipantsUpdate(from, [objetivo.id], "remove");
     } catch (e) {

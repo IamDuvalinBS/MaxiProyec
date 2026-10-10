@@ -1,5 +1,6 @@
 import { downloadMediaMessage } from "@fer2809fl/baileys";
 import { comandoGrupo } from "../../grupos/nucleo.js";
+import { cambiarFotoGrupo } from "../../grupos/foto.js";
 import { tarjetaMarcada, mencion } from "../../economia/estilo.js";
 
 export default {
@@ -20,7 +21,7 @@ export default {
 
     try {
       const buffer = await downloadMediaMessage(objetivo, "buffer", {});
-      await sock.updateProfilePicture(from, buffer);
+      await cambiarFotoGrupo(sock, from, buffer);
     } catch (e) {
       return avisar(`No fue posible cambiar la foto del grupo: ${e.message}`);
     }

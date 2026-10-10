@@ -1,4 +1,4 @@
-import { comandoGrupo, objetivoDe, buscarParticipante, olvidarMetadatos, marcarExpulsion, numeroDe } from "../../grupos/nucleo.js";
+import { comandoGrupo, objetivoDe, buscarParticipante, olvidarMetadatos, numeroDe } from "../../grupos/nucleo.js";
 import { tarjetaMarcada, mencion } from "../../economia/estilo.js";
 import { sumarAdvertencia, limpiarAdvertencias } from "../../../motores/db.js";
 
@@ -31,7 +31,6 @@ export default {
     let expulsado = false;
     if (alLimite && bot && bot.admin) {
       try {
-        marcarExpulsion(from, objetivo.ids);
         await sock.groupParticipantsUpdate(from, [objetivo.id], "remove");
         await limpiarAdvertencias(from, numeroDe(objetivo.id));
         olvidarMetadatos(from);
