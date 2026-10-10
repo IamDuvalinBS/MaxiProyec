@@ -18,6 +18,20 @@ export function limpiarJid(jid) {
   return dominio ? `${base}@${dominio}` : base;
 }
 
+export function normalizarParticipante(participante) {
+  if (!participante) return null;
+  if (typeof participante === "object") return participante;
+  const texto = String(participante).trim();
+  if (texto.startsWith("{")) {
+    try {
+      return JSON.parse(texto);
+    } catch (e) {
+      return { id: texto };
+    }
+  }
+  return { id: texto };
+}
+
 export function jidDe(participante) {
   if (!participante) return null;
   if (typeof participante === "string") return participante;
