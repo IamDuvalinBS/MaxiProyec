@@ -18,6 +18,10 @@ import chalk from "chalk";
 import { iniciarAvisosRacha } from "./src/economia/avisos.js";
 import { tieneAfk, desactivarAfk, textoSalidaAfk } from "./src/economia/afk.js";
 import { idDeRespuestaInteractiva } from "./motores/respuestas-botones.js";
+import { manejarParticipantes } from "./src/eventos/participantes.js";
+import { antilinkActivo } from "./src/grupos/estado.js";
+import { eliminarEnlace } from "./src/grupos/enlaces.js";
+import { olvidarMetadatos } from "./src/grupos/nucleo.js";
 
 function imprimirBanner() {
   console.clear();
@@ -162,6 +166,15 @@ async function startBot() {
     } catch (e) {
       console.log("Error en aviso de admin: " + e.message);
     }
+    try {
+      await manejarParticipantes(sock, update);
+    } catch (e) {
+      console.log("Error en eventos de grupo: " + e.message);
+    }
+  });
+
+  sock.ev.on("groups.update", (cambios) => {
+    for (const cambio of cambios) if (cambio.id) olvidarMetadatos(cambio.id);
   });
 
   sock.ev.on("messages.upsert", async (m) => {
@@ -192,6 +205,8 @@ async function startBot() {
       (msg.message.documentWithCaptionMessage?.message?.documentMessage?.caption || "") ||
       ""
     ).trim();
+
+    if (from.endsWith("@g.us") && !msg.key.fromMe && antilinkActivo(from) && (await eliminarEnlace(sock, msg, from, sender, text))) return;
 
     if (!msg.key.fromMe) {
       sock.sendPresenceUpdate("composing", from)
