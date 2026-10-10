@@ -1,9 +1,11 @@
 import path from "path";
+import { createCanvas, loadImage } from "@napi-rs/canvas";
 import { fileURLToPath } from "url";
 import { limpiarJid } from "./nucleo.js";
 
 const PREDETERMINADA = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../assets/imagenes/perfil-predeterminado.png");
 const ESPERA_MS = 6000;
+const LADO_FOTO_GRUPO = 640;
 
 async function buscarFoto(sock, ids) {
   for (const id of ids) {
@@ -44,5 +46,37 @@ export async function enviarConImagen(sock, grupo, imagen, texto, mentions) {
       }
     }
     await sock.sendMessage(grupo, { text: texto, mentions });
+  }
+}
+
+async function prepararFotoGrupo(buffer) {
+  const origen = await loadImage(buffer);
+  const lado = Math.min(origen.width, origen.height);
+  const lienzo = createCanvas(LADO_FOTO_GRUPO, LADO_FOTO_GRUPO);
+  lienzo.getContext("2d").drawImage(
+    origen,
+    (origen.width - lado) / 2,
+    (origen.height - lado) / 2,
+    lado,
+    lado,
+    0,
+    0,
+    LADO_FOTO_GRUPO,
+    LADO_FOTO_GRUPO
+  );
+  return lienzo.toBuffer("image/jpeg", 90);
+}
+
+export async function cambiarFotoGrupo(sock, grupo, buffer) {
+  const imagen = await prepararFotoGrupo(buffer);
+  try {
+    await sock.updateProfilePicture(grupo, imagen);
+  } catch (e) {
+    if (!/image processing/i.test(e.message || "")) throw e;
+    await sock.query({
+      tag: "iq",
+      attrs: { target: grupo, to: "@s.whatsapp.net", type: "set", xmlns: "w:profile:picture" },
+      content: [{ tag: "picture", attrs: { type: "image" }, content: imagen }]
+    });
   }
 }
