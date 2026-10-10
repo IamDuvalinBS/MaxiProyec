@@ -4,7 +4,7 @@ import { tarjetaMarcada, mencion } from "../../economia/estilo.js";
 const LIMITE = 100;
 
 export default {
-  names: [".setname", ".setnombre"],
+  names: [".namegp", ".nombregp"],
   usage: ".setname <nuevo nombre>",
   desc: "Cambiar el nombre del grupo",
   category: "Grupos",
