@@ -1,58 +1,54 @@
-import { checkCooldown } from "../../../motores/db.js";
-import { PREGUNTAS } from "../../economia/preguntas.js";
-import { setPendingTrivia } from "../../economia/trivia.js";
-import { tarjeta, entre, textoEspera } from "../../economia/formato.js";
+import { getAccount } from "../../../motores/db.js";
+import { trabajosRegistrados } from "../../economia/trabajos.js";
+import { fmt, jidObjetivo } from "../../economia/formato.js";
+import { encabezado, mencion, tiempoLargo } from "../../economia/estilo.js";
 
-const ESPERA_MS = 15 * 60 * 1000;
-const TIEMPO_RESPUESTA_MS = 15 * 1000;
-const LETRAS = ["A", "B", "C", "D"];
+const HORA_MS = 60 * 60 * 1000;
 
-let mazo = [];
+const COMANDOS_BASE = [
+  { nombre: "Daily", clave: "daily", ms: 24 * HORA_MS },
+  { nombre: "Semanal", clave: "semanal", ms: 7 * 24 * HORA_MS },
+  { nombre: "Cofre", clave: "cofre", ms: 24 * HORA_MS },
+  { nombre: "Trivia", clave: "trivia", ms: 15 * 60 * 1000 }
+];
 
-function mezclar(lista) {
-  const copia = [...lista];
-  for (let i = copia.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [copia[i], copia[j]] = [copia[j], copia[i]];
-  }
-  return copia;
+function nombreDe(trabajo) {
+  const base = trabajo.names[0].slice(1);
+  return base.charAt(0).toUpperCase() + base.slice(1);
 }
 
-function siguientePregunta() {
-  if (mazo.length === 0) mazo = mezclar(PREGUNTAS);
-  return mazo.pop();
+function listaDeComandos() {
+  const lista = [...COMANDOS_BASE];
+  for (const trabajo of trabajosRegistrados.values()) {
+    lista.push({ nombre: nombreDe(trabajo), clave: trabajo.clave, ms: trabajo.cooldownMs });
+  }
+  return lista;
 }
 
 export default {
-  names: [".trivia"],
-  desc: "Responder una pregunta de cultura general (cada 30 minutos)",
+  names: [".winfo", ".cooldowns", ".esperas"],
+  usage: ".winfo | .winfo @usuario",
+  desc: "Ver el tiempo de espera de todos los comandos de economía",
   category: "Economía",
-  handler: async ({ from, sender, reply }) => {
-    const espera = checkCooldown(sender, "trivia", ESPERA_MS);
-    if (espera > 0) return reply({ text: textoEspera(espera) });
+  handler: async ({ sender, msg, reply }) => {
+    const objetivo = jidObjetivo(msg) || sender;
+    const cuenta = getAccount(objetivo);
+    const ahora = Date.now();
+    const partes = [
+      encabezado("⏳", "Cooldown de Economía"),
+      "",
+      `> El tiempo de recarga que falta para utilizar cada comando de economía. ${mencion(objetivo)}`,
+      ""
+    ];
 
-    const base = siguientePregunta();
-    const opcionesMezcladas = mezclar(
-      base.opciones.map((texto, i) => ({ texto, ok: i === base.correcta }))
-    );
-    const indiceCorrecto = opcionesMezcladas.findIndex((o) => o.ok);
+    for (const comando of listaDeComandos()) {
+      const restante = (cuenta.cooldowns[comando.clave] || 0) + comando.ms - ahora;
+      partes.push(`ⴵ ${comando.nombre} » `);
+      partes.push(restante > 0 ? `> *En cooldown, ${tiempoLargo(restante)}.*` : "> *Puedes usarlo*");
+    }
 
-    setPendingTrivia(`${from}:${sender}`, {
-      correcta: LETRAS[indiceCorrecto],
-      premio: entre(100, 300),
-      xp: entre(5, 15),
-      expira: Date.now() + TIEMPO_RESPUESTA_MS
-    });
+    partes.push("", `> ⛁ ¥enes » ${fmt(cuenta.wallet)}`, "> Usa .allw para reclamar todos los comandos de economía.");
 
-    const opciones = opcionesMezcladas.map((o, i) => `${LETRAS[i]}) ${o.texto}`);
-    await reply({
-      text: tarjeta({
-        emoji: "💭",
-        titulo: "DUVA TRIVIA!",
-        relato: `*${base.pregunta}*`,
-        lineas: opciones,
-        tip: "Responde con la letra correcta (A-B-C-D) en los próximos 15 segundos."
-      })
-    });
+    await reply({ text: partes.join("\n"), mentions: [objetivo] });
   }
 };
