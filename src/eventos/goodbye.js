@@ -22,7 +22,7 @@ export function construirDespedida({ usuario, meta }) {
     "",
     `> 🪨 ${frase}`,
     "",
-    " 〔🧠〕//  *¿QUIEN ES ESTE TIPO?*",
+    " 〔🧠〕  *¿QUIEN ES ESTE TIPO?*",
     "",
     "⧼📢⧽* ⁂❧ *Usuario*::",
     `> ${mencion(usuario)}`,
