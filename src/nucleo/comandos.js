@@ -2,6 +2,8 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath, pathToFileURL } from "url";
 import { connectDB, commandRegistry, simularEscritura, delayAleatorio, comandoEstaBaneado } from "../../core.js";
+import { soloAdminsActivo } from "../grupos/estado.js";
+import { esAdminOOwner } from "../grupos/nucleo.js";
 import { enviarConCache, reenviarCacheado, guardarRelay, registrarMedio, claveDeDescarga } from "../../motores/cache-medios.js";
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -87,6 +89,8 @@ export async function manejarComando(sock, from, sender, text, msg) {
   const comando = cleanText.toLowerCase().split(/\s+/)[0];
   const handler = comandos.get(comando);
   if (!handler) return false;
+
+  if (from.endsWith("@g.us") && !msg.key.fromMe && soloAdminsActivo(from) && !(await esAdminOOwner(sock, from, sender))) return true;
 
   let capturados = null;
 
