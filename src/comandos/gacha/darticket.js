@@ -8,26 +8,29 @@ const MAXIMO_POR_ENTREGA = 1000;
 
 export default {
   names: [".darticket", ".dartickets"],
-  desc: "Entrega tickets de una categoría a un usuario: .darticket <categoría> <cantidad> @usuario (solo owners)",
+  desc: "Entrega tickets de un gacha a un usuario: .darticket <cantidad> + <categoría> <@usuario o respondiendo su mensaje> (solo owners)",
   category: "Gacha",
-  usage: ".darticket <categoría> <cantidad> @usuario",
+  usage: ".darticket <cantidad> + <categoría> <@usuario>",
   handler: ownerGacha(async ({ cleanText, msg, reply }) => {
     await gachaListo;
-    const partes = cleanText.split(/\s+/).slice(1);
-    const categoria = categoriaPorAlias(partes[0]);
-    const cantidad = parseInt(partes[1], 10);
-    const destino = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0] || msg.message?.extendedTextMessage?.contextInfo?.participant;
+    const fichas = cleanText.split(/\s+/).slice(1).filter((x) => x !== "+" && !x.startsWith("@"));
+    const cantidad = parseInt(fichas.find((x) => /^\d+$/.test(x)), 10);
+    const categoria = fichas.map(categoriaPorAlias).find(Boolean);
+    const contexto = msg.message?.extendedTextMessage?.contextInfo;
+    const destino = contexto?.mentionedJid?.[0] || contexto?.participant;
 
     if (!categoria || !cantidad || cantidad < 1 || !destino) {
       return reply({
         text: [
           encabezado("🎟️", "ENTREGAR TICKETS"),
           "",
-          "✱ *Uso* ›› .darticket <categoría> <cantidad> @usuario",
-          "✿ *Ejemplo* ›› .darticket Brawl 1 @usuario",
+          "> Entrega tickets de un gacha a un usuario. La categoría indica en qué gacha recibirá los tickets.",
           "",
-          "> Categorías disponibles: *waifu*, *pokemon*, *brawl* y *snake*.",
-          "> También puedes responder al mensaje de la persona en lugar de mencionarla."
+          "✱ *Uso* ›› .darticket <cantidad> + <categoría> <@usuario>",
+          "✿ *Ejemplo* ›› .darticket 2 + brawl @usuario",
+          "",
+          "> Categorías: *waifu*, *pokemon*, *brawl* y *snake*.",
+          "> En lugar de mencionar, también puedes responder al mensaje de la persona."
         ].join("\n")
       });
     }
@@ -41,7 +44,7 @@ export default {
       text: [
         encabezado("🎟️", "TICKETS ENTREGADOS"),
         "",
-        `> Se entregaron *${cantidad}* ${cantidad === 1 ? "ticket" : "tickets"} de ${cat.plural} a ${arroba(destino)}.`,
+        `> Se ${cantidad === 1 ? "entregó" : "entregaron"} *${cantidad}* ${cantidad === 1 ? "ticket" : "tickets"} de ${cat.plural} a ${arroba(destino)}.`,
         `🎟️ *Total de esa persona* ›› ${total}`
       ].join("\n"),
       mentions: [destino]

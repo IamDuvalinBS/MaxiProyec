@@ -117,7 +117,7 @@ export function crearComandoDar({ categoria, names, desc }) {
 
       return reply({
         text: [
-          encabezado(t.emoji, `${cat.singular.toUpperCase()} MEJORADO`),
+          encabezado(t.emoji, cat.mejorado),
           "",
           `✍🏻 *Nombre* ›› ${r.p.nombre} (#${r.p.id})`,
           `${r.item.emoji} *Usaste* ›› ${r.unidades} × ${r.item.nombre}`,

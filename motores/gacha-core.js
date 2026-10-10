@@ -35,15 +35,22 @@ const UA = "Mozilla/5.0 (compatible; MaxiBot/1.0)";
 const TMP_DIR = path.join(os.tmpdir(), "maxibot-gacha");
 const LIMITE_BYTES = 15 * 1024 * 1024;
 const MAX_DESCARGAS_SIMULTANEAS = 3;
-const TIEMPO_RESPUESTA_MS = 15000;
-const TIEMPO_INACTIVIDAD_MS = 20000;
-const PRESUPUESTO_IMAGEN_MS = 50000;
+const TIEMPO_RESPUESTA_MS = Number(process.env.GACHA_T_RESPUESTA_MS) || 12000;
+const TIEMPO_INACTIVIDAD_MS = Number(process.env.GACHA_T_INACTIVIDAD_MS) || 15000;
+const PRESUPUESTO_IMAGEN_MS = Number(process.env.GACHA_T_PRESUPUESTO_MS) || 75000;
+const REANUDACIONES_MAX = 4;
+const VIGENCIA_PREFERENCIA_MS = 30 * 60 * 1000;
+const PROXIES = (process.env.GACHA_PROXIES ?? "https://wsrv.nl/?url=,https://images.weserv.nl/?url=")
+  .split(",")
+  .map((x) => x.trim())
+  .filter(Boolean);
 
 fs.mkdirSync(TMP_DIR, { recursive: true });
 for (const f of fs.readdirSync(TMP_DIR)) fs.rm(path.join(TMP_DIR, f), { force: true }, () => {});
 
 let activas = 0;
 const cola = [];
+const preferencia = { indice: 0, hasta: 0 };
 
 async function conCupo(fn) {
   if (activas >= MAX_DESCARGAS_SIMULTANEAS) await new Promise((r) => cola.push(r));
@@ -66,62 +73,115 @@ function borrar(ruta) {
   }
 }
 
-async function bajarAArchivo(url) {
-  const headers = { "User-Agent": UA, "Accept-Encoding": "identity" };
-  if (/yande\.re/i.test(url)) headers.Referer = "https://yande.re/";
-
-  const res = await axios.get(url, {
-    responseType: "stream",
-    timeout: TIEMPO_RESPUESTA_MS,
-    family: 4,
-    maxRedirects: 3,
-    maxContentLength: LIMITE_BYTES,
-    headers
+export function fuentesDeDescarga(url) {
+  const fuentes = [{ indice: 0, url, nombre: "directa" }];
+  PROXIES.forEach((base, i) => {
+    fuentes.push({ indice: i + 1, url: `${base}${encodeURIComponent(url)}&q=100`, nombre: base.replace(/^https?:\/\//, "").split("/")[0] });
   });
-
-  const largo = Number(res.headers?.["content-length"] || 0);
-  if (largo > LIMITE_BYTES) {
-    res.data.destroy();
-    throw new Error("imagen demasiado pesada");
+  if (preferencia.indice > 0 && Date.now() < preferencia.hasta) {
+    const preferida = fuentes.find((f) => f.indice === preferencia.indice);
+    if (preferida) return [preferida, ...fuentes.filter((f) => f !== preferida)];
   }
+  return fuentes;
+}
 
-  const ruta = rutaTemporal();
-  let bytes = 0;
+function recordarFuente(indice) {
+  if (indice === 0) {
+    preferencia.indice = 0;
+    return;
+  }
+  preferencia.indice = indice;
+  preferencia.hasta = Date.now() + VIGENCIA_PREFERENCIA_MS;
+}
+
+function cabeceras(fuente, desde) {
+  const h = { "User-Agent": UA, "Accept-Encoding": "identity" };
+  if (/yande\.re/i.test(fuente) && !/[?&]url=/.test(fuente)) h.Referer = "https://yande.re/";
+  if (desde > 0) h.Range = `bytes=${desde}-`;
+  return h;
+}
+
+async function pedir(fuente, desde) {
+  const controlador = new AbortController();
+  const temporizador = setTimeout(() => controlador.abort(), TIEMPO_RESPUESTA_MS);
+  try {
+    return await axios.get(fuente, {
+      responseType: "stream",
+      family: 4,
+      timeout: 0,
+      signal: controlador.signal,
+      maxRedirects: 3,
+      headers: cabeceras(fuente, desde),
+      validateStatus: (estado) => estado === 200 || estado === 206
+    });
+  } catch (e) {
+    if (axios.isCancel(e)) throw new Error("el servidor no respondió a tiempo");
+    throw e;
+  } finally {
+    clearTimeout(temporizador);
+  }
+}
+
+function tamanoTotal(res, desde) {
+  const rango = String(res.headers?.["content-range"] || "").match(/\/(\d+)$/);
+  if (rango) return Number(rango[1]);
+  const largo = Number(res.headers?.["content-length"] || 0);
+  return largo ? largo + (res.status === 206 ? desde : 0) : 0;
+}
+
+async function volcar(res, ruta, anexar) {
   let inactividad = null;
   const vigilar = () => {
     clearTimeout(inactividad);
     inactividad = setTimeout(() => res.data.destroy(new Error("la descarga se quedó sin datos")), TIEMPO_INACTIVIDAD_MS);
   };
-
-  const tope = new Transform({
+  const medidor = new Transform({
     transform(chunk, _codificacion, cb) {
-      bytes += chunk.length;
       vigilar();
-      cb(bytes > LIMITE_BYTES ? new Error("imagen demasiado pesada") : null, chunk);
+      cb(null, chunk);
     }
   });
-
   try {
     vigilar();
-    await pipeline(res.data, tope, fs.createWriteStream(ruta));
-    if (!bytes) throw new Error("respuesta vacía");
-    return ruta;
-  } catch (e) {
-    borrar(ruta);
-    throw e;
+    await pipeline(res.data, medidor, fs.createWriteStream(ruta, { flags: anexar ? "a" : "w" }));
   } finally {
     clearTimeout(inactividad);
   }
 }
 
-const esErrorDeTiempo = (e) => /timeout|timed out|ETIMEDOUT|ECONNABORTED|ECONNRESET|sin datos/i.test(`${e.code || ""} ${e.message || ""}`);
-
-async function bajarConReintento(url) {
+async function descargarConReanudacion(fuente, limite) {
+  const ruta = rutaTemporal();
+  let recibidos = 0;
   try {
-    return await bajarAArchivo(url);
+    for (let pasada = 0; pasada <= REANUDACIONES_MAX; pasada++) {
+      if (Date.now() > limite) throw new Error("se agotó el tiempo disponible para la imagen");
+      const res = await pedir(fuente, recibidos);
+      if (recibidos > 0 && res.status === 200) {
+        fs.truncateSync(ruta, 0);
+        recibidos = 0;
+      }
+      const total = tamanoTotal(res, recibidos);
+      if (total > LIMITE_BYTES) {
+        res.data.destroy();
+        throw new Error("imagen demasiado pesada");
+      }
+      try {
+        await volcar(res, ruta, recibidos > 0);
+      } catch (e) {
+        recibidos = fs.existsSync(ruta) ? fs.statSync(ruta).size : 0;
+        if (recibidos > 0) continue;
+        throw e;
+      }
+      recibidos = fs.statSync(ruta).size;
+      if (recibidos > LIMITE_BYTES) throw new Error("imagen demasiado pesada");
+      if (total && recibidos < total) continue;
+      if (!recibidos) throw new Error("respuesta vacía");
+      return ruta;
+    }
+    throw new Error("la descarga no se pudo completar");
   } catch (e) {
-    if (!esErrorDeTiempo(e)) throw e;
-    return bajarAArchivo(url);
+    borrar(ruta);
+    throw e;
   }
 }
 
@@ -139,21 +199,32 @@ async function dibujarSnake(clave) {
 export async function prepararImagen(urls) {
   return conCupo(async () => {
     let ultimoError = new Error("sin imágenes");
-    const inicio = Date.now();
+    const limite = Date.now() + PRESUPUESTO_IMAGEN_MS;
     for (const url of urls.filter(Boolean)) {
-      if (Date.now() - inicio > PRESUPUESTO_IMAGEN_MS) break;
-      try {
-        if (url.startsWith("snake:")) {
+      if (Date.now() > limite) break;
+      if (url.startsWith("snake:")) {
+        try {
           const rutaSnake = await dibujarSnake(url.slice(6));
           return { ruta: rutaSnake, limpiar: () => borrar(rutaSnake) };
+        } catch (e) {
+          ultimoError = e;
+          continue;
         }
-        const enCache = rutaImagenCacheada(url);
-        if (enCache) return { ruta: enCache, limpiar: () => {} };
-        const ruta = await bajarConReintento(url);
-        guardarImagenCacheada(url, ruta);
-        return { ruta, limpiar: () => borrar(ruta) };
-      } catch (e) {
-        ultimoError = e;
+      }
+      const enCache = rutaImagenCacheada(url);
+      if (enCache) return { ruta: enCache, limpiar: () => {} };
+
+      for (const fuente of fuentesDeDescarga(url)) {
+        if (Date.now() > limite) break;
+        try {
+          const ruta = await descargarConReanudacion(fuente.url, limite);
+          recordarFuente(fuente.indice);
+          guardarImagenCacheada(url, ruta);
+          return { ruta, limpiar: () => borrar(ruta) };
+        } catch (e) {
+          ultimoError = e;
+          console.log(`[gacha] Falló la descarga (${fuente.nombre}): ${e.message}`);
+        }
       }
     }
     throw ultimoError;
@@ -172,6 +243,10 @@ export function tomarCooldown(clave, ms) {
 
 export function soltarCooldown(clave) {
   cooldowns.delete(clave);
+}
+
+export function restanteCooldown(clave) {
+  return Math.max(0, (cooldowns.get(clave) || 0) - Date.now());
 }
 
 export const textoCooldown = (ms) => `⏳ Debes esperar *${formatTime(ms)}* para volver a usar este comando.`;
@@ -425,7 +500,7 @@ export async function mostrarColeccion({ categoria, sender, cleanText, reply }) 
     `> ${cat.descripcionColeccion}`,
     "",
     `⧼${cat.emojiTotal}⧽ *${cat.etiquetaTotal}* ››`,
-    `> ${fmt(n)} ${cat.unidades} en tu cuenta.`,
+    `> ${fmt(n)} ${n === 1 ? cat.unidad : cat.unidades} en tu cuenta.`,
     `⧼${cat.emojiValor}⧽ *Valor total* ››`,
     `> ${monto(total)} en total.`,
     `⧼🎟️⧽ *${cat.etiquetaTickets}* ››`,

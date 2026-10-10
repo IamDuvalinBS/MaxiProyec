@@ -297,3 +297,37 @@ export function topColeccionistas(categoria, limite = 10) {
      WHERE p.categoria = ? GROUP BY o.usuario ORDER BY n DESC, MIN(o.obtenido) ASC LIMIT ?`
   ).all(categoria, limite).map((r) => ({ usuario: r.usuario, cantidad: r.n }));
 }
+
+export function transferirPersonaje(de, a, charId) {
+  return transaccion(() => {
+    const fila = st("SELECT nivel FROM propiedad WHERE usuario = ? AND char_id = ?").get(de, charId);
+    if (!fila) return { estado: "no_tiene" };
+    if (leTiene(a, charId)) return { estado: "ya_lo_tiene" };
+    st("DELETE FROM propiedad WHERE usuario = ? AND char_id = ?").run(de, charId);
+    st("INSERT INTO propiedad (usuario, char_id, nivel) VALUES (?, ?, ?)").run(a, charId, fila.nivel);
+    return { estado: "ok", nivel: fila.nivel };
+  });
+}
+
+export function transferirColeccion(de, a, categoria) {
+  return transaccion(() => {
+    const filas = st(
+      `SELECT o.char_id AS id, o.nivel AS nivel, p.valor AS valor FROM propiedad o JOIN personajes p ON p.id = o.char_id
+       WHERE o.usuario = ? AND p.categoria = ?`
+    ).all(de, categoria);
+    let transferidos = 0;
+    let omitidos = 0;
+    let valor = 0;
+    for (const f of filas) {
+      if (leTiene(a, f.id)) {
+        omitidos++;
+        continue;
+      }
+      st("DELETE FROM propiedad WHERE usuario = ? AND char_id = ?").run(de, f.id);
+      st("INSERT INTO propiedad (usuario, char_id, nivel) VALUES (?, ?, ?)").run(a, f.id, f.nivel);
+      transferidos++;
+      valor += f.valor;
+    }
+    return { transferidos, omitidos, valor };
+  });
+}

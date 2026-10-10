@@ -10,6 +10,9 @@ export function fuenteDe(p) {
   if (p.categoria === "waifu") return p.serie || "Desconocida";
   if (p.categoria === "pokemon") return "Pokémon";
   if (p.categoria === "brawler") return "Brawl Stars";
+  if (p.categoria === "cod") return "Call of Duty";
+  if (p.categoria === "dragon") return "Dragon Mania Legends";
+  if (p.categoria === "clash") return "Clash Royale";
   return "Snake";
 }
 
@@ -35,6 +38,8 @@ export function bloqueCuriosidades(p) {
   if (p.categoria === "waifu" && p.genero) lineas.push(`⚥ *Género* ›› ${p.genero}`);
   if (p.categoria === "pokemon" && p.stats?.tipos?.length) lineas.push(`🌲 *Tipo* ›› ${p.stats.tipos.map(tipoEs).join(" / ")}`);
   if (p.categoria === "brawler" && String(p.serie || "").includes("·")) lineas.push(`🎯 *Clase* ›› ${p.serie.split("·")[1].trim()}`);
+  if (["cod", "dragon", "clash"].includes(p.categoria) && p.meta?.tipo) lineas.push(`🎯 *Tipo* ›› ${p.meta.tipo}`);
+  if (p.categoria === "clash" && p.meta?.elixir != null) lineas.push(`💧 *Elixir* ›› ${p.meta.elixir}`);
   lineas.push(`✨ *Rareza* ›› ${p.rareza}`);
   return lineas.join("\n");
 }

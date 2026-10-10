@@ -1,7 +1,7 @@
 import { getAccount, addToWallet } from "./db.js";
 import { mejorDe, setNivel, cantidadItem, sumarItem } from "./gacha-db.js";
 
-export const NIVEL_MAX = { pokemon: 100, brawler: 30, snake: 50 };
+export const NIVEL_MAX = { pokemon: 100, brawler: 30, snake: 50, cod: 50, dragon: 50, clash: 15 };
 export const TIENE_NIVELES = (categoria) => categoria in NIVEL_MAX;
 
 export const MULT_RAREZA = {
@@ -44,6 +44,51 @@ export const TIENDAS = {
       { nombre: "Galleta Lava", emoji: "🍪", precio: 11000, niveles: 5 },
       { nombre: "Curry Especial", emoji: "🍛", precio: 26000, niveles: 9 },
       { nombre: "Caramelo Raro", emoji: "🍭", precio: 60000, niveles: 16 }
+    ]
+  },
+  cod: {
+    titulo: "COD ARSENAL",
+    emoji: "🔫",
+    nombre: "mejora",
+    plural: "mejoras",
+    comandoTienda: ".codtienda",
+    comandoComprar: ".codcomprar",
+    comandoDar: ".codmejorar",
+    items: [
+      { nombre: "Kit de Munición", emoji: "🔹", precio: 1200, niveles: 1 },
+      { nombre: "Mira Holográfica", emoji: "🎯", precio: 4000, niveles: 4 },
+      { nombre: "Silenciador Táctico", emoji: "🔇", precio: 9500, niveles: 8 },
+      { nombre: "Camuflaje Dorado", emoji: "🥇", precio: 30000, niveles: 15 }
+    ]
+  },
+  dragon: {
+    titulo: "DRAGON FOOD",
+    emoji: "🍖",
+    nombre: "comida",
+    plural: "comidas",
+    comandoTienda: ".dragonfood",
+    comandoComprar: ".dragoncomprar",
+    comandoDar: ".dragondar",
+    items: [
+      { nombre: "Carne Seca", emoji: "🥩", precio: 1200, niveles: 1 },
+      { nombre: "Pastel de Fuego", emoji: "🍰", precio: 4000, niveles: 4 },
+      { nombre: "Fruta Mágica", emoji: "🍎", precio: 12000, niveles: 8 },
+      { nombre: "Elixir Ancestral", emoji: "🧪", precio: 35000, niveles: 15 }
+    ]
+  },
+  clash: {
+    titulo: "CLASH COFRES",
+    emoji: "💰",
+    nombre: "cofre",
+    plural: "cofres",
+    comandoTienda: ".clashtienda",
+    comandoComprar: ".clashcomprar",
+    comandoDar: ".clashmejorar",
+    items: [
+      { nombre: "Bolsa de Oro", emoji: "👝", precio: 1200, niveles: 1 },
+      { nombre: "Cofre de Plata", emoji: "🥈", precio: 4500, niveles: 2 },
+      { nombre: "Cofre Dorado", emoji: "🥇", precio: 12000, niveles: 4 },
+      { nombre: "Cofre Mágico", emoji: "🔮", precio: 32000, niveles: 7 }
     ]
   },
   snake: {
