@@ -13,6 +13,7 @@ function leerFoto() {
 const CATEGORIAS = [
   { nombre: "General", icono: "🍭", alias: ["general"] },
   { nombre: "Utilidad", icono: "⚙️", alias: ["utilidad", "utility"] },
+  { nombre: "Grupos", icono: "👥", alias: ["grupos", "grupo", "groups", "group"] },
   { nombre: "Perfil", icono: "👤", alias: ["perfil", "profile"] },
   { nombre: "Descargas", icono: "📥", alias: ["descargas", "downloads", "download"] },
   { nombre: "Economía", icono: "🪙", alias: ["economia", "economía", "economy"] },
