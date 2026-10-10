@@ -1,4 +1,4 @@
-import { jidDe, idsDe, normalizarParticipante, olvidarMetadatos, fueExpulsadoPorBot } from "../grupos/nucleo.js";
+import { jidDe, idsDe, normalizarParticipante, olvidarMetadatos } from "../grupos/nucleo.js";
 import { ajustesDe } from "../grupos/estado.js";
 import { enviarBienvenida } from "./welcome.js";
 import { enviarDespedida } from "./goodbye.js";
@@ -26,7 +26,7 @@ export async function manejarParticipantes(sock, update) {
     try {
       if (esIngreso) {
         await enviarBienvenida(sock, grupo, usuario, ids);
-      } else if (!fueExpulsadoPorBot(grupo, ids)) {
+      } else {
         await enviarDespedida(sock, grupo, usuario, ids);
       }
     } catch (e) {
