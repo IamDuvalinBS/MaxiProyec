@@ -3,7 +3,7 @@ import { tarjetaMarcada, mencion } from "../../economia/estilo.js";
 
 export default {
   names: [".add", ".agregar"],
-  usage: ".agregar <número> | responder a un mensaje",
+  usage: ".add <número> | responder a un mensaje",
   desc: "Añadir a un usuario al grupo",
   category: "Grupos",
   handler: comandoGrupo({ emoji: "🦊", titulo: "AGREGAR", botAdmin: true }, async (ctx) => {
