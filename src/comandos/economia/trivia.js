@@ -24,7 +24,7 @@ function siguientePregunta() {
 }
 
 export default {
-  names: [".trivia", ".preguntas"],
+  names: [".trivia"],
   desc: "Responder una pregunta de cultura general (cada 30 minutos)",
   category: "Economía",
   handler: async ({ from, sender, reply }) => {
