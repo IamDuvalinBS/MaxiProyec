@@ -504,4 +504,241 @@ const PROVEEDORES_VIDEO = [
   ...CALIDADES_VIDEO.map((calidad) => ({
     nombre: `Vreden ${calidad}p`,
     // Las calidades altas tardan más en prepararse del lado del servicio: se les da más tiempo para no bajar de calidad sin necesidad.
-    tiempoMs: calidad >= 720 ? 45000 : calidad >= 480 ? 30000 
+    tiempoMs: calidad >= 720 ? 45000 : calidad >= 480 ? 30000 : 20000,
+    obtenerUrl: async (link) => { const d = await (await import("@vreden/youtube_scraper")).ytmp4(link, calidad); return d?.status && d?.download?.url ? d.download.url : null; }
+  }))
+];
+
+// El motor local de respaldo suele fallar con errores técnicos ("No valid URL to decipher") que no le sirven a nadie;
+// si todo falló se muestra un motivo claro. Los motivos útiles (video muy largo) se dejan tal cual.
+const MENSAJE_SIN_SERVICIO = "Los servicios de descarga no respondieron en este momento. Intenta de nuevo en unos minutos.";
+async function respaldoLocal(descargar) {
+  try {
+    return await descargar();
+  } catch (e) {
+    console.log(`[youtube] El motor local de respaldo también falló: ${String(e.message).split("\n")[0]}`);
+    if (/dura mas de/i.test(e.message)) throw e;
+    throw new Error(MENSAJE_SIN_SERVICIO);
+  }
+}
+
+// Si un proveedor se cuelga, se pasa al siguiente en vez de quedarse esperando.
+const TIEMPO_MAX_PROVEEDOR_MS = 20000;
+function conTiempoLimite(promesa, ms) {
+  let temporizador;
+  const limite = new Promise((_, rechazar) => {
+    temporizador = setTimeout(() => rechazar(new Error(`no respondió en ${ms / 1000}s`)), ms);
+  });
+  return Promise.race([promesa, limite]).finally(() => clearTimeout(temporizador));
+}
+
+// ---------- Motor yt-dlp (opcional) ----------
+// Si yt-dlp está instalado (pip install -U "yt-dlp[default]") es el primer motor; si no, todo sigue como antes.
+// Cuidado con la RAM del teléfono: solo corre YTDLP_SIMULTANEAS descargas a la vez (las demás esperan turno)
+// y todo se escribe a disco, nunca se guarda en memoria hasta el final.
+const execFileAsync = promisify(execFile);
+const YTDLP_SIMULTANEAS = 1;
+let ytdlpActivos = 0;
+const ytdlpEspera = [];
+
+function esperarTurnoYtdlp() {
+  return new Promise((resolver) => {
+    if (ytdlpActivos < YTDLP_SIMULTANEAS) { ytdlpActivos++; resolver(); }
+    else ytdlpEspera.push(resolver);
+  });
+}
+function liberarTurnoYtdlp() {
+  const siguiente = ytdlpEspera.shift();
+  if (siguiente) siguiente(); // el turno pasa directo al siguiente en la fila
+  else ytdlpActivos--;
+}
+
+let ytdlpDisponible = null;
+async function hayYtdlp() {
+  if (ytdlpDisponible !== null) return ytdlpDisponible;
+  try {
+    await execFileAsync("yt-dlp", ["--version"], { timeout: 15000 });
+    ytdlpDisponible = true;
+  } catch (e) {
+    if (e.code === "ENOENT") {
+      ytdlpDisponible = false;
+      console.log('[youtube] yt-dlp no está instalado; se usa el motor interno (para instalarlo: pip install -U "yt-dlp[default]")');
+    }
+    return false;
+  }
+  return ytdlpDisponible;
+}
+
+function limpiarArchivosYtdlp(base) {
+  try {
+    for (const n of fs.readdirSync(os.tmpdir())) {
+      if (n.startsWith(base)) { try { fs.unlinkSync(path.join(os.tmpdir(), n)); } catch (err) {} }
+    }
+  } catch (err) {}
+}
+
+// Devuelve la ruta del archivo descargado (quien la reciba debe borrarla).
+async function ejecutarYtdlp(link, formato, extra) {
+  if (!(await hayYtdlp())) throw new Error("yt-dlp no instalado");
+  const base = `ytdlp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  await esperarTurnoYtdlp();
+  try {
+    const t0 = Date.now();
+    await execFileAsync("yt-dlp", [
+      "--quiet", "--no-warnings", "--no-playlist",
+      "--js-runtimes", "node",
+      "--socket-timeout", "20",
+      "--retries", "3",
+      "-f", formato,
+      ...extra,
+      "-o", path.join(os.tmpdir(), `${base}.%(ext)s`),
+      link
+    ], { timeout: 180000, killSignal: "SIGKILL", maxBuffer: 1024 * 1024 });
+
+    const archivos = fs.readdirSync(os.tmpdir())
+      .filter((n) => n.startsWith(base))
+      .map((n) => ({ ruta: path.join(os.tmpdir(), n), peso: fs.statSync(path.join(os.tmpdir(), n)).size }))
+      .sort((a, b) => b.peso - a.peso);
+    if (!archivos.length) throw new Error("yt-dlp no generó ningún archivo");
+    for (const sobrante of archivos.slice(1)) { try { fs.unlinkSync(sobrante.ruta); } catch (err) {} }
+    console.log(`[youtube] yt-dlp descargó en ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+    return archivos[0].ruta;
+  } catch (e) {
+    limpiarArchivosYtdlp(base);
+    const detalle = String(e.stderr || e.message).trim().split("\n").filter(Boolean).pop() || "error desconocido";
+    throw new Error(`yt-dlp falló: ${detalle}`);
+  } finally {
+    liberarTurnoYtdlp();
+  }
+}
+
+async function videoConYtdlp(link) {
+  const info = await obtenerInfoYoutube(link).catch(() => null);
+  if (info && info.duracionSeg > 20 * 60) {
+    throw new Error("Ese video dura mas de 20 minutos, muy probable que pese demasiado para WhatsApp.");
+  }
+  // H264 hasta 720p + AAC (compatible con WhatsApp, sin reconvertir); si no hay, el mp4 con video y audio juntos.
+  const ruta = await ejecutarYtdlp(
+    link,
+    "bv*[vcodec^=avc1][height<=720]+ba[acodec^=mp4a]/b[vcodec^=avc1][height<=720]/b[ext=mp4]",
+    ["--merge-output-format", "mp4"]
+  );
+  const pesoMB = fs.statSync(ruta).size / (1024 * 1024);
+  if (pesoMB > LIMITE_VIDEO_WHATSAPP_MB) {
+    return { ruta, nombre: `youtube-${extraerIdDeLink(link)}.mp4`, pesoMB };
+  }
+  return asegurarVideoCompatibleWhatsApp(ruta); // core.js trabaja sobre el archivo y lo borra al terminar
+}
+
+async function audioConYtdlp(link) {
+  const ruta = await ejecutarYtdlp(link, "ba[ext=m4a]/ba", []);
+  return asegurarAudioCompatibleWhatsApp(ruta);
+}
+
+export async function descargarAudioConProveedores(link) {
+  try {
+    return await audioConYtdlp(link);
+  } catch (e) {
+    if (!/no instalado/.test(e.message)) console.log(`[youtube] ${String(e.message).split("\n")[0]}`);
+  }
+
+  // El motor local va después: es lo que hoy responde rápido. Los proveedores quedan de respaldo.
+  try {
+    return await asegurarAudioCompatibleWhatsApp(await descargarAudioYoutube(link));
+  } catch (e) {
+    console.log(`[youtube] Audio local no disponible, se usan los proveedores: ${String(e.message).split("\n")[0]}`);
+  }
+
+  for (const p of PROVEEDORES_AUDIO) {
+    let rutaTmp = null;
+    try {
+      const t0 = Date.now();
+      const url = await conTiempoLimite(p.obtenerUrl(link), p.tiempoMs || TIEMPO_MAX_PROVEEDOR_MS);
+      if (!url) {
+        console.log(`[youtube] Proveedor ${p.nombre} no devolvió enlace`);
+        continue;
+      }
+      const t1 = Date.now();
+      rutaTmp = await descargarATemporal(url, "mp3");
+      console.log(`[youtube] Tiempos: enlace ${((t1 - t0) / 1000).toFixed(1)}s, descarga ${((Date.now() - t1) / 1000).toFixed(1)}s`);
+      if (fs.statSync(rutaTmp).size < 10 * 1024) throw new Error("el archivo descargado está vacío o es inválido");
+      console.log(`[youtube] Audio descargado con ${p.nombre}`);
+      // Se pasa la ruta (no un Buffer): core.js trabaja sobre el archivo y lo borra al terminar.
+      return await asegurarAudioCompatibleWhatsApp(rutaTmp);
+    } catch (e) {
+      console.log(`[youtube] Proveedor ${p.nombre} falló: ${String(e.message).split("\n")[0]}`);
+      if (rutaTmp && fs.existsSync(rutaTmp)) {
+        try { fs.unlinkSync(rutaTmp); } catch (err) {}
+      }
+    }
+  }
+
+  throw new Error(MENSAJE_SIN_SERVICIO);
+}
+
+// Devuelve un Buffer (video normal, hasta LIMITE_VIDEO_WHATSAPP_MB) o, si pesa más, un objeto
+// { ruta, nombre, pesoMB } con el archivo en disco para mandarlo como DOCUMENTO (WhatsApp admite hasta 2GB).
+// Quien reciba el objeto debe borrar `ruta` después de enviarlo.
+export async function descargarVideoConProveedores(link) {
+  const idVideo = extraerIdDeLink(link);
+
+  try {
+    return await videoConYtdlp(link);
+  } catch (e) {
+    if (/dura mas de/i.test(e.message)) throw e;
+    if (!/no instalado/.test(e.message)) console.log(`[youtube] ${String(e.message).split("\n")[0]}`);
+  }
+
+  // El motor local (itag 18, 360p con audio) es lo que responde en ~1 s cuando yt-dlp no está.
+  try {
+    return await descargarVideoYoutube(link);
+  } catch (e) {
+    console.log(`[youtube] Motor local no disponible, se prueban las otras opciones: ${String(e.message).split("\n")[0]}`);
+    if (/dura mas de/i.test(e.message)) throw e;
+  }
+
+  try {
+    const buffer = await descargarVideoH264Directo(link);
+    const pesoMB = buffer.length / (1024 * 1024);
+    if (pesoMB <= LIMITE_VIDEO_WHATSAPP_MB) return buffer;
+    const ruta = path.join(os.tmpdir(), `yt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.mp4`);
+    fs.writeFileSync(ruta, buffer);
+    return { ruta, nombre: `youtube-${idVideo}.mp4`, pesoMB };
+  } catch (e) {
+    console.log(`[youtube] H264 directo no disponible, se usan los proveedores: ${String(e.message).split("\n")[0]}`);
+  }
+
+  for (const p of PROVEEDORES_VIDEO) {
+    let rutaTmp = null;
+    try {
+      const t0 = Date.now();
+      const url = await conTiempoLimite(p.obtenerUrl(link), p.tiempoMs || TIEMPO_MAX_PROVEEDOR_MS);
+      if (!url) {
+        console.log(`[youtube] Proveedor ${p.nombre} no devolvió enlace`);
+        continue;
+      }
+      const t1 = Date.now();
+      rutaTmp = await descargarATemporal(url, "mp4");
+      console.log(`[youtube] Tiempos: enlace ${((t1 - t0) / 1000).toFixed(1)}s, descarga ${((Date.now() - t1) / 1000).toFixed(1)}s`);
+      const pesoMB = fs.statSync(rutaTmp).size / (1024 * 1024);
+      if (pesoMB < 0.01) throw new Error("el archivo descargado está vacío o es inválido");
+      console.log(`[youtube] Video descargado con ${p.nombre} (${pesoMB.toFixed(1)}MB)`);
+
+      if (pesoMB > LIMITE_VIDEO_WHATSAPP_MB) {
+        return { ruta: rutaTmp, nombre: `youtube-${idVideo}.mp4`, pesoMB };
+      }
+      // Se pasa la ruta (no un Buffer): core.js trabaja sobre el archivo y lo borra al terminar.
+      return await asegurarVideoCompatibleWhatsApp(rutaTmp);
+    } catch (e) {
+      console.log(`[youtube] Proveedor ${p.nombre} falló: ${String(e.message).split("\n")[0]}`);
+      if (rutaTmp && fs.existsSync(rutaTmp)) {
+        try { fs.unlinkSync(rutaTmp); } catch (err) {}
+      }
+      // Servicio caído: no tiene caso probar las demás calidades.
+      if (/no respondió en/.test(e.message)) break;
+    }
+  }
+
+  throw new Error(MENSAJE_SIN_SERVICIO);
+}
+           
