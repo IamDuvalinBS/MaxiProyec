@@ -45,9 +45,12 @@ export async function enviarDespedida(sock, grupo, usuario, ids = [usuario]) {
   const [meta, imagen] = await Promise.all([metadatos(sock, grupo), imagenDePerfil(sock, [usuario, ...ids])]);
   await enviarConImagen(sock, grupo, imagen, construirDespedida({ usuario, meta }), [usuario]);
 
-  if (!fs.existsSync(RUTA_AUDIO)) return;
+  if (!fs.existsSync(RUTA_AUDIO)) {
+    console.log(`Falta el audio de despedida en ${RUTA_AUDIO}`);
+    return;
+  }
   try {
-    await sock.sendMessage(grupo, { audio: { url: RUTA_AUDIO }, mimetype: "audio/mpeg", ptt: false });
+    await sock.sendMessage(grupo, { audio: fs.readFileSync(RUTA_AUDIO), mimetype: "audio/mpeg", ptt: false });
   } catch (e) {
     console.log(`No se pudo enviar el audio de despedida: ${e.message}`);
   }
