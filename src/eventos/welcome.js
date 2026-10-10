@@ -1,6 +1,7 @@
 import { metadatos, enlaceDeGrupo } from "../grupos/nucleo.js";
 import { ajustesDe } from "../grupos/estado.js";
 import { mencion } from "../economia/estilo.js";
+import { imagenDePerfil, enviarConImagen } from "../grupos/foto.js";
 
 export const FRASE_BIENVENIDA = "Te damos la más cordial bienvenida a nuestra comunidad.";
 
@@ -37,32 +38,15 @@ export function construirBienvenida({ usuario, meta, enlace, frase }) {
   ].join("\n");
 }
 
-async function fotoDe(sock, usuario) {
-  try {
-    return await sock.profilePictureUrl(usuario, "image");
-  } catch (e) {
-    return null;
-  }
-}
-
-export async function enviarBienvenida(sock, grupo, usuario) {
-  const [meta, enlace, foto] = await Promise.all([
+export async function enviarBienvenida(sock, grupo, usuario, ids = [usuario]) {
+  const [meta, enlace, imagen] = await Promise.all([
     metadatos(sock, grupo),
     enlaceDeGrupo(sock, grupo),
-    fotoDe(sock, usuario)
+    imagenDePerfil(sock, [usuario, ...ids])
   ]);
   if (!meta) return;
 
   const frase = ajustesDe(grupo).textoBienvenida || FRASE_BIENVENIDA;
   const texto = construirBienvenida({ usuario, meta, enlace, frase });
-
-  if (foto) {
-    try {
-      await sock.sendMessage(grupo, { image: { url: foto }, caption: texto, mentions: [usuario] });
-      return;
-    } catch (e) {
-      console.log(`No se pudo enviar la bienvenida con foto: ${e.message}`);
-    }
-  }
-  await sock.sendMessage(grupo, { text: texto, mentions: [usuario] });
+  await enviarConImagen(sock, grupo, imagen, texto, [usuario]);
 }

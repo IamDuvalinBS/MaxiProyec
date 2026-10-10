@@ -1,4 +1,4 @@
-import { jidDe, idsDe, olvidarMetadatos, fueExpulsadoPorBot } from "../grupos/nucleo.js";
+import { jidDe, idsDe, normalizarParticipante, olvidarMetadatos, fueExpulsadoPorBot } from "../grupos/nucleo.js";
 import { ajustesDe } from "../grupos/estado.js";
 import { enviarBienvenida } from "./welcome.js";
 import { enviarDespedida } from "./goodbye.js";
@@ -15,16 +15,19 @@ export async function manejarParticipantes(sock, update) {
   if (!esIngreso && !esSalida) return;
 
   const ajustes = ajustesDe(grupo);
+  console.log(`Evento de grupo ${update.action} en ${grupo}: ${(update.participants || []).length} participante(s)`);
   if ((esIngreso && !ajustes.bienvenida) || (esSalida && !ajustes.despedida)) return;
 
-  for (const participante of update.participants.slice(0, MAXIMO_POR_EVENTO)) {
+  for (const crudo of (update.participants || []).slice(0, MAXIMO_POR_EVENTO)) {
+    const participante = normalizarParticipante(crudo);
     const usuario = jidDe(participante);
     if (!usuario) continue;
+    const ids = idsDe(participante);
     try {
       if (esIngreso) {
-        await enviarBienvenida(sock, grupo, usuario);
-      } else if (!fueExpulsadoPorBot(grupo, idsDe(typeof participante === "string" ? { id: participante } : participante))) {
-        await enviarDespedida(sock, grupo, usuario);
+        await enviarBienvenida(sock, grupo, usuario, ids);
+      } else if (!fueExpulsadoPorBot(grupo, ids)) {
+        await enviarDespedida(sock, grupo, usuario, ids);
       }
     } catch (e) {
       console.log(`Error en el aviso de ${update.action} del grupo ${grupo}: ${e.message}`);

@@ -1,5 +1,11 @@
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 import { metadatos } from "../grupos/nucleo.js";
 import { mencion } from "../economia/estilo.js";
+import { imagenDePerfil, enviarConImagen } from "../grupos/foto.js";
+
+const RUTA_AUDIO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../assets/audios/goodbye.mp3");
 
 const FRASES_DESPEDIDA = [
   "Es una pena terrible... A {usuario} le cayó un meteorito mientras caminaba por la calle.",
@@ -29,14 +35,20 @@ export function construirDespedida({ usuario, meta }) {
     "⧼🪷⧽* ⁂❧ *Fecha*::",
     `> ${formatearFecha(new Date())} fue su último resplandor.`,
     "⧼🏡⧽* ⁂❧ *Usuarios*::",
-    `> ${meta.participantes.length} actualmente.`,
+    `> ${meta ? meta.participantes.length : "No disponible"} actualmente.`,
     "",
     "> *Posiblemente nadie lo quiso en este grupo.*"
   ].join("\n");
 }
 
-export async function enviarDespedida(sock, grupo, usuario) {
-  const meta = await metadatos(sock, grupo);
-  if (!meta) return;
-  await sock.sendMessage(grupo, { text: construirDespedida({ usuario, meta }), mentions: [usuario] });
+export async function enviarDespedida(sock, grupo, usuario, ids = [usuario]) {
+  const [meta, imagen] = await Promise.all([metadatos(sock, grupo), imagenDePerfil(sock, [usuario, ...ids])]);
+  await enviarConImagen(sock, grupo, imagen, construirDespedida({ usuario, meta }), [usuario]);
+
+  if (!fs.existsSync(RUTA_AUDIO)) return;
+  try {
+    await sock.sendMessage(grupo, { audio: { url: RUTA_AUDIO }, mimetype: "audio/mpeg", ptt: false });
+  } catch (e) {
+    console.log(`No se pudo enviar el audio de despedida: ${e.message}`);
+  }
 }
