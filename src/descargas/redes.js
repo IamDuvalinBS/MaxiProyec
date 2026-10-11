@@ -836,6 +836,38 @@ async function _obtenerMediaPinterest(link) {
   throw new Error("No se pudo encontrar imagen ni video en ese pin.");
 }
 
+// Página pública de búsqueda (la misma que ve un navegador sin iniciar sesión): se sacan las imágenes de su contenido.
+const CABECERAS_NAVEGADOR = {
+  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+  Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+  "Accept-Language": "es-MX,es;q=0.9,en;q=0.8",
+  "Upgrade-Insecure-Requests": "1",
+  "Sec-Fetch-Dest": "document",
+  "Sec-Fetch-Mode": "navigate",
+  "Sec-Fetch-Site": "none"
+};
+
+async function imagenesPinterestHtml(consulta, maximo) {
+  const { data: html } = await axios.get("https://www.pinterest.com/search/pins/", {
+    params: { q: consulta, rs: "typed" },
+    headers: CABECERAS_NAVEGADOR,
+    timeout: 20000,
+    maxContentLength: 8 * 1024 * 1024
+  });
+  const texto = String(html).replace(/\\u002F/g, "/").replace(/\\\//g, "/");
+  const vistos = new Set();
+  const urls = [];
+  // Solo tamaños de pin (los avatares y miniaturas pequeñas se descartan).
+  for (const m of texto.matchAll(/https:\/\/i\.pinimg\.com\/(?:originals|1200x|736x|564x|474x)\/[\w\/]+?\.(?:jpg|jpeg|png|webp)/gi)) {
+    const clave = m[0].split("/").pop().split(".")[0]; // el nombre del archivo identifica al pin aunque cambie el tamaño
+    if (vistos.has(clave)) continue;
+    vistos.add(clave);
+    urls.push(m[0]);
+    if (urls.length >= maximo) break;
+  }
+  return urls;
+}
+
 // gallery-dl (opcional): herramienta local que lee Pinterest por su cuenta. Instalación: pip install -U gallery-dl
 let galleryDlDisponible = null;
 async function enlacesConGalleryDl(consulta, maximo) {
@@ -890,12 +922,23 @@ export async function buscarPinterest(consulta, cantidad) {
     agregar(pines, "image");
   }
   if (!medias.length && errores.length >= 2) {
-    // Respaldo local: gallery-dl (si está instalado).
-    for (const url of await enlacesConGalleryDl(consulta, cantidad + 3)) {
-      if (medias.length >= cantidad + 3) break;
-      medias.push({ type: /\.(mp4|m3u8)(\?|$)/i.test(url) ? "video" : "image", url });
+    // Respaldo 1: la página pública de búsqueda, leída como lo haría un navegador.
+    try {
+      for (const url of await imagenesPinterestHtml(consulta, cantidad + 3)) medias.push({ type: "image", url });
+      if (medias.length) anotar("página de búsqueda");
+      else console.log("[redes] Página de Pinterest: no se encontraron imágenes en el HTML");
+    } catch (e) {
+      console.log(`[redes] Página de Pinterest falló: ${String(e.message).replace("Request failed with status code ", "HTTP ")}`);
     }
-    if (medias.length) anotar("gallery-dl");
+
+    // Respaldo 2: gallery-dl (si está instalado).
+    if (!medias.length) {
+      for (const url of await enlacesConGalleryDl(consulta, cantidad + 3)) {
+        if (medias.length >= cantidad + 3) break;
+        medias.push({ type: /\.(mp4|m3u8)(\?|$)/i.test(url) ? "video" : "image", url });
+      }
+      if (medias.length) anotar("gallery-dl");
+    }
 
     // Respaldo: APIs de terceros (las mismas del otro bot).
     const q = encodeURIComponent(consulta);
