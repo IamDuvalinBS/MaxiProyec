@@ -50,6 +50,7 @@ export default {
           `> Categoría de la wiki: *${categoria}* (${r.fuente.replace("https://", "")}).`,
           "",
           `📂 *Categorías recorridas* ›› ${r.categorias}`,
+          `🔎 *Encontrados por nombre* ›› ${r.porNombre}`,
           `📚 *Encontrados* ›› ${r.total}`,
           `🆕 *Agregados* ›› ${r.nuevos}`,
           `🐉 *Dragones en el gacha* ›› ${contarPersonajes("dragon")}`,
