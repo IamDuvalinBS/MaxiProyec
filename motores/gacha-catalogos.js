@@ -1,6 +1,6 @@
 import axios from "axios";
 import { crearPersonaje, contarPersonajes } from "./gacha-db.js";
-import { buscarCategorias, miembrosDeCategoriaRecursiva, urlDeArchivo } from "./gacha-mediawiki.js";
+import { buscarCategorias, miembrosDeCategoriaRecursiva, paginasPorPatron, urlDeArchivo } from "./gacha-mediawiki.js";
 
 const CABECERAS = { "User-Agent": "MaxiBot/1.0 (importador del gacha)" };
 
@@ -145,23 +145,36 @@ export const WIKIS_DRAGONES = (process.env.GACHA_DRAGONES_WIKIS ?? "https://drag
 export const WIKI_DRAGONES = WIKIS_DRAGONES[0];
 export const WIKI_COD = "https://callofduty.fandom.com";
 
+const MINIMO_ESPERADO_DRAGONES = 100;
+const PATRON_NOMBRE_DRAGON = /^(?:[A-Z0-9][\w'’.&-]*\s)+Dragon$/;
+
 export async function sincronizarDragones(categoria = "Dragons", base = null) {
   const bases = base ? [base] : WIKIS_DRAGONES;
   const fallos = [];
   let fuente = null;
   let miembros = [];
   let categorias = 0;
+  let porNombre = 0;
 
   for (const candidata of bases) {
     try {
       const resultado = await miembrosDeCategoriaRecursiva(candidata, categoria, { profundidad: 3 });
-      if (resultado.miembros.length) {
+      const combinados = new Map(resultado.miembros.map((m) => [m.titulo, m]));
+
+      if (combinados.size < MINIMO_ESPERADO_DRAGONES) {
+        const antes = combinados.size;
+        const extra = await paginasPorPatron(candidata, PATRON_NOMBRE_DRAGON);
+        for (const pagina of extra) if (!combinados.has(pagina.titulo)) combinados.set(pagina.titulo, pagina);
+        porNombre = combinados.size - antes;
+      }
+
+      if (combinados.size) {
         fuente = candidata;
-        miembros = resultado.miembros;
+        miembros = [...combinados.values()];
         categorias = resultado.categorias;
         break;
       }
-      fallos.push(`${candidata.replace("https://", "")}: la categoría no tiene páginas`);
+      fallos.push(`${candidata.replace("https://", "")}: no se encontraron dragones`);
     } catch (e) {
       fallos.push(e.message);
     }
@@ -174,7 +187,7 @@ export async function sincronizarDragones(categoria = "Dragons", base = null) {
     const dragon = convertirDragon(fuente, miembro);
     if (dragon && crearPersonaje(dragon)) nuevos++;
   }
-  return { total: miembros.length, nuevos, fuente, categorias };
+  return { total: miembros.length, nuevos, fuente, categorias, porNombre };
 }
 
 export async function buscarCategoriasDragones(texto, base = null) {

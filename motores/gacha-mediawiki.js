@@ -57,7 +57,48 @@ export async function buscarCategorias(base, texto, limite = 15) {
   return (data.query?.search || []).map((r) => r.title.replace(/^[^:]+:/, ""));
 }
 
-const tituloDeCategoria = (categoria) => (/^(Category|Categoría):/i.test(categoria) ? categoria : `Category:${categoria}`);
+export async function paginasPorPatron(base, patron, { maxPaginas = 80, pausaMs = 200 } = {}) {
+  const titulos = [];
+  let continuar = {};
+
+  for (let i = 0; i < maxPaginas; i++) {
+    const data = await consultar(base, {
+      action: "query",
+      list: "allpages",
+      apnamespace: 0,
+      apfilterredir: "nonredirects",
+      aplimit: 500,
+      ...continuar
+    });
+    for (const pagina of data.query?.allpages || []) if (patron.test(pagina.title)) titulos.push(pagina.title);
+    if (!data.continue) break;
+    continuar = data.continue;
+    await pausa(pausaMs);
+  }
+
+  const resultados = [];
+  for (let i = 0; i < titulos.length; i += 50) {
+    const lote = titulos.slice(i, i + 50);
+    const imagenes = new Map();
+    try {
+      const data = await consultar(base, {
+        action: "query",
+        titles: lote.join("|"),
+        prop: "pageimages",
+        piprop: "original",
+        pilimit: 50
+      });
+      for (const pagina of data.query?.pages || []) imagenes.set(pagina.title, pagina.original?.source || null);
+    } catch (e) {
+      console.log("[gacha] Imágenes omitidas para un lote:", e.message);
+    }
+    for (const titulo of lote) resultados.push({ titulo, imagen: imagenes.get(titulo) || null });
+    await pausa(pausaMs);
+  }
+  return resultados;
+}
+
+const tituloDeCategoria =(categoria) => (/^(Category|Categoría):/i.test(categoria) ? categoria : `Category:${categoria}`);
 
 export async function subcategoriasDe(base, categoria, { maxPaginas = 20, pausaMs = 250 } = {}) {
   const titulo = tituloDeCategoria(categoria);
