@@ -57,6 +57,57 @@ export async function buscarCategorias(base, texto, limite = 15) {
   return (data.query?.search || []).map((r) => r.title.replace(/^[^:]+:/, ""));
 }
 
+const tituloDeCategoria = (categoria) => (/^(Category|Categoría):/i.test(categoria) ? categoria : `Category:${categoria}`);
+
+export async function subcategoriasDe(base, categoria, { maxPaginas = 20, pausaMs = 250 } = {}) {
+  const titulo = tituloDeCategoria(categoria);
+  const resultados = [];
+  let continuar = {};
+
+  for (let i = 0; i < maxPaginas; i++) {
+    const data = await consultar(base, {
+      action: "query",
+      list: "categorymembers",
+      cmtitle: titulo,
+      cmtype: "subcat",
+      cmlimit: 500,
+      ...continuar
+    });
+    for (const miembro of data.query?.categorymembers || []) resultados.push(miembro.title);
+    if (!data.continue) break;
+    continuar = data.continue;
+    await pausa(pausaMs);
+  }
+  return resultados;
+}
+
+export async function miembrosDeCategoriaRecursiva(base, categoria, { profundidad = 3, maxCategorias = 150 } = {}) {
+  const pendientes = [{ titulo: categoria, nivel: 0 }];
+  const vistas = new Set();
+  const paginas = new Map();
+
+  while (pendientes.length && vistas.size < maxCategorias) {
+    const { titulo, nivel } = pendientes.shift();
+    const clave = tituloDeCategoria(titulo).toLowerCase();
+    if (vistas.has(clave)) continue;
+    vistas.add(clave);
+
+    try {
+      const miembros = await miembrosDeCategoria(base, titulo);
+      for (const miembro of miembros) if (!paginas.has(miembro.titulo)) paginas.set(miembro.titulo, miembro);
+      if (nivel < profundidad) {
+        for (const sub of await subcategoriasDe(base, titulo)) pendientes.push({ titulo: sub, nivel: nivel + 1 });
+      }
+    } catch (e) {
+      if (nivel === 0) throw e;
+      console.log(`[gacha] Subcategoría omitida (${titulo}):`, e.message);
+    }
+    await pausa(150);
+  }
+
+  return { miembros: [...paginas.values()], categorias: vistas.size };
+}
+
 export async function miembrosDeCategoria(base, categoria, { maxPaginas = 80, pausaMs = 250 } = {}) {
   const titulo = /^(Category|Categoría):/i.test(categoria) ? categoria : `Category:${categoria}`;
   const resultados = [];

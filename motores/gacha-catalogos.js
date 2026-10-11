@@ -1,6 +1,6 @@
 import axios from "axios";
 import { crearPersonaje, contarPersonajes } from "./gacha-db.js";
-import { buscarCategorias, miembrosDeCategoria, urlDeArchivo } from "./gacha-mediawiki.js";
+import { buscarCategorias, miembrosDeCategoriaRecursiva, urlDeArchivo } from "./gacha-mediawiki.js";
 
 const CABECERAS = { "User-Agent": "MaxiBot/1.0 (importador del gacha)" };
 
@@ -150,13 +150,15 @@ export async function sincronizarDragones(categoria = "Dragons", base = null) {
   const fallos = [];
   let fuente = null;
   let miembros = [];
+  let categorias = 0;
 
   for (const candidata of bases) {
     try {
-      const lista = await miembrosDeCategoria(candidata, categoria);
-      if (lista.length) {
+      const resultado = await miembrosDeCategoriaRecursiva(candidata, categoria, { profundidad: 3 });
+      if (resultado.miembros.length) {
         fuente = candidata;
-        miembros = lista;
+        miembros = resultado.miembros;
+        categorias = resultado.categorias;
         break;
       }
       fallos.push(`${candidata.replace("https://", "")}: la categoría no tiene páginas`);
@@ -172,7 +174,7 @@ export async function sincronizarDragones(categoria = "Dragons", base = null) {
     const dragon = convertirDragon(fuente, miembro);
     if (dragon && crearPersonaje(dragon)) nuevos++;
   }
-  return { total: miembros.length, nuevos, fuente };
+  return { total: miembros.length, nuevos, fuente, categorias };
 }
 
 export async function buscarCategoriasDragones(texto, base = null) {
@@ -208,7 +210,7 @@ export function convertirItemCod(base, miembro, tipo) {
 }
 
 export async function sincronizarCod(categoria, tipo = "Operador", base = WIKI_COD) {
-  const miembros = await miembrosDeCategoria(base, categoria);
+  const { miembros } = await miembrosDeCategoriaRecursiva(base, categoria, { profundidad: 2 });
   let nuevos = 0;
   for (const miembro of miembros) {
     const item = convertirItemCod(base, miembro, tipo);
@@ -218,4 +220,3 @@ export async function sincronizarCod(categoria, tipo = "Operador", base = WIKI_C
 }
 
 export const buscarCategoriasCod = (texto, base = WIKI_COD) => buscarCategorias(base, texto);
-    
