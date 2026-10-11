@@ -1,19 +1,26 @@
 const esperas = new Map();
 
-export function registrarEspera(clave, { duracionMs, alResponder }) {
-  esperas.set(clave, { vence: Date.now() + duracionMs, alResponder });
+export function registrarEspera(clave, { duracionMs, alResponder, tipo = "general" }) {
+  if (!esperas.has(clave)) esperas.set(clave, new Map());
+  esperas.get(clave).set(tipo, { vence: Date.now() + duracionMs, alResponder });
 }
 
 export async function procesarEspera(clave, texto, contexto) {
-  const espera = esperas.get(clave);
-  if (!espera) return false;
-  if (Date.now() > espera.vence) {
-    esperas.delete(clave);
-    return false;
+  const grupo = esperas.get(clave);
+  if (!grupo) return false;
+  for (const [tipo, espera] of [...grupo]) {
+    if (Date.now() > espera.vence) {
+      grupo.delete(tipo);
+      continue;
+    }
+    if (await espera.alResponder(texto, contexto)) {
+      grupo.delete(tipo);
+      if (!grupo.size) esperas.delete(clave);
+      return true;
+    }
   }
-  const consumida = await espera.alResponder(texto, contexto);
-  if (consumida) esperas.delete(clave);
-  return Boolean(consumida);
+  if (!grupo.size) esperas.delete(clave);
+  return false;
 }
 
 const enfriamientos = new Map();
