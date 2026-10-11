@@ -12,6 +12,31 @@ let BUSQUEDA_EN_CURSO = false;
 
 const URL_GENERICA = /^https?:\/\//i;
 
+// Convierte los datos de cada archivo en la tarjeta de texto (mismo estilo que .play).
+function conTarjeta(medias, { emoji, titulo, sender, enlace }) {
+  const decorar = (m, esUnico) => {
+    const campos = m.campos || (enlace ? [["🔗", "Link", enlace]] : null);
+    if (!campos || (!esUnico && !m.campos)) return m;
+    const { campos: _, ...resto } = m;
+    return {
+      ...resto,
+      caption: tarjetaDescarga({
+        emoji,
+        titulo,
+        sender,
+        campos: campos.filter((x) => x[2]).map((x) => campo(x[0], x[1], x[2]))
+      })
+    };
+  };
+  return medias.map((m, i) => {
+    if (m.resolver) {
+      const original = m.resolver;
+      return { ...m, resolver: async () => (await original()).map((x) => decorar(x, true)) };
+    }
+    return decorar(m, medias.length === 1 || i === 0);
+  });
+}
+
 /**
  * Crea el comando de una red social.
  *  - obtenerPorLink(link) -> lista de medias
@@ -96,6 +121,7 @@ export function crearComandoRed({
         await aviso;
 
         const tDescarga = Date.now();
+        medias = conTarjeta(medias, { emoji, titulo, sender, enlace: link });
         const r = await enviarLote(medias, reply, { sock, from, msg });
         console.log(`[${titulo}] envío en ${((Date.now() - tDescarga) / 1000).toFixed(1)}s · total ${((Date.now() - inicio) / 1000).toFixed(1)}s`);
 
@@ -155,6 +181,7 @@ export function crearComandoRed({
           return reply({ text: tarjetaError("No encontré resultados descargables para esa búsqueda. Prueba con otras palabras.") });
         }
 
+        medias = conTarjeta(medias, { emoji, titulo, sender });
         const r = await enviarLote(medias, reply, {
           sock,
           from,

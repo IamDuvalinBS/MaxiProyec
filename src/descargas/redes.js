@@ -315,16 +315,24 @@ const cabecerasTikwm = (base) => ({
 });
 const absoluta = (u) => (!u ? null : String(u).startsWith("/") ? `${TIKWM}${u}` : u);
 
-function pieTikTok(v) {
+// Datos para la tarjeta (el comando los convierte al mismo estilo de texto que .play).
+function segundosAReloj(n) {
+  const t = Math.round(Number(n) || 0);
+  return t > 0 ? `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}` : "";
+}
+function camposTikTok(v, enlace) {
   // El usuario se deja tal cual (los guiones bajos son parte del nombre); solo se limpia el espacio sobrante.
   const autor = String(v.author?.unique_id || v.author?.nickname || "").replace(/\s+/g, " ").trim().slice(0, 30);
-  const linea = [
-    autor ? `👤 @${autor}` : null,
-    v.play_count ? `👁️ ${compacto(v.play_count)}` : null,
-    v.digg_count ? `❤️ ${compacto(v.digg_count)}` : null
-  ].filter(Boolean).join(" · ");
-  const titulo = recortar(v.title, 120);
-  return [titulo ? `🎬 *${titulo}*` : "🎬", linea].filter(Boolean).join("\n");
+  const fecha = v.create_time ? new Date(Number(v.create_time) * 1000).toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" }) : "";
+  return [
+    ["💭", "Título", recortar(v.title, 120)],
+    ["👤", "Autor", autor ? `@${autor}` : ""],
+    ["⏳", "Duración", segundosAReloj(v.duration)],
+    ["👁️", "Vistas", v.play_count ? compacto(v.play_count) : ""],
+    ["❤️", "Likes", v.digg_count ? compacto(v.digg_count) : ""],
+    ["📆", "Fecha - publicación", fecha],
+    ["🔗", "Link del video", enlace]
+  ];
 }
 
 async function pedirTikwm(ruta, params, metodo = "GET", base = TIKWM) {
@@ -350,11 +358,11 @@ async function _obtenerMediaTikTok(link) {
     const info = await pedirTikwm("/api/", { url: link });
     anotar("tikwm");
     if (info.images?.length) {
-      return info.images.slice(0, 10).map((u, i) => ({ type: "image", url: absoluta(u), caption: i === 0 ? pieTikTok(info) : undefined }));
+      return info.images.slice(0, 10).map((u, i) => ({ type: "image", url: absoluta(u), campos: i === 0 ? camposTikTok(info, link) : undefined }));
     }
     const url = absoluta(info.play || info.hdplay);
     if (!url) throw new Error("No se encontro el video de ese TikTok.");
-    return [{ type: "video", url, caption: pieTikTok(info) }];
+    return [{ type: "video", url, campos: camposTikTok(info, link) }];
   } catch (e) {
     errorApi = e;
     console.log(`[redes] tikwm falló para ${link}: ${e.message}`);
@@ -389,24 +397,71 @@ async function buscarEnTikwm(consulta, cantidad, detalle) {
   throw new Error(`tikwm bloqueó la búsqueda (${fallos.join("; ")})`);
 }
 
+const enlaceDeVideoTikTok = (v) => {
+  const usuario = v.author?.unique_id || v.author?.id;
+  const id = v.video_id || v.aweme_id || v.id;
+  return usuario && id ? `https://www.tiktok.com/@${usuario}/video/${id}` : "";
+};
+
+// Últimos videos de una cuenta (usuario, @usuario o enlace del perfil). Primero tikwm; si lo bloquea, yt-dlp lista los enlaces.
+export async function buscarCuentaTikTok(entrada, cantidad) {
+  const usuario = String(entrada).trim().replace(/^https?:\/\/(?:www\.)?tiktok\.com\//i, "").replace(/^@/, "").split(/[/?#]/)[0].replace(/^@/, "");
+  if (!/^[\w.\-]{2,40}$/.test(usuario)) throw new Error("Escribe el nombre de usuario de la cuenta, por ejemplo: .tt2 usuario");
+
+  const fallos = [];
+  for (const [metodo, base] of VARIANTES_BUSQUEDA_TIKWM) {
+    try {
+      const data = await pedirTikwm("/api/user/posts", { unique_id: usuario, count: Math.min(30, cantidad + 5), cursor: 0, web: 1, hd: 1 }, metodo, base);
+      const lista = (data.videos || [])
+        .filter((v) => v.play || v.hdplay)
+        .slice(0, cantidad + 3)
+        .map((v) => ({
+          type: "video",
+          url: absoluta(v.play || v.hdplay),
+          campos: camposTikTok({ ...v, author: v.author || { unique_id: usuario } }, enlaceDeVideoTikTok({ ...v, author: v.author || { unique_id: usuario } }) || `https://www.tiktok.com/@${usuario}`)
+        }));
+      if (lista.length) return lista;
+      fallos.push(`${metodo} ${base.replace("https://", "")}: sin videos`);
+      break; // respondió bien pero la cuenta no tiene videos públicos
+    } catch (e) {
+      fallos.push(`${metodo} ${base.replace("https://", "")}: ${String(e.message).replace("Request failed with status code ", "HTTP ")}`);
+    }
+  }
+  console.log(`[redes] tikwm (cuenta @${usuario}) falló: ${fallos.join("; ")}`);
+
+  // Respaldo: yt-dlp lista los enlaces del perfil y cada video se baja con tikwm (uno por segundo).
+  if (await hayYtdlp()) {
+    try {
+      const enlaces = (await listarEnlacesYtdlp(`https://www.tiktok.com/@${usuario}`, cantidad + 3)).filter((u) => /tiktok\.com/i.test(u));
+      if (enlaces.length) {
+        return enlaces.map((link) => ({
+          type: "video",
+          resolver: async () => {
+            await pausa(1200);
+            return (await obtenerMediaTikTok(link)).filter((m) => m.type === "video").slice(0, 1);
+          }
+        }));
+      }
+    } catch (e) {
+      console.log(`[redes] yt-dlp no pudo listar @${usuario}: ${String(e.stderr || e.message).trim().split("\n").pop()}`);
+    }
+  }
+  throw new Error(`No pude leer los videos de @${usuario}. TikTok bloquea esa consulta desde esta conexión, o la cuenta es privada o no existe.`);
+}
+
 const normalizarTikTok = (url) => {
   const m = url.match(/tiktok\.com\/(@[\w.\-]+)\/video\/(\d+)/i);
   return m ? `https://www.tiktok.com/${m[1]}/video/${m[2]}` : null;
 };
 
 // APIs de terceros (las mismas que usan los comandos del otro bot). Se prueban una tras otra y se usa la primera que responda con videos.
-const API_DELIRIUS = "https://api.delirius.store"; // (ya no responde, se deja como último intento)
+const API_FAA = "https://api-faa.my.id";
 // Claves de Fer (con su permiso). Si quieres cambiarlas sin tocar el código: STELLARWA_KEY y APICAUSAS_KEY.
 const KEY_STELLAR = process.env.STELLARWA_KEY || "api-7dSKm";
 const KEY_CAUSAS = process.env.APICAUSAS_KEY || "oboe";
-const API_FAA = "https://api-faa.my.id";
 
 async function buscarEnlacesTikTokApis(consulta, maximo) {
   const intentos = [
-    ["Delirius", async () => {
-      const { data } = await axios.get(`${API_DELIRIUS}/search/tiktoksearch`, { params: { query: consulta }, headers: HEADERS, timeout: 20000 });
-      return (data?.meta || []).map((v) => v.url);
-    }],
     ["FAA", async () => {
       const { data } = await axios.get(`${API_FAA}/faa/tiktok-search`, { params: { q: consulta }, headers: HEADERS, timeout: 20000 });
       return (data?.result || []).map((v) => (v.author?.username && v.id ? `https://www.tiktok.com/@${v.author.username}/video/${v.id}` : null));
@@ -431,7 +486,7 @@ export async function buscarTikTok(consulta, cantidad) {
     const lista = (data.videos || [])
       .filter((v) => v.play || v.hdplay)
       .slice(0, cantidad + 3) // unos extra por si alguno pesa demasiado
-      .map((v) => ({ type: "video", url: absoluta(v.play || v.hdplay), caption: pieTikTok(v) }));
+      .map((v) => ({ type: "video", url: absoluta(v.play || v.hdplay), campos: camposTikTok(v, enlaceDeVideoTikTok(v)) }));
     if (lista.length) return lista;
   } catch (e) {
     errorApi = e;
@@ -489,7 +544,7 @@ export async function buscarFacebook(consulta, cantidad) {
   if (!enlaces.length) throw new Error(SIN_BUSQUEDA_PUBLICA);
   return enlaces.map((link) => ({
     type: "video",
-    resolver: async () => (await obtenerMediaFacebook(link)).filter((m) => m.type === "video").slice(0, 1).map((m) => ({ ...m, caption: `🔗 ${link}` }))
+    resolver: async () => (await obtenerMediaFacebook(link)).filter((m) => m.type === "video").slice(0, 1).map((m) => ({ ...m, campos: [["🔗", "Link del video", link]] }))
   }));
 }
 
@@ -522,7 +577,12 @@ async function instagramConAsta(link) {
     validateStatus: () => true
   });
   const tipo = String(res.headers["content-type"] || "").split(";")[0].trim().toLowerCase();
-  const limite = setTimeout(() => res.data.destroy(new Error("la API tardó demasiado")), 90000);
+  // No se corta por duración total (un video largo tarda más): solo si la API deja de enviar datos 20 s, o pasa de 3 minutos.
+  let inactividad = null;
+  const armar = () => { clearTimeout(inactividad); inactividad = setTimeout(() => res.data.destroy(new Error("la API dejó de enviar datos")), 20000); };
+  armar();
+  res.data.on("data", armar);
+  const limite = setTimeout(() => res.data.destroy(new Error("la API tardó demasiado")), 180000);
 
   try {
     if (res.status === 200 && (tipo.startsWith("video/") || tipo.startsWith("image/"))) {
@@ -562,26 +622,35 @@ async function instagramConAsta(link) {
     return medias.map((m) => ({ type: m.video ? "video" : "image", url: m.url }));
   } finally {
     clearTimeout(limite);
+    clearTimeout(inactividad);
   }
 }
 
 async function _obtenerMediaInstagram(link) {
-  // 1) API de ASTA: es una sola petición y no arranca ningún proceso, así que es lo más rápido y lo que menos RAM gasta.
+  // Reels y videos: la API de ASTA es lo más rápido (una petición, sin procesos, poca RAM).
+  // Publicaciones (/p/): pueden ser carruseles con varias fotos; yt-dlp las trae completas, así que va primero.
+  const esReel = /instagram\.com\/(?:[\w.]+\/)?(?:reel|reels|tv)\//i.test(link);
   let errorAsta = null;
-  try {
-    return await instagramConAsta(link);
-  } catch (e) {
-    errorAsta = e;
-    console.log(`[redes] ASTA (Instagram) falló: ${String(e.message).split("\n")[0]}`);
-  }
-
-  // 2) yt-dlp (reels, posts y carruseles).
   let errorYt = null;
-  if (await hayYtdlp()) {
-    try { return await ytdlpMedias(link, { playlist: true, maxItems: 10 }); } catch (e) { errorYt = e; }
+
+  const conAsta = async () => {
+    try { return await instagramConAsta(link); } catch (e) {
+      errorAsta = e;
+      console.log(`[redes] ASTA (Instagram) falló: ${String(e.message).split("\n")[0]}`);
+      return null;
+    }
+  };
+  const conYtdlp = async () => {
+    if (!(await hayYtdlp())) return null;
+    try { return await ytdlpMedias(link, { playlist: true, maxItems: 10 }); } catch (e) { errorYt = e; return null; }
+  };
+
+  for (const motor of esReel ? [conAsta, conYtdlp] : [conYtdlp, conAsta]) {
+    const r = await motor();
+    if (r?.length) return r;
   }
 
-  // 3) Último respaldo: el motor anterior (descargas/instagram.js).
+  // Último respaldo: el motor anterior (descargas/instagram.js).
   try {
     const viejo = await import("./instagram.js");
     if (typeof viejo.obtenerMediaInstagram === "function") {
@@ -643,7 +712,9 @@ async function usuarioDeInstagram(consulta, cookies) {
 async function listarEnlacesYtdlp(url, maximo) {
   await esperarTurno();
   try {
-    const args = ["--quiet", "--no-warnings", "--flat-playlist", "--print", "url", "-I", `1:${maximo}`, "--socket-timeout", "20", "--cookies", process.env.YTDLP_COOKIES, url];
+    const args = ["--quiet", "--no-warnings", "--flat-playlist", "--print", "url", "-I", `1:${maximo}`, "--socket-timeout", "20"];
+    if (process.env.YTDLP_COOKIES && fs.existsSync(process.env.YTDLP_COOKIES)) args.push("--cookies", process.env.YTDLP_COOKIES);
+    args.push(url);
     const { stdout } = await execFileAsync("yt-dlp", args, { timeout: 90000, killSignal: "SIGKILL", maxBuffer: 1024 * 1024 });
     return stdout.split("\n").map((x) => x.trim()).filter((x) => /^https?:\/\//.test(x));
   } finally {
@@ -678,7 +749,7 @@ export async function buscarInstagram(consulta, cantidad) {
 
   return enlaces.map((link) => ({
     type: "video",
-    resolver: async () => (await obtenerMediaInstagram(link)).filter((m) => m.type === "video").slice(0, 1).map((m) => ({ ...m, caption: `📸 @${usuario}\n🔗 ${link}` }))
+    resolver: async () => (await obtenerMediaInstagram(link)).filter((m) => m.type === "video").slice(0, 1).map((m) => ({ ...m, campos: [["👤", "Cuenta", `@${usuario}`], ["🔗", "Link", link]] }))
   }));
 }
 
@@ -800,8 +871,7 @@ export async function buscarPinterest(consulta, cantidad) {
     const q = encodeURIComponent(consulta);
     const apis = [
       ["StellarWA", `https://api.stellarwa.xyz/search/pinterest?query=${q}&key=${KEY_STELLAR}`, (r) => r.data?.data || r.data],
-      ["Api Causas", `https://rest.apicausas.xyz/api/v1/buscadores/pinterest?apikey=${KEY_CAUSAS}&q=${q}`, (r) => r.data],
-      ["Delirius", `${API_DELIRIUS}/search/pinterestv2?text=${q}`, (r) => r.data]
+      ["Api Causas", `https://rest.apicausas.xyz/api/v1/buscadores/pinterest?apikey=${KEY_CAUSAS}&q=${q}`, (r) => r.data]
     ];
     for (const [nombre, url, sacar] of apis) {
       if (medias.length) break;
@@ -814,6 +884,28 @@ export async function buscarPinterest(consulta, cantidad) {
         if (!medias.length) console.log(`[redes] ${nombre} (búsqueda Pinterest): sin resultados`);
       } catch (e) {
         console.log(`[redes] ${nombre} (búsqueda Pinterest) falló: ${String(e.message).replace("Request failed with status code ", "HTTP ")}`);
+      }
+    }
+
+    // Último recurso sin clave: Bing Imágenes limitado a pinterest.com (devuelve las imágenes originales de i.pinimg.com).
+    if (!medias.length) {
+      try {
+        const { data: html } = await axios.get("https://www.bing.com/images/search", {
+          params: { q: `site:pinterest.com ${consulta}`, form: "HDRSC2", first: 1 },
+          headers: HEADERS,
+          timeout: 20000
+        });
+        const vistos = new Set();
+        for (const m of String(html).matchAll(/murl&quot;:&quot;(https?:[^&]+?)&quot;/g)) {
+          const url = m[1];
+          if (!/pinimg\.com/i.test(url) || vistos.has(url)) continue;
+          vistos.add(url);
+          if (medias.length < cantidad + 3) medias.push({ type: "image", url });
+        }
+        if (medias.length) anotar("Bing Imágenes");
+        else console.log("[redes] Bing Imágenes (Pinterest): sin resultados de pinimg.com");
+      } catch (e) {
+        console.log(`[redes] Bing Imágenes (Pinterest) falló: ${String(e.message).replace("Request failed with status code ", "HTTP ")}`);
       }
     }
   }
