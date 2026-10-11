@@ -96,7 +96,7 @@ export async function sincronizarClash() {
   let ultimoError = null;
   for (const url of FUENTES_CLASH) {
     try {
-      const { data } = await axios.get(url, { timeout: 25000, family: 4, headers: CABECERAS });
+      const { data } = await axios.get(url, { timeout: 12000, family: 4, headers: CABECERAS });
       lista = Array.isArray(data) ? data : data?.items || data?.cards || null;
       if (lista?.length) break;
     } catch (e) {
@@ -138,17 +138,41 @@ export function convertirDragon(base, miembro) {
   };
 }
 
-export const WIKI_DRAGONES = "https://dml.wiki";
+export const WIKIS_DRAGONES = (process.env.GACHA_DRAGONES_WIKIS ?? "https://dragonmanialegends.fandom.com,https://dml.wiki")
+  .split(",")
+  .map((x) => x.trim().replace(/\/+$/, ""))
+  .filter(Boolean);
+export const WIKI_DRAGONES = WIKIS_DRAGONES[0];
 export const WIKI_COD = "https://callofduty.fandom.com";
 
-export async function sincronizarDragones(categoria = "Dragons", base = WIKI_DRAGONES) {
-  const miembros = await miembrosDeCategoria(base, categoria);
+export async function sincronizarDragones(categoria = "Dragons", base = null) {
+  const bases = base ? [base] : WIKIS_DRAGONES;
+  const fallos = [];
+  let fuente = null;
+  let miembros = [];
+
+  for (const candidata of bases) {
+    try {
+      const lista = await miembrosDeCategoria(candidata, categoria);
+      if (lista.length) {
+        fuente = candidata;
+        miembros = lista;
+        break;
+      }
+      fallos.push(`${candidata.replace("https://", "")}: la categoría no tiene páginas`);
+    } catch (e) {
+      fallos.push(e.message);
+    }
+  }
+
+  if (!fuente) throw new Error(fallos.join(" | ") || "no se pudo consultar ninguna wiki");
+
   let nuevos = 0;
   for (const miembro of miembros) {
-    const dragon = convertirDragon(base, miembro);
+    const dragon = convertirDragon(fuente, miembro);
     if (dragon && crearPersonaje(dragon)) nuevos++;
   }
-  return { total: miembros.length, nuevos };
+  return { total: miembros.length, nuevos, fuente };
 }
 
 export function convertirItemCod(base, miembro, tipo) {

@@ -10,8 +10,37 @@ import { crearHandlerPvp } from "./gacha-pvp.js";
 import { crearComandoTienda, crearComandoComprar, crearComandoDar } from "./gacha-tienda.js";
 
 const MEDALLAS = ["🥇", "🥈", "🥉"];
+const ESPERA_LISTO_MS = 15000;
 
-export function crearComandoTop({ categoria, names }) {
+function esperarListo() {
+  let temporizador;
+  const limite = new Promise((_, rechazar) => {
+    temporizador = setTimeout(
+      () => rechazar(new Error("la base de datos del gacha no respondió a tiempo, revisa la conexión de MongoDB")),
+      ESPERA_LISTO_MS
+    );
+  });
+  return Promise.race([gachaListo, limite]).finally(() => clearTimeout(temporizador));
+}
+
+function envolver(comando, nombre) {
+  const original = comando.handler;
+  return {
+    ...comando,
+    handler: async (contexto) => {
+      try {
+        return await original(contexto);
+      } catch (e) {
+        console.log(`[gacha] ${nombre}:`, e.message);
+        try {
+          await contexto.reply({ text: `❌ No se pudo completar el comando: ${e.message}` });
+        } catch {}
+      }
+    }
+  };
+}
+
+function crearComandoTopBase({ categoria, names }) {
   const cat = CAT[categoria];
   return {
     names,
@@ -19,7 +48,7 @@ export function crearComandoTop({ categoria, names }) {
     category: "Gacha",
     usage: cat.topCmd,
     handler: async ({ reply }) => {
-      await gachaListo;
+      await esperarListo();
       const top = topColeccionistas(categoria, 10);
       if (!top.length) return reply({ text: `⚠️ Todavía no hay usuarios con ${cat.unidades} en el bot.` });
 
@@ -44,7 +73,7 @@ export function crearComandoTop({ categoria, names }) {
   };
 }
 
-export function crearComandoTicket({ categoria, names }) {
+function crearComandoTicketBase({ categoria, names }) {
   const cat = CAT[categoria];
   return {
     names,
@@ -52,7 +81,7 @@ export function crearComandoTicket({ categoria, names }) {
     category: "Gacha",
     usage: `${cat.ticketCmd} <ID>`,
     handler: async ({ sender, cleanText, reply }) => {
-      await gachaListo;
+      await esperarListo();
       const token = cleanText.split(/\s+/)[1] || "";
       const tickets = ticketsDe(sender, categoria);
 
@@ -97,7 +126,7 @@ export function crearComandoTicket({ categoria, names }) {
 
 const COOLDOWN_TIRADA_MS = 10 * 60 * 1000;
 
-export function crearComandoTirada({ categoria, names, asegurar, sincronizar, textoVacio, descripcion }) {
+function crearComandoTiradaBase({ categoria, names, asegurar, sincronizar, textoVacio, descripcion }) {
   const cat = CAT[categoria];
   return {
     names,
@@ -105,7 +134,7 @@ export function crearComandoTirada({ categoria, names, asegurar, sincronizar, te
     category: "Gacha",
     usage: cat.rollCmd,
     handler: async ({ from, sender, cleanText, reply }) => {
-      await gachaListo;
+      await esperarListo();
 
       if (sincronizar && cleanText.split(/\s+/)[1]?.toLowerCase() === "actualizar") {
         if (!esOwnerGacha(sender)) return reply({ text: `🚫 Solo los owners pueden actualizar la lista de ${cat.plural}.` });
@@ -119,6 +148,9 @@ export function crearComandoTirada({ categoria, names, asegurar, sincronizar, te
       }
 
       if (asegurar) {
+        if (!contarPersonajes(categoria)) {
+          await reply({ text: `⏳ Cargando la lista de ${cat.plural} por primera vez. Puede tardar unos segundos.` });
+        }
         try {
           await asegurar();
         } catch (e) {
@@ -140,7 +172,7 @@ export function crearComandoTirada({ categoria, names, asegurar, sincronizar, te
   };
 }
 
-export function crearComandoColeccion({ categoria, names }) {
+function crearComandoColeccionBase({ categoria, names }) {
   const cat = CAT[categoria];
   return {
     names,
@@ -148,11 +180,16 @@ export function crearComandoColeccion({ categoria, names }) {
     category: "Gacha",
     usage: `${cat.coleccionCmd} [página]`,
     handler: async ({ sender, cleanText, reply }) => {
-      await gachaListo;
+      await esperarListo();
       await mostrarColeccion({ categoria, sender, cleanText, reply });
     }
   };
 }
+
+export const crearComandoTop = (opciones) => envolver(crearComandoTopBase(opciones), "Top");
+export const crearComandoTicket = (opciones) => envolver(crearComandoTicketBase(opciones), "Ticket");
+export const crearComandoTirada = (opciones) => envolver(crearComandoTiradaBase(opciones), `Tirada ${opciones.categoria}`);
+export const crearComandoColeccion = (opciones) => envolver(crearComandoColeccionBase(opciones), "Colección");
 
 export {
   crearComandoClaim, crearHandlerPvp, crearComandoTienda, crearComandoComprar, crearComandoDar

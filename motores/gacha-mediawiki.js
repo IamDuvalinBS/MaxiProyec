@@ -1,19 +1,45 @@
 import axios from "axios";
 
-const CABECERAS = { "User-Agent": "MaxiBot/1.0 (importador del gacha)" };
+const AGENTES = [
+  "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36",
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+  "MaxiBot/1.0 (importador del gacha)"
+];
+const ESTADOS_REINTENTABLES = new Set([403, 429, 502, 503, 520, 522, 524]);
 const TIEMPO_MS = 20000;
+const PAUSA_REINTENTO_MS = 1200;
 
 const pausa = (ms) => new Promise((resolver) => setTimeout(resolver, ms));
 
+const cabeceras = (base, intento) => ({
+  "User-Agent": AGENTES[intento % AGENTES.length],
+  Accept: "application/json, text/plain, */*",
+  "Accept-Language": "en-US,en;q=0.9",
+  Referer: `${base}/`
+});
+
 async function consultar(base, params) {
-  const { data } = await axios.get(`${base}/api.php`, {
-    params: { format: "json", formatversion: 2, ...params },
-    timeout: TIEMPO_MS,
-    family: 4,
-    headers: CABECERAS
-  });
-  if (data?.error) throw new Error(data.error.info || data.error.code || "error de la wiki");
-  return data;
+  let ultimoError = null;
+  for (let intento = 0; intento < AGENTES.length; intento++) {
+    try {
+      const { data } = await axios.get(`${base}/api.php`, {
+        params: { format: "json", formatversion: 2, ...params },
+        timeout: TIEMPO_MS,
+        family: 4,
+        headers: cabeceras(base, intento)
+      });
+      if (data?.error) throw new Error(data.error.info || data.error.code || "error de la wiki");
+      return data;
+    } catch (e) {
+      ultimoError = e;
+      const estado = e.response?.status;
+      if (!estado || !ESTADOS_REINTENTABLES.has(estado)) break;
+      await pausa(PAUSA_REINTENTO_MS * (intento + 1));
+    }
+  }
+  const estado = ultimoError?.response?.status;
+  const detalle = estado ? `Request failed with status code ${estado}` : ultimoError?.message || "error desconocido";
+  throw new Error(`${base.replace("https://", "")}: ${detalle}`);
 }
 
 export function urlDeArchivo(base, titulo, extension = "png") {
