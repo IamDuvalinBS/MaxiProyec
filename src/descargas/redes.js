@@ -538,86 +538,10 @@ async function instagramConAsta(link) {
   }
 }
 
-// Respaldo por API (ASTA). La clave es tuya; también se puede definir con la variable ASTA_API_KEY.
-const ASTA_URL = process.env.ASTA_API_URL || "https://astabot.hidenplay.net/api/v1/dl/instagram";
-const KEY_ASTA = process.env.ASTA_API_KEY || "ASTA-7C5O6EF95JIHVZTWNZ55";
-const IGNORAR_CLAVES = /thumb|cover|avatar|profile|pic_url|preview|icon/i;
-
-function enlacesDeJson(nodo, clave = "", salida = []) {
-  if (!nodo) return salida;
-  if (typeof nodo === "string") {
-    if (/^https?:\/\//i.test(nodo) && !IGNORAR_CLAVES.test(clave) && !salida.some((x) => x.url === nodo)) {
-      salida.push({ url: nodo, video: /\.mp4(\?|$)|\/video\/|video|reel/i.test(nodo + clave) });
-    }
-  } else if (Array.isArray(nodo)) {
-    nodo.forEach((x) => enlacesDeJson(x, clave, salida));
-  } else if (typeof nodo === "object") {
-    for (const [k, v] of Object.entries(nodo)) if (!IGNORAR_CLAVES.test(k)) enlacesDeJson(v, k, salida);
-  }
-  return salida;
-}
-
-// La API responde con el archivo directo (se guarda en disco, nunca en memoria) o con un JSON con enlaces.
-async function instagramConAsta(link) {
-  const res = await axios.get(ASTA_URL, {
-    params: { url: link, key: KEY_ASTA },
-    responseType: "stream",
-    timeout: 60000,
-    validateStatus: () => true
-  });
-  const tipo = String(res.headers["content-type"] || "").split(";")[0].trim().toLowerCase();
-  const limite = setTimeout(() => res.data.destroy(new Error("la API tardó demasiado")), 90000);
-
-  try {
-    if (res.status === 200 && (tipo.startsWith("video/") || tipo.startsWith("image/"))) {
-      const esVideo = tipo.startsWith("video/");
-      const ext = esVideo ? "mp4" : (tipo.split("/")[1] || "jpg").replace("jpeg", "jpg");
-      const ruta = path.join(os.tmpdir(), `asta-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`);
-      try {
-        await new Promise((ok, fallo) => {
-          const w = fs.createWriteStream(ruta);
-          res.data.on("error", fallo);
-          w.on("error", fallo);
-          w.on("finish", ok);
-          res.data.pipe(w);
-        });
-      } catch (e) {
-        try { fs.unlinkSync(ruta); } catch (err) {}
-        throw e;
-      }
-      return [{ type: esVideo ? "video" : "image", ruta }];
-    }
-
-    let texto = "";
-    for await (const trozo of res.data) {
-      texto += trozo;
-      if (texto.length > 1024 * 1024) break;
-    }
-    let datos = null;
-    try { datos = JSON.parse(texto); } catch (e) {}
-    if (res.status !== 200 || datos?.status === false || datos?.success === false || datos?.error) {
-      throw new Error(datos?.message || datos?.error || datos?.msg || `la API respondió HTTP ${res.status}`);
-    }
-    if (!datos) throw new Error("la API devolvió algo que no es un video ni una imagen");
-    const medias = enlacesDeJson(datos?.result ?? datos?.data ?? datos).slice(0, 10);
-    if (!medias.length) throw new Error("la API no encontró contenido en ese enlace");
-    return medias.map((m) => ({ type: m.video ? "video" : "image", url: m.url }));
-  } finally {
-    clearTimeout(limite);
-  }
-}
-
 export async function obtenerMediaInstagram(link) {
   let errorYt = null;
   if (await hayYtdlp()) {
     try { return await ytdlpMedias(link, { playlist: true, maxItems: 10 }); } catch (e) { errorYt = e; }
-  }
-
-  // Respaldo: API de ASTA (por enlace).
-  try {
-    return await instagramConAsta(link);
-  } catch (e) {
-    console.log(`[redes] ASTA (Instagram) falló: ${String(e.message).split("\n")[0]}`);
   }
 
   // Respaldo: API de ASTA (por enlace).
