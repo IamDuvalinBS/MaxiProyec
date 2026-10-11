@@ -370,6 +370,33 @@ const normalizarTikTok = (url) => {
   return m ? `https://www.tiktok.com/${m[1]}/video/${m[2]}` : null;
 };
 
+// APIs de terceros (las mismas que usan los comandos del otro bot). Se prueban una tras otra y se usa la primera que responda con videos.
+const API_DELIRIUS = "https://api.delirius.store";
+const API_FAA = "https://api-faa.my.id";
+
+async function buscarEnlacesTikTokApis(consulta, maximo) {
+  const intentos = [
+    ["Delirius", async () => {
+      const { data } = await axios.get(`${API_DELIRIUS}/search/tiktoksearch`, { params: { query: consulta }, headers: HEADERS, timeout: 20000 });
+      return (data?.meta || []).map((v) => v.url);
+    }],
+    ["FAA", async () => {
+      const { data } = await axios.get(`${API_FAA}/faa/tiktok-search`, { params: { q: consulta }, headers: HEADERS, timeout: 20000 });
+      return (data?.result || []).map((v) => (v.author?.username && v.id ? `https://www.tiktok.com/@${v.author.username}/video/${v.id}` : null));
+    }]
+  ];
+  for (const [nombre, intento] of intentos) {
+    try {
+      const enlaces = (await intento()).filter((u) => typeof u === "string" && /tiktok\.com/i.test(u));
+      if (enlaces.length) return enlaces.slice(0, maximo);
+      console.log(`[redes] ${nombre} (búsqueda TikTok): sin resultados`);
+    } catch (e) {
+      console.log(`[redes] ${nombre} (búsqueda TikTok) falló: ${String(e.message).replace("Request failed with status code ", "HTTP ")}`);
+    }
+  }
+  return [];
+}
+
 export async function buscarTikTok(consulta, cantidad) {
   let errorApi = null;
   try {
@@ -384,8 +411,9 @@ export async function buscarTikTok(consulta, cantidad) {
     console.log(`[redes] La búsqueda de tikwm falló (${e.message}); se prueba con el buscador web`);
   }
 
-  // Respaldo: buscar enlaces de TikTok en la web y bajar cada uno (tikwm, y yt-dlp si tikwm falla).
-  const enlaces = await buscarEnlacesWeb([`${consulta} site:tiktok.com/@ video`, `${consulta} tiktok site:tiktok.com`], normalizarTikTok, cantidad * 2).catch(() => []);
+  // Respaldo: buscar enlaces de TikTok (APIs de terceros, luego buscadores web) y bajar cada uno (tikwm, y yt-dlp si tikwm falla).
+  let enlaces = await buscarEnlacesTikTokApis(consulta, cantidad * 2);
+  if (!enlaces.length) enlaces = await buscarEnlacesWeb([`${consulta} site:tiktok.com/@ video`, `${consulta} tiktok site:tiktok.com`], normalizarTikTok, cantidad * 2).catch(() => []);
   if (!enlaces.length) {
     throw new Error(errorApi
       ? "TikTok bloqueó la búsqueda desde esta conexión (HTTP 403). Envía el enlace del video con .tt <enlace>."
@@ -466,16 +494,82 @@ const normalizarInstagram = (url) => {
   return m ? `https://www.instagram.com/${m[1].toLowerCase() === "tv" ? "tv" : "reel"}/${m[2]}/` : null;
 };
 
+// Instagram no deja buscar sin sesión: aquí se usa la sesión (cookies.txt) que se define en YTDLP_COOKIES.
+// Se busca por cuenta: ".ig usuario" (o texto, y se toma la cuenta que mejor coincida) y se mandan sus últimos reels.
+const MENSAJE_SIN_COOKIES =
+  "Para buscar en Instagram el bot necesita una sesión. Exporta las cookies de una cuenta de Instagram (de preferencia secundaria) a un cookies.txt y define YTDLP_COOKIES con su ruta.";
+
+function leerCookiesInstagram() {
+  const ruta = process.env.YTDLP_COOKIES;
+  if (!ruta || !fs.existsSync(ruta)) return null;
+  const cookies = {};
+  for (const linea of fs.readFileSync(ruta, "utf8").split(/\r?\n/)) {
+    const l = linea.replace(/^#HttpOnly_/, "");
+    if (!l || l.startsWith("#")) continue;
+    const c = l.split("\t");
+    if (c.length >= 7 && /instagram\.com/i.test(c[0])) cookies[c[5]] = c[6];
+  }
+  return cookies.sessionid ? cookies : null;
+}
+
+async function usuarioDeInstagram(consulta, cookies) {
+  const limpio = consulta.trim().replace(/^@/, "");
+  if (/^[\w.]{2,30}$/.test(limpio)) return limpio; // ya es un nombre de usuario
+
+  const { data } = await axios.get("https://www.instagram.com/web/search/topsearch/", {
+    params: { query: consulta, context: "blended" },
+    headers: {
+      ...HEADERS,
+      "X-IG-App-ID": "936619743392459",
+      "X-CSRFToken": cookies.csrftoken || "",
+      Cookie: Object.entries(cookies).map(([k, v]) => `${k}=${v}`).join("; ")
+    },
+    timeout: 15000
+  });
+  const usuario = (data?.users || []).map((u) => u.user).find((u) => u && !u.is_private);
+  if (!usuario?.username) throw new Error("No encontré ninguna cuenta pública con ese nombre.");
+  return usuario.username;
+}
+
+async function listarEnlacesYtdlp(url, maximo) {
+  await esperarTurno();
+  try {
+    const args = ["--quiet", "--no-warnings", "--flat-playlist", "--print", "url", "-I", `1:${maximo}`, "--socket-timeout", "20", "--cookies", process.env.YTDLP_COOKIES, url];
+    const { stdout } = await execFileAsync("yt-dlp", args, { timeout: 90000, killSignal: "SIGKILL", maxBuffer: 1024 * 1024 });
+    return stdout.split("\n").map((x) => x.trim()).filter((x) => /^https?:\/\//.test(x));
+  } finally {
+    liberarTurno();
+  }
+}
+
 export async function buscarInstagram(consulta, cantidad) {
-  const enlaces = await buscarEnlacesWeb(
-    [`${consulta} site:instagram.com/reel`, `site:instagram.com/reel/ ${consulta}`, `${consulta} instagram reels site:instagram.com`],
-    normalizarInstagram,
-    cantidad * 2
-  );
-  if (!enlaces.length) throw new Error(SIN_BUSQUEDA_PUBLICA);
+  const cookies = leerCookiesInstagram();
+  if (!cookies) throw new Error(MENSAJE_SIN_COOKIES);
+  if (!(await hayYtdlp())) throw new Error("yt-dlp no está instalado");
+
+  let usuario;
+  try {
+    usuario = await usuarioDeInstagram(consulta, cookies);
+  } catch (e) {
+    const http = e.response?.status;
+    console.log(`[redes] Búsqueda de cuenta en Instagram falló: ${http ? `HTTP ${http}` : e.message}`);
+    throw new Error(http === 401 || http === 403 || http === 429
+      ? "Instagram rechazó la sesión o limitó las peticiones. Revisa que el cookies.txt siga vigente, o prueba con el nombre exacto de la cuenta."
+      : e.message);
+  }
+
+  let enlaces;
+  try {
+    enlaces = await listarEnlacesYtdlp(`https://www.instagram.com/${usuario}/`, cantidad * 2 + 2);
+  } catch (e) {
+    console.log(`[redes] No se pudo listar @${usuario}: ${String(e.stderr || e.message).trim().split("\n").pop()}`);
+    throw new Error(`No se pudieron leer las publicaciones de @${usuario} (cuenta privada, sesión vencida o límite de Instagram).`);
+  }
+  if (!enlaces.length) throw new Error(`@${usuario} no tiene publicaciones visibles.`);
+
   return enlaces.map((link) => ({
     type: "video",
-    resolver: async () => (await obtenerMediaInstagram(link)).filter((m) => m.type === "video").slice(0, 1).map((m) => ({ ...m, caption: `🔗 ${link}` }))
+    resolver: async () => (await obtenerMediaInstagram(link)).filter((m) => m.type === "video").slice(0, 1).map((m) => ({ ...m, caption: `📸 @${usuario}\n🔗 ${link}` }))
   }));
 }
 
@@ -591,6 +685,17 @@ export async function buscarPinterest(consulta, cantidad) {
     const pines = await buscar("pins");
     agregar(pines, "video");
     agregar(pines, "image");
+  }
+  if (!medias.length && errores.length >= 2) {
+    try {
+      const { data } = await axios.get(`${API_DELIRIUS}/search/pinterestv2`, { params: { text: consulta }, headers: HEADERS, timeout: 20000 });
+      for (const item of data?.data || []) {
+        const url = item.hd || item.image || item.image_small;
+        if (url && medias.length < cantidad + 3) medias.push({ type: "image", url });
+      }
+    } catch (e) {
+      console.log(`[redes] Delirius (búsqueda Pinterest) falló: ${String(e.message).replace("Request failed with status code ", "HTTP ")}`);
+    }
   }
   if (!medias.length && errores.length >= 2) {
     throw new Error("Pinterest bloqueó la búsqueda desde esta conexión (HTTP 403). Envía el enlace del pin con .pin <enlace>.");
