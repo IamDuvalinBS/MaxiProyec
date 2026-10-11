@@ -138,7 +138,7 @@ export function convertirDragon(base, miembro) {
   };
 }
 
-export const WIKIS_DRAGONES = (process.env.GACHA_DRAGONES_WIKIS ?? "https://dragonmanialegends.fandom.com,https://dml.wiki")
+export const WIKIS_DRAGONES = (process.env.GACHA_DRAGONES_WIKIS ?? "https://dragon-mania-legends.wiki,https://www.dragon-mania-legends.wiki,https://dml.wiki")
   .split(",")
   .map((x) => x.trim().replace(/\/+$/, ""))
   .filter(Boolean);
@@ -173,6 +173,19 @@ export async function sincronizarDragones(categoria = "Dragons", base = null) {
     if (dragon && crearPersonaje(dragon)) nuevos++;
   }
   return { total: miembros.length, nuevos, fuente };
+}
+
+export async function buscarCategoriasDragones(texto, base = null) {
+  const bases = base ? [base] : WIKIS_DRAGONES;
+  const fallos = [];
+  for (const candidata of bases) {
+    try {
+      return { fuente: candidata, categorias: await buscarCategorias(candidata, texto) };
+    } catch (e) {
+      fallos.push(e.message);
+    }
+  }
+  throw new Error(fallos.join(" | ") || "no se pudo consultar ninguna wiki");
 }
 
 export function convertirItemCod(base, miembro, tipo) {
