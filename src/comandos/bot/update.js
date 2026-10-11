@@ -1,14 +1,15 @@
 import fs from "fs";
 import path from "path";
-import { spawn, execFile } from "child_process";
+import { execFile, spawn } from "child_process";
 import { promisify } from "util";
 import { fileURLToPath } from "url";
 import { ownerCommand } from "../../../motores/owner.js";
+import { guardarCuentasPendientes } from "../../../motores/db.js";
 import { tarjeta } from "../../economia/formato.js";
 
 const execFileAsync = promisify(execFile);
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
-const ESPERA_REINICIO_S = 3;
+const CODIGO_REINICIO = 42;
 const LIMITE_SALIDA = 1500;
 
 let enCurso = false;
@@ -25,15 +26,15 @@ async function correr(comando, args, tiempoMs = 120000) {
 
 const recortar = (texto) => (texto.length > LIMITE_SALIDA ? `…${texto.slice(-LIMITE_SALIDA)}` : texto);
 
-function reiniciar() {
-  const registro = fs.openSync(path.join(RAIZ, "bot.log"), "a");
-  const proceso = spawn("sh", ["-c", `sleep ${ESPERA_REINICIO_S}; exec node index.js`], {
-    cwd: RAIZ,
-    detached: true,
-    stdio: ["ignore", registro, registro]
-  });
-  proceso.unref();
-  setTimeout(() => process.exit(0), 1000);
+const supervisado = () => process.env.MAXI_SUPERVISADO === "1";
+
+async function reiniciar() {
+  try {
+    await guardarCuentasPendientes();
+  } catch (e) {
+    console.log(`❌ No se pudieron guardar las cuentas antes de reiniciar: ${e.message}`);
+  }
+  setTimeout(() => process.exit(CODIGO_REINICIO), 1000);
 }
 
 export default {
@@ -108,17 +109,34 @@ export default {
         }
       }
 
+      const archivos = `${cambios.length} ${cambios.length === 1 ? "archivo" : "archivos"}`;
+
+      if (!supervisado()) {
+        return reply({
+          text: tarjeta({
+            emoji: "✅",
+            titulo: "ACTUALIZADO",
+            relato: soloReiniciar
+              ? "El bot no puede reiniciarse solo porque no se inició con *npm start*."
+              : `Se actualizaron *${archivos}*, pero el bot no puede reiniciarse solo porque no se inició con *npm start*.`,
+            tip: [
+              "Reinícialo a mano con *Ctrl+C* y luego *npm start*.",
+              "Si lo inicias siempre con *npm start*, *.update* lo reinicia solo."
+            ]
+          })
+        });
+      }
+
       await reply({
         text: tarjeta({
           emoji: "🔁",
           titulo: "REINICIANDO BOT",
           relato: soloReiniciar
             ? "Reiniciando el bot, vuelvo en unos segundos."
-            : `Se actualizaron *${cambios.length}* ${cambios.length === 1 ? "archivo" : "archivos"}. Reiniciando el bot, vuelvo en unos segundos.`,
-          tip: "La salida del bot queda guardada en *bot.log*."
+            : `Se actualizaron *${archivos}*. Reiniciando el bot, vuelvo en unos segundos.`
         })
       });
-      reiniciar();
+      await reiniciar();
     } catch (e) {
       console.log(`❌ Error en .update: ${e.message}`);
       await reply({ text: `❌ Error actualizando: ${e.message}` });
@@ -127,3 +145,25 @@ export default {
     }
   })
 };
+
+const esLanzador = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+
+if (esLanzador) {
+  const lanzar = () => {
+    const hijo = spawn(process.execPath, ["index.js"], {
+      cwd: RAIZ,
+      stdio: "inherit",
+      env: { ...process.env, MAXI_SUPERVISADO: "1" }
+    });
+    hijo.on("exit", (codigo, senal) => {
+      if (codigo === CODIGO_REINICIO) {
+        console.log("Reiniciando el bot...");
+        setTimeout(lanzar, 2000);
+        return;
+      }
+      console.log(`El bot se detuvo (${senal || `código ${codigo}`}).`);
+      process.exit(codigo ?? 1);
+    });
+  };
+  lanzar();
+}
