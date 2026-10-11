@@ -67,6 +67,63 @@ const contenidoAlbum = (p) =>
     ? { video: { url: p.ruta }, ...(p.caption ? { caption: p.caption } : {}) }
     : { image: p.buffer, ...(p.caption ? { caption: p.caption } : {}) };
 
+// Álbum de WhatsApp: un mensaje "álbum" y cada archivo asociado a él (así llegan agrupados, como al mandar varias fotos/videos a mano).
+// No depende de sock.sendAlbumMessage; usa las utilidades de Baileys directamente.
+async function mandarAlbum(sock, from, contenidos, msg) {
+  if (typeof sock?.sendAlbumMessage === "function") return sock.sendAlbumMessage(from, contenidos, { quoted: msg });
+
+  const baileys = await import("@fer2809fl/baileys");
+  const crypto = await import("crypto");
+  const { generateWAMessageFromContent, generateWAMessage, jidNormalizedUser } = baileys;
+  const userJid = jidNormalizedUser(sock.user?.id || sock.authState?.creds?.me?.id || "");
+
+  const album = await generateWAMessageFromContent(from, {
+    messageContextInfo: { messageSecret: crypto.randomBytes(32) },
+    albumMessage: {
+      expectedImageCount: contenidos.filter((a) => "image" in a).length,
+      expectedVideoCount: contenidos.filter((a) => "video" in a).length
+    }
+  }, { quoted: msg, userJid });
+  await sock.relayMessage(from, album.message, { messageId: album.key.id });
+
+  for (const item of contenidos) {
+    const hijo = await generateWAMessage(from, item, { upload: sock.waUploadToServer, userJid });
+    hijo.message.messageContextInfo = {
+      messageSecret: crypto.randomBytes(32),
+      messageAssociation: { associationType: 1, parentMessageKey: album.key }
+    };
+    await sock.relayMessage(from, hijo.message, { messageId: hijo.key.id });
+  }
+  return album;
+}
+
+// Envía ya preparados: todos juntos como álbum si son 2 o más; si el álbum falla, uno por uno con pausas cortas.
+async function enviarPreparados(aEnviar, reply, { sock, from, msg }, res) {
+  try {
+    if (aEnviar.length >= 2 && sock && from) {
+      try {
+        await mandarAlbum(sock, from, aEnviar.map(contenidoAlbum), msg);
+        res.enviados += aEnviar.length;
+        return;
+      } catch (e) {
+        console.log(`[envio] El álbum falló (${String(e.message).split("\n")[0]}); se envían uno por uno`);
+      }
+    }
+    for (let i = 0; i < aEnviar.length; i++) {
+      if (i > 0) await delayAleatorio(500, 1400);
+      try {
+        res.ultimo = (await reply(contenidoMensaje(aEnviar[i]))) || true;
+        res.enviados++;
+      } catch (e) {
+        res.fallidos++;
+        console.log(`[envio] No se pudo enviar un archivo: ${String(e.message).split("\n")[0]}`);
+      }
+    }
+  } finally {
+    for (const p of aEnviar) liberar(p);
+  }
+}
+
 const liberar = (p) => { try { p?.limpiar?.(); } catch (e) {} };
 
 // ───────────────────────── API anterior (se mantiene) ─────────────────────────
@@ -109,7 +166,7 @@ export async function enviarLote(medias, reply, opciones = {}) {
   const res = { enviados: 0, omitidos: 0, fallidos: 0, ultimo: null };
 
   if (medias.some((m) => m.resolver)) {
-    await enviarSecuencial(medias, reply, objetivo, limiteMB, res);
+    await enviarSecuencial(medias, reply, objetivo, limiteMB, res, { sock, from, msg });
   } else {
     await enviarDirectos(medias, reply, { sock, from, msg, objetivo, limiteMB }, res);
   }
@@ -143,38 +200,16 @@ async function enviarDirectos(medias, reply, { sock, from, msg, objetivo, limite
   const aEnviar = listos.slice(0, objetivo);
   for (const sobrante of listos.slice(objetivo)) liberar(sobrante);
 
-  try {
-    if (aEnviar.length >= 2 && typeof sock?.sendAlbumMessage === "function") {
-      try {
-        await sock.sendAlbumMessage(from, aEnviar.map(contenidoAlbum), { quoted: msg });
-        res.enviados += aEnviar.length;
-        return;
-      } catch (e) {
-        console.log(`[envio] El álbum falló (${String(e.message).split("\n")[0]}); se envían uno por uno`);
-      }
-    }
-
-    for (let i = 0; i < aEnviar.length; i++) {
-      if (i > 0) await delayAleatorio(500, 1400);
-      try {
-        res.ultimo = (await reply(contenidoMensaje(aEnviar[i]))) || true;
-        res.enviados++;
-      } catch (e) {
-        res.fallidos++;
-        console.log(`[envio] No se pudo enviar un archivo: ${String(e.message).split("\n")[0]}`);
-      }
-    }
-  } finally {
-    for (const p of aEnviar) liberar(p);
-  }
+  await enviarPreparados(aEnviar, reply, { sock, from, msg }, res);
 }
 
-// Hay que resolver cada uno (yt-dlp, uno por uno): se envía cada video apenas está listo, sin esperar a los demás.
-async function enviarSecuencial(medias, reply, objetivo, limiteMB, res) {
+// Hay que resolver cada uno (yt-dlp / tikwm, uno por uno): se van preparando y al final se mandan todos juntos.
+async function enviarSecuencial(medias, reply, objetivo, limiteMB, res, ctx) {
   let seguidos = 0;
+  const listos = [];
 
   for (const candidato of medias) {
-    if (res.enviados >= objetivo || seguidos >= FALLOS_SEGUIDOS_MAX) break;
+    if (listos.length >= objetivo || seguidos >= FALLOS_SEGUIDOS_MAX) break;
 
     let lista;
     try {
@@ -188,25 +223,22 @@ async function enviarSecuencial(medias, reply, objetivo, limiteMB, res) {
     if (!lista?.length) { res.fallidos++; seguidos++; continue; }
 
     for (const media of lista) {
-      if (res.enviados >= objetivo) { // sobrante ya descargado por yt-dlp
+      if (listos.length >= objetivo) { // sobrante ya descargado
         if (media.ruta) { try { fs.unlinkSync(media.ruta); } catch (e) {} }
         continue;
       }
-      let p = null;
       try {
-        p = await prepararMedia(media, limiteMB);
-        if (p.omitido) { res.omitidos++; p = null; continue; }
-        if (res.enviados > 0) await delayAleatorio(500, 1400);
-        res.ultimo = (await reply(contenidoMensaje(p))) || true;
-        res.enviados++;
+        const p = await prepararMedia(media, limiteMB);
+        if (p.omitido) { res.omitidos++; continue; }
+        listos.push(p);
         seguidos = 0;
       } catch (e) {
         res.fallidos++;
         seguidos++;
-        console.log(`[envio] No se pudo enviar un resultado: ${String(e.message).split("\n")[0]}`);
-      } finally {
-        liberar(p);
+        console.log(`[envio] No se pudo preparar un resultado: ${String(e.message).split("\n")[0]}`);
       }
     }
   }
+
+  await enviarPreparados(listos, reply, ctx, res);
 }

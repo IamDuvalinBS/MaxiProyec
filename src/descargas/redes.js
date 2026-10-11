@@ -371,7 +371,10 @@ const normalizarTikTok = (url) => {
 };
 
 // APIs de terceros (las mismas que usan los comandos del otro bot). Se prueban una tras otra y se usa la primera que responda con videos.
-const API_DELIRIUS = "https://api.delirius.store";
+const API_DELIRIUS = "https://api.delirius.store"; // (ya no responde, se deja como último intento)
+// Claves de Fer (con su permiso). Si quieres cambiarlas sin tocar el código: STELLARWA_KEY y APICAUSAS_KEY.
+const KEY_STELLAR = process.env.STELLARWA_KEY || "api-7dSKm";
+const KEY_CAUSAS = process.env.APICAUSAS_KEY || "oboe";
 const API_FAA = "https://api-faa.my.id";
 
 async function buscarEnlacesTikTokApis(consulta, maximo) {
@@ -687,14 +690,25 @@ export async function buscarPinterest(consulta, cantidad) {
     agregar(pines, "image");
   }
   if (!medias.length && errores.length >= 2) {
-    try {
-      const { data } = await axios.get(`${API_DELIRIUS}/search/pinterestv2`, { params: { text: consulta }, headers: HEADERS, timeout: 20000 });
-      for (const item of data?.data || []) {
-        const url = item.hd || item.image || item.image_small;
-        if (url && medias.length < cantidad + 3) medias.push({ type: "image", url });
+    // Respaldo: APIs de terceros (las mismas del otro bot).
+    const q = encodeURIComponent(consulta);
+    const apis = [
+      ["StellarWA", `https://api.stellarwa.xyz/search/pinterest?query=${q}&key=${KEY_STELLAR}`, (r) => r.data?.data || r.data],
+      ["Api Causas", `https://rest.apicausas.xyz/api/v1/buscadores/pinterest?apikey=${KEY_CAUSAS}&q=${q}`, (r) => r.data],
+      ["Delirius", `${API_DELIRIUS}/search/pinterestv2?text=${q}`, (r) => r.data]
+    ];
+    for (const [nombre, url, sacar] of apis) {
+      if (medias.length) break;
+      try {
+        const { data } = await axios.get(url, { headers: HEADERS, timeout: 20000 });
+        for (const item of sacar(data) || []) {
+          const img = item.hd || item.image || item.image_small;
+          if (img && medias.length < cantidad + 3) medias.push({ type: "image", url: img });
+        }
+        if (!medias.length) console.log(`[redes] ${nombre} (búsqueda Pinterest): sin resultados`);
+      } catch (e) {
+        console.log(`[redes] ${nombre} (búsqueda Pinterest) falló: ${String(e.message).replace("Request failed with status code ", "HTTP ")}`);
       }
-    } catch (e) {
-      console.log(`[redes] Delirius (búsqueda Pinterest) falló: ${String(e.message).replace("Request failed with status code ", "HTTP ")}`);
     }
   }
   if (!medias.length && errores.length >= 2) {
