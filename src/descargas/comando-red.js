@@ -27,7 +27,8 @@ export function crearComandoRed({
   ejemploLink,
   ejemploBusqueda,
   obtenerPorLink,
-  buscar
+  buscar,
+  notaSinBusqueda
 }) {
   const comando = names[0];
   const etiquetaUso = buscar ? `${comando} <enlace o búsqueda>` : `${comando} <enlace>`;
@@ -52,7 +53,7 @@ export function crearComandoRed({
         });
 
       if (!args.length) {
-        return mostrarUso(buscar ? "Envía un enlace o escribe lo que quieres buscar." : "Envía un enlace válido.");
+        return mostrarUso(buscar ? "Envía un enlace o escribe lo que quieres buscar." : (notaSinBusqueda || "Envía un enlace válido."));
       }
 
       // ¿Enlace o búsqueda?
@@ -62,7 +63,7 @@ export function crearComandoRed({
         return mostrarUso("Ese enlace no es de esta plataforma.");
       }
       if (!esDeEstaRed && !buscar) {
-        return mostrarUso("Envía un enlace válido.");
+        return mostrarUso(notaSinBusqueda || "Envía un enlace válido.");
       }
 
       // ───────────── Por enlace ─────────────

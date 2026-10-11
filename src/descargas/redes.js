@@ -386,7 +386,11 @@ export async function buscarTikTok(consulta, cantidad) {
 
   // Respaldo: buscar enlaces de TikTok en la web y bajar cada uno (tikwm, y yt-dlp si tikwm falla).
   const enlaces = await buscarEnlacesWeb([`${consulta} site:tiktok.com/@ video`, `${consulta} tiktok site:tiktok.com`], normalizarTikTok, cantidad * 2).catch(() => []);
-  if (!enlaces.length) throw errorApi || new Error("No encontré videos de TikTok para esa búsqueda.");
+  if (!enlaces.length) {
+    throw new Error(errorApi
+      ? "TikTok bloqueó la búsqueda desde esta conexión (HTTP 403). Envía el enlace del video con .tt <enlace>."
+      : "No encontré videos de TikTok para esa búsqueda.");
+  }
   return enlaces.map((link) => ({
     type: "video",
     resolver: async () => {
@@ -560,12 +564,13 @@ export async function obtenerMediaPinterest(link) {
 
 // Videos primero; si no alcanzan, se completa con imágenes.
 export async function buscarPinterest(consulta, cantidad) {
+  const errores = [];
   const buscar = async (scope) => {
     const r = await pinterestApi(
       "BaseSearchResource",
       `/search/${scope}/?q=${encodeURIComponent(consulta)}&rs=typed`,
       { options: { query: consulta, scope, rs: "typed", bookmarks: [] }, context: {} }
-    ).catch((e) => { console.log(`[redes] Búsqueda de Pinterest (${scope}) falló: ${e.message}`); return null; });
+    ).catch((e) => { console.log(`[redes] Búsqueda de Pinterest (${scope}) falló: ${e.message}`); errores.push(e); return null; });
     return (r?.results || []).map((pin) => ({ id: pin.id, media: mediaDePin(pin) })).filter((x) => x.media);
   };
 
@@ -586,6 +591,9 @@ export async function buscarPinterest(consulta, cantidad) {
     const pines = await buscar("pins");
     agregar(pines, "video");
     agregar(pines, "image");
+  }
+  if (!medias.length && errores.length >= 2) {
+    throw new Error("Pinterest bloqueó la búsqueda desde esta conexión (HTTP 403). Envía el enlace del pin con .pin <enlace>.");
   }
   return medias;
 }
