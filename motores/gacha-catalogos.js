@@ -138,7 +138,7 @@ export function convertirDragon(base, miembro) {
   };
 }
 
-export const WIKIS_DRAGONES = (process.env.GACHA_DRAGONES_WIKIS ?? "https://dragon-mania-legends.wiki,https://www.dragon-mania-legends.wiki,https://dml.wiki")
+export const WIKIS_DRAGONES = (process.env.GACHA_DRAGONES_WIKIS ?? "https://dragon-mania-legends.fandom.com,https://dragon-mania-legend.fandom.com,https://dragon-mania-legends-unofficial.fandom.com,https://dragon-mania-legends.wiki,https://dml.wiki")
   .split(",")
   .map((x) => x.trim().replace(/\/+$/, ""))
   .filter(Boolean);
@@ -218,3 +218,4 @@ export async function sincronizarCod(categoria, tipo = "Operador", base = WIKI_C
 }
 
 export const buscarCategoriasCod = (texto, base = WIKI_COD) => buscarCategorias(base, texto);
+    
