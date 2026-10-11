@@ -1,4 +1,6 @@
 import axios from "axios";
+import { readFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { crearPersonaje, contarPersonajes } from "./gacha-db.js";
 import { buscarCategorias, miembrosDeCategoriaRecursiva, paginasPorPatron, urlDeArchivo } from "./gacha-mediawiki.js";
 
@@ -144,6 +146,27 @@ export const WIKIS_DRAGONES = (process.env.GACHA_DRAGONES_WIKIS ?? "https://drag
   .filter(Boolean);
 export const WIKI_DRAGONES = WIKIS_DRAGONES[0];
 export const WIKI_COD = "https://callofduty.fandom.com";
+
+export const ARCHIVO_DRAGONES = new URL("../data/dragones.json", import.meta.url);
+const BASE_DRAGONES_ARCHIVO = "https://dml.wiki";
+
+export const hayArchivoDragones = () => existsSync(ARCHIVO_DRAGONES);
+
+export async function sincronizarDragonesArchivo() {
+  const lista = JSON.parse(await readFile(ARCHIVO_DRAGONES, "utf8"));
+  if (!Array.isArray(lista)) throw new Error("data/dragones.json debe ser una lista");
+
+  const miembros = lista
+    .map((x) => (typeof x === "string" ? { titulo: x, imagen: null } : { titulo: x?.titulo, imagen: x?.imagen || null }))
+    .filter((x) => x.titulo);
+
+  let nuevos = 0;
+  for (const miembro of miembros) {
+    const dragon = convertirDragon(BASE_DRAGONES_ARCHIVO, miembro);
+    if (dragon && crearPersonaje(dragon)) nuevos++;
+  }
+  return { total: miembros.length, nuevos, fuente: "archivo data/dragones.json", categorias: 0, porNombre: 0, local: true };
+}
 
 const MINIMO_ESPERADO_DRAGONES = 100;
 const PATRON_NOMBRE_DRAGON = /^(?:[A-Z0-9][\w'’.&-]*\s)+Dragon$/;
