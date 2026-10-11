@@ -1,4 +1,5 @@
 import axios from "axios";
+import { AsyncLocalStorage } from "async_hooks";
 import { execFile } from "child_process";
 import { promisify } from "util";
 import fs from "fs";
@@ -20,6 +21,25 @@ const HEADERS = {
 };
 
 const pausa = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// ── Registro en consola: cuánto tardó cada descarga y con qué motor/API se logró ──
+const contextoMotor = new AsyncLocalStorage();
+const anotar = (motor) => { const c = contextoMotor.getStore(); if (c) c.motor = motor; };
+function medido(red, fn) {
+  return async (...args) => {
+    const c = { motor: null };
+    const t0 = Date.now();
+    const seg = () => ((Date.now() - t0) / 1000).toFixed(1);
+    try {
+      const r = await contextoMotor.run(c, () => fn(...args));
+      console.log(`[${red}] ✅ listo en ${seg()}s · motor: ${c.motor || "desconocido"} · ${r.length} archivo(s)`);
+      return r;
+    } catch (e) {
+      console.log(`[${red}] ❌ falló tras ${seg()}s · ${String(e.message).split("\n")[0]}`);
+      throw e;
+    }
+  };
+}
 
 // ───────────────────────── yt-dlp (motor principal para Instagram, Facebook y Reddit) ─────────────────────────
 // Instalación: pip install -U "yt-dlp[default,curl-cffi]"   (curl-cffi lo exige Instagram)
@@ -130,8 +150,11 @@ export async function descargarConYtdlp(link, { playlist = false, maxItems = 10 
   return archivos;
 }
 
-const ytdlpMedias = async (link, opciones) =>
-  (await descargarConYtdlp(link, opciones)).map((a) => ({ type: a.type, ruta: a.ruta }));
+const ytdlpMedias = async (link, opciones) => {
+  const r = (await descargarConYtdlp(link, opciones)).map((a) => ({ type: a.type, ruta: a.ruta }));
+  anotar("yt-dlp");
+  return r;
+};
 
 // ───────────────────────── Utilidades ─────────────────────────
 function recortar(texto, maximo) {
@@ -241,7 +264,7 @@ function mejorMp4(variantes) {
     .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0))[0];
 }
 
-export async function obtenerMediaTwitter(link) {
+async function _obtenerMediaTwitter(link) {
   const id = extraerTweetId(link);
   if (!id) throw new Error("Ese link no parece ser de un tweet/post de X valido.");
 
@@ -272,7 +295,7 @@ export async function obtenerMediaTwitter(link) {
   if (!medias.length && data?.photos) {
     for (const foto of data.photos) medias.push({ type: "image", url: foto.url });
   }
-  if (medias.length) return medias.slice(0, 10);
+  if (medias.length) { anotar("syndication de X"); return medias.slice(0, 10); }
 
   if (await hayYtdlp()) {
     try { return await ytdlpMedias(link, { playlist: true }); } catch (e) { /* se informa abajo */ }
@@ -321,10 +344,11 @@ async function pedirTikwm(ruta, params, metodo = "GET", base = TIKWM) {
 }
 
 // Acepta videos, fotos (slideshows) e historias. Prefiere "play" (H264, más ligero) antes que "hdplay" (suele ser HEVC y pesa más).
-export async function obtenerMediaTikTok(link) {
+async function _obtenerMediaTikTok(link) {
   let errorApi = null;
   try {
-    const info = await pedirTikwm("/api/", { url: link, hd: 1 });
+    const info = await pedirTikwm("/api/", { url: link });
+    anotar("tikwm");
     if (info.images?.length) {
       return info.images.slice(0, 10).map((u, i) => ({ type: "image", url: absoluta(u), caption: i === 0 ? pieTikTok(info) : undefined }));
     }
@@ -432,7 +456,7 @@ export async function buscarTikTok(consulta, cantidad) {
 }
 
 // ───────────────────────── Facebook ─────────────────────────
-export async function obtenerMediaFacebook(link) {
+async function _obtenerMediaFacebook(link) {
   let errorYt = null;
   if (await hayYtdlp()) {
     try { return await ytdlpMedias(link); } catch (e) { errorYt = e; }
@@ -444,6 +468,7 @@ export async function obtenerMediaFacebook(link) {
     const sd = html.match(/"browser_native_sd_url":"([^"]+)"/);
     const crudo = (hd || sd)?.[1];
     if (!crudo) throw new Error("No se pudo encontrar el video (puede ser privado, o el link no es de un video).");
+    anotar("HTML directo de Facebook");
     return [{ type: "video", url: crudo.replace(/\\u0025/g, "%").replace(/\\\//g, "/") }];
   } catch (e) {
     throw errorYt && !/no está instalado/.test(errorYt.message) ? errorYt : e;
@@ -493,7 +518,7 @@ async function instagramConAsta(link) {
   const res = await axios.get(ASTA_URL, {
     params: { url: link, key: KEY_ASTA },
     responseType: "stream",
-    timeout: 60000,
+    timeout: 20000, // si la API no responde en 20 s, se pasa al siguiente motor
     validateStatus: () => true
   });
   const tipo = String(res.headers["content-type"] || "").split(";")[0].trim().toLowerCase();
@@ -516,6 +541,7 @@ async function instagramConAsta(link) {
         try { fs.unlinkSync(ruta); } catch (err) {}
         throw e;
       }
+      anotar("ASTA");
       return [{ type: esVideo ? "video" : "image", ruta }];
     }
 
@@ -532,26 +558,30 @@ async function instagramConAsta(link) {
     if (!datos) throw new Error("la API devolvió algo que no es un video ni una imagen");
     const medias = enlacesDeJson(datos?.result ?? datos?.data ?? datos).slice(0, 10);
     if (!medias.length) throw new Error("la API no encontró contenido en ese enlace");
+    anotar("ASTA");
     return medias.map((m) => ({ type: m.video ? "video" : "image", url: m.url }));
   } finally {
     clearTimeout(limite);
   }
 }
 
-export async function obtenerMediaInstagram(link) {
+async function _obtenerMediaInstagram(link) {
+  // 1) API de ASTA: es una sola petición y no arranca ningún proceso, así que es lo más rápido y lo que menos RAM gasta.
+  let errorAsta = null;
+  try {
+    return await instagramConAsta(link);
+  } catch (e) {
+    errorAsta = e;
+    console.log(`[redes] ASTA (Instagram) falló: ${String(e.message).split("\n")[0]}`);
+  }
+
+  // 2) yt-dlp (reels, posts y carruseles).
   let errorYt = null;
   if (await hayYtdlp()) {
     try { return await ytdlpMedias(link, { playlist: true, maxItems: 10 }); } catch (e) { errorYt = e; }
   }
 
-  // Respaldo: API de ASTA (por enlace).
-  try {
-    return await instagramConAsta(link);
-  } catch (e) {
-    console.log(`[redes] ASTA (Instagram) falló: ${String(e.message).split("\n")[0]}`);
-  }
-
-  // Respaldo: el motor anterior (descargas/instagram.js), por si todavía sirve para fotos.
+  // 3) Último respaldo: el motor anterior (descargas/instagram.js).
   try {
     const viejo = await import("./instagram.js");
     if (typeof viejo.obtenerMediaInstagram === "function") {
@@ -559,13 +589,13 @@ export async function obtenerMediaInstagram(link) {
         viejo.obtenerMediaInstagram(link),
         pausa(20000).then(() => { throw new Error("el motor anterior tardó demasiado"); })
       ]);
-      if (Array.isArray(resultado) && resultado.length) return resultado;
+      if (Array.isArray(resultado) && resultado.length) { anotar("motor anterior"); return resultado; }
     }
   } catch (e) {
     console.log(`[redes] Motor anterior de Instagram no disponible: ${String(e.message).split("\n")[0]}`);
   }
 
-  throw errorYt || new Error("No se pudo obtener ese contenido de Instagram.");
+  throw errorYt || errorAsta || new Error("No se pudo obtener ese contenido de Instagram.");
 }
 
 const normalizarInstagram = (url) => {
@@ -706,7 +736,7 @@ function mediaDePin(pin) {
   return imagen ? { type: "image", url: imagen } : null;
 }
 
-export async function obtenerMediaPinterest(link) {
+async function _obtenerMediaPinterest(link) {
   let destino = link;
   if (/pin\.it/i.test(link)) {
     try {
@@ -720,7 +750,7 @@ export async function obtenerMediaPinterest(link) {
     try {
       const pin = await pinterestApi("PinResource", `/pin/${id}/`, { options: { id, field_set_key: "detailed" }, context: {} });
       const media = mediaDePin(pin);
-      if (media) return [media];
+      if (media) { anotar("API de Pinterest"); return [media]; }
     } catch (e) {
       console.log(`[redes] API de Pinterest falló: ${e.message}`);
     }
@@ -730,8 +760,8 @@ export async function obtenerMediaPinterest(link) {
   const { data: html } = await axios.get(destino, { headers: HEADERS, timeout: 15000 });
   const video = html.match(/<meta property="og:video" content="([^"]+)"/);
   const imagen = html.match(/<meta property="og:image" content="([^"]+)"/);
-  if (video) return [{ type: "video", url: video[1] }];
-  if (imagen) return [{ type: "image", url: imagen[1] }];
+  if (video) { anotar("og:meta de Pinterest"); return [{ type: "video", url: video[1] }]; }
+  if (imagen) { anotar("og:meta de Pinterest"); return [{ type: "image", url: imagen[1] }]; }
   throw new Error("No se pudo encontrar imagen ni video en ese pin.");
 }
 
@@ -794,7 +824,7 @@ export async function buscarPinterest(consulta, cantidad) {
 }
 
 // ───────────────────────── Reddit ─────────────────────────
-export async function obtenerMediaReddit(link) {
+async function _obtenerMediaReddit(link) {
   let errorYt = null;
   if (await hayYtdlp()) {
     try { return await ytdlpMedias(link); } catch (e) { errorYt = e; } // yt-dlp junta el audio y el video por sí solo
@@ -836,6 +866,7 @@ export async function obtenerMediaReddit(link) {
   if (!medias.length) {
     throw errorYt || new Error("Ese post no tiene un video o imagen descargable directamente (puede ser un link externo o solo texto).");
   }
+  anotar("Reddit .json");
   return medias;
 }
 
@@ -931,3 +962,11 @@ export async function diagnosticarRedes() {
 
   return lineas;
 }
+
+// Versiones con registro de tiempo y motor (las que usan los comandos).
+export const obtenerMediaTwitter = medido("X", _obtenerMediaTwitter);
+export const obtenerMediaTikTok = medido("TikTok", _obtenerMediaTikTok);
+export const obtenerMediaFacebook = medido("Facebook", _obtenerMediaFacebook);
+export const obtenerMediaInstagram = medido("Instagram", _obtenerMediaInstagram);
+export const obtenerMediaPinterest = medido("Pinterest", _obtenerMediaPinterest);
+export const obtenerMediaReddit = medido("Reddit", _obtenerMediaReddit);

@@ -85,6 +85,7 @@ export function crearComandoRed({
           mentions: [sender]
         }).catch(() => {});
 
+        const inicio = Date.now();
         let medias;
         try {
           medias = await obtenerPorLink(link);
@@ -94,7 +95,9 @@ export function crearComandoRed({
         }
         await aviso;
 
+        const tDescarga = Date.now();
         const r = await enviarLote(medias, reply, { sock, from, msg });
+        console.log(`[${titulo}] envío en ${((Date.now() - tDescarga) / 1000).toFixed(1)}s · total ${((Date.now() - inicio) / 1000).toFixed(1)}s`);
 
         if (r.enviados === 0) {
           return reply({
@@ -138,6 +141,7 @@ export function crearComandoRed({
           mentions: [sender]
         }).catch(() => {});
 
+        const inicioBusqueda = Date.now();
         let medias;
         try {
           medias = await buscar(consulta, cantidad);
@@ -158,6 +162,8 @@ export function crearComandoRed({
           objetivo: cantidad,
           limiteMB: Math.min(LIMITE_VIDEO_BUSQUEDA_MB, LIMITE_VIDEO_WHATSAPP_MB)
         });
+
+        console.log(`[${titulo}] búsqueda "${consulta}": ${r.enviados} enviados, ${r.fallidos} fallidos, ${r.omitidos} omitidos · total ${((Date.now() - inicioBusqueda) / 1000).toFixed(1)}s`);
 
         if (r.enviados === 0) {
           return reply({ text: tarjetaError("Encontré resultados, pero no se pudo descargar ninguno. Intenta de nuevo en unos minutos.") });
