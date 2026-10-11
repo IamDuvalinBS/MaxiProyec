@@ -836,6 +836,29 @@ async function _obtenerMediaPinterest(link) {
   throw new Error("No se pudo encontrar imagen ni video en ese pin.");
 }
 
+// gallery-dl (opcional): herramienta local que lee Pinterest por su cuenta. Instalación: pip install -U gallery-dl
+let galleryDlDisponible = null;
+async function enlacesConGalleryDl(consulta, maximo) {
+  if (galleryDlDisponible === false) return [];
+  await esperarTurno(); // comparte la fila con yt-dlp: un proceso pesado a la vez
+  try {
+    const args = ["-g", "--range", `1-${maximo}`, `https://www.pinterest.com/search/pins/?q=${encodeURIComponent(consulta)}`];
+    if (process.env.YTDLP_COOKIES && fs.existsSync(process.env.YTDLP_COOKIES)) args.unshift("--cookies", process.env.YTDLP_COOKIES);
+    const { stdout } = await execFileAsync("gallery-dl", args, { timeout: 60000, killSignal: "SIGKILL", maxBuffer: 1024 * 1024 });
+    return stdout.split("\n").map((l) => l.trim().replace(/^\|\s*/, "")).filter((l) => /^https?:\/\//i.test(l));
+  } catch (e) {
+    if (e.code === "ENOENT") {
+      galleryDlDisponible = false;
+      console.log("[redes] gallery-dl no está instalado (pip install -U gallery-dl); se omite");
+    } else {
+      console.log(`[redes] gallery-dl (Pinterest) falló: ${String(e.stderr || e.message).trim().split("\n").pop()}`);
+    }
+    return [];
+  } finally {
+    liberarTurno();
+  }
+}
+
 // Videos primero; si no alcanzan, se completa con imágenes.
 export async function buscarPinterest(consulta, cantidad) {
   const errores = [];
@@ -867,6 +890,13 @@ export async function buscarPinterest(consulta, cantidad) {
     agregar(pines, "image");
   }
   if (!medias.length && errores.length >= 2) {
+    // Respaldo local: gallery-dl (si está instalado).
+    for (const url of await enlacesConGalleryDl(consulta, cantidad + 3)) {
+      if (medias.length >= cantidad + 3) break;
+      medias.push({ type: /\.(mp4|m3u8)(\?|$)/i.test(url) ? "video" : "image", url });
+    }
+    if (medias.length) anotar("gallery-dl");
+
     // Respaldo: APIs de terceros (las mismas del otro bot).
     const q = encodeURIComponent(consulta);
     const apis = [
@@ -874,7 +904,7 @@ export async function buscarPinterest(consulta, cantidad) {
       ["Api Causas", `https://rest.apicausas.xyz/api/v1/buscadores/pinterest?apikey=${KEY_CAUSAS}&q=${q}`, (r) => r.data]
     ];
     for (const [nombre, url, sacar] of apis) {
-      if (medias.length) break;
+      if (medias.length) break; // ya hubo resultados
       try {
         const { data } = await axios.get(url, { headers: HEADERS, timeout: 20000 });
         for (const item of sacar(data) || []) {
