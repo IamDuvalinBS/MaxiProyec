@@ -28,7 +28,8 @@ export function crearComandoRed({
   ejemploBusqueda,
   obtenerPorLink,
   buscar,
-  notaSinBusqueda
+  notaSinBusqueda,
+  notaSinArgumentos
 }) {
   const comando = names[0];
   const etiquetaUso = buscar ? `${comando} <enlace o búsqueda>` : `${comando} <enlace>`;
@@ -53,7 +54,7 @@ export function crearComandoRed({
         });
 
       if (!args.length) {
-        return mostrarUso(buscar ? "Envía un enlace o escribe lo que quieres buscar." : (notaSinBusqueda || "Envía un enlace válido."));
+        return mostrarUso(notaSinArgumentos || (buscar ? "Envía un enlace o escribe lo que quieres buscar." : (notaSinBusqueda || "Envía un enlace válido.")));
       }
 
       // ¿Enlace o búsqueda?
