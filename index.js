@@ -19,9 +19,10 @@ import { iniciarAvisosRacha } from "./src/economia/avisos.js";
 import { tieneAfk, desactivarAfk, textoSalidaAfk } from "./src/economia/afk.js";
 import { idDeRespuestaInteractiva } from "./motores/respuestas-botones.js";
 import { manejarParticipantes } from "./src/eventos/participantes.js";
-import { antilinkActivo } from "./src/grupos/estado.js";
+import { antilinkActivo, botApagado } from "./src/grupos/estado.js";
 import { eliminarEnlace } from "./src/grupos/enlaces.js";
 import { olvidarMetadatos } from "./src/grupos/nucleo.js";
+import { recordarNombre } from "./motores/profile.js";
 
 function imprimirBanner() {
   console.clear();
@@ -71,6 +72,11 @@ http
         </body>
       </html>
     `);
+  })
+  .on("error", (e) => {
+    if (e.code !== "EADDRINUSE") return console.log("Error del servidor web: " + e.message);
+    console.log("❌ Ya hay otra copia del bot encendida (puerto ocupado). Ciérrala con: pkill -f node");
+    process.exit(1);
   })
   .listen(PORT, () => console.log("Servidor web escuchando en el puerto " + PORT));
 
@@ -167,7 +173,7 @@ async function startBot() {
       console.log("Error en aviso de admin: " + e.message);
     }
     try {
-      await manejarParticipantes(sock, update);
+      if (!botApagado(update.id)) await manejarParticipantes(sock, update);
     } catch (e) {
       console.log("Error en eventos de grupo: " + e.message);
     }
@@ -185,6 +191,8 @@ async function startBot() {
     const sender = msg.key.fromMe
       ? sock.user.id.split(":")[0] + "@s.whatsapp.net"
       : (msg.key.participant || msg.key.remoteJid);
+
+    if (!msg.key.fromMe && m.type === "notify" && msg.pushName) recordarNombre(sender, msg.pushName);
 
     const idBotonPulsado =
       msg.message.buttonsResponseMessage?.selectedButtonId ||
@@ -208,7 +216,9 @@ async function startBot() {
 
     if (from.endsWith("@g.us") && !msg.key.fromMe && antilinkActivo(from) && (await eliminarEnlace(sock, msg, from, sender, text))) return;
 
-    if (!msg.key.fromMe) {
+    const apagadoAqui = from.endsWith("@g.us") && !msg.key.fromMe && botApagado(from);
+
+    if (!msg.key.fromMe && !apagadoAqui) {
       sock.sendPresenceUpdate("composing", from)
         .then(() => new Promise(r => setTimeout(r, 1500 + Math.floor(Math.random() * 1000))))
         .then(() => sock.sendPresenceUpdate("paused", from))
@@ -222,7 +232,7 @@ async function startBot() {
       .sort((a, b) => b.length - a.length)
       .find((p) => text.startsWith(p));
 
-    if (!msg.key.fromMe && m.type === "notify" && tieneAfk(sender)) {
+    if (!msg.key.fromMe && !apagadoAqui && m.type === "notify" && tieneAfk(sender)) {
       const tipoMensaje = Object.keys(msg.message)[0];
       const ignorado = ["protocolMessage", "reactionMessage", "senderKeyDistributionMessage"].includes(tipoMensaje);
       const esComandoAfk = prefijoUsado && /^\s*afk(\s|$)/i.test(text.slice(prefijoUsado.length));
@@ -239,7 +249,7 @@ async function startBot() {
         ? "." + match[1].toLowerCase() + match[2]
         : "." + resto;
       await manejarComando(sock, from, sender, textoTraducido, msg);
-    } else {
+    } else if (!apagadoAqui) {
       const clave = `${from}:${sender}`;
       if (await procesarEspera(clave, text, { sock, from, sender, msg })) return;
 
