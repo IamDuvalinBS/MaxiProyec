@@ -3,7 +3,7 @@ import path from "path";
 import { fileURLToPath, pathToFileURL } from "url";
 import { connectDB, commandRegistry, simularEscritura, delayAleatorio, comandoEstaBaneado } from "../../core.js";
 import { soloAdminsActivo } from "../grupos/estado.js";
-import { esAdminOOwner } from "../grupos/nucleo.js";
+import { esAdminOOwner, ajustarMenciones } from "../grupos/nucleo.js";
 import { enviarConCache, reenviarCacheado, guardarRelay, registrarMedio, claveDeDescarga } from "../../motores/cache-medios.js";
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -97,7 +97,7 @@ export async function manejarComando(sock, from, sender, text, msg) {
   const reply = async (contenido) => {
     await delayAleatorio(300, 900);
     await simularEscritura(sock, from, 800 + Math.floor(Math.random() * 1200));
-    const enviado = await enviarConCache(sock, from, contenido, msg);
+    const enviado = await enviarConCache(sock, from, await ajustarMenciones(sock, from, contenido), msg);
     if (capturados) registrarMedio(capturados, enviado);
     return enviado;
   };
