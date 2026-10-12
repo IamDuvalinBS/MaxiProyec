@@ -138,6 +138,35 @@ export function objetivoDe({ msg, cleanText }) {
   return info?.mentionedJid?.[0] || info?.participant || (numero.length >= 8 ? `${numero}@s.whatsapp.net` : null);
 }
 
+export async function ajustarMenciones(sock, grupo, contenido) {
+  if (!esGrupo(grupo) || !contenido || !contenido.mentions || !contenido.mentions.length) return contenido;
+  const meta = await metadatos(sock, grupo);
+  if (!meta) return contenido;
+
+  const cambios = new Map();
+  for (const jid of contenido.mentions) {
+    const participante = buscarParticipante(meta, jid);
+    if (participante && limpiarJid(participante.id) !== limpiarJid(jid)) cambios.set(jid, participante.id);
+  }
+  if (!cambios.size) return contenido;
+
+  const reemplazar = (texto) => {
+    if (typeof texto !== "string") return texto;
+    let nuevo = texto;
+    for (const [viejo, id] of cambios) {
+      nuevo = nuevo.replace(new RegExp(`@${numeroDe(viejo)}(?!\\d)`, "g"), `@${numeroDe(id)}`);
+    }
+    return nuevo;
+  };
+
+  return {
+    ...contenido,
+    ...(contenido.text !== undefined ? { text: reemplazar(contenido.text) } : {}),
+    ...(contenido.caption !== undefined ? { caption: reemplazar(contenido.caption) } : {}),
+    mentions: contenido.mentions.map((jid) => cambios.get(jid) || jid)
+  };
+}
+
 export function comandoGrupo({ emoji, titulo, admin = true, botAdmin = false }, ejecutar) {
   return async (ctx) => {
     const { sock, from, sender, msg } = ctx;
