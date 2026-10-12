@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath, pathToFileURL } from "url";
 import { connectDB, commandRegistry, simularEscritura, delayAleatorio, comandoEstaBaneado } from "../../core.js";
-import { soloAdminsActivo } from "../grupos/estado.js";
+import { soloAdminsActivo, botApagado } from "../grupos/estado.js";
 import { esAdminOOwner, ajustarMenciones } from "../grupos/nucleo.js";
 import { enviarConCache, reenviarCacheado, guardarRelay, registrarMedio, claveDeDescarga } from "../../motores/cache-medios.js";
 
@@ -89,6 +89,8 @@ export async function manejarComando(sock, from, sender, text, msg) {
   const comando = cleanText.toLowerCase().split(/\s+/)[0];
   const handler = comandos.get(comando);
   if (!handler) return false;
+
+  if (from.endsWith("@g.us") && !msg.key.fromMe && botApagado(from) && (comando !== ".bot" || !(await esAdminOOwner(sock, from, sender)))) return true;
 
   if (from.endsWith("@g.us") && !msg.key.fromMe && soloAdminsActivo(from) && !(await esAdminOOwner(sock, from, sender))) return true;
 
