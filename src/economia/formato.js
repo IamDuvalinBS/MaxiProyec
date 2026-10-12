@@ -71,6 +71,13 @@ export function jidObjetivo(msg) {
   return ctx?.quotedMessage && ctx.participant ? ctx.participant : null;
 }
 
+export function leerDestinoYArgumento(msg, cleanText) {
+  const partes = cleanText.split(/\s+/).slice(1).filter((parte) => parte && !parte.startsWith("@"));
+  const numero = (partes[1] || "").replace(/\D/g, "");
+  const destino = jidObjetivo(msg) || (numero.length >= 8 ? `${numero}@s.whatsapp.net` : null);
+  return { destino, argumento: partes[0] || null };
+}
+
 export async function enviarYEditar({ sock, from, reply, inicial, final, espera = 1800, mentions }) {
   const enviado = await reply({ text: inicial });
   await pausa(espera);
