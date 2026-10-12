@@ -11,7 +11,7 @@ const ALIAS = {
 const POR_PAGINA = 20;
 
 export default {
-  names: [".rwinfo", ".wachainfo", ".gachainfo", ".waifuinfo"],
+  names: [".testgacha", ".gachatext", ".wainfo"],
   desc: "Estadísticas y lista de personajes del gacha (solo owners)",
   category: "Owner",
   usage: ".rwinfo [waifu|pokemon|brawl|snake] [página]",
