@@ -5,6 +5,19 @@ const VIGENCIA_ENLACE_MS = 10 * 60 * 1000;
 const metadatosGuardados = new Map();
 const metadatosPendientes = new Map();
 const enlacesGuardados = new Map();
+let utilidadesLid = null;
+
+async function cargarUtilidadesLid() {
+  if (utilidadesLid !== null) return utilidadesLid || null;
+  try {
+    const lib = await import("@fer2809fl/baileys");
+    const completas = ["cacheParticipantLids", "getCachedJid", "isLid"].every((n) => typeof lib[n] === "function");
+    utilidadesLid = completas ? { cachear: lib.cacheParticipantLids, jidDe: lib.getCachedJid, esLid: lib.isLid } : false;
+  } catch (e) {
+    utilidadesLid = false;
+  }
+  return utilidadesLid || null;
+}
 
 export function esGrupo(jid) {
   return typeof jid === "string" && jid.endsWith("@g.us");
@@ -77,6 +90,7 @@ export function metadatos(sock, grupo, forzar = false) {
     .groupMetadata(grupo)
     .then((metadata) => {
       const datos = aligerar(metadata);
+      cargarUtilidadesLid().then((u) => u && u.cachear(metadata.participants)).catch(() => {});
       metadatosGuardados.set(grupo, { datos, vence: Date.now() + VIGENCIA_METADATOS_MS });
       return datos;
     })
@@ -143,10 +157,15 @@ export async function ajustarMenciones(sock, grupo, contenido) {
   const meta = await metadatos(sock, grupo);
   if (!meta) return contenido;
 
+  const utilidades = await cargarUtilidadesLid();
   const cambios = new Map();
   for (const jid of contenido.mentions) {
-    const participante = buscarParticipante(meta, jid);
-    if (participante && limpiarJid(participante.id) !== limpiarJid(jid)) cambios.set(jid, participante.id);
+    let destino = buscarParticipante(meta, jid)?.id;
+    if (!destino && utilidades && utilidades.esLid(jid)) {
+      const real = utilidades.jidDe(jid);
+      if (real) destino = buscarParticipante(meta, real)?.id || real;
+    }
+    if (destino && limpiarJid(destino) !== limpiarJid(jid)) cambios.set(jid, destino);
   }
   if (!cambios.size) return contenido;
 
