@@ -1,6 +1,7 @@
 import { cuentasConDatos, avisoDe, registrarAviso, migrarTodoDeDisco, cantidadDeRacha } from "../../motores/almacen-local.js";
 import { formatTime } from "../../motores/ui.js";
 import { esGrupo, metadatos } from "../grupos/nucleo.js";
+import { botApagado } from "../grupos/estado.js";
 import { encabezado, mencion } from "./estilo.js";
 import { textoDias } from "./rachas.js";
 
@@ -41,7 +42,7 @@ export async function revisarRachas() {
         "> Usa *.daily* antes de que finalice el tiempo para conservarla."
       ].join("\n");
 
-      const destinos = [...new Set([aviso && aviso.chat, sender].filter(Boolean))];
+      const destinos = [...new Set([aviso && aviso.chat, sender].filter(Boolean))].filter((d) => !(esGrupo(d) && botApagado(d)));
       let enviado = false;
       for (const destino of destinos) {
         try {
