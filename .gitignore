@@ -1,0 +1,7 @@
+auth_info/
+auth_info/
+cache/
+data/economia-local.json
+data/economia-local.json.parcial
+cache/
+data/*.db*

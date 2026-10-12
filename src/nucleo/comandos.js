@@ -90,7 +90,7 @@ export async function manejarComando(sock, from, sender, text, msg) {
   const handler = comandos.get(comando);
   if (!handler) return false;
 
-  if (from.endsWith("@g.us") && !msg.key.fromMe && botApagado(from) && (comando !== ".bot" || !(await esAdminOOwner(sock, from, sender)))) return true;
+  if (from.endsWith("@g.us") && !msg.key.fromMe && botApagado(from) && (comando !== ".mambo" || !(await esAdminOOwner(sock, from, sender)))) return true;
 
   if (from.endsWith("@g.us") && !msg.key.fromMe && soloAdminsActivo(from) && !(await esAdminOOwner(sock, from, sender))) return true;
 

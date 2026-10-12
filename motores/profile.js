@@ -43,3 +43,11 @@ export function pfpPath(sender) {
   const safe = sender.replace(/[^a-zA-Z0-9]/g, "_");
   return path.join(PERFILES_DIR, `${safe}.jpg`);
 }
+
+export function recordarNombre(sender, pushName) {
+  const p = getProfile(sender);
+  if (!p.name && pushName) {
+    p.name = pushName;
+    saveAccount(sender);
+  }
+}
