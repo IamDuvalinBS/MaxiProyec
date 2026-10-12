@@ -15,7 +15,7 @@ export default {
   names: [".prefijos", ".setprefix", ".addprefix", ".delprefix"],
   usage: ".prefijos | .setprefix <p> | .addprefix <p> | .delprefix <p>",
   desc: "Ver o modificar los prefijos de los comandos (ej: . ! # /)",
-  category: "Utilidad",
+  category: "Owner",
   handler: ownerCommand(async ({ cleanText, reply }) => {
     const [comando, valor] = cleanText.split(/\s+/);
     const accion = comando.toLowerCase();

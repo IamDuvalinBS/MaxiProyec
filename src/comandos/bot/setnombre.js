@@ -5,7 +5,7 @@ export default {
   names: [".setnombre"],
   usage: ".setnombre <corto> | <largo>",
   desc: "Cambiar el nombre del bot (corto para BOT NAME, largo para el saludo)",
-  category: "Utilidad",
+  category: "Owner",
   handler: ownerCommand(async ({ cleanText, reply }) => {
     const resto = cleanText.split(/\s+/).slice(1).join(" ").trim();
     if (!resto) {

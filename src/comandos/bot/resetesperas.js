@@ -10,7 +10,7 @@ export default {
   names: [".resetesperas", ".resetcd"],
   usage: ".resetesperas",
   desc: "Reiniciar las esperas de economía de todos los usuarios (solo owner)",
-  category: "Utilidad",
+  category: "Owner",
   handler: ownerCommand(async ({ reply }) => {
     const claves = [...new Set([...CLAVES_ECONOMIA, ...trabajosRegistrados.keys()])];
     const cuentas = reiniciarEsperas(claves);

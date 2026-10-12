@@ -29,7 +29,7 @@ export default {
   names: [".banear", ".desbanear", ".baneos"],
   usage: ".banear <comando o categoría> | .desbanear <comando o categoría> | .baneos",
   desc: "Desactivar o reactivar un comando o una categoría entera (solo owner)",
-  category: "Utilidad",
+  category: "Owner",
   handler: ownerCommand(async ({ cleanText, reply }) => {
     const partes = cleanText.trim().split(/\s+/);
     const accion = partes[0].toLowerCase();

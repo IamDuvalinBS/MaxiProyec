@@ -5,7 +5,7 @@ export default {
   names: [".setowner"],
   usage: ".setowner <nombre>",
   desc: "Cambiar el nombre del dueño que muestra el menú",
-  category: "Utilidad",
+  category: "Owner",
   handler: ownerCommand(async ({ cleanText, reply }) => {
     const nuevo = cleanText.split(/\s+/).slice(1).join(" ").trim();
     if (!nuevo) return reply({ text: "⚙️ Uso: *.setowner <nombre>*" });

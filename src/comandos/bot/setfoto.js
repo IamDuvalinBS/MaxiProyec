@@ -7,7 +7,7 @@ export default {
   names: [".setfoto"],
   usage: ".setfoto (con foto adjunta, o respondiendo a una)",
   desc: "Cambiar la foto de perfil del bot",
-  category: "Utilidad",
+  category: "Owner",
   handler: ownerCommand(async ({ sock, from, msg, reply }) => {
     const imagen = msg.message?.imageMessage;
     const citada = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage?.imageMessage;
