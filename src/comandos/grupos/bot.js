@@ -3,8 +3,8 @@ import { botApagado, definirAjuste } from "../../grupos/estado.js";
 import { tarjetaMarcada, mencion } from "../../economia/estilo.js";
 
 export default {
-  names: [".bot"],
-  usage: ".bot on | .bot off",
+  names: [".mambo"],
+  usage: ".mambo on | .mambo off",
   desc: "Encender o apagar el bot solo en este grupo (admins y owners)",
   category: "Grupos",
   handler: comandoGrupo({ emoji: "🔌", titulo: "BOT" }, async ({ from, sender, cleanText, responder, avisar }) => {
