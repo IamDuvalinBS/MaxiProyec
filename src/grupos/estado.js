@@ -60,3 +60,7 @@ export function antilinkActivo(grupo) {
 export function soloAdminsActivo(grupo) {
   return Boolean(grupos[grupo]?.soloAdmins);
 }
+
+export function botApagado(grupo) {
+  return Boolean(grupos[grupo]?.apagado);
+}
