@@ -5,7 +5,7 @@ import { gachaListo, enviarPersonaje, registrarPendiente } from "../../../motore
 export default {
   names: [".yandere"],
   desc: "Agrega UNA waifu desde un link de yande.re (solo owners)",
-  category: "Gacha",
+  category: "Owner",
   usage: ".yandere <link del post>",
   handler: ownerGacha(async ({ from, sender, cleanText, reply }) => {
     await gachaListo;

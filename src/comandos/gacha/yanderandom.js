@@ -10,7 +10,7 @@ let ocupado = false;
 export default {
   names: [".yanderandom"],
   desc: "Agrega waifus nuevas desde yande.re, sin duplicados (solo owners)",
-  category: "Gacha",
+  category: "Owner",
   usage: ".yanderandom [cantidad]",
   handler: ownerGacha(async ({ cleanText, reply }) => {
     await gachaListo;
