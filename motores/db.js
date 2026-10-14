@@ -9,6 +9,7 @@ const MONGO_URI = process.env.MONGO_URI;
 
 const accounts = new Map();
 const stickerMetas = new Map();
+let baseDatos = null;
 let collection = null;
 let configCollection = null;
 let stickersCollection = null;
@@ -38,6 +39,7 @@ export async function connectDB(intentos = 15) {
       const client = new MongoClient(MONGO_URI, { maxPoolSize: 3, compressors: ["zlib"] });
       await client.connect();
       const db = client.db("whatsappbot");
+      baseDatos = db;
       collection = db.collection("accounts");
       configCollection = db.collection("config");
       stickersCollection = db.collection("stickers");
@@ -78,6 +80,9 @@ export async function connectDB(intentos = 15) {
         for (const c of baneosDoc.categorias || []) categoriasBaneadas.add(c);
       }
       console.log(`Baneos cargados: ${comandosBaneados.size} comandos, ${categoriasBaneadas.size} categorías`);
+      import("./respaldo.js")
+        .then((modulo) => modulo.iniciarRespaldo())
+        .catch((e) => console.log("No se pudo iniciar el respaldo en Turso: " + e.message));
       return;
     } catch (e) {
       if (i % 5 === 0 && i < intentos) {
@@ -87,6 +92,46 @@ export async function connectDB(intentos = 15) {
     }
   }
   console.log(chalk.redBright.bold("❌ No se pudo conectar a MongoDB tras varios intentos."));
+}
+
+export function obtenerBase() {
+  return baseDatos;
+}
+
+export async function recargarDatos() {
+  if (!collection) return;
+  cuentasPendientes.clear();
+  accounts.clear();
+  for await (const doc of collection.find({})) {
+    accounts.set(doc._id, {
+      wallet: doc.wallet || 0,
+      bank: doc.bank || 0,
+      cooldowns: doc.cooldowns || {},
+      rachas: doc.rachas || {},
+      negocios: doc.negocios || {},
+      afk: doc.afk || null,
+      profile: doc.profile
+    });
+  }
+
+  const cfgDoc = await configCollection.findOne({ _id: "bot" });
+  if (cfgDoc) Object.assign(config, cfgDoc);
+
+  stickerMetas.clear();
+  for (const doc of await stickersCollection.find({}).toArray()) {
+    stickerMetas.set(doc._id, { pack: doc.pack, author: doc.author });
+  }
+
+  besos.clear();
+  for (const doc of await besosCollection.find({}).toArray()) besos.set(doc._id, doc.total || 0);
+
+  comandosBaneados.clear();
+  categoriasBaneadas.clear();
+  const baneosDoc = await baneosCollection.findOne({ _id: "global" });
+  if (baneosDoc) {
+    for (const c of baneosDoc.comandos || []) comandosBaneados.add(c);
+    for (const c of baneosDoc.categorias || []) categoriasBaneadas.add(c);
+  }
 }
 
 const cuentasPendientes = new Set();
