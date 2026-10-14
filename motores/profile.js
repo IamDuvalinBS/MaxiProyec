@@ -5,6 +5,8 @@ import { getAccount, saveAccount } from "./db.js";
 const PERFILES_DIR = "./perfiles";
 if (!fs.existsSync(PERFILES_DIR)) fs.mkdirSync(PERFILES_DIR);
 
+const LIMITE_NOMBRE = 60;
+
 export function getProfile(sender) {
   const acc = getAccount(sender);
   if (!acc.profile) {
@@ -22,6 +24,22 @@ export function getProfile(sender) {
   }
   if (acc.profile.xp === undefined) acc.profile.xp = 0;
   return acc.profile;
+}
+
+export function recordarNombre(sender, nombre) {
+  const limpio = String(nombre || "").trim().slice(0, LIMITE_NOMBRE);
+  if (!limpio) return;
+  const perfil = getProfile(sender);
+  let cambio = false;
+  if (perfil.nombreWhatsapp !== limpio) {
+    perfil.nombreWhatsapp = limpio;
+    cambio = true;
+  }
+  if (!perfil.name) {
+    perfil.name = limpio;
+    cambio = true;
+  }
+  if (cambio) saveAccount(sender);
 }
 
 export function addXp(sender, amount) {
