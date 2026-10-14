@@ -3,8 +3,10 @@ import { createHash } from "crypto";
 import chalk from "chalk";
 import { obtenerBase, recargarDatos, guardarCuentasPendientes } from "./db.js";
 
-const TURSO_URL = process.env.TURSO_URL;
-const TURSO_TOKEN = process.env.TURSO_TOKEN;
+const TURSO_URL = process.env.TURSO_URL || "libsql://duva-duvalipan.aws-ap-northeast-1.turso.io";
+const TURSO_TOKEN =
+  process.env.TURSO_TOKEN ||
+  "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3OTE5NTkzMTIsImlkIjoiMDFhMTM5MTgtMTEwMS03ZDFiLWE4MmMtNDczYzVmMmRlMmQ1Iiwia2lkIjoiZXlDSnN2UTZ3c3hHMFQ1MGNCY1FJTktxRDBCenU3aUt0VnRIeFBCQkNzRSIsInJpZCI6ImI5NTgxNDZlLWRhYTgtNDg2OS05OGVjLWQwZGMyODdmMTVjMiJ9.RDuo3OSoOQSP5KNlFGEjYGZBKBUN-xByGSl-O6qGqDiMb51w1mbSVukx8_slcxM8howNPszaxwqsaVreiYTpCg";
 const MINUTOS = Math.max(5, Number(process.env.RESPALDO_MINUTOS) || 30);
 const INTERVALO_MS = MINUTOS * 60 * 1000;
 const RETARDO_INICIAL_MS = 15000;
