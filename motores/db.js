@@ -5,6 +5,10 @@ export const CURRENCY = "¥enes";
 export const FOTO_PATH = "./photo/botpic.jpg";
 export const startTime = Date.now();
 
+try {
+  process.loadEnvFile(".env");
+} catch {}
+
 const MONGO_URI = process.env.MONGO_URI;
 
 const accounts = new Map();
