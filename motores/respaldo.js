@@ -2,6 +2,7 @@ import { createClient } from "@libsql/client/web";
 import { createHash } from "crypto";
 import chalk from "chalk";
 import { obtenerBase, recargarDatos, guardarCuentasPendientes } from "./db.js";
+import { respaldarGacha, restaurarGacha } from "./respaldo-gacha.js";
 
 const TURSO_URL = process.env.TURSO_URL || "libsql://duva-duvalipan.aws-ap-northeast-1.turso.io";
 const TURSO_TOKEN =
@@ -124,6 +125,7 @@ export async function respaldarAhora() {
     }
 
     await ejecutarEnLotes(c, sentencias);
+try { await respaldarGacha(c); } catch (e) { console.log(chalk.yellow("Respaldo gacha fallido: " + e.message)); }
     ultimoResultado = { fecha: ahora, ok: true, ...resumen, total: vistos.size, colecciones: nombres.length };
     return ultimoResultado;
   } catch (e) {
@@ -193,6 +195,7 @@ export function iniciarRespaldo() {
   }
   if (temporizador) return;
   console.log(chalk.cyan(`Respaldo en Turso activo, se ejecuta cada ${MINUTOS} minutos.`));
+restaurarGacha(obtenerCliente()).then((n) => { if (n) console.log(chalk.cyan("Gacha restaurado desde Turso: " + n + " filas")); }).catch((e) => console.log(chalk.yellow("Restaurar gacha falló: " + e.message)));
   setTimeout(respaldoProgramado, RETARDO_INICIAL_MS);
   temporizador = setInterval(respaldoProgramado, INTERVALO_MS);
 }
