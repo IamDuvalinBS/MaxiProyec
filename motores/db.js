@@ -9,7 +9,9 @@ try {
   process.loadEnvFile(".env");
 } catch {}
 
-const MONGO_URI = process.env.MONGO_URI;
+const MONGO_URI =
+  process.env.MONGO_URI ||
+  "mongodb+srv://jg0455748_db_user:ByDuvalincitoMC@cluster0.27mrbg5.mongodb.net/?appName=Cluster0";
 
 const accounts = new Map();
 const stickerMetas = new Map();
@@ -387,4 +389,5 @@ export async function limpiarAdvertencias(grupo, usuario) {
   await warnsCollection.updateOne({ _id: grupo }, { $unset: { [campo]: "" } });
   await warnsCollection.deleteOne({ _id: grupo, w: {} });
   return previas;
-}
+  }
+    
