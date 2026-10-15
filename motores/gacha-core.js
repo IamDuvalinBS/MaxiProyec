@@ -26,7 +26,7 @@ export { tarjeta, monto, fmt, personajePorId, CAT, lineasPersonaje, textoStats }
 export const arroba = (jid) => `@${jid.split("@")[0]}`;
 
 export const gachaListo = initGachaDB().catch((e) => {
-  console.log("❌ Gacha: no se pudo abrir la base SQLite: " + e.message);
+  console.log("❌ Gacha: no se pudo cargar desde MongoDB: " + e.message);
   throw e;
 });
 gachaListo.catch(() => {});

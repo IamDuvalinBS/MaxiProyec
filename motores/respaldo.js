@@ -2,7 +2,8 @@ import { createClient } from "@libsql/client/web";
 import { createHash } from "crypto";
 import chalk from "chalk";
 import { obtenerBase, recargarDatos, guardarCuentasPendientes } from "./db.js";
-import { respaldarGacha, restaurarGacha } from "./respaldo-gacha.js";
+import { restaurarGacha } from "./respaldo-gacha.js";
+import { guardarGachaPendiente, recargarGacha } from "./gacha-db.js";
 
 const TURSO_URL = process.env.TURSO_URL || "libsql://duva-duvalipan.aws-ap-northeast-1.turso.io";
 const TURSO_TOKEN =
@@ -79,6 +80,7 @@ export async function respaldarAhora() {
   ocupado = true;
   try {
     await guardarCuentasPendientes();
+    await guardarGachaPendiente();
     await prepararTabla(c);
 
     const existentes = new Map();
@@ -125,7 +127,6 @@ export async function respaldarAhora() {
     }
 
     await ejecutarEnLotes(c, sentencias);
-try { await respaldarGacha(c); } catch (e) { console.log(chalk.yellow("Respaldo gacha fallido: " + e.message)); }
     ultimoResultado = { fecha: ahora, ok: true, ...resumen, total: vistos.size, colecciones: nombres.length };
     return ultimoResultado;
   } catch (e) {
@@ -168,6 +169,7 @@ export async function restaurarDesdeRespaldo() {
     }
 
     await recargarDatos();
+    await recargarGacha();
     return resumen;
   } finally {
     ocupado = false;
