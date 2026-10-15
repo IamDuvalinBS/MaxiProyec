@@ -1,289 +1,642 @@
-import fs from "fs";
-import path from "path";
+import { obtenerBase } from "./db.js";
 
-const RUTA_DB = process.env.GACHA_DB_PATH || path.resolve("./data/gacha.db");
+const COL = {
+  personajes: "gacha_personajes",
+  propiedad: "gacha_propiedad",
+  inventario: "gacha_inventario",
+  posts: "gacha_yandere_posts",
+  tags: "gacha_yandere_tags"
+};
 
-let db = null;
+const RETARDO_GUARDADO_MS = 1500;
+const LOTE_MONGO = 500;
+const ESPERA_MONGO_MS = 180000;
 
-async function abrir() {
-  fs.mkdirSync(path.dirname(RUTA_DB), { recursive: true });
-  try {
-    const { DatabaseSync } = await import("node:sqlite");
-    return new DatabaseSync(RUTA_DB);
-  } catch (e1) {
-    try {
-      const mod = await import("better-sqlite3");
-      return new mod.default(RUTA_DB);
-    } catch (e2) {
-      throw new Error(
-        "No hay motor SQLite disponible. Usa Node 22.5+ (node:sqlite) o instalá better-sqlite3 (npm i better-sqlite3)."
-      );
+let listo = null;
+let ultimoId = 0;
+
+const personajes = new Map();
+const porClave = new Map();
+const porCategoria = new Map();
+const ordenados = new Map();
+const propiedad = new Map();
+const duenos = new Map();
+const inventario = new Map();
+const posts = new Map();
+const postsMd5 = new Set();
+const postsPadre = new Set();
+const tags = new Map();
+
+let sucio = new Map();
+let temporizador = null;
+let escribiendo = null;
+let tx = null;
+
+const ahora = () => Math.floor(Date.now() / 1000);
+const pausa = (ms) => new Promise((r) => setTimeout(r, ms));
+const clon = (v) => (v == null ? null : structuredClone(v));
+const analizar = (v) => {
+  if (v == null || v === "") return null;
+  if (typeof v !== "string") return v;
+  try { return JSON.parse(v); } catch { return null; }
+};
+const porValor = (a, b) => b.valor - a.valor || a.id - b.id;
+
+function copia(fila, extra) {
+  if (!fila) return null;
+  return { ...fila, stats: clon(fila.stats), meta: clon(fila.meta), ...extra };
+}
+
+function marcar(col, id) {
+  let s = sucio.get(col);
+  if (!s) sucio.set(col, (s = new Set()));
+  s.add(id);
+  programar(RETARDO_GUARDADO_MS);
+}
+
+function programar(ms) {
+  if (temporizador) return;
+  temporizador = setTimeout(() => {
+    temporizador = null;
+    guardarGachaPendiente().catch(() => {});
+  }, ms);
+}
+
+function documento(col, id) {
+  switch (col) {
+    case COL.personajes: {
+      const f = personajes.get(id);
+      if (!f) return null;
+      return {
+        _id: f.id, categoria: f.categoria, clave: f.clave, nombre: f.nombre, serie: f.serie, genero: f.genero,
+        rareza: f.rareza, valor: f.valor, img: f.img, stats: f.stats ?? null, meta: f.meta ?? null, creado: f.creado
+      };
     }
+    case COL.propiedad: {
+      const i = id.indexOf("|");
+      const usuario = id.slice(0, i);
+      const charId = Number(id.slice(i + 1));
+      const f = propiedad.get(usuario)?.get(charId);
+      return f ? { _id: id, usuario, char_id: charId, obtenido: f.obtenido, nivel: f.nivel } : null;
+    }
+    case COL.inventario: {
+      const i = id.indexOf("|");
+      const usuario = id.slice(0, i);
+      const item = id.slice(i + 1);
+      const cantidad = inventario.get(usuario)?.get(item);
+      return cantidad === undefined ? null : { _id: id, usuario, item, cantidad };
+    }
+    case COL.posts: {
+      const f = posts.get(id);
+      if (!f) return null;
+      return { _id: f.post_id, md5: f.md5 ?? null, parent_id: f.parent_id ?? null, char_id: f.char_id ?? null, estado: f.estado, creado: f.creado };
+    }
+    case COL.tags: {
+      const tipo = tags.get(id);
+      return tipo === undefined ? null : { _id: id, tipo };
+    }
+    default:
+      return null;
   }
 }
 
-function esquema() {
-  db.exec("PRAGMA journal_mode = WAL");
-  db.exec("PRAGMA synchronous = NORMAL");
-  db.exec("PRAGMA cache_size = -2000");
-  db.exec("PRAGMA mmap_size = 0");
-  db.exec("PRAGMA temp_store = FILE");
-  db.exec("PRAGMA journal_size_limit = 4194304");
-  db.exec("PRAGMA foreign_keys = ON");
-
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS personajes (
-      id        INTEGER PRIMARY KEY AUTOINCREMENT,
-      categoria TEXT    NOT NULL,            -- waifu | pokemon | brawler
-      clave     TEXT    NOT NULL,            -- waifu: tag del personaje | pokemon: nro pokedex | brawler: id
-      nombre    TEXT    NOT NULL,
-      serie     TEXT    NOT NULL DEFAULT '',
-      genero    TEXT    NOT NULL DEFAULT '',
-      rareza    TEXT    NOT NULL DEFAULT 'Común',
-      valor     INTEGER NOT NULL DEFAULT 1000,
-      img       TEXT    NOT NULL,            -- SOLO la URL, nunca la imagen
-      stats     TEXT,                        -- JSON
-      meta      TEXT,                        -- JSON
-      creado    INTEGER NOT NULL DEFAULT (strftime('%s','now')),
-      UNIQUE (categoria, clave)
-    );
-    CREATE INDEX IF NOT EXISTS idx_personajes_cat ON personajes(categoria);
-
-    CREATE TABLE IF NOT EXISTS propiedad (
-      usuario   TEXT    NOT NULL,
-      char_id   INTEGER NOT NULL REFERENCES personajes(id) ON DELETE CASCADE,
-      obtenido  INTEGER NOT NULL DEFAULT (strftime('%s','now')),
-      nivel     INTEGER NOT NULL DEFAULT 1,
-      PRIMARY KEY (usuario, char_id)
-    );
-    CREATE INDEX IF NOT EXISTS idx_prop_char ON propiedad(char_id);
-
-    -- Registro de TODOS los posts de yande.re ya procesados (sirve de verificador de duplicados)
-    CREATE TABLE IF NOT EXISTS yandere_posts (
-      post_id   INTEGER PRIMARY KEY,
-      md5       TEXT,
-      parent_id INTEGER,
-      char_id   INTEGER,
-      estado    TEXT NOT NULL,               -- ok | sin_personaje | varios_personajes | duplicado | rating
-      creado    INTEGER NOT NULL DEFAULT (strftime('%s','now'))
-    );
-    CREATE INDEX IF NOT EXISTS idx_yp_md5 ON yandere_posts(md5);
-    CREATE INDEX IF NOT EXISTS idx_yp_parent ON yandere_posts(parent_id);
-
-    -- Inventario simple (cubitos de fuerza, etc.)
-    CREATE TABLE IF NOT EXISTS inventario (
-      usuario  TEXT    NOT NULL,
-      item     TEXT    NOT NULL,
-      cantidad INTEGER NOT NULL DEFAULT 0,
-      PRIMARY KEY (usuario, item)
-    );
-
-    -- Cache de tipos de tag de yande.re (0 general, 1 artista, 3 copyright, 4 personaje, 5 circulo, 6 faults)
-    CREATE TABLE IF NOT EXISTS yandere_tags (
-      nombre TEXT PRIMARY KEY,
-      tipo   INTEGER NOT NULL
-    );
-  `);
+async function vaciar(estricto) {
+  if (temporizador) {
+    clearTimeout(temporizador);
+    temporizador = null;
+  }
+  while (escribiendo) await escribiendo.catch(() => {});
+  if (!sucio.size) return;
+  const base = obtenerBase();
+  if (!base) {
+    if (estricto) throw new Error("MongoDB no está conectado.");
+    programar(RETARDO_GUARDADO_MS * 5);
+    return;
+  }
+  const lote = sucio;
+  sucio = new Map();
+  escribiendo = (async () => {
+    try {
+      for (const [col, ids] of lote) {
+        const operaciones = [];
+        for (const id of ids) {
+          const doc = documento(col, id);
+          operaciones.push(
+            doc
+              ? { replaceOne: { filter: { _id: doc._id }, replacement: doc, upsert: true } }
+              : { deleteOne: { filter: { _id: id } } }
+          );
+        }
+        for (let i = 0; i < operaciones.length; i += LOTE_MONGO) {
+          await base.collection(col).bulkWrite(operaciones.slice(i, i + LOTE_MONGO), { ordered: false });
+        }
+      }
+    } catch (e) {
+      console.log("Error guardando datos del gacha en MongoDB: " + e.message);
+      for (const [col, ids] of lote) for (const id of ids) marcar(col, id);
+      programar(RETARDO_GUARDADO_MS * 5);
+      if (estricto) throw e;
+    }
+  })();
+  const actual = escribiendo;
+  try {
+    await actual;
+  } finally {
+    if (escribiendo === actual) escribiendo = null;
+  }
 }
 
-function migrar() {
-  const cols = db.prepare("PRAGMA table_info(propiedad)").all().map((c) => c.name);
-  if (!cols.includes("nivel")) db.exec("ALTER TABLE propiedad ADD COLUMN nivel INTEGER NOT NULL DEFAULT 1");
-}
+export const guardarGachaPendiente = () => vaciar(false);
 
-export async function initGachaDB() {
-  if (db) return db;
-  db = await abrir();
-  esquema();
-  migrar();
-  return db;
-}
+const undo = (fn) => { if (tx) tx.push(fn); };
 
-const sentencias = new Map();
-function st(sql) {
-  let s = sentencias.get(sql);
-  if (!s) { s = db.prepare(sql); sentencias.set(sql, s); }
-  return s;
-}
-
-function q() {
-  if (!db) throw new Error("La base del gacha no está inicializada (initGachaDB).");
-  return db;
-}
-
-function transaccion(fn) {
-  const d = q();
-  d.exec("BEGIN");
+export function enTransaccion(fn) {
+  if (tx) return fn();
+  tx = [];
   try {
     const r = fn();
-    d.exec("COMMIT");
+    tx = null;
     return r;
   } catch (e) {
-    try { d.exec("ROLLBACK"); } catch {}
+    const registro = tx;
+    tx = null;
+    for (let i = registro.length - 1; i >= 0; i--) {
+      try { registro[i](); } catch {}
+    }
     throw e;
   }
 }
 
-export const enTransaccion = (fn) => transaccion(fn);
+function registrarPersonaje(fila) {
+  personajes.set(fila.id, fila);
+  porClave.set(`${fila.categoria}|${fila.clave}`, fila);
+  let lista = porCategoria.get(fila.categoria);
+  if (!lista) porCategoria.set(fila.categoria, (lista = []));
+  lista.push(fila);
+  ordenados.delete(fila.categoria);
+  if (fila.id > ultimoId) ultimoId = fila.id;
+  marcar(COL.personajes, fila.id);
+  undo(() => {
+    personajes.delete(fila.id);
+    porClave.delete(`${fila.categoria}|${fila.clave}`);
+    const l = porCategoria.get(fila.categoria);
+    const i = l ? l.lastIndexOf(fila) : -1;
+    if (i >= 0) l.splice(i, 1);
+    ordenados.delete(fila.categoria);
+    marcar(COL.personajes, fila.id);
+  });
+}
 
-const parse = (s) => { try { return s ? JSON.parse(s) : null; } catch { return null; } };
-function hidratar(row) {
-  if (!row) return null;
-  return { ...row, stats: parse(row.stats), meta: parse(row.meta) };
+function agregarPropiedad(f) {
+  let m = propiedad.get(f.usuario);
+  if (!m) propiedad.set(f.usuario, (m = new Map()));
+  let d = duenos.get(f.char_id);
+  if (!d) duenos.set(f.char_id, (d = new Map()));
+  m.set(f.char_id, f);
+  d.set(f.usuario, f);
+  marcar(COL.propiedad, `${f.usuario}|${f.char_id}`);
+  undo(() => quitarPropiedad(f.usuario, f.char_id));
+}
+
+function quitarPropiedad(usuario, charId) {
+  const m = propiedad.get(usuario);
+  const f = m?.get(charId);
+  if (!f) return null;
+  m.delete(charId);
+  if (!m.size) propiedad.delete(usuario);
+  const d = duenos.get(charId);
+  if (d) {
+    d.delete(usuario);
+    if (!d.size) duenos.delete(charId);
+  }
+  marcar(COL.propiedad, `${usuario}|${charId}`);
+  undo(() => agregarPropiedad(f));
+  return f;
+}
+
+function fijarItem(usuario, item, cantidad) {
+  let m = inventario.get(usuario);
+  if (!m) inventario.set(usuario, (m = new Map()));
+  m.set(item, cantidad);
+  marcar(COL.inventario, `${usuario}|${item}`);
+}
+
+function indexarPost(f) {
+  if (f.md5) postsMd5.add(f.md5);
+  if (f.parent_id) postsPadre.add(f.parent_id);
+}
+
+function reindexarPosts() {
+  postsMd5.clear();
+  postsPadre.clear();
+  for (const f of posts.values()) indexarPost(f);
+}
+
+function limpiar() {
+  personajes.clear();
+  porClave.clear();
+  porCategoria.clear();
+  ordenados.clear();
+  propiedad.clear();
+  duenos.clear();
+  inventario.clear();
+  posts.clear();
+  postsMd5.clear();
+  postsPadre.clear();
+  tags.clear();
+  sucio = new Map();
+  ultimoId = 0;
+}
+
+function cargarFilaPersonaje(d) {
+  const fila = {
+    id: Number(d._id), categoria: d.categoria, clave: String(d.clave), nombre: d.nombre,
+    serie: d.serie ?? "", genero: d.genero ?? "", rareza: d.rareza ?? "Común",
+    valor: Number(d.valor) || 0, img: d.img, stats: d.stats ?? null, meta: d.meta ?? null,
+    creado: Number(d.creado) || ahora()
+  };
+  personajes.set(fila.id, fila);
+  porClave.set(`${fila.categoria}|${fila.clave}`, fila);
+  let lista = porCategoria.get(fila.categoria);
+  if (!lista) porCategoria.set(fila.categoria, (lista = []));
+  lista.push(fila);
+  if (fila.id > ultimoId) ultimoId = fila.id;
+}
+
+async function leerColeccion(base, nombre) {
+  return base.collection(nombre).find({}).toArray();
+}
+
+async function esperarBase() {
+  const limite = Date.now() + ESPERA_MONGO_MS;
+  while (Date.now() < limite) {
+    const base = obtenerBase();
+    if (base) return base;
+    await pausa(500);
+  }
+  throw new Error("MongoDB no se conectó a tiempo.");
+}
+
+async function cargarDesdeMongo(base) {
+  limpiar();
+  for (const d of await leerColeccion(base, COL.personajes)) cargarFilaPersonaje(d);
+
+  const props = (await leerColeccion(base, COL.propiedad)).sort((a, b) => (a.obtenido || 0) - (b.obtenido || 0));
+  for (const d of props) {
+    const f = { usuario: d.usuario, char_id: Number(d.char_id), obtenido: Number(d.obtenido) || 0, nivel: Number(d.nivel) || 1 };
+    let m = propiedad.get(f.usuario);
+    if (!m) propiedad.set(f.usuario, (m = new Map()));
+    let o = duenos.get(f.char_id);
+    if (!o) duenos.set(f.char_id, (o = new Map()));
+    m.set(f.char_id, f);
+    o.set(f.usuario, f);
+  }
+
+  for (const d of await leerColeccion(base, COL.inventario)) {
+    let m = inventario.get(d.usuario);
+    if (!m) inventario.set(d.usuario, (m = new Map()));
+    m.set(d.item, Number(d.cantidad) || 0);
+  }
+
+  for (const d of await leerColeccion(base, COL.posts)) {
+    const f = {
+      post_id: Number(d._id), md5: d.md5 ?? null, parent_id: Number(d.parent_id) || null,
+      char_id: d.char_id ?? null, estado: d.estado, creado: Number(d.creado) || 0
+    };
+    posts.set(f.post_id, f);
+    indexarPost(f);
+  }
+
+  for (const d of await leerColeccion(base, COL.tags)) tags.set(String(d._id), Number(d.tipo));
+}
+
+function aplicarTablas(t) {
+  let n = 0;
+  for (const r of t.personajes || []) {
+    const id = Number(r.id);
+    if (!Number.isInteger(id) || !r.categoria || r.clave == null || !r.nombre || !r.img) continue;
+    if (personajes.has(id) || porClave.has(`${r.categoria}|${r.clave}`)) continue;
+    registrarPersonaje({
+      id, categoria: r.categoria, clave: String(r.clave), nombre: r.nombre, serie: r.serie ?? "", genero: r.genero ?? "",
+      rareza: r.rareza ?? "Común", valor: Number(r.valor) || 1000, img: r.img,
+      stats: analizar(r.stats), meta: analizar(r.meta), creado: Number(r.creado) || ahora()
+    });
+    n++;
+  }
+  const props = [...(t.propiedad || [])].sort((a, b) => (Number(a.obtenido) || 0) - (Number(b.obtenido) || 0));
+  for (const r of props) {
+    const charId = Number(r.char_id);
+    const usuario = String(r.usuario ?? "");
+    if (!usuario || !personajes.has(charId) || propiedad.get(usuario)?.has(charId)) continue;
+    agregarPropiedad({ usuario, char_id: charId, obtenido: Number(r.obtenido) || ahora(), nivel: Number(r.nivel) || 1 });
+    n++;
+  }
+  for (const r of t.inventario || []) {
+    if (!r.usuario || !r.item) continue;
+    fijarItem(String(r.usuario), String(r.item), Number(r.cantidad) || 0);
+    n++;
+  }
+  for (const r of t.yandere_posts || []) {
+    const id = Number(r.post_id);
+    if (!Number.isInteger(id) || posts.has(id)) continue;
+    const f = {
+      post_id: id, md5: r.md5 || null, parent_id: Number(r.parent_id) || null,
+      char_id: r.char_id ?? null, estado: r.estado || "ok", creado: Number(r.creado) || ahora()
+    };
+    posts.set(id, f);
+    indexarPost(f);
+    marcar(COL.posts, id);
+    n++;
+  }
+  for (const r of t.yandere_tags || []) {
+    if (!r.nombre) continue;
+    tags.set(String(r.nombre), Number(r.tipo) || 0);
+    marcar(COL.tags, String(r.nombre));
+    n++;
+  }
+  return n;
+}
+
+async function migrarSqliteLocal(base) {
+  const legado = await import("./respaldo-gacha.js");
+  let tablas;
+  try {
+    tablas = await legado.leerSqliteLocal();
+  } catch (e) {
+    throw new Error("Existe data/gacha.db pero no se pudo leer (usa Node 22.5+ o instala better-sqlite3): " + e.message);
+  }
+  if (!tablas || !tablas.personajes?.length) return;
+  const n = aplicarTablas(tablas);
+  let fallo = null;
+  for (let i = 1; i <= 5; i++) {
+    try {
+      await vaciar(true);
+      fallo = null;
+      break;
+    } catch (e) {
+      fallo = e;
+      if (i < 5) await pausa(3000);
+    }
+  }
+  if (fallo) {
+    limpiar();
+    try {
+      for (const nombre of Object.values(COL)) await base.collection(nombre).deleteMany({});
+    } catch {}
+    throw new Error("No se pudo migrar data/gacha.db a MongoDB (se reintentará al reiniciar): " + fallo.message);
+  }
+  legado.archivarSqliteLocal();
+  console.log(`✅ Gacha: ${n} filas migradas de data/gacha.db a MongoDB`);
+}
+
+async function cargar() {
+  const base = await esperarBase();
+  await cargarDesdeMongo(base);
+  if (!personajes.size) await migrarSqliteLocal(base);
+  console.log(`✅ Gacha cargado desde MongoDB: ${personajes.size} personajes, ${propiedad.size} coleccionistas`);
+}
+
+export function initGachaDB() {
+  if (!listo) {
+    listo = cargar().catch((e) => {
+      listo = null;
+      throw e;
+    });
+  }
+  return listo;
+}
+
+export async function recargarGacha() {
+  const base = obtenerBase();
+  if (!base) return;
+  await vaciar(false);
+  await cargarDesdeMongo(base);
+}
+
+export const hayDatosGacha = () => personajes.size > 0;
+
+export async function importarTablasGacha(tablas) {
+  await initGachaDB();
+  const n = aplicarTablas(tablas);
+  await vaciar(true);
+  return n;
+}
+
+function listaOrdenada(categoria) {
+  let l = ordenados.get(categoria);
+  if (!l) {
+    l = [...(porCategoria.get(categoria) || [])].sort(porValor);
+    ordenados.set(categoria, l);
+  }
+  return l;
+}
+
+function filasDe(usuario, categoria) {
+  const out = [];
+  const m = propiedad.get(usuario);
+  if (!m) return out;
+  for (const [charId, prop] of m) {
+    const p = personajes.get(charId);
+    if (p && p.categoria === categoria) out.push({ p, prop });
+  }
+  return out;
 }
 
 export function crearPersonaje({ categoria, clave, nombre, serie = "", genero = "", rareza = "Común", valor = 1000, img, stats = null, meta = null }) {
-  const r = st(
-    `INSERT OR IGNORE INTO personajes (categoria, clave, nombre, serie, genero, rareza, valor, img, stats, meta)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  ).run(categoria, String(clave), nombre, serie, genero, rareza, Math.round(valor), img,
-    stats ? JSON.stringify(stats) : null, meta ? JSON.stringify(meta) : null);
-  if (!r.changes) return null;
-  return { id: Number(r.lastInsertRowid) };
+  if (!categoria || clave == null || !nombre || !img) return null;
+  if (porClave.has(`${categoria}|${clave}`)) return null;
+  const fila = {
+    id: ultimoId + 1, categoria, clave: String(clave), nombre, serie, genero, rareza,
+    valor: Number.isFinite(valor) ? Math.round(valor) : 1000, img,
+    stats: stats ? clon(stats) : null, meta: meta ? clon(meta) : null, creado: ahora()
+  };
+  registrarPersonaje(fila);
+  return { id: fila.id };
 }
 
 export function personajePorId(id) {
-  return hidratar(st("SELECT * FROM personajes WHERE id = ?").get(id));
+  return copia(personajes.get(Number(id)));
 }
 
 export function personajePorClave(categoria, clave) {
-  return hidratar(st("SELECT * FROM personajes WHERE categoria = ? AND clave = ?").get(categoria, String(clave)));
+  return copia(porClave.get(`${categoria}|${clave}`));
 }
 
 export function personajeAleatorio(categoria, { soloLibres = false } = {}) {
-  const lim = st("SELECT MIN(id) AS a, MAX(id) AS b FROM personajes WHERE categoria = ?").get(categoria);
-  if (!lim || lim.a == null) return null;
-  const libre = "AND NOT EXISTS (SELECT 1 FROM propiedad o WHERE o.char_id = p.id)";
-  const sqlSalto = `SELECT * FROM personajes p WHERE categoria = ? AND id >= ? ${soloLibres ? libre : ""} LIMIT 1`;
-  for (let i = 0; i < 5; i++) {
-    const desde = lim.a + Math.floor(Math.random() * (lim.b - lim.a + 1));
-    const row = st(sqlSalto).get(categoria, desde);
-    if (row) return hidratar(row);
-  }
+  const lista = porCategoria.get(categoria);
+  if (!lista || !lista.length) return null;
+  const libre = (f) => !duenos.has(f.id);
+  const azar = () => lista[Math.floor(Math.random() * lista.length)];
   if (soloLibres) {
-    const row = st(`SELECT * FROM personajes p WHERE categoria = ? ${libre} ORDER BY RANDOM() LIMIT 1`).get(categoria);
-    if (row) return hidratar(row);
+    for (let i = 0; i < 5; i++) {
+      const f = azar();
+      if (libre(f)) return copia(f);
+    }
+    const libres = lista.filter(libre);
+    if (libres.length) return copia(libres[Math.floor(Math.random() * libres.length)]);
   }
-  return hidratar(st("SELECT * FROM personajes WHERE categoria = ? ORDER BY RANDOM() LIMIT 1").get(categoria));
+  return copia(azar());
 }
 
 export function personajeAleatorioPonderado(categoria, pesos) {
-  const filas = st("SELECT rareza, COUNT(*) AS n FROM personajes WHERE categoria = ? GROUP BY rareza").all(categoria);
-  if (!filas.length) return null;
-  const pond = filas.map((f) => ({ rareza: f.rareza, peso: pesos[f.rareza] ?? 10 }));
+  const lista = porCategoria.get(categoria);
+  if (!lista || !lista.length) return null;
+  const conteo = new Map();
+  for (const f of lista) conteo.set(f.rareza, (conteo.get(f.rareza) || 0) + 1);
+  const pond = [...conteo.keys()].map((rareza) => ({ rareza, peso: pesos[rareza] ?? 10 }));
   let x = Math.random() * pond.reduce((a, b) => a + b.peso, 0);
   let elegida = pond[pond.length - 1].rareza;
-  for (const f of pond) { if ((x -= f.peso) < 0) { elegida = f.rareza; break; } }
-  return hidratar(st("SELECT * FROM personajes WHERE categoria = ? AND rareza = ? ORDER BY RANDOM() LIMIT 1").get(categoria, elegida));
+  for (const f of pond) {
+    if ((x -= f.peso) < 0) { elegida = f.rareza; break; }
+  }
+  const candidatos = lista.filter((f) => f.rareza === elegida);
+  return copia(candidatos[Math.floor(Math.random() * candidatos.length)]);
 }
 
 export function contarPersonajes(categoria) {
-  return st("SELECT COUNT(*) AS n FROM personajes WHERE categoria = ?").get(categoria).n;
+  return porCategoria.get(categoria)?.length || 0;
 }
 
 export function propietarios(charId) {
-  return st("SELECT usuario FROM propiedad WHERE char_id = ? ORDER BY obtenido").all(charId).map((r) => r.usuario);
+  const d = duenos.get(Number(charId));
+  return d ? [...d.values()].sort((a, b) => a.obtenido - b.obtenido).map((f) => f.usuario) : [];
 }
 
 export function leTiene(usuario, charId) {
-  return !!st("SELECT 1 FROM propiedad WHERE usuario = ? AND char_id = ?").get(usuario, charId);
+  return !!propiedad.get(usuario)?.has(Number(charId));
 }
 
 export function reclamar(usuario, personaje) {
-  return transaccion(() => {
+  return enTransaccion(() => {
     if (personaje.categoria === "waifu" && propietarios(personaje.id).length) return "ocupado";
     if (leTiene(usuario, personaje.id)) return "repetido";
-    st("INSERT INTO propiedad (usuario, char_id) VALUES (?, ?)").run(usuario, personaje.id);
+    agregarPropiedad({ usuario, char_id: Number(personaje.id), obtenido: ahora(), nivel: 1 });
     return "ok";
   });
 }
 
 export function coleccionDe(usuario, categoria, limite = 15, desplazamiento = 0) {
-  return st(
-    `SELECT p.*, o.obtenido, o.nivel FROM propiedad o JOIN personajes p ON p.id = o.char_id
-     WHERE o.usuario = ? AND p.categoria = ?
-     ORDER BY p.valor DESC, p.id ASC LIMIT ? OFFSET ?`
-  ).all(usuario, categoria, limite, desplazamiento).map(hidratar);
+  return filasDe(usuario, categoria)
+    .sort((a, b) => porValor(a.p, b.p))
+    .slice(desplazamiento, desplazamiento + limite)
+    .map(({ p, prop }) => copia(p, { obtenido: prop.obtenido, nivel: prop.nivel }));
 }
 
 export function contarColeccion(usuario, categoria) {
-  return st(
-    `SELECT COUNT(*) AS n, COALESCE(SUM(p.valor),0) AS total FROM propiedad o JOIN personajes p ON p.id = o.char_id
-     WHERE o.usuario = ? AND p.categoria = ?`
-  ).get(usuario, categoria);
+  const filas = filasDe(usuario, categoria);
+  return { n: filas.length, total: filas.reduce((a, f) => a + f.p.valor, 0) };
 }
 
 export function mejorDe(usuario, categoria, charId = null) {
   if (charId) {
-    return hidratar(st(
-      `SELECT p.*, o.obtenido, o.nivel FROM propiedad o JOIN personajes p ON p.id = o.char_id
-       WHERE o.usuario = ? AND p.categoria = ? AND p.id = ?`
-    ).get(usuario, categoria, charId));
+    const prop = propiedad.get(usuario)?.get(Number(charId));
+    const p = prop && personajes.get(Number(charId));
+    if (!p || p.categoria !== categoria) return null;
+    return copia(p, { obtenido: prop.obtenido, nivel: prop.nivel });
   }
-  return hidratar(st(
-    `SELECT p.*, o.obtenido, o.nivel FROM propiedad o JOIN personajes p ON p.id = o.char_id
-     WHERE o.usuario = ? AND p.categoria = ?
-     ORDER BY o.nivel DESC, p.valor DESC, p.id ASC LIMIT 1`
-  ).get(usuario, categoria));
+  const filas = filasDe(usuario, categoria).sort((a, b) => b.prop.nivel - a.prop.nivel || porValor(a.p, b.p));
+  return filas.length ? copia(filas[0].p, { obtenido: filas[0].prop.obtenido, nivel: filas[0].prop.nivel }) : null;
 }
 
 export function setNivel(usuario, charId, nivel) {
-  st("UPDATE propiedad SET nivel = ? WHERE usuario = ? AND char_id = ?").run(nivel, usuario, charId);
+  const f = propiedad.get(usuario)?.get(Number(charId));
+  if (!f) return;
+  const previo = f.nivel;
+  f.nivel = nivel;
+  marcar(COL.propiedad, `${usuario}|${f.char_id}`);
+  undo(() => {
+    f.nivel = previo;
+    marcar(COL.propiedad, `${usuario}|${f.char_id}`);
+  });
 }
 
 export function cantidadItem(usuario, item) {
-  const r = st("SELECT cantidad FROM inventario WHERE usuario = ? AND item = ?").get(usuario, item);
-  return r ? r.cantidad : 0;
+  return inventario.get(usuario)?.get(item) || 0;
 }
 
 export function sumarItem(usuario, item, delta) {
-  st(`INSERT INTO inventario (usuario, item, cantidad) VALUES (?, ?, ?)
-      ON CONFLICT(usuario, item) DO UPDATE SET cantidad = cantidad + excluded.cantidad`).run(usuario, item, delta);
+  const previo = inventario.get(usuario)?.get(item);
+  fijarItem(usuario, item, (previo || 0) + delta);
+  undo(() => {
+    if (previo === undefined) inventario.get(usuario)?.delete(item);
+    else fijarItem(usuario, item, previo);
+    marcar(COL.inventario, `${usuario}|${item}`);
+  });
 }
 
 export function listarPersonajes(categoria, limite = 20, desplazamiento = 0) {
-  return st(
-    `SELECT p.*, (SELECT COUNT(*) FROM propiedad o WHERE o.char_id = p.id) AS duenos
-     FROM personajes p WHERE p.categoria = ? ORDER BY p.valor DESC, p.id ASC LIMIT ? OFFSET ?`
-  ).all(categoria, limite, desplazamiento).map(hidratar);
+  return listaOrdenada(categoria)
+    .slice(desplazamiento, desplazamiento + limite)
+    .map((p) => copia(p, { duenos: duenos.get(p.id)?.size || 0 }));
 }
 
 export function resumenGacha() {
-  const porCategoria = st("SELECT categoria, COUNT(*) AS n FROM personajes GROUP BY categoria").all();
-  const porRareza = st("SELECT categoria, rareza, COUNT(*) AS n FROM personajes GROUP BY categoria, rareza ORDER BY MAX(valor) DESC").all();
-  const reclamados = st(
-    `SELECT p.categoria, COUNT(DISTINCT o.char_id) AS n FROM propiedad o JOIN personajes p ON p.id = o.char_id GROUP BY p.categoria`
-  ).all();
-  const yandere = st("SELECT estado, COUNT(*) AS n FROM yandere_posts GROUP BY estado").all();
-  return { porCategoria, porRareza, reclamados, yandere };
+  const porCat = new Map();
+  const porRar = new Map();
+  for (const f of personajes.values()) {
+    porCat.set(f.categoria, (porCat.get(f.categoria) || 0) + 1);
+    const k = `${f.categoria}\u0000${f.rareza}`;
+    const g = porRar.get(k);
+    if (g) {
+      g.n++;
+      if (f.valor > g.max) g.max = f.valor;
+    } else {
+      porRar.set(k, { categoria: f.categoria, rareza: f.rareza, n: 1, max: f.valor });
+    }
+  }
+  const recl = new Map();
+  for (const id of duenos.keys()) {
+    const p = personajes.get(id);
+    if (p) recl.set(p.categoria, (recl.get(p.categoria) || 0) + 1);
+  }
+  const est = new Map();
+  for (const f of posts.values()) est.set(f.estado, (est.get(f.estado) || 0) + 1);
+  const ordenar = (m) => [...m.entries()].sort((a, b) => String(a[0]).localeCompare(String(b[0])));
+  return {
+    porCategoria: ordenar(porCat).map(([categoria, n]) => ({ categoria, n })),
+    porRareza: [...porRar.values()].sort((a, b) => b.max - a.max).map(({ categoria, rareza, n }) => ({ categoria, rareza, n })),
+    reclamados: ordenar(recl).map(([categoria, n]) => ({ categoria, n })),
+    yandere: ordenar(est).map(([estado, n]) => ({ estado, n }))
+  };
 }
 
 export function yandereDuplicado({ post_id, md5, parent_id }) {
-  const d = q();
-  if (st("SELECT 1 FROM yandere_posts WHERE post_id = ?").get(post_id)) return "post";
-  if (md5 && st("SELECT 1 FROM yandere_posts WHERE md5 = ?").get(md5)) return "md5";
-  if (parent_id && st("SELECT 1 FROM yandere_posts WHERE post_id = ? OR parent_id = ?").get(parent_id, parent_id)) return "parent";
-  if (st("SELECT 1 FROM yandere_posts WHERE parent_id = ?").get(post_id)) return "parent";
+  const id = Number(post_id);
+  const padre = Number(parent_id) || 0;
+  if (posts.has(id)) return "post";
+  if (md5 && postsMd5.has(md5)) return "md5";
+  if (padre && (posts.has(padre) || postsPadre.has(padre))) return "parent";
+  if (postsPadre.has(id)) return "parent";
   return null;
 }
 
 export function yandereRegistrar({ post_id, md5, parent_id, char_id = null, estado }) {
-  st(
-    "INSERT OR REPLACE INTO yandere_posts (post_id, md5, parent_id, char_id, estado) VALUES (?, ?, ?, ?, ?)"
-  ).run(post_id, md5 || null, parent_id || null, char_id, estado);
+  const id = Number(post_id);
+  const previo = posts.get(id);
+  const fila = { post_id: id, md5: md5 || null, parent_id: Number(parent_id) || null, char_id, estado, creado: ahora() };
+  posts.set(id, fila);
+  indexarPost(fila);
+  marcar(COL.posts, id);
+  undo(() => {
+    if (previo) posts.set(id, previo);
+    else posts.delete(id);
+    reindexarPosts();
+    marcar(COL.posts, id);
+  });
 }
 
 export function yandereTagTipo(nombre) {
-  const r = st("SELECT tipo FROM yandere_tags WHERE nombre = ?").get(nombre);
-  return r ? r.tipo : null;
+  const t = tags.get(nombre);
+  return t === undefined ? null : t;
 }
 
 export function yandereTagGuardar(nombre, tipo) {
-  st("INSERT OR REPLACE INTO yandere_tags (nombre, tipo) VALUES (?, ?)").run(nombre, tipo);
+  tags.set(nombre, tipo);
+  marcar(COL.tags, nombre);
 }
 
 export function yandereCrearPersonaje(datos, post) {
-  return transaccion(() => {
+  return enTransaccion(() => {
     const creado = crearPersonaje(datos);
     if (!creado) return null;
     yandereRegistrar({ post_id: post.post_id, md5: post.md5, parent_id: post.parent_id, char_id: creado.id, estado: "ok" });
@@ -292,41 +645,51 @@ export function yandereCrearPersonaje(datos, post) {
 }
 
 export function topColeccionistas(categoria, limite = 10) {
-  return st(
-    `SELECT o.usuario AS usuario, COUNT(*) AS n FROM propiedad o JOIN personajes p ON p.id = o.char_id
-     WHERE p.categoria = ? GROUP BY o.usuario ORDER BY n DESC, MIN(o.obtenido) ASC LIMIT ?`
-  ).all(categoria, limite).map((r) => ({ usuario: r.usuario, cantidad: r.n }));
+  const filas = [];
+  for (const [usuario, m] of propiedad) {
+    let n = 0;
+    let primero = Infinity;
+    for (const [charId, prop] of m) {
+      if (personajes.get(charId)?.categoria !== categoria) continue;
+      n++;
+      if (prop.obtenido < primero) primero = prop.obtenido;
+    }
+    if (n) filas.push({ usuario, cantidad: n, primero });
+  }
+  return filas
+    .sort((a, b) => b.cantidad - a.cantidad || a.primero - b.primero)
+    .slice(0, limite)
+    .map(({ usuario, cantidad }) => ({ usuario, cantidad }));
 }
 
 export function transferirPersonaje(de, a, charId) {
-  return transaccion(() => {
-    const fila = st("SELECT nivel FROM propiedad WHERE usuario = ? AND char_id = ?").get(de, charId);
+  return enTransaccion(() => {
+    const id = Number(charId);
+    const fila = propiedad.get(de)?.get(id);
     if (!fila) return { estado: "no_tiene" };
-    if (leTiene(a, charId)) return { estado: "ya_lo_tiene" };
-    st("DELETE FROM propiedad WHERE usuario = ? AND char_id = ?").run(de, charId);
-    st("INSERT INTO propiedad (usuario, char_id, nivel) VALUES (?, ?, ?)").run(a, charId, fila.nivel);
-    return { estado: "ok", nivel: fila.nivel };
+    if (leTiene(a, id)) return { estado: "ya_lo_tiene" };
+    const nivel = fila.nivel;
+    quitarPropiedad(de, id);
+    agregarPropiedad({ usuario: a, char_id: id, obtenido: ahora(), nivel });
+    return { estado: "ok", nivel };
   });
 }
 
 export function transferirColeccion(de, a, categoria) {
-  return transaccion(() => {
-    const filas = st(
-      `SELECT o.char_id AS id, o.nivel AS nivel, p.valor AS valor FROM propiedad o JOIN personajes p ON p.id = o.char_id
-       WHERE o.usuario = ? AND p.categoria = ?`
-    ).all(de, categoria);
+  return enTransaccion(() => {
     let transferidos = 0;
     let omitidos = 0;
     let valor = 0;
-    for (const f of filas) {
-      if (leTiene(a, f.id)) {
+    for (const { p, prop } of filasDe(de, categoria)) {
+      if (leTiene(a, p.id)) {
         omitidos++;
         continue;
       }
-      st("DELETE FROM propiedad WHERE usuario = ? AND char_id = ?").run(de, f.id);
-      st("INSERT INTO propiedad (usuario, char_id, nivel) VALUES (?, ?, ?)").run(a, f.id, f.nivel);
+      const nivel = prop.nivel;
+      quitarPropiedad(de, p.id);
+      agregarPropiedad({ usuario: a, char_id: p.id, obtenido: ahora(), nivel });
       transferidos++;
-      valor += f.valor;
+      valor += p.valor;
     }
     return { transferidos, omitidos, valor };
   });
