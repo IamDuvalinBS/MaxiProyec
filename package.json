@@ -9,6 +9,7 @@
     "test": "node scripts/verificar.mjs"
   },
   "dependencies": {
+    "@libsql/client": "^0.15.0",
     "@fer2809fl/baileys": "7.0.6",
     "@napi-rs/canvas": "^0.1.53",
     "@resvg/resvg-js": "^2.6.2",
