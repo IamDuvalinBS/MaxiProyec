@@ -2,8 +2,6 @@ import { createClient } from "@libsql/client/web";
 import { createHash } from "crypto";
 import chalk from "chalk";
 import { obtenerBase, recargarDatos, guardarCuentasPendientes } from "./db.js";
-import { restaurarGacha } from "./respaldo-gacha.js";
-import { guardarGachaPendiente, recargarGacha } from "./gacha-db.js";
 
 const TURSO_URL = process.env.TURSO_URL || "libsql://duva-duvalipan.aws-ap-northeast-1.turso.io";
 const TURSO_TOKEN =
@@ -66,6 +64,35 @@ export function respaldoConfigurado() {
   return Boolean(TURSO_URL && TURSO_TOKEN);
 }
 
+const SQL_UPSERT =
+  "INSERT INTO respaldo (coleccion, id, datos, huella, actualizado) VALUES (?, ?, ?, ?, ?) " +
+  "ON CONFLICT(coleccion, id) DO UPDATE SET datos = excluded.datos, huella = excluded.huella, actualizado = excluded.actualizado";
+
+export async function leerRespaldoCompleto() {
+  const c = obtenerCliente();
+  if (!c) throw new Error("Faltan las variables TURSO_URL y TURSO_TOKEN.");
+  await prepararTabla(c);
+  const filas = await c.execute("SELECT coleccion, datos FROM respaldo");
+  const resultado = {};
+  for (const fila of filas.rows) {
+    if (!resultado[fila.coleccion]) resultado[fila.coleccion] = [];
+    resultado[fila.coleccion].push(JSON.parse(fila.datos));
+  }
+  return resultado;
+}
+
+export async function escribirDocsRespaldo(lista) {
+  const c = obtenerCliente();
+  if (!c) throw new Error("Faltan las variables TURSO_URL y TURSO_TOKEN.");
+  await prepararTabla(c);
+  const ahora = Date.now();
+  const sentencias = lista.map(({ coleccion, doc }) => {
+    const datos = JSON.stringify(doc);
+    return { sql: SQL_UPSERT, args: [coleccion, String(doc._id), datos, calcularHuella(datos), ahora] };
+  });
+  await ejecutarEnLotes(c, sentencias);
+}
+
 export function obtenerEstadoRespaldo() {
   return { configurado: respaldoConfigurado(), minutos: MINUTOS, ocupado, ultimo: ultimoResultado };
 }
@@ -80,7 +107,6 @@ export async function respaldarAhora() {
   ocupado = true;
   try {
     await guardarCuentasPendientes();
-    await guardarGachaPendiente();
     await prepararTabla(c);
 
     const existentes = new Map();
@@ -169,7 +195,6 @@ export async function restaurarDesdeRespaldo() {
     }
 
     await recargarDatos();
-    await recargarGacha();
     return resumen;
   } finally {
     ocupado = false;
@@ -197,7 +222,6 @@ export function iniciarRespaldo() {
   }
   if (temporizador) return;
   console.log(chalk.cyan(`Respaldo en Turso activo, se ejecuta cada ${MINUTOS} minutos.`));
-restaurarGacha(obtenerCliente()).then((n) => { if (n) console.log(chalk.cyan("Gacha restaurado desde Turso: " + n + " filas")); }).catch((e) => console.log(chalk.yellow("Restaurar gacha falló: " + e.message)));
   setTimeout(respaldoProgramado, RETARDO_INICIAL_MS);
   temporizador = setInterval(respaldoProgramado, INTERVALO_MS);
 }
