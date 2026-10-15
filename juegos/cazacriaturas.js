@@ -266,7 +266,7 @@ requestAnimationFrame(loop);
 </script></body></html>`;
 
 export default {
-  names: [".cazacriaturas", ".atrapar"],
+  names: [".pokemongo", ".cazacriaturas"],
   desc: "Caza de criaturas estilo Pokémon GO: camina por el mapa, lanza pelotas y completa tu colección",
   category: "Juegos",
   usage: ".cazacriaturas",
