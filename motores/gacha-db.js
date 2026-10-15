@@ -1,4 +1,4 @@
-import { obtenerBase } from "./db.js";
+import { obtenerBase, enModoRespaldo } from "./db.js";
 
 const COL = {
   personajes: "gacha_personajes",
@@ -11,6 +11,7 @@ const COL = {
 const RETARDO_GUARDADO_MS = 1500;
 const LOTE_MONGO = 500;
 const ESPERA_MONGO_MS = 180000;
+const VIGILANTE_MS = Number(process.env.GACHA_VIGILANTE_MS) || 20000;
 
 let listo = null;
 let ultimoId = 0;
@@ -31,6 +32,8 @@ let sucio = new Map();
 let temporizador = null;
 let escribiendo = null;
 let tx = null;
+let vigilante = null;
+const pendienteOffline = new Map();
 
 const ahora = () => Math.floor(Date.now() / 1000);
 const pausa = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -106,9 +109,18 @@ async function vaciar(estricto) {
     temporizador = null;
   }
   while (escribiendo) await escribiendo.catch(() => {});
-  if (!sucio.size) return;
   const base = obtenerBase();
-  if (!base) {
+  const offline = enModoRespaldo();
+  if (!offline && base && pendienteOffline.size) {
+    for (const [col, ids] of pendienteOffline) {
+      let s = sucio.get(col);
+      if (!s) sucio.set(col, (s = new Set()));
+      for (const id of ids) s.add(id);
+    }
+    pendienteOffline.clear();
+  }
+  if (!sucio.size) return;
+  if (!base && !offline) {
     if (estricto) throw new Error("MongoDB no está conectado.");
     programar(RETARDO_GUARDADO_MS * 5);
     return;
@@ -117,6 +129,10 @@ async function vaciar(estricto) {
   sucio = new Map();
   escribiendo = (async () => {
     try {
+      if (offline) {
+        await escribirOffline(lote);
+        return;
+      }
       for (const [col, ids] of lote) {
         const operaciones = [];
         for (const id of ids) {
@@ -132,7 +148,7 @@ async function vaciar(estricto) {
         }
       }
     } catch (e) {
-      console.log("Error guardando datos del gacha en MongoDB: " + e.message);
+      console.log("Error guardando datos del gacha: " + e.message);
       for (const [col, ids] of lote) for (const id of ids) marcar(col, id);
       programar(RETARDO_GUARDADO_MS * 5);
       if (estricto) throw e;
@@ -144,6 +160,42 @@ async function vaciar(estricto) {
   } finally {
     if (escribiendo === actual) escribiendo = null;
   }
+}
+
+async function escribirOffline(lote) {
+  const modulo = await import("./respaldo.js");
+  const escribir = [];
+  const borrar = [];
+  for (const [col, ids] of lote) {
+    let p = pendienteOffline.get(col);
+    if (!p) pendienteOffline.set(col, (p = new Set()));
+    for (const id of ids) {
+      p.add(id);
+      const doc = documento(col, id);
+      if (doc) escribir.push({ coleccion: col, doc });
+      else borrar.push({ coleccion: col, id: String(id) });
+    }
+  }
+  if (escribir.length) await modulo.escribirDocsRespaldo(escribir);
+  if (borrar.length) await modulo.borrarDocsRespaldo(borrar);
+}
+
+function vigilarReconexion() {
+  if (vigilante) return;
+  vigilante = setInterval(async () => {
+    const base = obtenerBase();
+    if (enModoRespaldo() || !base) return;
+    clearInterval(vigilante);
+    vigilante = null;
+    try {
+      await vaciar(true);
+      await cargarDesdeMongo(base);
+      console.log("✅ Gacha: MongoDB reconectado, los cambios del modo respaldo se enviaron y los datos se recargaron.");
+    } catch (e) {
+      console.log("Gacha: no se pudo sincronizar con MongoDB tras reconectar: " + e.message);
+      vigilarReconexion();
+    }
+  }, VIGILANTE_MS);
 }
 
 export const guardarGachaPendiente = () => vaciar(false);
@@ -267,21 +319,22 @@ async function leerColeccion(base, nombre) {
   return base.collection(nombre).find({}).toArray();
 }
 
-async function esperarBase() {
+async function esperarOrigen() {
   const limite = Date.now() + ESPERA_MONGO_MS;
   while (Date.now() < limite) {
     const base = obtenerBase();
-    if (base) return base;
+    if (enModoRespaldo()) return { respaldo: true };
+    if (base) return { base };
     await pausa(500);
   }
   throw new Error("MongoDB no se conectó a tiempo.");
 }
 
-async function cargarDesdeMongo(base) {
+async function cargarDesde(leer) {
   limpiar();
-  for (const d of await leerColeccion(base, COL.personajes)) cargarFilaPersonaje(d);
+  for (const d of await leer(COL.personajes)) cargarFilaPersonaje(d);
 
-  const props = (await leerColeccion(base, COL.propiedad)).sort((a, b) => (a.obtenido || 0) - (b.obtenido || 0));
+  const props = (await leer(COL.propiedad)).sort((a, b) => (a.obtenido || 0) - (b.obtenido || 0));
   for (const d of props) {
     const f = { usuario: d.usuario, char_id: Number(d.char_id), obtenido: Number(d.obtenido) || 0, nivel: Number(d.nivel) || 1 };
     let m = propiedad.get(f.usuario);
@@ -292,13 +345,13 @@ async function cargarDesdeMongo(base) {
     o.set(f.usuario, f);
   }
 
-  for (const d of await leerColeccion(base, COL.inventario)) {
+  for (const d of await leer(COL.inventario)) {
     let m = inventario.get(d.usuario);
     if (!m) inventario.set(d.usuario, (m = new Map()));
     m.set(d.item, Number(d.cantidad) || 0);
   }
 
-  for (const d of await leerColeccion(base, COL.posts)) {
+  for (const d of await leer(COL.posts)) {
     const f = {
       post_id: Number(d._id), md5: d.md5 ?? null, parent_id: Number(d.parent_id) || null,
       char_id: d.char_id ?? null, estado: d.estado, creado: Number(d.creado) || 0
@@ -307,7 +360,15 @@ async function cargarDesdeMongo(base) {
     indexarPost(f);
   }
 
-  for (const d of await leerColeccion(base, COL.tags)) tags.set(String(d._id), Number(d.tipo));
+  for (const d of await leer(COL.tags)) tags.set(String(d._id), Number(d.tipo));
+}
+
+const cargarDesdeMongo = (base) => cargarDesde((nombre) => leerColeccion(base, nombre));
+
+async function cargarDesdeRespaldo() {
+  const modulo = await import("./respaldo.js");
+  const datos = await modulo.leerRespaldoCompleto();
+  await cargarDesde(async (nombre) => datos[nombre] || []);
 }
 
 function aplicarTablas(t) {
@@ -390,7 +451,14 @@ async function migrarSqliteLocal(base) {
 }
 
 async function cargar() {
-  const base = await esperarBase();
+  const origen = await esperarOrigen();
+  if (origen.respaldo) {
+    await cargarDesdeRespaldo();
+    vigilarReconexion();
+    console.log(`⚠️ Gacha cargado desde el respaldo de Turso: ${personajes.size} personajes, ${propiedad.size} coleccionistas`);
+    return;
+  }
+  const base = origen.base;
   await cargarDesdeMongo(base);
   if (!personajes.size) await migrarSqliteLocal(base);
   console.log(`✅ Gacha cargado desde MongoDB: ${personajes.size} personajes, ${propiedad.size} coleccionistas`);

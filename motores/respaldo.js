@@ -93,6 +93,17 @@ export async function escribirDocsRespaldo(lista) {
   await ejecutarEnLotes(c, sentencias);
 }
 
+export async function borrarDocsRespaldo(lista) {
+  const c = obtenerCliente();
+  if (!c) throw new Error("Faltan las variables TURSO_URL y TURSO_TOKEN.");
+  await prepararTabla(c);
+  const sentencias = lista.map(({ coleccion, id }) => ({
+    sql: "DELETE FROM respaldo WHERE coleccion = ? AND id = ?",
+    args: [coleccion, String(id)]
+  }));
+  await ejecutarEnLotes(c, sentencias);
+}
+
 export function obtenerEstadoRespaldo() {
   return { configurado: respaldoConfigurado(), minutos: MINUTOS, ocupado, ultimo: ultimoResultado };
 }

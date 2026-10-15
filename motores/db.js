@@ -256,6 +256,10 @@ export function obtenerBase() {
   return baseDatos;
 }
 
+export function enModoRespaldo() {
+  return modoRespaldo;
+}
+
 export async function recargarDatos() {
   if (!collection) return;
   cuentasPendientes.clear();
