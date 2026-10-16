@@ -2,6 +2,8 @@ import { config, saveConfig } from "./db.js";
 import { enviarConBoton } from "./botones.js";
 
 export const FIRMA_CLAIM = "ByDuvalinBS";
+export const PREFIJO_CLAIM = "#✿ ";
+export const TEXTO_CLAIM_BASE = "{user} reclamó a {personaje} para seguir con su colección de {variante} ✨";
 export const LIMITE_TEXTO_CLAIM = 400;
 
 export const VARIANTES = {
@@ -31,22 +33,15 @@ export const listaVariantes = () => Object.values(VARIANTES).map((v) => v.nombre
 
 export function mensajeReclamo({ categoria, sender, personaje }) {
   const variante = VARIANTES[categoria]?.nombre || categoria;
-  const personalizado = config.gachaClaim?.[categoria];
+  const base = config.gachaClaim?.[categoria] || TEXTO_CLAIM_BASE;
   const mentions = [];
-  let texto;
-
-  if (personalizado) {
-    texto = personalizado
-      .replace(/\{user\}/gi, () => {
-        if (!mentions.includes(sender)) mentions.push(sender);
-        return arroba(sender);
-      })
-      .replace(/\{(personaje|nombre)\}/gi, `*${personaje.nombre}*`)
-      .replace(/\{variante\}/gi, `*${variante}*`);
-  } else {
-    mentions.push(sender);
-    texto = `✦ ${arroba(sender)} secuestró a *${personaje.nombre}* para que forme parte de su colección de *${variante}* ✨.`;
-  }
+  const texto = PREFIJO_CLAIM + base
+    .replace(/\{user\}/gi, () => {
+      if (!mentions.includes(sender)) mentions.push(sender);
+      return arroba(sender);
+    })
+    .replace(/\{(personaje|nombre)\}/gi, `*${personaje.nombre}*`)
+    .replace(/\{variante\}/gi, `*${variante}*`);
 
   return { texto, mentions };
 }
@@ -60,7 +55,7 @@ export async function enviarReclamo({ sock, from, msg, texto, mentions, reply })
       msg,
       texto,
       footer: FIRMA_CLAIM,
-      boton: config.channelLink ? { texto: "📢 Canal", url: config.channelLink } : null,
+      boton: null,
       mentions
     });
   }
