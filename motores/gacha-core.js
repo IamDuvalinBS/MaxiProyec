@@ -20,6 +20,7 @@ import {
 } from "./gacha-estilo.js";
 
 export const bloquesDePersonajeParaTicket = (personaje) => bloquesDePersonaje(personaje, 1);
+import { mensajeReclamo, enviarReclamo } from "./gacha-claim.js";
 import { rutaImagenCacheada, guardarImagenCacheada, hayRelay } from "./cache-medios.js";
 
 export { tarjeta, monto, fmt, personajePorId, CAT, lineasPersonaje, textoStats };
@@ -424,7 +425,7 @@ export function crearComandoClaim({ categoria, names, desc }) {
   const cat = CAT[categoria];
   return {
     names, desc, category: "Gacha",
-    handler: async ({ from, sender, msg, reply }) => {
+    handler: async ({ sock, from, sender, msg, reply }) => {
       await gachaListo;
       const r = buscarPendiente({ from, categoria, idCitado: idMensajeCitado(msg), sender });
 
@@ -456,14 +457,8 @@ export function crearComandoClaim({ categoria, names, desc }) {
       }
 
       cerrarPendiente(r.id);
-      const mentions = [sender];
-      const lineas = [`*${arroba(sender)}* reclamó a *${p.nombre}*.`];
-      if (pendiente.dueno !== sender) {
-        lineas.push(`La tirada original era de *${arroba(pendiente.dueno)}*.`);
-        mentions.push(pendiente.dueno);
-      }
-      const bloques = [bloqueCabecera(categoria, cat.reclamado, lineas), ...bloquesDePersonaje(p, 1)];
-      await reply({ text: bloques.join("\n\n"), mentions });
+      const { texto, mentions } = mensajeReclamo({ categoria, sender, personaje: p });
+      await enviarReclamo({ sock, from, msg, texto, mentions, reply });
     }
   };
 }
