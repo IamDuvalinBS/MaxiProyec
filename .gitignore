@@ -5,3 +5,10 @@ data/economia-local.json
 data/economia-local.json.parcial
 cache/
 data/*.db*
+
+node_modules/
+data/
+database/
+bot.log
+firebase-key.json
+.env
