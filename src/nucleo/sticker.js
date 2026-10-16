@@ -13,14 +13,26 @@ export async function descargarBuffer(url) {
   return Buffer.from(await res.arrayBuffer());
 }
 
+const ENVOLTURAS = ["viewOnceMessage", "viewOnceMessageV2", "viewOnceMessageV2Extension", "ephemeralMessage"];
+
+export function desenvolverVistaUnica(message) {
+  let m = message;
+  for (let i = 0; i < 4 && m; i++) {
+    const clave = ENVOLTURAS.find((k) => m[k]);
+    if (!clave) break;
+    m = m[clave].message;
+  }
+  return m || null;
+}
+
 export async function extraerImagenDeMensaje(msg) {
-  const m = msg.message || {};
+  const m = desenvolverVistaUnica(msg.message) || {};
   const ctx = m.extendedTextMessage?.contextInfo || m.imageMessage?.contextInfo;
-  const citado = ctx?.quotedMessage;
+  const citado = desenvolverVistaUnica(ctx?.quotedMessage);
 
   let objetivo = null;
   if (m.imageMessage) {
-    objetivo = msg;
+    objetivo = { key: msg.key, message: m };
   } else if (citado?.imageMessage || citado?.stickerMessage) {
     objetivo = {
       key: { remoteJid: msg.key.remoteJid, id: ctx.stanzaId, participant: ctx.participant },
