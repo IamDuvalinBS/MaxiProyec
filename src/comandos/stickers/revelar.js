@@ -6,7 +6,7 @@ const TIPOS = ["imageMessage", "videoMessage", "audioMessage"];
 export default {
   names: [".revelar", ".reveal"],
   desc: "Revela una foto, video o audio de ver una vez (citado)",
-  category: "Utilidades",
+  category: "Utilidad",
   usage: ".revelar (respondiendo a un mensaje de ver una vez)",
   handler: async ({ msg, from, sock, reply }) => {
     const info = msg.message?.extendedTextMessage?.contextInfo;
