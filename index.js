@@ -9,7 +9,8 @@ import http from "http";
 import { manejarComando } from "./src/nucleo/comandos.js";
 import { checkTriviaAnswer } from "./src/economia/trivia.js";
 import { procesarEspera } from "./src/nucleo/espera.js";
-import { config, manejarCambioParticipantes } from "./core.js";
+import { config, manejarCambioParticipantes, getAllAccounts, commandRegistry, startTime, CURRENCY } from "./core.js";
+import fs from "fs";
 import { intentarProcesarTexto } from "./motores/juegos-core.js";
 
 import readline from "readline";
@@ -87,6 +88,121 @@ process.on("unhandledRejection", (err) => {
   console.log("Promesa rechazada sin manejar (el bot sigue corriendo): " + (err?.message || err));
 });
 
+
+// ═══════════════ CONEXIÓN CON LA PÁGINA (Firebase) ═══════════════
+// Sube el estado del bot, la lista de comandos y los datos de las cuentas vinculadas.
+// Si no hay llave de Firebase o algo falla, el bot sigue funcionando normal.
+const PAG = { fs: null, FV: null, sock: null, enLinea: false, grupos: 0, msgsHoy: 0, dia: new Date().toDateString(), vinc: new Map(), ult: {} };
+const logPag = (e) => console.log("Página: " + (e?.message || e));
+
+async function iniciarPagina() {
+  try {
+    const clave = process.env.FIREBASE_KEY
+      ? JSON.parse(process.env.FIREBASE_KEY)
+      : JSON.parse(fs.readFileSync("./firebase-key.json", "utf8"));
+    const admin = (await import("firebase-admin")).default;
+    admin.initializeApp({ credential: admin.credential.cert(clave) });
+    PAG.fs = admin.firestore();
+    PAG.FV = admin.firestore.FieldValue;
+    PAG.fs.collection("botlink").onSnapshot((s) => {
+      PAG.vinc = new Map(s.docs.map((d) => [d.id, { jid: d.data().jid }]));
+      for (const u of Object.keys(PAG.ult)) if (!PAG.vinc.has(u)) delete PAG.ult[u];
+      for (const u of PAG.vinc.keys()) sincronizarCuenta(u);
+    }, logPag);
+    console.log(chalk.greenBright("✔ Conectado a la página (Firebase)"));
+    subirEstado();
+    setInterval(subirEstado, 60000);
+    setTimeout(subirComandos, 20000);
+    setInterval(subirComandos, 10 * 60000);
+    setInterval(() => { for (const u of PAG.vinc.keys()) sincronizarCuenta(u); }, 2 * 60000);
+    setInterval(contarGrupos, 30 * 60000);
+  } catch (e) {
+    console.log("Página no conectada (el bot sigue normal): " + e.message);
+  }
+}
+
+function subirEstado() {
+  if (!PAG.fs) return;
+  if (PAG.dia !== new Date().toDateString()) { PAG.dia = new Date().toDateString(); PAG.msgsHoy = 0; }
+  PAG.fs.collection("bot").doc("estado").set({
+    nombre: config.botNameShort || "Bot",
+    enLinea: PAG.enLinea,
+    grupos: PAG.grupos,
+    mensajesHoy: PAG.msgsHoy,
+    cuentas: getAllAccounts().size,
+    inicio: startTime,
+    t: PAG.FV.serverTimestamp()
+  }, { merge: true }).catch(logPag);
+}
+
+async function contarGrupos() {
+  try { if (PAG.sock && PAG.enLinea) { PAG.grupos = Object.keys(await PAG.sock.groupFetchAllParticipating()).length; subirEstado(); } }
+  catch (e) { /* no pasa nada, se intenta después */ }
+}
+
+function subirComandos() {
+  if (!PAG.fs) return;
+  const lista = [...commandRegistry.values()].map((c) => ({
+    n: c.names[0],
+    a: c.names.slice(1, 4),
+    d: String(c.desc || "").slice(0, 160),
+    c: c.category || "General",
+    u: String(c.usage || c.names[0]).slice(0, 80)
+  }));
+  if (!lista.length) return;
+  lista.push({ n: "vincular", a: [], d: "Vincula tu WhatsApp con tu cuenta de la página", c: "Página", u: ".vincular CÓDIGO" });
+  PAG.fs.collection("bot").doc("comandos").set({ lista, t: PAG.FV.serverTimestamp() }).catch(logPag);
+}
+
+function sincronizarCuenta(uid) {
+  const v = PAG.vinc.get(uid);
+  if (!PAG.fs || !v) return;
+  const acc = getAllAccounts().get(v.jid) || {}, pr = acc.profile || {};
+  const datos = {
+    wallet: Math.floor(acc.wallet || 0), bank: Math.floor(acc.bank || 0),
+    nivel: pr.level || 1, xp: pr.xp || 0, nombre: String(pr.name || "").slice(0, 30), moneda: CURRENCY
+  };
+  const firma = JSON.stringify(datos);
+  if (PAG.ult[uid] === firma) return;          // solo escribe si algo cambió
+  PAG.ult[uid] = firma;
+  PAG.fs.collection("botperfil").doc(uid).set({ ...datos, t: PAG.FV.serverTimestamp() }).catch(logPag);
+}
+
+// .vincular CÓDIGO  → enlaza este WhatsApp con la cuenta de la página que generó el código
+async function vincularPagina(sock, from, sender, resto, msg) {
+  const m = resto.match(/^\s*vincular(?:\s+([A-Za-z0-9]+))?\s*$/i);
+  if (!m) return false;
+  const resp = (t) => sock.sendMessage(from, { text: t }, { quoted: msg }).catch(() => {});
+  if (!PAG.fs) { await resp("La conexión con la página no está activa ahora mismo."); return true; }
+  const codigo = (m[1] || "").toUpperCase();
+  if (!codigo) { await resp("Entra a la página → Mi perfil → Mi WhatsApp, genera tu código y envía:\n.vincular CÓDIGO"); return true; }
+  try {
+    const ref = PAG.fs.collection("vinculos").doc(codigo), d = await ref.get();
+    if (!d.exists || (d.data().exp || 0) < Date.now()) {
+      if (d.exists) await ref.delete();
+      await resp("Ese código no existe o ya venció. Genera uno nuevo en la página.");
+      return true;
+    }
+    const { uid, nombre } = d.data();
+    for (const [otro, v] of PAG.vinc) {          // un WhatsApp solo puede estar en una cuenta
+      if (v.jid === sender && otro !== uid) {
+        await PAG.fs.collection("botlink").doc(otro).delete();
+        await PAG.fs.collection("botperfil").doc(otro).delete().catch(() => {});
+      }
+    }
+    await PAG.fs.collection("botlink").doc(uid).set({ jid: sender, t: PAG.FV.serverTimestamp() });
+    await ref.delete();
+    PAG.vinc.set(uid, { jid: sender }); delete PAG.ult[uid]; sincronizarCuenta(uid);
+    await resp(`✅ Listo, tu WhatsApp quedó vinculado con *${nombre || "tu cuenta"}* de la página.`);
+  } catch (e) {
+    logPag(e);
+    await resp("No pude vincular ahora mismo. Intenta de nuevo en un momento.");
+  }
+  return true;
+}
+iniciarPagina();
+// ═════════════════════════════════════════════════════════════════
+
 let isConnecting = false;
 
 let bannerImpreso = false;
@@ -155,12 +271,14 @@ async function startBot() {
       console.log(chalk.red("Conexion cerrada. Codigo: " + statusCode));
       pairingRequested = false;
       isConnecting = false;
+      PAG.enLinea = false; subirEstado();
       setTimeout(startBot, 10000);
     } else if (connection === "open") {
       currentCode = "CONECTADO";
       isConnecting = false;
       console.log(chalk.greenBright.bold("✔ Bot conectado a WhatsApp"));
       iniciarAvisosRacha(sock);
+      PAG.sock = sock; PAG.enLinea = true; contarGrupos(); subirEstado();
     }
   });
 
@@ -186,6 +304,7 @@ async function startBot() {
   sock.ev.on("messages.upsert", async (m) => {
     const msg = m.messages[0];
     if (!msg.message) return;
+    if (m.type === "notify" && !msg.key.fromMe) PAG.msgsHoy++;
 
     const from = msg.key.remoteJid;
     const sender = msg.key.fromMe
@@ -241,6 +360,8 @@ async function startBot() {
         await sock.sendMessage(from, { text: textoSalidaAfk(sender, datos), mentions: [sender] }, { quoted: msg });
       }
     }
+
+    if (prefijoUsado && !msg.key.fromMe && !apagadoAqui && m.type === "notify" && await vincularPagina(sock, from, sender, text.slice(prefijoUsado.length), msg)) return;
 
     if (prefijoUsado) {
       const resto = text.slice(prefijoUsado.length);
