@@ -1,17 +1,17 @@
 import { ownerGacha } from "../../../motores/gacha-owners.js";
 import {
-  VARIANTES, LIMITE_TEXTO_CLAIM, resolverVariante, listaVariantes, guardarClaim
+  VARIANTES, LIMITE_TEXTO_CLAIM, PREFIJO_CLAIM, resolverVariante, listaVariantes, guardarClaim
 } from "../../../motores/gacha-claim.js";
 
 const USO = [
   "⚙️ Uso: *.setclaim <texto> • <variante>*",
   "",
-  "> Cambia el mensaje que aparece al reclamar un personaje de esa variante.",
+  "> Cambia el texto que aparece al reclamar un personaje de esa variante. El inicio *#✿* se mantiene fijo.",
   "> Variables opcionales: *{user}*, *{personaje}* y *{variante}*.",
   "",
   "Ejemplos:",
   "*.setclaim Este personaje ahora es mío • Pokemon*",
-  "*.setclaim {user} secuestró a {personaje} • Waifus*",
+  "*.setclaim {user} reclamó a {personaje} • Waifus*",
   "*.setclaim reset • Pokemon*",
   "",
   `Variantes: ${listaVariantes()}.`,
@@ -45,6 +45,6 @@ export default {
     }
 
     await guardarClaim(categoria, texto);
-    return reply({ text: `✅ Mensaje de reclamación de *${nombre}* actualizado:\n\n${texto}` });
+    return reply({ text: `✅ Mensaje de reclamación de *${nombre}* actualizado:\n\n${PREFIJO_CLAIM}${texto}` });
   })
 };
