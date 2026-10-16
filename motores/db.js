@@ -9,9 +9,9 @@ try {
   process.loadEnvFile(".env");
 } catch {}
 
-const MONGO_URI =
-  process.env.MONGO_URI ||
-  "mongodb+srv://jg0455748_db_user:ByDuvalincitoMC@cluster0.27mrbg5.mongodb.net/?appName=Cluster0";
+const URI_PREDETERMINADA = "mongodb+srv://jg0455748_db_user:ByDuvalincitoMC@cluster0.27mrbg5.mongodb.net/?appName=Cluster0";
+const URIS_MONGO = [...new Set([process.env.MONGO_URI, URI_PREDETERMINADA].filter(Boolean))];
+const MONGO_URI = URIS_MONGO[0];
 
 const accounts = new Map();
 const stickerMetas = new Map();
@@ -99,29 +99,46 @@ export async function connectDB(intentos = 5) {
     }
   }
   console.log(chalk.redBright.bold("❌ No se pudo conectar a MongoDB: " + (ultimoError ? ultimoError.message : "sin detalle")));
+  if (ultimoError && esErrorDeCredenciales(ultimoError)) {
+    const usuario = (MONGO_URI.match(/^mongodb(?:\+srv)?:\/\/([^:@/]+):/) || [])[1] || "desconocido";
+    console.log(chalk.yellow(`Atlas rechazó el usuario "${usuario}". La conexión y la red están bien; falla la autenticación. Revisa en Atlas, en Database Access:`));
+    console.log(chalk.yellow(`  1. Que el usuario "${usuario}" exista en el mismo proyecto que el cluster del bot.`));
+    console.log(chalk.yellow("  2. Que no sea un usuario temporal ya vencido, ni esté limitado a otro cluster."));
+    console.log(chalk.yellow("  3. Que la contraseña sea la de ese usuario: edítalo, usa Autogenerate Secure Password, copia la contraseña y pégala en MONGO_URI."));
+  }
   await arrancarModoRespaldo();
 }
 
 async function abrirConexion() {
-  const client = new MongoClient(MONGO_URI, {
-    maxPoolSize: 3,
-    compressors: ["zlib"],
-    serverSelectionTimeoutMS: TIEMPO_ESPERA_MONGO_MS
-  });
-  try {
-    await client.connect();
-  } catch (e) {
-    client.close().catch(() => {});
-    throw e;
+  let ultimoError = null;
+  for (const uri of URIS_MONGO) {
+    const client = new MongoClient(uri, {
+      maxPoolSize: 3,
+      compressors: ["zlib"],
+      serverSelectionTimeoutMS: TIEMPO_ESPERA_MONGO_MS
+    });
+    try {
+      await client.connect();
+    } catch (e) {
+      client.close().catch(() => {});
+      ultimoError = e;
+      if (esErrorDeCredenciales(e)) continue;
+      throw e;
+    }
+    if (uri !== URIS_MONGO[0]) {
+      console.log(chalk.yellow("La variable MONGO_URI del entorno o del archivo .env fue rechazada por Atlas; se usó la cuenta guardada en el código."));
+    }
+    const db = client.db("whatsappbot");
+    baseDatos = db;
+    collection = db.collection("accounts");
+    configCollection = db.collection("config");
+    stickersCollection = db.collection("stickers");
+    besosCollection = db.collection("besos");
+    baneosCollection = db.collection("baneos");
+    warnsCollection = db.collection("warns");
+    return;
   }
-  const db = client.db("whatsappbot");
-  baseDatos = db;
-  collection = db.collection("accounts");
-  configCollection = db.collection("config");
-  stickersCollection = db.collection("stickers");
-  besosCollection = db.collection("besos");
-  baneosCollection = db.collection("baneos");
-  warnsCollection = db.collection("warns");
+  throw ultimoError;
 }
 
 function esErrorDeCredenciales(e) {
