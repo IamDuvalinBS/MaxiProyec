@@ -1,4 +1,7 @@
 import axios from "axios";
+import fs from "node:fs";
+import { cleanTmp, downloadToTmp, spotifyDownload } from "../../core/mediaTools.js";
+import { searchTrack, downloadTrackAudio, safeName } from "./_music.js";
 
 export default {
   names: [".spotify", ".sp", ".spdl"],
@@ -10,70 +13,67 @@ export default {
 
     if (!texto) {
       return sock.sendMessage(from, {
-        text: "🎵 *SPOTIFY*\n\n> Usa:\n> .spotify nombre de la canción\n> .spotify enlace de Spotify"
+        text: "🎵 *SPOTIFY*\n\n> Escribe el nombre de una canción o pega su enlace."
       }, { quoted: msg });
     }
 
-    await sock.sendMessage(from, {
-      react: { text: "⏳", key: msg.key }
-    });
-
     try {
-      let url = texto;
+      await sock.sendMessage(from, {
+        react: { text: "⏳", key: msg.key }
+      });
 
-      if (!/open\.spotify\.com\/track\//i.test(texto)) {
+      let cancion;
+      let audio;
+
+      const match = texto.match(/open\.spotify\.com\/(?:intl-[a-z-]+\/)?(?:embed\/)?track\/([A-Za-z0-9]+)/i);
+
+      if (match || /^spotify:track:/i.test(texto)) {
+        const id = match
+          ? match[1]
+          : texto.match(/^spotify:track:([A-Za-z0-9]+)/i)?.[1];
+
+        if (!id) throw new Error("Enlace de Spotify inválido.");
+
+        const url = `https://open.spotify.com/track/${id}`;
+        const descarga = await spotifyDownload(url);
+
+        if (descarga?.download) {
+          const tmp = await downloadToTmp(descarga.download, "mp3", "spotify");
+          try {
+            audio = fs.readFileSync(tmp);
+          } finally {
+            cleanTmp(tmp);
+          }
+
+          cancion = { title: descarga.title || "Canción", artist: descarga.artist || "" };
+        } else {
+          cancion = await searchTrack(texto);
+          if (!cancion) throw new Error("No encontré la canción.");
+          audio = await downloadTrackAudio(cancion);
+        }
+      } else {
         if (/^https?:\/\//i.test(texto)) {
           throw new Error("Envía un enlace de una canción de Spotify.");
         }
 
-        const busqueda = await axios.get(
-          "https://api.deezer.com/search/track",
-          { params: { q: texto, limit: 1 }, timeout: 20000 }
-        );
+        cancion = await searchTrack(texto);
+        if (!cancion) throw new Error("No encontré esa canción.");
 
-        const cancion = busqueda.data?.data?.[0];
-
-        if (!cancion) {
-          throw new Error("No encontré esa canción.");
-        }
-
-        url = `https://open.spotify.com/track/${cancion.id}`;
+        audio = await downloadTrackAudio(cancion);
       }
 
-      const { data } = await axios.get(
-        "https://api.stellarwa.xyz/dl/spotify",
-        {
-          params: {
-            url,
-            key: "api-7dSKm"
-          },
-          timeout: 30000
-        }
-      );
-
-      const cancion = data?.data || data;
-      const urlAudio = cancion?.dl || cancion?.download;
-
-      if (!urlAudio) {
-        throw new Error("La API no devolvió el audio.");
-      }
-
-      const respuesta = await axios.get(urlAudio, {
-        responseType: "arraybuffer",
-        timeout: 60000
-      });
+      if (!audio?.length) throw new Error("La descarga llegó vacía.");
 
       await sock.sendMessage(from, {
-        audio: Buffer.from(respuesta.data),
+        audio,
         mimetype: "audio/mpeg",
-        fileName: `${cancion.title || "cancion"}.mp3`,
-        ptt: false
+        ptt: false,
+        fileName: `${safeName(cancion.title)}.mp3`
       }, { quoted: msg });
 
       await sock.sendMessage(from, {
         react: { text: "✅", key: msg.key }
       });
-
     } catch (error) {
       console.error("[Spotify]", error);
 
@@ -82,7 +82,7 @@ export default {
       });
 
       await sock.sendMessage(from, {
-        text: `> ✘ ${error instanceof Error ? error.message : "Error al descargar la canción."}`
+        text: `> ✘ ${error instanceof Error ? error.message : "No se pudo descargar la canción."}`
       }, { quoted: msg });
     }
   }
