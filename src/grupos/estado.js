@@ -5,24 +5,21 @@ import { fileURLToPath } from "url";
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const DIRECTORIO = path.join(RAIZ, "data");
 const ARCHIVO = path.join(DIRECTORIO, "grupos.json");
-const RETARDO_GUARDADO_MS = 2000;
 const SIN_AJUSTES = Object.freeze({});
 
 let grupos = {};
-let temporizador = null;
 
 try {
   if (fs.existsSync(ARCHIVO)) grupos = JSON.parse(fs.readFileSync(ARCHIVO, "utf8")) || {};
 } catch (e) {
   console.log(`❌ No se pudo leer la configuración de grupos: ${e.message}`);
+  try {
+    fs.copyFileSync(ARCHIVO, `${ARCHIVO}.corrupto`);
+  } catch {}
   grupos = {};
 }
 
-function escribirAhora() {
-  if (temporizador) {
-    clearTimeout(temporizador);
-    temporizador = null;
-  }
+function guardar() {
   try {
     fs.mkdirSync(DIRECTORIO, { recursive: true });
     const temporal = `${ARCHIVO}.parcial`;
@@ -31,14 +28,6 @@ function escribirAhora() {
   } catch (e) {
     console.log(`❌ No se pudo guardar la configuración de grupos: ${e.message}`);
   }
-}
-
-process.on("exit", () => {
-  if (temporizador) escribirAhora();
-});
-
-function programarGuardado() {
-  if (!temporizador) temporizador = setTimeout(escribirAhora, RETARDO_GUARDADO_MS);
 }
 
 export function ajustesDe(grupo) {
@@ -50,7 +39,7 @@ export function definirAjuste(grupo, clave, valor) {
   if (valor === false || valor === undefined || valor === null || valor === "") delete entrada[clave];
   else entrada[clave] = valor;
   if (!Object.keys(entrada).length) delete grupos[grupo];
-  programarGuardado();
+  guardar();
 }
 
 export function antilinkActivo(grupo) {
