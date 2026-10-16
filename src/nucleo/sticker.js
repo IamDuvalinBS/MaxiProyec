@@ -1,7 +1,7 @@
 import { createCanvas, loadImage } from "@napi-rs/canvas";
 import crypto from "crypto";
 import { downloadMediaMessage } from "@fer2809fl/baileys";
-import { getStickerMeta } from "./motores/db.js";
+import { getStickerMeta } from "../../motores/db.js";
 
 const META_PACK = "MaxiBots";
 const META_AUTOR_FIJO = "MaxiBot";

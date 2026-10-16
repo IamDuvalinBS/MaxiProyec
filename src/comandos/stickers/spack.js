@@ -1,5 +1,5 @@
-import { buscarStickersTenor, descargarBuffer, crearStickerConMetaFijo } from "../sticker.js";
-import { delayAleatorio } from "../core.js";
+import { buscarStickersTenor, descargarBuffer, crearStickerConMetaFijo } from "../../nucleo/sticker.js";
+import { delayAleatorio } from "../../../core.js";
 
 export default {
   names: [".spack", ".stickers"],
@@ -38,4 +38,3 @@ export default {
     }
   }
 };
-

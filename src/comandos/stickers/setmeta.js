@@ -1,5 +1,5 @@
-import { setStickerMeta, getStickerMeta } from "../core.js";
-import { claveMeta } from "../sticker.js";
+import { setStickerMeta, getStickerMeta } from "../../../core.js";
+import { claveMeta } from "../../nucleo/sticker.js";
 
 export default {
   names: [".setmeta", ".meta"],

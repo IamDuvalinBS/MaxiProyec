@@ -1,4 +1,4 @@
-import { extraerImagenDeMensaje, crearSticker } from "../sticker.js";
+import { extraerImagenDeMensaje, crearSticker } from "../../nucleo/sticker.js";
 
 export default {
   names: [".s", ".sticker"],
