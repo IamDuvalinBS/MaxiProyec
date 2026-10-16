@@ -24,6 +24,7 @@ import { antilinkActivo, botApagado } from "./src/grupos/estado.js";
 import { eliminarEnlace } from "./src/grupos/enlaces.js";
 import { olvidarMetadatos } from "./src/grupos/nucleo.js";
 import { recordarNombre } from "./motores/profile.js";
+import { iniciarChatPagina } from "./src/nucleo/chatpagina.js";
 
 function imprimirBanner() {
   console.clear();
@@ -116,6 +117,11 @@ async function iniciarPagina() {
     setInterval(subirComandos, 10 * 60000);
     setInterval(() => { for (const u of PAG.vinc.keys()) sincronizarCuenta(u); }, 2 * 60000);
     setInterval(contarGrupos, 30 * 60000);
+    try {   // chat con el bot desde la sección Chats de la página
+      const { Timestamp } = await import("firebase-admin/firestore");
+      iniciarChatPagina({ PAG, Timestamp, config, commandRegistry, manejarComando, procesarEspera, intentarProcesarTexto, checkTriviaAnswer });
+      console.log(chalk.greenBright("✔ Chat de la página activo"));
+    } catch (e) { console.log("Chat de la página no iniciado: " + e.message); }
   } catch (e) {
     console.log("Página no conectada (el bot sigue normal): " + e.message);
   }
