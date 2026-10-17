@@ -25,6 +25,7 @@ import { eliminarEnlace } from "./src/grupos/enlaces.js";
 import { olvidarMetadatos } from "./src/grupos/nucleo.js";
 import { recordarNombre } from "./motores/profile.js";
 import { iniciarChatPagina } from "./src/nucleo/chatpagina.js";
+import { pasesParaPagina, pasesReclamados, alReclamarPase } from "./motores/gacha-pases.js";
 
 function imprimirBanner() {
   console.clear();
@@ -114,6 +115,9 @@ async function iniciarPagina() {
     subirEstado();
     setInterval(subirEstado, 60000);
     setTimeout(subirComandos, 20000);
+    setTimeout(subirPases, 20000);
+    setInterval(subirPases, 10 * 60000);
+    alReclamarPase((jid) => { for (const [u, v] of PAG.vinc) if (v.jid === jid) sincronizarCuenta(u); });   // la página ve el pase reclamado al instante
     setInterval(subirComandos, 10 * 60000);
     setInterval(() => { for (const u of PAG.vinc.keys()) sincronizarCuenta(u); }, 2 * 60000);
     setInterval(contarGrupos, 30 * 60000);
@@ -160,13 +164,22 @@ function subirComandos() {
   PAG.fs.collection("bot").doc("comandos").set({ lista, t: PAG.FV.serverTimestamp() }).catch(logPag);
 }
 
+let ultPases = "";
+function subirPases() {
+  if (!PAG.fs) return;
+  const lista = pasesParaPagina(), firma = JSON.stringify(lista);
+  if (firma === ultPases) return;          // solo escribe si algo cambió
+  PAG.fs.collection("bot").doc("pases").set({ lista, t: PAG.FV.serverTimestamp() }).then(() => { ultPases = firma; }).catch(logPag);
+}
+
 function sincronizarCuenta(uid) {
   const v = PAG.vinc.get(uid);
   if (!PAG.fs || !v) return;
   const acc = getAllAccounts().get(v.jid) || {}, pr = acc.profile || {};
   const datos = {
     wallet: Math.floor(acc.wallet || 0), bank: Math.floor(acc.bank || 0),
-    nivel: pr.level || 1, xp: pr.xp || 0, nombre: String(pr.name || "").slice(0, 30), moneda: CURRENCY
+    nivel: pr.level || 1, xp: pr.xp || 0, nombre: String(pr.name || "").slice(0, 30), moneda: CURRENCY,
+    pases: pasesReclamados(v.jid)
   };
   const firma = JSON.stringify(datos);
   if (PAG.ult[uid] === firma) return;          // solo escribe si algo cambió
