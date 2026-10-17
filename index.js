@@ -126,6 +126,11 @@ async function iniciarPagina() {
       iniciarChatPagina({ PAG, Timestamp, config, commandRegistry, getAllAccounts, manejarComando, procesarEspera, intentarProcesarTexto, checkTriviaAnswer });
       console.log(chalk.greenBright("✔ Chat de la página activo"));
     } catch (e) { console.log("Chat de la página no iniciado: " + e.message); }
+    try {   // pase de temporada: entrega a WhatsApp los premios que se reclaman desde la página
+      const { iniciarPaseTemporada } = await import("./src/nucleo/pasetemporada.js");
+      iniciarPaseTemporada({ PAG, sincronizar: sincronizarCuenta });
+      console.log(chalk.greenBright("✔ Pase de temporada activo"));
+    } catch (e) { console.log("Pase de temporada no iniciado: " + e.message); }
   } catch (e) {
     console.log("Página no conectada (el bot sigue normal): " + e.message);
   }
