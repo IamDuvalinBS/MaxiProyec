@@ -90,15 +90,17 @@ export async function manejarComando(sock, from, sender, text, msg) {
   const handler = comandos.get(comando);
   if (!handler) return false;
 
-  if (from.endsWith("@g.us") && !msg.key.fromMe && botApagado(from) && (comando !== ".mambo" || !(await esAdminOOwner(sock, from, sender)))) return true;
+  if (from.endsWith("@g.us") && !msg.key.fromMe && botApagado(from) && (comando !== ".bot" || !(await esAdminOOwner(sock, from, sender)))) return true;
 
   if (from.endsWith("@g.us") && !msg.key.fromMe && soloAdminsActivo(from) && !(await esAdminOOwner(sock, from, sender))) return true;
 
   let capturados = null;
 
   const reply = async (contenido) => {
-    await delayAleatorio(300, 900);
-    await simularEscritura(sock, from, 800 + Math.floor(Math.random() * 1200));
+    if (!msg.paginaChat) {
+      await delayAleatorio(300, 900);
+      await simularEscritura(sock, from, 800 + Math.floor(Math.random() * 1200));
+    }
     const enviado = await enviarConCache(sock, from, await ajustarMenciones(sock, from, contenido), msg);
     if (capturados) registrarMedio(capturados, enviado);
     return enviado;
@@ -109,11 +111,11 @@ export async function manejarComando(sock, from, sender, text, msg) {
     return true;
   }
 
-  if (debeEsperarPorSpam(sender)) {
+  if (!msg.paginaChat && debeEsperarPorSpam(sender)) {
     await delayAleatorio(4000, 8000);
   }
 
-  const claveDescarga = claveDeDescarga(categoriaDeComando.get(comando), comando, cleanText);
+  const claveDescarga = msg.paginaChat ? null : claveDeDescarga(categoriaDeComando.get(comando), comando, cleanText);
   if (claveDescarga && (await reenviarCacheado(sock, from, claveDescarga, msg))) return true;
   if (claveDescarga) capturados = [];
 

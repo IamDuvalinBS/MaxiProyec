@@ -1,10 +1,13 @@
 // Chat con el bot desde la página (sección Chats → "Mambo Bot").
 // Lee los mensajes del chat `chats/{uid}_bot` en Firestore, ejecuta los comandos del bot con la
 // cuenta de WhatsApp vinculada de esa persona y devuelve las respuestas al mismo chat.
-// No toca ningún comando: usa el mismo manejarComando de siempre con un "sock" que, en vez de
-// mandar a WhatsApp, escribe la respuesta en la página.
+//
+// Mientras un comando corre desde la página, TODO lo que iría a ese WhatsApp (sendMessage,
+// relayMessage con botones/listas/interactivos, presencia) se desvía a la página, venga de donde
+// venga. El resto del bot no se entera: fuera de ese contexto nada cambia.
 import fs from "fs";
-import axios from "axios";
+import crypto from "crypto";
+import { AsyncLocalStorage } from "async_hooks";
 import { createCanvas, loadImage } from "@napi-rs/canvas";
 
 // ───────── Ajustes (puedes cambiarlos) ─────────
@@ -12,28 +15,57 @@ const MAX_CMD_MIN = 15;          // comandos por minuto por persona
 const MAX_CMD_DIA = 400;         // mensajes por día por persona (cuida la cuota gratis de Firebase)
 const VENCE_MS = 10 * 60000;     // mensajes más viejos que esto (bot apagado) se ignoran
 const MAX_TEXTO = 6000;
-const MAX_IMG_BYTES = 220000;    // las imágenes se achican para que quepan en Firestore
-const BLOQ_CAT = /grupo|descarg|download/i;   // categorías que NO se usan desde la página
-const BLOQ_CMD = new Set([]);                 // comandos sueltos bloqueados, ej: ".algo"
+const MAX_IMG_BYTES = 120000;    // las imágenes se achican para que quepan en Firestore
+const MAX_CARD_BYTES = 30000;    // miniaturas de previas
+const MAX_MEDIA = 60 * 1024 * 1024;
+// Audio, video y archivos no caben en Firestore: se suben a un hosting gratis temporal (litterbox,
+// se borran solos a las 72 h) y la página los reproduce desde ahí. Pon false para desactivarlo.
+const USAR_HOSTING_MEDIA = true;
+const HORAS_MEDIA = "72h";
+const BLOQ_CAT = null;           // ej: /grupo/i para no usar esas categorías desde la página
+const BLOQ_CMD = new Set([]);    // comandos sueltos bloqueados, ej: ".algo"
 // ───────────────────────────────────────────────
 
 const log = (e) => console.log("Chat página: " + (e?.message || e));
+const num = (j) => String(j || "").split("@")[0].split(":")[0];
+const als = new AsyncLocalStorage();
+const parchados = new WeakSet();
 
-async function bufferDe(origen) {
+// ───────── utilidades de red y medios ─────────
+async function leerStream(st, max) {
+  const t = []; let n = 0;
+  for await (const c of st) { t.push(c); n += c.length; if (n > max) throw new Error("archivo muy grande"); }
+  return Buffer.concat(t);
+}
+
+async function bufferDe(origen, max = MAX_MEDIA) {
   if (!origen) return null;
   if (Buffer.isBuffer(origen)) return origen;
-  const u = origen.url || origen;
+  if (origen instanceof Uint8Array) return Buffer.from(origen);
+  if (origen.stream && (origen.stream[Symbol.asyncIterator] || origen.stream.on)) return leerStream(origen.stream, max);
+  if (origen[Symbol.asyncIterator]) return leerStream(origen, max);
+  const u = origen.url ?? origen;
+  if (u instanceof URL) return bufferDe(u.href, max);
   if (typeof u !== "string") return null;
   if (/^https?:/i.test(u)) {
-    const r = await axios.get(u, { responseType: "arraybuffer", timeout: 20000, maxContentLength: 15e6 });
-    return Buffer.from(r.data);
+    const r = await fetch(u, { signal: AbortSignal.timeout(60000), redirect: "follow" });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    if (Number(r.headers.get("content-length") || 0) > max) throw new Error("archivo muy grande");
+    const b = Buffer.from(await r.arrayBuffer());
+    if (b.length > max) throw new Error("archivo muy grande");
+    return b;
   }
   return await fs.promises.readFile(u);
 }
 
-async function imagenADataUrl(buf) {
+async function descargarProto(nodo, tipo) {
+  const { downloadContentFromMessage } = await import("@fer2809fl/baileys");
+  return leerStream(await downloadContentFromMessage(nodo, tipo), MAX_MEDIA);
+}
+
+async function imagenADataUrl(buf, lado = 560, maxBytes = MAX_IMG_BYTES) {
   const img = await loadImage(buf);
-  let k = Math.min(1, 640 / Math.max(img.width, img.height));
+  let k = Math.min(1, lado / Math.max(img.width, img.height));
   for (let i = 0; i < 4; i++) {
     const w = Math.max(1, Math.round(img.width * k)), h = Math.max(1, Math.round(img.height * k));
     const cv = createCanvas(w, h), cx = cv.getContext("2d");
@@ -41,25 +73,86 @@ async function imagenADataUrl(buf) {
     cx.drawImage(img, 0, 0, w, h);
     for (const q of [75, 60, 45, 32]) {
       const o = cv.toBuffer("image/jpeg", q);
-      if (o.length <= MAX_IMG_BYTES) return "data:image/jpeg;base64," + o.toString("base64");
+      if (o.length <= maxBytes) return "data:image/jpeg;base64," + o.toString("base64");
     }
     k *= 0.75;
   }
   return null;
 }
 
-// Saca los botones/listas de un mensaje de WhatsApp para mostrarlos como botones tocables en la página
+const EXT = { "audio/mpeg": "mp3", "audio/mp4": "m4a", "audio/ogg": "ogg", "audio/webm": "webm", "video/mp4": "mp4", "video/webm": "webm", "application/pdf": "pdf" };
+function nombreArchivo(med) {
+  if (med.nombre) return String(med.nombre).replace(/[^\w.\- ]/g, "_").slice(0, 80);
+  const ext = EXT[String(med.mime || "").split(";")[0]] || (med.k === "video" ? "mp4" : med.k === "audio" ? "mp3" : "bin");
+  return "archivo." + ext;
+}
+
+async function subirMedia(buf, nombre) {
+  const fd = new FormData();
+  fd.append("reqtype", "fileupload");
+  fd.append("time", HORAS_MEDIA);
+  fd.append("fileToUpload", new Blob([buf]), nombre);
+  const r = await fetch("https://litterbox.catbox.moe/resources/internals/api.php", { method: "POST", body: fd, signal: AbortSignal.timeout(180000) });
+  const t = (await r.text()).trim();
+  if (!/^https?:\/\//i.test(t)) throw new Error("hosting: " + t.slice(0, 80));
+  return t;
+}
+
+// ───────── previas de enlaces ─────────
+const cachePrev = new Map();
+function urlSegura(u) {
+  try {
+    const x = new URL(u), h = x.hostname;
+    if (!/^https?:$/.test(x.protocol)) return false;
+    return !(h === "localhost" || h.includes(":") || h.endsWith(".local") || /^(127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|169\.254\.|0\.)/.test(h));
+  } catch (_) { return false; }
+}
+const ent = (s) => String(s).replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#0?39;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
+function meta(h, p) {
+  const tag = (h.match(new RegExp(`<meta[^>]+(?:property|name)=["']${p}["'][^>]*>`, "i")) || [])[0];
+  const c = tag && tag.match(/content=["']([^"']*)["']/i);
+  return c ? ent(c[1]).trim() : "";
+}
+async function previa(url) {
+  if (cachePrev.has(url)) return cachePrev.get(url);
+  let res = null;
+  try {
+    if (urlSegura(url)) {
+      const r = await fetch(url, { signal: AbortSignal.timeout(5000), redirect: "follow", headers: { "user-agent": "Mozilla/5.0 (compatible; MamboBot/1.0)", accept: "text/html" } });
+      if (r.ok && /html/i.test(r.headers.get("content-type") || "") && Number(r.headers.get("content-length") || 0) < 3e6) {
+        const h = Buffer.from(await r.arrayBuffer()).subarray(0, 200000).toString("utf8");
+        const t = meta(h, "og:title") || meta(h, "twitter:title") || ent(((h.match(/<title[^>]*>([^<]*)/i) || [])[1] || "")).trim();
+        const d = meta(h, "og:description") || meta(h, "twitter:description") || meta(h, "description");
+        const im = meta(h, "og:image") || meta(h, "twitter:image");
+        let img = null;
+        if (im) {
+          try { const u2 = new URL(im, url).href; if (urlSegura(u2)) img = await imagenADataUrl(await bufferDe(u2, 3e6), 360, MAX_CARD_BYTES); } catch (_) {}
+        }
+        if (t || d || img) { res = { u: url, t: t.slice(0, 100), b: d.slice(0, 160) }; if (img) res.img = img; }
+      }
+    }
+  } catch (_) {}
+  cachePrev.set(url, res);
+  if (cachePrev.size > 200) cachePrev.delete(cachePrev.keys().next().value);
+  return res;
+}
+
+// ───────── botones, listas y texto ─────────
 function extraerBotones(c) {
-  const bt = [], lineas = [];
+  const bt = [], bu = [], lineas = [];
   const add = (l, id) => {
     l = String(l || "").trim(); id = String(id || "").trim();
     if (l && id && bt.length < 12) bt.push({ l: l.slice(0, 40), id: id.slice(0, 200) });
+  };
+  const addU = (l, u) => {
+    l = String(l || "").trim(); u = String(u || "").trim();
+    if (l && /^https?:\/\//i.test(u) && bu.length < 6) bu.push({ l: l.slice(0, 40), u: u.slice(0, 500) });
   };
   try {
     for (const b of c.buttons || []) add(b.buttonText?.displayText, b.buttonId);
     for (const b of c.templateButtons || []) {
       if (b.quickReplyButton) add(b.quickReplyButton.displayText, b.quickReplyButton.id);
-      else if (b.urlButton) lineas.push(`${b.urlButton.displayText}: ${b.urlButton.url}`);
+      else if (b.urlButton) addU(b.urlButton.displayText, b.urlButton.url);
     }
     for (const s of c.sections || []) for (const r of s.rows || []) add(r.title, r.rowId);
     const nf = c.interactiveMessage?.nativeFlowMessage?.buttons || c.nativeFlowMessage?.buttons || [];
@@ -67,57 +160,88 @@ function extraerBotones(c) {
       let p = {};
       try { p = JSON.parse(b.buttonParamsJson || "{}"); } catch (_) {}
       if (b.name === "quick_reply") add(p.display_text, p.id);
-      else if (b.name === "cta_url") lineas.push(`${p.display_text}: ${p.url}`);
+      else if (b.name === "cta_url") addU(p.display_text, p.url || p.merchant_url);
       else if (b.name === "cta_copy") lineas.push(`${p.display_text}: ${p.copy_code}`);
+      else if (b.name === "cta_call") lineas.push(`${p.display_text}: ${p.phone_number}`);
       else if (b.name === "single_select") for (const s of p.sections || []) for (const r of s.rows || []) add(r.title, r.id);
     }
   } catch (_) {}
-  return { bt, lineas };
+  return { bt, bu, lineas };
 }
 
-function textoDe(c) {
-  const im = c.interactiveMessage;
-  return [c.title || im?.header?.title, c.text ?? c.caption ?? im?.body?.text, c.footer || im?.footer?.text]
-    .filter((x) => typeof x === "string" && x.trim())
-    .join("\n\n");
-}
-
-// Convierte lo que el bot "mandaría a WhatsApp" en un mensaje para la página
-async function aMensaje(c) {
-  if (!c || typeof c !== "object") return null;
-  if (c.react || c.delete || c.edit) return null;
-  const { bt, lineas } = extraerBotones(c);
-  let tx = [textoDe(c), ...lineas].filter(Boolean).join("\n");
-  let tp = "t", src = null;
-  const med = c.image || c.sticker;
-  if (med) {
-    try { const b = await bufferDe(med); if (b) src = await imagenADataUrl(b); }
-    catch (e) { log("no pude preparar la imagen: " + e.message); }
-    if (src) tp = "i";
-    else tx = (tx ? tx + "\n\n" : "") + "(imagen no disponible en la página)";
-  } else if (c.video || c.audio || c.document) {
-    const que = c.video ? "video" : c.audio ? "audio" : "archivo";
-    tx = (tx ? tx + "\n\n" : "") + `(${que} no disponible en la página; úsalo desde WhatsApp)`;
+// Mensaje "crudo" de WhatsApp (el que usa relayMessage) → mismo formato que sendMessage
+function desdeProto(m) {
+  for (let i = 0; i < 6 && m; i++) {
+    const w = m.viewOnceMessage || m.viewOnceMessageV2 || m.viewOnceMessageV2Extension || m.ephemeralMessage || m.documentWithCaptionMessage || m.deviceSentMessage || m.editedMessage;
+    if (!w) break;
+    m = w.message;
   }
-  if (!tx && !src) return null;
-  const m = { tp, tx: tx.slice(0, MAX_TEXTO) };
-  if (src) m.src = src;
-  if (bt.length) m.bt = bt;
-  return m;
+  if (!m) return null;
+  const med = (t, n) => ({ _p: { t, n }, caption: n.caption, contextInfo: n.contextInfo });
+  if (m.conversation) return { text: m.conversation };
+  if (m.extendedTextMessage) return { text: m.extendedTextMessage.text, contextInfo: m.extendedTextMessage.contextInfo };
+  if (m.imageMessage) return med("image", m.imageMessage);
+  if (m.videoMessage) return med("video", m.videoMessage);
+  if (m.audioMessage) return med("audio", m.audioMessage);
+  if (m.stickerMessage) return med("sticker", m.stickerMessage);
+  if (m.documentMessage) return med("document", m.documentMessage);
+  if (m.interactiveMessage) {
+    const im = m.interactiveMessage, h = im.header || {};
+    const out = { interactiveMessage: im, contextInfo: im.contextInfo };
+    if (h.imageMessage) out._p = { t: "image", n: h.imageMessage };
+    else if (h.videoMessage) out._p = { t: "video", n: h.videoMessage };
+    return out;
+  }
+  if (m.buttonsMessage) {
+    const b = m.buttonsMessage;
+    const out = { text: b.contentText, footer: b.footerText, buttons: b.buttons, contextInfo: b.contextInfo };
+    if (b.imageMessage) out._p = { t: "image", n: b.imageMessage };
+    else if (b.videoMessage) out._p = { t: "video", n: b.videoMessage };
+    return out;
+  }
+  if (m.listMessage) {
+    const l = m.listMessage;
+    return { title: l.title, text: l.description, footer: l.footerText, sections: l.sections, contextInfo: l.contextInfo };
+  }
+  if (m.templateMessage) {
+    const h = m.templateMessage.hydratedTemplate || m.templateMessage.hydratedFourRowTemplate || {};
+    const out = { title: h.hydratedTitleText, text: h.hydratedContentText, footer: h.hydratedFooterText, templateButtons: h.hydratedButtons };
+    if (h.imageMessage) out._p = { t: "image", n: h.imageMessage };
+    return out;
+  }
+  return null;
 }
 
-async function escribir(PAG, cid, m) {
-  const ref = PAG.fs.collection("chats").doc(cid), t = PAG.FV.serverTimestamp();
-  const b = PAG.fs.batch();
-  b.set(ref.collection("msgs").doc(), { de: "bot", t, ...m });
-  b.set(ref, { ultimo: { tx: String(m.tx || "Imagen").slice(0, 80), tp: "t", t, de: "bot" } }, { merge: true });
-  await b.commit();
-}
-
-export function iniciarChatPagina({ PAG, Timestamp, config, commandRegistry, manejarComando, procesarEspera, intentarProcesarTexto, checkTriviaAnswer }) {
+// ───────── fábrica del módulo ─────────
+export function iniciarChatPagina({ PAG, Timestamp, config, commandRegistry, getAllAccounts, manejarComando, procesarEspera, intentarProcesarTexto, checkTriviaAnswer }) {
   const hecho = new Map();                 // cid -> Timestamp del último mensaje ya atendido
   const ocupado = new Set(), repetir = new Set();
   const usos = new Map();                  // uid -> { t: [...], dia, n }
+
+  // Directorio de personas para etiquetar. La página solo ve nombres y una clave opaca (nunca números).
+  let dirK = new Map(), nomT = new Map(), lista = [], dirT = 0, ultimaLista = "";
+  const clave = (jid) => crypto.createHash("sha1").update("mb:" + jid).digest("hex").slice(0, 10);
+  function refrescar(forzar) {
+    if (!forzar && Date.now() - dirT < 60000 && dirK.size) return;
+    dirT = Date.now();
+    const k = new Map(), n = new Map(), l = [];
+    try {
+      for (const [jid, acc] of getAllAccounts()) {
+        const nombre = String(acc?.profile?.name || "").replace(/\s+/g, " ").trim().slice(0, 30);
+        if (!nombre) continue;
+        k.set(clave(jid), jid); n.set(num(jid), nombre);
+        if (l.length < 600) l.push({ n: nombre, k: clave(jid) });
+      }
+    } catch (e) { log(e); }
+    dirK = k; nomT = n; lista = l;
+  }
+  async function subirUsuarios() {
+    refrescar(true);
+    const s = JSON.stringify(lista);
+    if (s === ultimaLista) return;
+    try { await PAG.fs.collection("bot").doc("usuarios").set({ lista, t: PAG.FV.serverTimestamp() }); ultimaLista = s; }
+    catch (e) { log(e); }
+  }
 
   const nombresCmd = () => new Set([...commandRegistry.values()].flatMap((c) => c.names));
   const categoriaDe = (cmd) => { for (const c of commandRegistry.values()) if (c.names.includes(cmd)) return c.category || ""; return ""; };
@@ -135,27 +259,118 @@ export function iniciarChatPagina({ PAG, Timestamp, config, commandRegistry, man
     return null;
   }
 
-  // "sock" que usan los comandos: lo que iría a este WhatsApp se escribe en la página; lo demás sigue normal
-  function crearSock(real, jid, salida) {
-    return new Proxy(real, {
-      get(t, p) {
-        if (p === "sendMessage") {
-          return async (to, c, o) => {
-            if (to !== jid) return t.sendMessage(to, c, o);
-            await salida(c);
-            return { key: { remoteJid: jid, fromMe: true, id: "PAG" + Date.now().toString(36) }, message: { conversation: typeof c?.text === "string" ? c.text : "" }, status: 1 };
-          };
+  // Convierte lo que el bot "mandaría a WhatsApp" en un mensaje para la página
+  async function aMensaje(c) {
+    if (!c || typeof c !== "object") return null;
+    if (c.react || c.delete || c.edit) return null;
+    const im = c.interactiveMessage;
+    const { bt, bu, lineas } = extraerBotones(c);
+    const titulo = c.title || im?.header?.title;
+    const cuerpo = c.text ?? c.caption ?? im?.body?.text;
+    const pie = c.footer || im?.footer?.text;
+    const nota = (s) => { tx = (tx ? tx + "\n\n" : "") + s; };
+    let tx = [titulo && `*${String(titulo).trim()}*`, cuerpo, ...lineas].filter((x) => typeof x === "string" && x.trim()).join("\n\n");
+    const m = { tp: "t" };
+
+    // imagen, sticker, video, audio, archivo
+    let med = null;
+    try {
+      if (c._p) {
+        med = { k: c._p.t, nombre: c._p.n.fileName, mime: c._p.n.mimetype, gif: !!c._p.n.gifPlayback };
+        med.origen = await descargarProto(c._p.n, c._p.t);
+      } else {
+        for (const t of ["image", "sticker", "video", "audio", "document"]) {
+          if (c[t]) { med = { k: t, origen: c[t], nombre: c.fileName, mime: c.mimetype, gif: !!c.gifPlayback }; break; }
         }
-        if (p === "sendPresenceUpdate" || p === "presenceSubscribe" || p === "readMessages") return async () => {};
-        const v = t[p];
-        return typeof v === "function" ? v.bind(t) : v;
       }
-    });
+    } catch (e) { log("no pude bajar el archivo: " + e.message); nota("(no pude cargar el archivo en la página)"); }
+    if (med && med.origen) {
+      try {
+        if (med.k === "image" || med.k === "sticker") {
+          const b = await bufferDe(med.origen);
+          const src = b && (await imagenADataUrl(b));
+          if (src) { m.tp = "i"; m.src = src; } else nota("(imagen no disponible en la página)");
+        } else {
+          let url = null;
+          try {
+            if (USAR_HOSTING_MEDIA) { const b = await bufferDe(med.origen); if (b) url = await subirMedia(b, nombreArchivo(med)); }
+          } catch (e) {
+            log("hosting de archivos: " + e.message);
+            const u0 = med.origen && med.origen.url;
+            if (typeof u0 === "string" && /^https?:/i.test(u0) && !/whatsapp\.net/i.test(u0)) url = u0;
+          }
+          if (url) {
+            m.tp = { video: "v", audio: "a", document: "d" }[med.k]; m.u = url;
+            if (med.nombre) m.nm = String(med.nombre).slice(0, 80);
+            if (med.gif) m.gif = true;
+          } else nota(`(${{ video: "video", audio: "audio", document: "archivo" }[med.k]} no disponible en la página; úsalo desde WhatsApp)`);
+        }
+      } catch (e) { log("medio: " + e.message); nota("(no pude mostrar el archivo en la página)"); }
+    }
+
+    // tarjeta de "previa" que manda el bot (externalAdReply)
+    const ar = (c.contextInfo || im?.contextInfo)?.externalAdReply;
+    if (ar && (ar.title || ar.body || ar.thumbnail || ar.thumbnailUrl)) {
+      try {
+        const card = { t: String(ar.title || "").slice(0, 100), b: String(ar.body || "").slice(0, 160) };
+        const u = ar.sourceUrl || ar.mediaUrl || "";
+        if (/^https?:\/\//i.test(u)) card.u = String(u).slice(0, 500);
+        const tb = ar.thumbnail ? (typeof ar.thumbnail === "string" ? Buffer.from(ar.thumbnail, "base64") : Buffer.from(ar.thumbnail)) : ar.thumbnailUrl ? await bufferDe(ar.thumbnailUrl, 3e6) : null;
+        if (tb) { const img = await imagenADataUrl(tb, 360, MAX_CARD_BYTES); if (img) card.img = img; }
+        m.ar = card;
+      } catch (e) { log("previa del bot: " + e.message); }
+    }
+
+    // menciones: el número se muestra con el nombre de la persona
+    refrescar();
+    const nums = new Set([...(c.mentions || (c.contextInfo || im?.contextInfo)?.mentionedJid || []).map(num), ...[...tx.matchAll(/@(\d{6,20})/g)].map((x) => x[1])]);
+    const mn = {};
+    for (const n of nums) if (nomT.has(n)) mn[n] = nomT.get(n);
+    if (Object.keys(mn).length) m.mn = mn;
+
+    // previa de enlace (como WhatsApp) cuando el mensaje es solo texto
+    if (m.tp === "t" && !m.ar) {
+      const u = (tx.match(/https?:\/\/[^\s<>"']+/) || [])[0];
+      if (u) { const p = await Promise.race([previa(u.replace(/[.,;:!?)\]]+$/, "")), new Promise((r) => setTimeout(() => r(null), 6000))]); if (p) m.lp = p; }
+    }
+
+    if (tx) m.tx = tx.slice(0, MAX_TEXTO);
+    if (pie) m.ft = String(pie).slice(0, 200);
+    if (bt.length) m.bt = bt;
+    if (bu.length) m.bu = bu;
+    if (!m.tx && m.tp === "t" && !m.ar && !m.lp && !m.bt && !m.bu) return null;
+    return m;
+  }
+
+  async function escribir(cid, m) {
+    const ref = PAG.fs.collection("chats").doc(cid), t = PAG.FV.serverTimestamp();
+    const resumen = m.tx || { i: "Imagen", v: "Video", a: "Audio", d: "Archivo" }[m.tp] || (m.ar && m.ar.t) || "Mensaje";
+    const b = PAG.fs.batch();
+    b.set(ref.collection("msgs").doc(), { de: "bot", t, ...m });
+    b.set(ref, { ultimo: { tx: String(resumen).slice(0, 80), tp: "t", t, de: "bot" } }, { merge: true });
+    await b.commit();
+  }
+
+  // Desvía a la página lo que cualquier parte del bot mande al WhatsApp de quien usa el chat
+  function instalar(real) {
+    if (!real || parchados.has(real)) return;
+    parchados.add(real);
+    try {
+      const envio = real.sendMessage.bind(real);
+      const reen = typeof real.relayMessage === "function" ? real.relayMessage.bind(real) : null;
+      const pres = typeof real.sendPresenceUpdate === "function" ? real.sendPresenceUpdate.bind(real) : null;
+      const leer = typeof real.readMessages === "function" ? real.readMessages.bind(real) : null;
+      const suyo = (x, to) => typeof to === "string" && !to.endsWith("@g.us") && num(to) === num(x.jid);
+      real.sendMessage = async (to, c, o) => { const x = als.getStore(); return x && suyo(x, to) ? x.enviar(c) : envio(to, c, o); };
+      if (reen) real.relayMessage = async (to, m, o) => { const x = als.getStore(); return x && suyo(x, to) ? x.reenviar(m, o) : reen(to, m, o); };
+      if (pres) real.sendPresenceUpdate = async (...a) => { if (als.getStore()) return; return pres(...a); };
+      if (leer) real.readMessages = async (...a) => { if (als.getStore()) return; return leer(...a); };
+    } catch (e) { log("no pude preparar el desvío: " + e.message); }
   }
 
   async function atender(cid, uid, d) {
-    const resp = (tx) => escribir(PAG, cid, { tp: "t", tx });
-    const texto = String(d.tx || "").trim().slice(0, 500);
+    const resp = (tx) => escribir(cid, { tp: "t", tx });
+    let texto = String(d.tx || "").trim().slice(0, 500);
     const bid = typeof d.bid === "string" ? d.bid.trim().slice(0, 200) : "";
     if (!texto && !bid) return;
     const jid = PAG.vinc.get(uid)?.jid;
@@ -163,57 +378,80 @@ export function iniciarChatPagina({ PAG, Timestamp, config, commandRegistry, man
     if (!jid) return resp("Para usar los comandos, primero vincula tu WhatsApp: Mi perfil → Mi WhatsApp → Generar código, y mándalo al bot con .vincular CÓDIGO.");
     const lim = limite(uid);
     if (lim) return resp(lim);
+    instalar(PAG.sock);
+
+    // etiquetas hechas desde la página: @Nombre → @número + mentionedJid, como en WhatsApp
+    const mencionados = [];
+    if (Array.isArray(d.mn) && !bid) {
+      refrescar();
+      const ys = d.mn.filter((x) => x && typeof x.k === "string" && typeof x.n === "string").slice(0, 10).sort((a, b) => b.n.length - a.n.length);
+      for (const x of ys) {
+        const j = dirK.get(x.k), at = "@" + x.n;
+        if (!j || !texto.includes(at)) continue;
+        texto = texto.split(at).join("@" + num(j));
+        if (!mencionados.includes(j)) mencionados.push(j);
+      }
+    }
 
     let cola = Promise.resolve(), salio = 0;
     const salida = (c) => (cola = cola.then(async () => {
       const m = await aMensaje(c);
-      if (m) { salio++; await escribir(PAG, cid, m); }
+      if (m) { salio++; await escribir(cid, m); }
     }).catch(log));
-    const sock = crearSock(PAG.sock, jid, salida);
-    const msg = {
-      key: { remoteJid: jid, fromMe: false, id: "PAG" + Math.random().toString(36).slice(2, 12).toUpperCase() },
-      message: { conversation: bid || texto },
-      messageTimestamp: Math.floor(Date.now() / 1000)
+    const idFalso = () => "PAG" + Math.random().toString(36).slice(2, 12).toUpperCase();
+    const ctx = {
+      jid,
+      enviar: async (c) => { await salida(c); return { key: { remoteJid: jid, fromMe: true, id: idFalso() }, message: { conversation: typeof c?.text === "string" ? c.text : "" }, status: 1 }; },
+      reenviar: async (m, o) => { const c = desdeProto(m); if (c) await salida(c); return o?.messageId || idFalso(); }
     };
+    const msg = {
+      key: { remoteJid: jid, fromMe: false, id: idFalso() },
+      message: mencionados.length ? { extendedTextMessage: { text: bid || texto, contextInfo: { mentionedJid: mencionados } } } : { conversation: bid || texto },
+      messageTimestamp: Math.floor(Date.now() / 1000),
+      paginaChat: true
+    };
+    const sock = PAG.sock;
 
     const correr = async (textoCmd) => {
       const cmd = textoCmd.trim().toLowerCase().split(/\s+/)[0];
       const cat = categoriaDe(cmd);
-      if (BLOQ_CMD.has(cmd) || (cat && BLOQ_CAT.test(cat))) {
+      if (BLOQ_CMD.has(cmd) || (BLOQ_CAT && cat && BLOQ_CAT.test(cat))) {
         await resp("Ese comando no está disponible en el chat de la página. Úsalo desde WhatsApp.");
         return true;
       }
       return await manejarComando(sock, jid, jid, textoCmd, msg);
     };
 
-    try {
-      let manejado = false;
-      if (bid) {
-        manejado = await correr(bid);
-      } else {
-        const prefs = (config.prefixes && config.prefixes.length) ? config.prefixes : [config.prefix || "."];
-        const pref = [...prefs].sort((a, b) => b.length - a.length).find((p) => texto.startsWith(p));
-        if (pref) {
-          const c = comoComando(texto.slice(pref.length));
-          manejado = c ? await correr(c) : false;
-          if (!manejado) await resp("No conozco ese comando. Escribe .menu para ver los comandos.");
+    await als.run(ctx, async () => {
+      try {
+        let manejado = false;
+        if (bid) {
+          manejado = await correr(bid);
         } else {
-          manejado = await procesarEspera(`${jid}:${jid}`, texto, { sock, from: jid, sender: jid, msg });
-          if (!manejado) manejado = await intentarProcesarTexto(sock, jid, jid, texto, msg);
-          if (!manejado) {
-            const c = comoComando(texto);
-            if (c && nombresCmd().has(c.split(/\s+/)[0])) manejado = await correr(c);
+          const prefs = (config.prefixes && config.prefixes.length) ? config.prefixes : [config.prefix || "."];
+          const pref = [...prefs].sort((a, b) => b.length - a.length).find((p) => texto.startsWith(p));
+          if (pref) {
+            const c = comoComando(texto.slice(pref.length));
+            manejado = c ? await correr(c) : false;
+            if (!manejado) await resp("No conozco ese comando. Escribe .menu para ver los comandos.");
+          } else {
+            manejado = await procesarEspera(`${jid}:${jid}`, texto, { sock, from: jid, sender: jid, msg });
+            if (!manejado) manejado = await intentarProcesarTexto(sock, jid, jid, texto, msg);
+            if (!manejado) {
+              const c = comoComando(texto);
+              if (c && nombresCmd().has(c.split(/\s+/)[0])) manejado = await correr(c);
+            }
+            if (!manejado) { try { await checkTriviaAnswer(sock, jid, jid, texto, msg); } catch (e) { log(e); } }
+            await cola;
+            if (!manejado && !salio) await resp("Escribe un comando para empezar, por ejemplo .menu");
           }
-          if (!manejado) { try { await checkTriviaAnswer(sock, jid, jid, texto, msg); } catch (e) { log(e); } }
-          await cola;
-          if (!manejado && !salio) await resp("Escribe un comando para empezar, por ejemplo .menu");
         }
+        await cola;
+      } catch (e) {
+        log(e);
+        await resp("Ocurrió un error ejecutando eso. Intenta de nuevo.").catch(log);
       }
-      await cola;
-    } catch (e) {
-      log(e);
-      await resp("Ocurrió un error ejecutando eso. Intenta de nuevo.").catch(log);
-    }
+    });
   }
 
   // Atiende, en orden, los mensajes nuevos de la persona. Se marca cada uno ANTES de ejecutarlo:
@@ -257,4 +495,7 @@ export function iniciarChatPagina({ PAG, Timestamp, config, commandRegistry, man
   }
 
   escuchar();
+  setTimeout(subirUsuarios, 15000);
+  setInterval(subirUsuarios, 10 * 60000);
+  return { aMensaje, desdeProto };
 }
