@@ -61,7 +61,8 @@ export async function connectDB(intentos = 5) {
           rachas: doc.rachas || {},
           negocios: doc.negocios || {},
           afk: doc.afk || null,
-          profile: doc.profile
+          profile: doc.profile,
+          gachaClaim: doc.gachaClaim
         });
       }
       console.log(`Datos cargados desde MongoDB: ${accounts.size} cuentas`);
@@ -149,7 +150,7 @@ function documentoCuenta(sender) {
   const acc = accounts.get(sender);
   if (!acc) return null;
   const doc = { _id: sender, wallet: acc.wallet, bank: acc.bank };
-  for (const clave of ["cooldowns", "rachas", "negocios", "afk", "profile"]) {
+  for (const clave of ["cooldowns", "rachas", "negocios", "afk", "profile", "gachaClaim"]) {
     const valor = acc[clave];
     const vacio = valor === undefined || valor === null || (typeof valor === "object" && Object.keys(valor).length === 0);
     if (!vacio) doc[clave] = valor;
@@ -202,7 +203,8 @@ async function arrancarModoRespaldo() {
         rachas: doc.rachas || {},
         negocios: doc.negocios || {},
         afk: doc.afk || null,
-        profile: doc.profile
+        profile: doc.profile,
+          gachaClaim: doc.gachaClaim
       });
     }
     const cfgDoc = (datos.config || []).find((d) => d._id === "bot");
@@ -289,7 +291,8 @@ export async function recargarDatos() {
       rachas: doc.rachas || {},
       negocios: doc.negocios || {},
       afk: doc.afk || null,
-      profile: doc.profile
+      profile: doc.profile,
+          gachaClaim: doc.gachaClaim
     });
   }
 
@@ -327,7 +330,7 @@ function armarOperacion(sender) {
   }
   const asignar = { wallet: acc.wallet, bank: acc.bank };
   const quitar = {};
-  const opcionales = { cooldowns: acc.cooldowns, rachas: acc.rachas, negocios: acc.negocios, afk: acc.afk, profile: acc.profile };
+  const opcionales = { cooldowns: acc.cooldowns, rachas: acc.rachas, negocios: acc.negocios, afk: acc.afk, profile: acc.profile, gachaClaim: acc.gachaClaim };
   for (const [clave, valor] of Object.entries(opcionales)) {
     const vacio = valor === undefined || valor === null || (typeof valor === "object" && Object.keys(valor).length === 0);
     if (vacio) quitar[clave] = "";

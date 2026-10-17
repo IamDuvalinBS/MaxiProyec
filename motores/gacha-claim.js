@@ -1,4 +1,4 @@
-import { config, saveConfig } from "./db.js";
+import { getAccount, saveAccount } from "./db.js";
 import { enviarConBoton } from "./botones.js";
 
 export const FIRMA_CLAIM = "ByDuvalinBS";
@@ -33,7 +33,7 @@ export const listaVariantes = () => Object.values(VARIANTES).map((v) => v.nombre
 
 export function mensajeReclamo({ categoria, sender, personaje }) {
   const variante = VARIANTES[categoria]?.nombre || categoria;
-  const base = config.gachaClaim?.[categoria] || TEXTO_CLAIM_BASE;
+  const base = getAccount(sender).gachaClaim?.[categoria] || TEXTO_CLAIM_BASE;
   const mentions = [];
   const texto = PREFIJO_CLAIM + base
     .replace(/\{user\}/gi, () => {
@@ -62,13 +62,14 @@ export async function enviarReclamo({ sock, from, msg, texto, mentions, reply })
   if (!enviado) await reply({ text: `${texto}\n\n${FIRMA_CLAIM}`, mentions });
 }
 
-export async function guardarClaim(categoria, texto) {
+export async function guardarClaim(sender, categoria, texto) {
   const claves = categoria === "todos" ? Object.keys(VARIANTES) : [categoria];
-  const actual = { ...(config.gachaClaim || {}) };
+  const cuenta = getAccount(sender);
+  const actual = { ...(cuenta.gachaClaim || {}) };
   for (const c of claves) {
     if (texto) actual[c] = texto;
     else delete actual[c];
   }
-  config.gachaClaim = actual;
-  await saveConfig();
+  cuenta.gachaClaim = actual;
+  await saveAccount(sender);
 }
