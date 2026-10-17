@@ -14,7 +14,9 @@ import { createCanvas, loadImage } from "@napi-rs/canvas";
 const MAX_CMD_MIN = 15;          // comandos por minuto por persona
 const MAX_CMD_DIA = 400;         // mensajes por día por persona (cuida la cuota gratis de Firebase)
 const VENCE_MS = 10 * 60000;     // mensajes más viejos que esto (bot apagado) se ignoran
-const MAX_TEXTO = 6000;
+const MAX_BYTES_TEXTO = 900000;  // sin límite práctico: solo el tope de Firestore (1 MB por mensaje)
+const VENTANA_MS = 6 * 60000;   // tras un comando de la página, respuestas tardías del bot siguen yendo a la página
+const DEPURAR = true;           // escribe en la consola qué recibe y qué manda la página
 const MAX_IMG_BYTES = 120000;    // las imágenes se achican para que quepan en Firestore
 const MAX_CARD_BYTES = 30000;    // miniaturas de previas
 const MAX_MEDIA = 60 * 1024 * 1024;
@@ -27,7 +29,27 @@ const BLOQ_CMD = new Set([]);    // comandos sueltos bloqueados, ej: ".algo"
 // ───────────────────────────────────────────────
 
 const log = (e) => console.log("Chat página: " + (e?.message || e));
+const dep = (s) => { if (DEPURAR) console.log("Chat página: " + s); };
+function recortar(s) {
+  s = String(s);
+  if (Buffer.byteLength(s) <= MAX_BYTES_TEXTO) return s;
+  let fin = Math.min(s.length, MAX_BYTES_TEXTO / 3 | 0);
+  while (fin < s.length && Buffer.byteLength(s.slice(0, fin + 1000)) <= MAX_BYTES_TEXTO) fin += 1000;
+  return s.slice(0, fin) + "\n…";
+}
 const num = (j) => String(j || "").split("@")[0].split(":")[0];
+function mensajeFalso(c, jid) {
+  const id = "PAG" + Math.random().toString(36).slice(2, 12).toUpperCase();
+  const cap = typeof c?.caption === "string" ? c.caption : typeof c?.text === "string" ? c.text : "";
+  let message;
+  if (c?.image) message = { imageMessage: { caption: cap, mimetype: c.mimetype || "image/jpeg", url: "pagina://imagen", directPath: "pagina" } };
+  else if (c?.video) message = { videoMessage: { caption: cap, mimetype: c.mimetype || "video/mp4", gifPlayback: !!c.gifPlayback, url: "pagina://video", directPath: "pagina" } };
+  else if (c?.audio) message = { audioMessage: { mimetype: c.mimetype || "audio/mpeg", ptt: !!c.ptt, url: "pagina://audio", directPath: "pagina" } };
+  else if (c?.sticker) message = { stickerMessage: { mimetype: "image/webp", url: "pagina://sticker", directPath: "pagina" } };
+  else if (c?.document) message = { documentMessage: { fileName: c.fileName || "archivo", mimetype: c.mimetype || "application/octet-stream", caption: cap, url: "pagina://archivo", directPath: "pagina" } };
+  else message = { extendedTextMessage: { text: cap }, conversation: cap };
+  return { key: { remoteJid: jid, fromMe: true, id }, message, messageTimestamp: Math.floor(Date.now() / 1000), status: 1 };
+}
 const als = new AsyncLocalStorage();
 const parchados = new WeakSet();
 
@@ -155,15 +177,17 @@ function extraerBotones(c) {
       else if (b.urlButton) addU(b.urlButton.displayText, b.urlButton.url);
     }
     for (const s of c.sections || []) for (const r of s.rows || []) add(r.title, r.rowId);
-    const nf = c.interactiveMessage?.nativeFlowMessage?.buttons || c.nativeFlowMessage?.buttons || [];
+    const nf = [...(c.interactiveButtons || []), ...(c.interactiveMessage?.nativeFlowMessage?.buttons || []), ...(c.nativeFlowMessage?.buttons || []),
+      ...(c.buttons || []).filter((b) => b.nativeFlowInfo).map((b) => ({ name: b.nativeFlowInfo.name, buttonParamsJson: b.nativeFlowInfo.paramsJson }))];
     for (const b of nf) {
       let p = {};
-      try { p = JSON.parse(b.buttonParamsJson || "{}"); } catch (_) {}
+      try { p = typeof b.buttonParamsJson === "string" ? JSON.parse(b.buttonParamsJson || "{}") : (b.buttonParamsJson || {}); } catch (_) {}
       if (b.name === "quick_reply") add(p.display_text, p.id);
       else if (b.name === "cta_url") addU(p.display_text, p.url || p.merchant_url);
       else if (b.name === "cta_copy") lineas.push(`${p.display_text}: ${p.copy_code}`);
       else if (b.name === "cta_call") lineas.push(`${p.display_text}: ${p.phone_number}`);
-      else if (b.name === "single_select") for (const s of p.sections || []) for (const r of s.rows || []) add(r.title, r.id);
+      else if (b.name === "single_select") for (const sec of p.sections || []) for (const r of sec.rows || []) add(r.title, r.id);
+      else dep("botón no reconocido: " + b.name);
     }
   } catch (_) {}
   return { bt, bu, lineas };
@@ -217,6 +241,8 @@ export function iniciarChatPagina({ PAG, Timestamp, config, commandRegistry, get
   const hecho = new Map();                 // cid -> Timestamp del último mensaje ya atendido
   const ocupado = new Set(), repetir = new Set();
   const usos = new Map();                  // uid -> { t: [...], dia, n }
+  const sesiones = new Map();              // número -> { ctx, t } último comando hecho desde la página
+  const actividadWA = new Map();           // número -> última vez que escribió por WhatsApp
 
   // Directorio de personas para etiquetar. La página solo ve nombres y una clave opaca (nunca números).
   let dirK = new Map(), nomT = new Map(), lista = [], dirT = 0, ultimaLista = "";
@@ -334,7 +360,7 @@ export function iniciarChatPagina({ PAG, Timestamp, config, commandRegistry, get
       if (u) { const p = await Promise.race([previa(u.replace(/[.,;:!?)\]]+$/, "")), new Promise((r) => setTimeout(() => r(null), 6000))]); if (p) m.lp = p; }
     }
 
-    if (tx) m.tx = tx.slice(0, MAX_TEXTO);
+    if (tx) m.tx = recortar(tx);
     if (pie) m.ft = String(pie).slice(0, 200);
     if (bt.length) m.bt = bt;
     if (bu.length) m.bu = bu;
@@ -360,11 +386,24 @@ export function iniciarChatPagina({ PAG, Timestamp, config, commandRegistry, get
       const reen = typeof real.relayMessage === "function" ? real.relayMessage.bind(real) : null;
       const pres = typeof real.sendPresenceUpdate === "function" ? real.sendPresenceUpdate.bind(real) : null;
       const leer = typeof real.readMessages === "function" ? real.readMessages.bind(real) : null;
-      const suyo = (x, to) => typeof to === "string" && !to.endsWith("@g.us") && num(to) === num(x.jid);
-      real.sendMessage = async (to, c, o) => { const x = als.getStore(); return x && suyo(x, to) ? x.enviar(c) : envio(to, c, o); };
-      if (reen) real.relayMessage = async (to, m, o) => { const x = als.getStore(); return x && suyo(x, to) ? x.reenviar(m, o) : reen(to, m, o); };
-      if (pres) real.sendPresenceUpdate = async (...a) => { if (als.getStore()) return; return pres(...a); };
+      const ctxDe = (to) => {
+        if (typeof to !== "string" || to.endsWith("@g.us")) return null;
+        const x = als.getStore();
+        if (x) return num(to) === num(x.jid) ? x : null;
+        const ss = sesiones.get(num(to));        // respuesta tardía (cola, proceso aparte): sigue en la página
+        if (ss && Date.now() - ss.t < VENTANA_MS && (actividadWA.get(num(to)) || 0) < ss.t) { dep("respuesta tardía llevada a la página"); return ss.ctx; }
+        return null;
+      };
+      real.sendMessage = async (to, c, o) => { const x = ctxDe(to); return x ? x.enviar(c) : envio(to, c, o); };
+      if (reen) real.relayMessage = async (to, m, o) => { const x = ctxDe(to); return x ? x.reenviar(m, o) : reen(to, m, o); };
+      if (pres) real.sendPresenceUpdate = async (...a) => { if (als.getStore() || ctxDe(a[0])) return; return pres(...a); };
       if (leer) real.readMessages = async (...a) => { if (als.getStore()) return; return leer(...a); };
+      real.ev?.on?.("messages.upsert", ({ messages }) => {      // si escribe por WhatsApp, ahí le responde
+        for (const m of messages || []) {
+          if (m.key?.fromMe) continue;
+          for (const j of [m.key?.remoteJid, m.key?.participant, m.key?.remoteJidAlt, m.key?.participantAlt]) if (j) actividadWA.set(num(j), Date.now());
+        }
+      });
     } catch (e) { log("no pude preparar el desvío: " + e.message); }
   }
 
@@ -401,8 +440,8 @@ export function iniciarChatPagina({ PAG, Timestamp, config, commandRegistry, get
     const idFalso = () => "PAG" + Math.random().toString(36).slice(2, 12).toUpperCase();
     const ctx = {
       jid,
-      enviar: async (c) => { await salida(c); return { key: { remoteJid: jid, fromMe: true, id: idFalso() }, message: { conversation: typeof c?.text === "string" ? c.text : "" }, status: 1 }; },
-      reenviar: async (m, o) => { const c = desdeProto(m); if (c) await salida(c); return o?.messageId || idFalso(); }
+      enviar: async (c) => { dep("respuesta [" + Object.keys(c || {}).join(",") + "]"); await salida(c); return mensajeFalso(c, jid); },
+      reenviar: async (m, o) => { const c = desdeProto(m); dep("respuesta (relay) [" + Object.keys(m || {}).join(",") + "]" + (c ? "" : " sin convertir")); if (c) await salida(c); return o?.messageId || idFalso(); }
     };
     const msg = {
       key: { remoteJid: jid, fromMe: false, id: idFalso() },
@@ -411,6 +450,9 @@ export function iniciarChatPagina({ PAG, Timestamp, config, commandRegistry, get
       paginaChat: true
     };
     const sock = PAG.sock;
+    sesiones.set(num(jid), { ctx, t: Date.now() });
+    if (sesiones.size > 500) sesiones.delete(sesiones.keys().next().value);
+    dep(`${uid} → ${bid ? "botón " + bid : texto.slice(0, 60)}`);
 
     const correr = async (textoCmd) => {
       const cmd = textoCmd.trim().toLowerCase().split(/\s+/)[0];
