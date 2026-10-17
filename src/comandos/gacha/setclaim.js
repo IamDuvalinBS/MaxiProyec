@@ -1,4 +1,3 @@
-import { ownerGacha } from "../../../motores/gacha-owners.js";
 import {
   VARIANTES, LIMITE_TEXTO_CLAIM, PREFIJO_CLAIM, resolverVariante, listaVariantes, guardarClaim
 } from "../../../motores/gacha-claim.js";
@@ -6,7 +5,7 @@ import {
 const USO = [
   "⚙️ Uso: *.setclaim <texto> • <variante>*",
   "",
-  "> Cambia el texto que aparece al reclamar un personaje de esa variante. El inicio *#✿* se mantiene fijo.",
+  "> Cambia el texto que aparece cuando *tú* reclamas un personaje de esa variante. El inicio *#✿* se mantiene fijo.",
   "> Variables opcionales: *{user}*, *{personaje}* y *{variante}*.",
   "",
   "Ejemplos:",
@@ -21,9 +20,9 @@ const USO = [
 export default {
   names: [".setclaim"],
   usage: ".setclaim <texto> • <variante>",
-  desc: "Cambiar el mensaje de reclamación de cada gacha (solo owner)",
+  desc: "Personalizar tu mensaje de reclamación de cada gacha",
   category: "Gacha",
-  handler: ownerGacha(async ({ cleanText, reply }) => {
+  handler: async ({ cleanText, sender, reply }) => {
     const resto = cleanText.replace(/^\S+\s*/, "").trim();
     const m = resto.match(/^([\s\S]*?)\s*[•|]\s*([^•|]+)$/);
     if (!m) return reply({ text: USO });
@@ -36,15 +35,15 @@ export default {
     const nombre = categoria === "todos" ? "todas las variantes" : VARIANTES[categoria].nombre;
 
     if (/^(reset|restablecer|default)$/i.test(texto)) {
-      await guardarClaim(categoria, null);
-      return reply({ text: `✅ Se restableció el mensaje de reclamación de *${nombre}*.` });
+      await guardarClaim(sender, categoria, null);
+      return reply({ text: `✅ Se restableció tu mensaje de reclamación de *${nombre}*.` });
     }
 
     if (texto.length > LIMITE_TEXTO_CLAIM) {
       return reply({ text: `❌ El mensaje es demasiado largo. El máximo es de ${LIMITE_TEXTO_CLAIM} caracteres.` });
     }
 
-    await guardarClaim(categoria, texto);
-    return reply({ text: `✅ Mensaje de reclamación de *${nombre}* actualizado:\n\n${PREFIJO_CLAIM}${texto}` });
-  })
+    await guardarClaim(sender, categoria, texto);
+    return reply({ text: `✅ Tu mensaje de reclamación de *${nombre}* quedó así:\n\n${PREFIJO_CLAIM}${texto}` });
+  }
 };
