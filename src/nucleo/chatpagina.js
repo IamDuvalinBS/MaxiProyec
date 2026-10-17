@@ -11,7 +11,7 @@ import { AsyncLocalStorage } from "async_hooks";
 import { createCanvas, loadImage } from "@napi-rs/canvas";
 
 // ───────── Ajustes (puedes cambiarlos) ─────────
-const MAX_CMD_MIN = 15;          // comandos por minuto por persona
+const MAX_CMD_MIN = Number(process.env.CHAT_PAGINA_MAX_CMD_MIN) || 15;   // comandos por minuto por persona
 const MAX_CMD_DIA = 400;         // mensajes por día por persona (cuida la cuota gratis de Firebase)
 const VENCE_MS = 10 * 60000;     // mensajes más viejos que esto (bot apagado) se ignoran
 const MAX_BYTES_TEXTO = 900000;  // sin límite práctico: solo el tope de Firestore (1 MB por mensaje)
@@ -21,6 +21,8 @@ const TTL_MS = Number(process.env.CHAT_PAGINA_TTL_MS) || 3 * 60000;
 const DEPURAR = true;           // escribe en la consola qué recibe y qué manda la página
 const MAX_IMG_BYTES = 120000;    // las imágenes se achican para que quepan en Firestore
 const MAX_CARD_BYTES = 30000;    // miniaturas de previas
+const MAX_PREV_BYTES = 45000;    // imagen de la previa de un enlace
+const UA = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Mobile Safari/537.36";
 const MAX_MEDIA = 60 * 1024 * 1024;
 // Audio, video y archivos no caben en Firestore: se suben a un hosting gratis temporal (litterbox,
 // se borran solos a las 72 h) y la página los reproduce desde ahí. Pon false para desactivarlo.
@@ -158,25 +160,42 @@ function meta(h, p) {
   const c = tag && tag.match(/content=["']([^"']*)["']/i);
   return c ? ent(c[1]).trim() : "";
 }
-async function previa(url) {
+async function traerImagen(u, referer) {
+  const r = await fetch(u, { signal: AbortSignal.timeout(10000), redirect: "follow", headers: { "user-agent": UA, accept: "image/avif,image/webp,image/*,*/*;q=0.8", ...(referer ? { referer } : {}) } });
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  if (Number(r.headers.get("content-length") || 0) > 6e6) throw new Error("imagen muy grande");
+  const b = Buffer.from(await r.arrayBuffer());
+  if (b.length > 6e6) throw new Error("imagen muy grande");
+  return b;
+}
+async function previa(url, intento = 0) {
   if (cachePrev.has(url)) return cachePrev.get(url);
   let res = null;
   try {
     if (urlSegura(url)) {
-      const r = await fetch(url, { signal: AbortSignal.timeout(5000), redirect: "follow", headers: { "user-agent": "Mozilla/5.0 (compatible; MamboBot/1.0)", accept: "text/html" } });
+      const r = await fetch(url, { signal: AbortSignal.timeout(8000), redirect: "follow", headers: { "user-agent": UA, accept: "text/html,application/xhtml+xml", "accept-language": "es,en;q=0.8" } });
       if (r.ok && /html/i.test(r.headers.get("content-type") || "") && Number(r.headers.get("content-length") || 0) < 3e6) {
-        const h = Buffer.from(await r.arrayBuffer()).subarray(0, 200000).toString("utf8");
+        const h = Buffer.from(await r.arrayBuffer()).subarray(0, 250000).toString("utf8");
         const t = meta(h, "og:title") || meta(h, "twitter:title") || ent(((h.match(/<title[^>]*>([^<]*)/i) || [])[1] || "")).trim();
         const d = meta(h, "og:description") || meta(h, "twitter:description") || meta(h, "description");
         const im = meta(h, "og:image") || meta(h, "twitter:image");
-        let iu = null;
-        if (im) { try { const u2 = new URL(im, url).href.replace(/^http:/i, "https:"); if (urlSegura(u2)) iu = u2.slice(0, 1500); } catch (_) {} }
-        if (t || d || iu) { res = { u: url, t: t.slice(0, 100), b: d.slice(0, 160) }; if (iu) res.iu = iu; }
-      }
+        let iu = null, img = null;
+        if (im) {
+          try {
+            const u2 = new URL(im, url).href.replace(/^http:/i, "https:");
+            if (urlSegura(u2)) {
+              iu = u2.slice(0, 1500);
+              try { img = await imagenADataUrl(await traerImagen(u2, url), 520, MAX_PREV_BYTES); }
+              catch (e) { dep("previa: no pude bajar la imagen (" + e.message + "), se usará el enlace directo"); }
+            }
+          } catch (_) {}
+        }
+        if (t || d || iu) { res = { u: url, t: t.slice(0, 100), b: d.slice(0, 160) }; if (img) res.img = img; else if (iu) res.iu = iu; }
+      } else dep("previa: respuesta " + r.status + " en " + url);
     }
-  } catch (_) {}
-  cachePrev.set(url, res);
-  if (cachePrev.size > 200) cachePrev.delete(cachePrev.keys().next().value);
+  } catch (e) { dep("previa: " + e.message); }
+  if (!res && intento < 1) { await new Promise((ok) => setTimeout(ok, 1200)); return previa(url, 1); }   // un reintento; un fallo no se guarda
+  if (res) { cachePrev.set(url, res); if (cachePrev.size > 200) cachePrev.delete(cachePrev.keys().next().value); }
   return res;
 }
 
@@ -214,6 +233,24 @@ function extraerBotones(c) {
   return { bt, bu, lineas };
 }
 
+// Mensaje al que responde (cita) un mensaje del bot, igual que en WhatsApp
+function textoCita(m) {
+  for (let i = 0; i < 4 && m; i++) { const w = m.viewOnceMessage || m.ephemeralMessage || m.documentWithCaptionMessage; if (!w) break; m = w.message; }
+  if (!m) return "";
+  return m.conversation || m.extendedTextMessage?.text || m.imageMessage?.caption || m.videoMessage?.caption || m.documentMessage?.caption || m.buttonsMessage?.contentText || m.interactiveMessage?.body?.text || m.listMessage?.description || "";
+}
+function citaDe(c, o) {
+  const q = o && o.quoted;
+  let id = null, tx = "", mio = false;
+  if (q && q.key) { id = q.key.id; tx = textoCita(q.message); mio = !!q.key.fromMe; }
+  else {
+    const ci = c && (c.contextInfo || c.interactiveMessage?.contextInfo);
+    if (ci && ci.stanzaId) { id = ci.stanzaId; tx = textoCita(ci.quotedMessage); mio = !!ci.participant && String(ci.participant).endsWith("@pagina"); }
+  }
+  if (!id) return null;
+  return { qr: String(id).slice(0, 60), qt: String(tx).slice(0, 140), qd: mio ? "b" : "u" };
+}
+
 // Mensaje "crudo" de WhatsApp (el que usa relayMessage) → mismo formato que sendMessage
 function desdeProto(m) {
   for (let i = 0; i < 6 && m; i++) {
@@ -222,6 +259,12 @@ function desdeProto(m) {
     m = w.message;
   }
   if (!m) return null;
+  if (m.protocolMessage) {      // borrar / editar un mensaje
+    const pm = m.protocolMessage;
+    if (pm.type === 0 || pm.type === "REVOKE") return { delete: pm.key };
+    if (pm.editedMessage) return { ...(desdeProto(pm.editedMessage) || {}), edit: pm.key };
+    return null;
+  }
   const med = (t, n) => ({ _p: { t, n }, caption: n.caption, contextInfo: n.contextInfo });
   if (m.conversation) return { text: m.conversation };
   if (m.extendedTextMessage) return { text: m.extendedTextMessage.text, contextInfo: m.extendedTextMessage.contextInfo };
@@ -310,7 +353,7 @@ export function iniciarChatPagina({ PAG, Timestamp, config, commandRegistry, get
   async function aMensaje(c) {
     if (!c || typeof c !== "object") return null;
     if (c.react) { const k = c.react.key || {}; return { tp: "r", re: String(k.id || "").slice(0, 60), em: String(c.react.text || "").slice(0, 16) }; }
-    if (c.delete || c.edit) return null;
+    if (c.delete) return { tp: "x", re: String(c.delete.id || "").slice(0, 60) };
     const im = c.interactiveMessage;
     const { bt, bu, lineas } = extraerBotones(c);
     const titulo = c.title || im?.header?.title;
@@ -388,7 +431,7 @@ export function iniciarChatPagina({ PAG, Timestamp, config, commandRegistry, get
     // previa de enlace (como WhatsApp) cuando el mensaje es solo texto
     if (m.tp === "t" && !m.ar) {
       const u = (tx.match(/https?:\/\/[^\s<>"']+/) || [])[0];
-      if (u) { const p = await Promise.race([previa(u.replace(/[.,;:!?)\]]+$/, "")), new Promise((r) => setTimeout(() => r(null), 6000))]); if (p) m.lp = p; }
+      if (u) { const p = await Promise.race([previa(u.replace(/[.,;:!?)\]]+$/, "")), new Promise((r) => setTimeout(() => r(null), 12000))]); if (p) m.lp = p; }
     }
 
     if (tx) m.tx = recortar(tx);
@@ -430,7 +473,7 @@ export function iniciarChatPagina({ PAG, Timestamp, config, commandRegistry, get
         const x = als.getStore();                                                    // por si algún comando escribe al número real
         return x && num(to) === num(x.jid) ? x : null;
       };
-      real.sendMessage = async (to, c, o) => { const x = ctxDe(to); return x ? x.enviar(c) : envio(to, c, o); };
+      real.sendMessage = async (to, c, o) => { const x = ctxDe(to); return x ? x.enviar(c, o) : envio(to, c, o); };
       if (reen) real.relayMessage = async (to, m, o) => { const x = ctxDe(to); return x ? x.reenviar(m, o) : reen(to, m, o); };
       if (pres) real.sendPresenceUpdate = async (...a) => { if (als.getStore() || (typeof a[0] === "string" && a[0].endsWith("@pagina"))) return; return pres(...a); };
       if (leer) real.readMessages = async (...a) => { if (als.getStore()) return; return leer(...a); };
@@ -466,16 +509,26 @@ export function iniciarChatPagina({ PAG, Timestamp, config, commandRegistry, get
     // o desde otra parte del bot, tiene un único destino posible: este chat de la página.
     const vjid = num(jid) + "@pagina";
     let cola = Promise.resolve(), salio = 0;
-    const salida = (c, id) => (cola = cola.then(async () => {
+    const salida = (c, id, o) => (cola = cola.then(async () => {
       const m = await aMensaje(c);
-      if (m) { if (id && m.tp !== "r") m.ci = id; salio++; await escribir(cid, m); }
-    }).catch(log));
+      if (m) {
+        if (m.tp !== "r" && m.tp !== "x") {
+          if (c.edit && c.edit.id) m.ed = String(c.edit.id).slice(0, 60);          // editar un mensaje que ya está en la página
+          else if (id) m.ci = id;
+          const q = citaDe(c, o); if (q) Object.assign(m, q);                      // responder (citar) un mensaje
+        }
+        salio++; await escribir(cid, m);
+      }
+    }).catch(async (e) => {
+      log(e); dep("fallo mostrando una respuesta: " + (e && e.stack ? e.stack.split("\n").slice(0, 3).join(" | ") : e));
+      try { await escribir(cid, { tp: "t", tx: "(no pude mostrar una respuesta de este comando: " + String(e?.message || e).slice(0, 140) + ")" }); } catch (_) {}
+    }));
     const idFalso = () => "PAG" + Math.random().toString(36).slice(2, 12).toUpperCase();
     const cl = typeof d.cl === "string" && /^[a-z0-9]{6,24}$/.test(d.cl) ? d.cl : null;   // id que puso la página a tu mensaje
     const ctx = {
       jid,
-      enviar: async (c) => { dep("respuesta [" + Object.keys(c || {}).join(",") + "]"); const f = mensajeFalso(c, vjid); await salida(c, f.key.id); return f; },
-      reenviar: async (m, o) => { const c = desdeProto(m); dep("respuesta (relay) [" + Object.keys(m || {}).join(",") + "]" + (c ? "" : " sin convertir")); const id = o?.messageId || idFalso(); if (c) await salida(c, id); return id; }
+      enviar: async (c, o) => { dep("respuesta [" + Object.keys(c || {}).join(",") + "]"); const f = mensajeFalso(c, vjid); await salida(c, f.key.id, o); return f; },
+      reenviar: async (m, o) => { const c = desdeProto(m); dep("respuesta (relay) [" + Object.keys(m || {}).join(",") + "]" + (c ? "" : " sin convertir")); const id = o?.messageId || idFalso(); if (c) await salida(c, id, o); return id; }
     };
     const msg = {
       key: { remoteJid: vjid, fromMe: false, id: cl || idFalso() },
