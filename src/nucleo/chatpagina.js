@@ -15,7 +15,9 @@ const MAX_CMD_MIN = 15;          // comandos por minuto por persona
 const MAX_CMD_DIA = 400;         // mensajes por día por persona (cuida la cuota gratis de Firebase)
 const VENCE_MS = 10 * 60000;     // mensajes más viejos que esto (bot apagado) se ignoran
 const MAX_BYTES_TEXTO = 900000;  // sin límite práctico: solo el tope de Firestore (1 MB por mensaje)
-const VENTANA_MS = 6 * 60000;   // tras un comando de la página, respuestas tardías del bot siguen yendo a la página
+// Firebase solo es la tubería entre la página y el bot: cada mensaje se borra solo (el tuyo en cuanto el bot lo recibe,
+// las respuestas a los pocos minutos). Nada se guarda como historial.
+const TTL_MS = Number(process.env.CHAT_PAGINA_TTL_MS) || 3 * 60000;
 const DEPURAR = true;           // escribe en la consola qué recibe y qué manda la página
 const MAX_IMG_BYTES = 120000;    // las imágenes se achican para que quepan en Firestore
 const MAX_CARD_BYTES = 30000;    // miniaturas de previas
@@ -110,15 +112,36 @@ function nombreArchivo(med) {
 }
 
 async function subirMedia(buf, nombre) {
-  const fd = new FormData();
-  fd.append("reqtype", "fileupload");
-  fd.append("time", HORAS_MEDIA);
-  fd.append("fileToUpload", new Blob([buf]), nombre);
-  const r = await fetch("https://litterbox.catbox.moe/resources/internals/api.php", { method: "POST", body: fd, signal: AbortSignal.timeout(180000) });
-  const t = (await r.text()).trim();
-  if (!/^https?:\/\//i.test(t)) throw new Error("hosting: " + t.slice(0, 80));
-  return t;
+  const tiempo = 180000, blob = () => new Blob([buf]);
+  const intentos = [
+    async () => {
+      const fd = new FormData(); fd.append("reqtype", "fileupload"); fd.append("time", HORAS_MEDIA); fd.append("fileToUpload", blob(), nombre);
+      const t = (await (await fetch("https://litterbox.catbox.moe/resources/internals/api.php", { method: "POST", body: fd, signal: AbortSignal.timeout(tiempo) })).text()).trim();
+      if (!/^https?:\/\//i.test(t)) throw new Error("litterbox: " + t.slice(0, 80));
+      return t;
+    },
+    async () => {
+      const fd = new FormData(); fd.append("files[]", blob(), nombre);
+      const u = (await (await fetch("https://uguu.se/upload", { method: "POST", body: fd, signal: AbortSignal.timeout(tiempo) })).json())?.files?.[0]?.url;
+      if (!/^https?:\/\//i.test(u || "")) throw new Error("uguu: sin enlace");
+      return u;
+    },
+    async () => {
+      const fd = new FormData(); fd.append("file", blob(), nombre);
+      const u = (await (await fetch("https://tmpfiles.org/api/v1/upload", { method: "POST", body: fd, signal: AbortSignal.timeout(tiempo) })).json())?.data?.url;
+      if (!u) throw new Error("tmpfiles: sin enlace");
+      return String(u).replace(/^http:/i, "https:").replace("tmpfiles.org/", "tmpfiles.org/dl/");
+    }
+  ];
+  let ultimo;
+  for (const f of intentos) { try { return await f(); } catch (e) { ultimo = e; log("hosting: " + e.message); } }
+  throw ultimo;
 }
+// enlace directo (https) que el navegador puede cargar sin pasar por Firebase
+const directa = (o) => {
+  const u = o && typeof o === "object" && !Buffer.isBuffer(o) && !(o instanceof Uint8Array) ? o.url : null;
+  return typeof u === "string" && /^https:\/\//i.test(u) && !/whatsapp\.net|mmg\./i.test(u) ? u.slice(0, 1500) : null;
+};
 
 // ───────── previas de enlaces ─────────
 const cachePrev = new Map();
@@ -146,11 +169,9 @@ async function previa(url) {
         const t = meta(h, "og:title") || meta(h, "twitter:title") || ent(((h.match(/<title[^>]*>([^<]*)/i) || [])[1] || "")).trim();
         const d = meta(h, "og:description") || meta(h, "twitter:description") || meta(h, "description");
         const im = meta(h, "og:image") || meta(h, "twitter:image");
-        let img = null;
-        if (im) {
-          try { const u2 = new URL(im, url).href; if (urlSegura(u2)) img = await imagenADataUrl(await bufferDe(u2, 3e6), 360, MAX_CARD_BYTES); } catch (_) {}
-        }
-        if (t || d || img) { res = { u: url, t: t.slice(0, 100), b: d.slice(0, 160) }; if (img) res.img = img; }
+        let iu = null;
+        if (im) { try { const u2 = new URL(im, url).href.replace(/^http:/i, "https:"); if (urlSegura(u2)) iu = u2.slice(0, 1500); } catch (_) {} }
+        if (t || d || iu) { res = { u: url, t: t.slice(0, 100), b: d.slice(0, 160) }; if (iu) res.iu = iu; }
       }
     }
   } catch (_) {}
@@ -239,10 +260,10 @@ function desdeProto(m) {
 // ───────── fábrica del módulo ─────────
 export function iniciarChatPagina({ PAG, Timestamp, config, commandRegistry, getAllAccounts, manejarComando, procesarEspera, intentarProcesarTexto, checkTriviaAnswer }) {
   const hecho = new Map();                 // cid -> Timestamp del último mensaje ya atendido
-  const ocupado = new Set(), repetir = new Set();
+  const ocupado = new Set(), repetir = new Set(), chatsVistos = new Set();
   const usos = new Map();                  // uid -> { t: [...], dia, n }
-  const sesiones = new Map();              // número -> { ctx, t } último comando hecho desde la página
-  const actividadWA = new Map();           // número -> última vez que escribió por WhatsApp
+  const sesiones = new Map();              // número -> contexto del último comando hecho desde la página
+  const descarte = (to) => ({ enviar: async (c) => mensajeFalso(c, to), reenviar: async (m, o) => o?.messageId || "PAG" });
 
   // Directorio de personas para etiquetar. La página solo ve nombres y una clave opaca (nunca números).
   let dirK = new Map(), nomT = new Map(), lista = [], dirT = 0, ultimaLista = "";
@@ -288,7 +309,8 @@ export function iniciarChatPagina({ PAG, Timestamp, config, commandRegistry, get
   // Convierte lo que el bot "mandaría a WhatsApp" en un mensaje para la página
   async function aMensaje(c) {
     if (!c || typeof c !== "object") return null;
-    if (c.react || c.delete || c.edit) return null;
+    if (c.react) { const k = c.react.key || {}; return { tp: "r", re: String(k.id || "").slice(0, 60), em: String(c.react.text || "").slice(0, 16) }; }
+    if (c.delete || c.edit) return null;
     const im = c.interactiveMessage;
     const { bt, bu, lineas } = extraerBotones(c);
     const titulo = c.title || im?.header?.title;
@@ -312,13 +334,18 @@ export function iniciarChatPagina({ PAG, Timestamp, config, commandRegistry, get
     } catch (e) { log("no pude bajar el archivo: " + e.message); nota("(no pude cargar el archivo en la página)"); }
     if (med && med.origen) {
       try {
+        const directo = directa(med.origen);
         if (med.k === "image" || med.k === "sticker") {
-          const b = await bufferDe(med.origen);
-          const src = b && (await imagenADataUrl(b));
-          if (src) { m.tp = "i"; m.src = src; } else nota("(imagen no disponible en la página)");
+          if (directo) { m.tp = "i"; m.iu = directo; }
+          else {
+            const b = await bufferDe(med.origen);
+            const src = b && (await imagenADataUrl(b));
+            if (src) { m.tp = "i"; m.src = src; } else nota("(imagen no disponible en la página)");
+          }
         } else {
-          let url = null;
+          let url = directo;
           try {
+            if (!url)
             if (USAR_HOSTING_MEDIA) { const b = await bufferDe(med.origen); if (b) url = await subirMedia(b, nombreArchivo(med)); }
           } catch (e) {
             log("hosting de archivos: " + e.message);
@@ -341,8 +368,12 @@ export function iniciarChatPagina({ PAG, Timestamp, config, commandRegistry, get
         const card = { t: String(ar.title || "").slice(0, 100), b: String(ar.body || "").slice(0, 160) };
         const u = ar.sourceUrl || ar.mediaUrl || "";
         if (/^https?:\/\//i.test(u)) card.u = String(u).slice(0, 500);
-        const tb = ar.thumbnail ? (typeof ar.thumbnail === "string" ? Buffer.from(ar.thumbnail, "base64") : Buffer.from(ar.thumbnail)) : ar.thumbnailUrl ? await bufferDe(ar.thumbnailUrl, 3e6) : null;
-        if (tb) { const img = await imagenADataUrl(tb, 360, MAX_CARD_BYTES); if (img) card.img = img; }
+        const du = typeof ar.thumbnailUrl === "string" && /^https:\/\//i.test(ar.thumbnailUrl) ? ar.thumbnailUrl.slice(0, 1500) : null;
+        if (du) card.iu = du;
+        else {
+          const tb = ar.thumbnail ? (typeof ar.thumbnail === "string" ? Buffer.from(ar.thumbnail, "base64") : Buffer.from(ar.thumbnail)) : ar.thumbnailUrl ? await bufferDe(ar.thumbnailUrl, 3e6) : null;
+          if (tb) { const img = await imagenADataUrl(tb, 360, MAX_CARD_BYTES); if (img) card.img = img; }
+        }
         m.ar = card;
       } catch (e) { log("previa del bot: " + e.message); }
     }
@@ -369,12 +400,19 @@ export function iniciarChatPagina({ PAG, Timestamp, config, commandRegistry, get
   }
 
   async function escribir(cid, m) {
-    const ref = PAG.fs.collection("chats").doc(cid), t = PAG.FV.serverTimestamp();
-    const resumen = m.tx || { i: "Imagen", v: "Video", a: "Audio", d: "Archivo" }[m.tp] || (m.ar && m.ar.t) || "Mensaje";
-    const b = PAG.fs.batch();
-    b.set(ref.collection("msgs").doc(), { de: "bot", t, ...m });
-    b.set(ref, { ultimo: { tx: String(resumen).slice(0, 80), tp: "t", t, de: "bot" } }, { merge: true });
-    await b.commit();
+    const ref = PAG.fs.collection("chats").doc(cid).collection("msgs").doc();
+    await ref.set({ de: "bot", t: PAG.FV.serverTimestamp(), ...m });
+    const t = setTimeout(() => ref.delete().catch(() => {}), TTL_MS);   // se borra solo
+    if (t.unref) t.unref();
+  }
+  // Barrido de mensajes viejos que hayan quedado (por ejemplo, si el bot se reinició)
+  async function limpiar(cid) {
+    try {
+      const s = await PAG.fs.collection("chats").doc(cid).collection("msgs").where("t", "<", Timestamp.fromMillis(Date.now() - TTL_MS)).limit(400).get();
+      if (s.empty) return;
+      const b = PAG.fs.batch(); s.docs.forEach((d) => b.delete(d.ref)); await b.commit();
+      dep(`limpieza: ${s.size} mensajes viejos borrados`);
+    } catch (e) { log(e); }
   }
 
   // Desvía a la página lo que cualquier parte del bot mande al WhatsApp de quien usa el chat
@@ -388,22 +426,14 @@ export function iniciarChatPagina({ PAG, Timestamp, config, commandRegistry, get
       const leer = typeof real.readMessages === "function" ? real.readMessages.bind(real) : null;
       const ctxDe = (to) => {
         if (typeof to !== "string" || to.endsWith("@g.us")) return null;
-        const x = als.getStore();
-        if (x) return num(to) === num(x.jid) ? x : null;
-        const ss = sesiones.get(num(to));        // respuesta tardía (cola, proceso aparte): sigue en la página
-        if (ss && Date.now() - ss.t < VENTANA_MS && (actividadWA.get(num(to)) || 0) < ss.t) { dep("respuesta tardía llevada a la página"); return ss.ctx; }
-        return null;
+        if (to.endsWith("@pagina")) return sesiones.get(num(to)) || descarte(to);   // el chat de la página, siempre
+        const x = als.getStore();                                                    // por si algún comando escribe al número real
+        return x && num(to) === num(x.jid) ? x : null;
       };
       real.sendMessage = async (to, c, o) => { const x = ctxDe(to); return x ? x.enviar(c) : envio(to, c, o); };
       if (reen) real.relayMessage = async (to, m, o) => { const x = ctxDe(to); return x ? x.reenviar(m, o) : reen(to, m, o); };
-      if (pres) real.sendPresenceUpdate = async (...a) => { if (als.getStore() || ctxDe(a[0])) return; return pres(...a); };
+      if (pres) real.sendPresenceUpdate = async (...a) => { if (als.getStore() || (typeof a[0] === "string" && a[0].endsWith("@pagina"))) return; return pres(...a); };
       if (leer) real.readMessages = async (...a) => { if (als.getStore()) return; return leer(...a); };
-      real.ev?.on?.("messages.upsert", ({ messages }) => {      // si escribe por WhatsApp, ahí le responde
-        for (const m of messages || []) {
-          if (m.key?.fromMe) continue;
-          for (const j of [m.key?.remoteJid, m.key?.participant, m.key?.remoteJidAlt, m.key?.participantAlt]) if (j) actividadWA.set(num(j), Date.now());
-        }
-      });
     } catch (e) { log("no pude preparar el desvío: " + e.message); }
   }
 
@@ -432,25 +462,29 @@ export function iniciarChatPagina({ PAG, Timestamp, config, commandRegistry, get
       }
     }
 
+    // El comando cree que está en un chat privado propio ("número@pagina"): cualquier respuesta, aunque llegue tarde
+    // o desde otra parte del bot, tiene un único destino posible: este chat de la página.
+    const vjid = num(jid) + "@pagina";
     let cola = Promise.resolve(), salio = 0;
-    const salida = (c) => (cola = cola.then(async () => {
+    const salida = (c, id) => (cola = cola.then(async () => {
       const m = await aMensaje(c);
-      if (m) { salio++; await escribir(cid, m); }
+      if (m) { if (id && m.tp !== "r") m.ci = id; salio++; await escribir(cid, m); }
     }).catch(log));
     const idFalso = () => "PAG" + Math.random().toString(36).slice(2, 12).toUpperCase();
+    const cl = typeof d.cl === "string" && /^[a-z0-9]{6,24}$/.test(d.cl) ? d.cl : null;   // id que puso la página a tu mensaje
     const ctx = {
       jid,
-      enviar: async (c) => { dep("respuesta [" + Object.keys(c || {}).join(",") + "]"); await salida(c); return mensajeFalso(c, jid); },
-      reenviar: async (m, o) => { const c = desdeProto(m); dep("respuesta (relay) [" + Object.keys(m || {}).join(",") + "]" + (c ? "" : " sin convertir")); if (c) await salida(c); return o?.messageId || idFalso(); }
+      enviar: async (c) => { dep("respuesta [" + Object.keys(c || {}).join(",") + "]"); const f = mensajeFalso(c, vjid); await salida(c, f.key.id); return f; },
+      reenviar: async (m, o) => { const c = desdeProto(m); dep("respuesta (relay) [" + Object.keys(m || {}).join(",") + "]" + (c ? "" : " sin convertir")); const id = o?.messageId || idFalso(); if (c) await salida(c, id); return id; }
     };
     const msg = {
-      key: { remoteJid: jid, fromMe: false, id: idFalso() },
+      key: { remoteJid: vjid, fromMe: false, id: cl || idFalso() },
       message: mencionados.length ? { extendedTextMessage: { text: bid || texto, contextInfo: { mentionedJid: mencionados } } } : { conversation: bid || texto },
       messageTimestamp: Math.floor(Date.now() / 1000),
       paginaChat: true
     };
     const sock = PAG.sock;
-    sesiones.set(num(jid), { ctx, t: Date.now() });
+    sesiones.set(num(jid), ctx);
     if (sesiones.size > 500) sesiones.delete(sesiones.keys().next().value);
     dep(`${uid} → ${bid ? "botón " + bid : texto.slice(0, 60)}`);
 
@@ -461,7 +495,7 @@ export function iniciarChatPagina({ PAG, Timestamp, config, commandRegistry, get
         await resp("Ese comando no está disponible en el chat de la página. Úsalo desde WhatsApp.");
         return true;
       }
-      return await manejarComando(sock, jid, jid, textoCmd, msg);
+      return await manejarComando(sock, vjid, jid, textoCmd, msg);
     };
 
     await als.run(ctx, async () => {
@@ -477,13 +511,13 @@ export function iniciarChatPagina({ PAG, Timestamp, config, commandRegistry, get
             manejado = c ? await correr(c) : false;
             if (!manejado) await resp("No conozco ese comando. Escribe .menu para ver los comandos.");
           } else {
-            manejado = await procesarEspera(`${jid}:${jid}`, texto, { sock, from: jid, sender: jid, msg });
-            if (!manejado) manejado = await intentarProcesarTexto(sock, jid, jid, texto, msg);
+            manejado = await procesarEspera(`${vjid}:${jid}`, texto, { sock, from: vjid, sender: jid, msg });
+            if (!manejado) manejado = await intentarProcesarTexto(sock, vjid, jid, texto, msg);
             if (!manejado) {
               const c = comoComando(texto);
               if (c && nombresCmd().has(c.split(/\s+/)[0])) manejado = await correr(c);
             }
-            if (!manejado) { try { await checkTriviaAnswer(sock, jid, jid, texto, msg); } catch (e) { log(e); } }
+            if (!manejado) { try { await checkTriviaAnswer(sock, vjid, jid, texto, msg); } catch (e) { log(e); } }
             await cola;
             if (!manejado && !salio) await resp("Escribe un comando para empezar, por ejemplo .menu");
           }
@@ -496,8 +530,8 @@ export function iniciarChatPagina({ PAG, Timestamp, config, commandRegistry, get
     });
   }
 
-  // Atiende, en orden, los mensajes nuevos de la persona. Se marca cada uno ANTES de ejecutarlo:
-  // si algo falla o el bot se reinicia, el comando no se repite (importante para la economía).
+  // Toma los mensajes nuevos de la persona. Cada uno se borra de Firebase ANTES de ejecutarse: así no queda guardado y,
+  // si el bot se reinicia a mitad, el comando no se repite (importante para la economía). Se ejecutan en paralelo.
   async function revisar(cid, uid) {
     if (ocupado.has(cid)) { repetir.add(cid); return; }
     ocupado.add(cid);
@@ -511,9 +545,9 @@ export function iniciarChatPagina({ PAG, Timestamp, config, commandRegistry, get
           if (!d.t) continue;
           hecho.set(cid, d.t);
           if (d.de === "bot") continue;
-          await PAG.fs.collection("chats").doc(cid).set({ vistos: { bot: d.t } }, { merge: true }).catch(log);
+          await doc.ref.delete().catch(log);
           if (Date.now() - d.t.toMillis() > VENCE_MS) continue;
-          await atender(cid, uid, d).catch(log);
+          atender(cid, uid, d).catch(log);
         }
       } while (repetir.has(cid));
     } catch (e) { log(e); }
@@ -527,10 +561,7 @@ export function iniciarChatPagina({ PAG, Timestamp, config, commandRegistry, get
         const cid = ch.doc.id, data = ch.doc.data();
         const uid = (data.miembros || []).find((x) => x !== "bot");
         if (!uid || cid !== uid + "_bot") continue;      // solo chats con el formato oficial
-        if (!hecho.has(cid)) {
-          const v = data.vistos && data.vistos.bot;
-          hecho.set(cid, v && v.toMillis && v.toMillis() > Date.now() - VENCE_MS ? v : Timestamp.fromMillis(Date.now() - VENCE_MS));
-        }
+        if (!hecho.has(cid)) { hecho.set(cid, Timestamp.fromMillis(Date.now() - VENCE_MS)); chatsVistos.add(cid); limpiar(cid); }
         revisar(cid, uid);
       }
     }, (e) => { log(e); setTimeout(escuchar, 30000); });
@@ -539,5 +570,6 @@ export function iniciarChatPagina({ PAG, Timestamp, config, commandRegistry, get
   escuchar();
   setTimeout(subirUsuarios, 15000);
   setInterval(subirUsuarios, 10 * 60000);
+  setInterval(() => chatsVistos.forEach(limpiar), 20 * 60000);
   return { aMensaje, desdeProto };
 }
