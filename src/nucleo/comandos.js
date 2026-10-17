@@ -90,7 +90,7 @@ export async function manejarComando(sock, from, sender, text, msg) {
   const handler = comandos.get(comando);
   if (!handler) return false;
 
-  if (from.endsWith("@g.us") && !msg.key.fromMe && botApagado(from) && (comando !== ".bot" || !(await esAdminOOwner(sock, from, sender)))) return true;
+  if (from.endsWith("@g.us") && !msg.key.fromMe && botApagado(from) && (comando !== ".mambo" || !(await esAdminOOwner(sock, from, sender)))) return true;
 
   if (from.endsWith("@g.us") && !msg.key.fromMe && soloAdminsActivo(from) && !(await esAdminOOwner(sock, from, sender))) return true;
 
@@ -107,7 +107,7 @@ export async function manejarComando(sock, from, sender, text, msg) {
   };
 
   if (!COMANDOS_PROTEGIDOS.has(comando) && comandoEstaBaneado(comando, categoriaDeComando.get(comando))) {
-    await reply({ text: "🚫 Este comando está desactivado por ahora." });
+    await reply({ text: "🚫 Este comando fue desactivado por mi Owner, intenta nuevamente mas después." });
     return true;
   }
 
