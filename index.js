@@ -7,7 +7,7 @@ import {
 import pino from "pino";
 import http from "http";
 import { manejarComando } from "./src/nucleo/comandos.js";
-import { checkTriviaAnswer } from "./src/economia/trivia.js";
+import { checkTriviaAnswer } from "./src/economia/triviaR.js";
 import { procesarEspera } from "./src/nucleo/espera.js";
 import { config, manejarCambioParticipantes, getAllAccounts, commandRegistry, startTime, CURRENCY } from "./core.js";
 import fs from "fs";
@@ -326,6 +326,7 @@ async function startBot() {
       null;
 
     if (idBotonPulsado) {
+      if (from.endsWith("@g.us") && !msg.key.fromMe && botApagado(from)) return;
       await manejarComando(sock, from, sender, idBotonPulsado.trim(), msg);
       return;
     }
@@ -356,6 +357,9 @@ async function startBot() {
     const prefijoUsado = [...prefijosConfigurados]
       .sort((a, b) => b.length - a.length)
       .find((p) => text.startsWith(p));
+
+    const esMambo = Boolean(prefijoUsado) && /^\s*mambo\s+(on|off)\s*$/i.test(text.slice(prefijoUsado.length));
+    if (apagadoAqui && !esMambo) return;
 
     if (!msg.key.fromMe && !apagadoAqui && m.type === "notify" && tieneAfk(sender)) {
       const tipoMensaje = Object.keys(msg.message)[0];
