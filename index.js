@@ -7,7 +7,7 @@ import {
 import pino from "pino";
 import http from "http";
 import { manejarComando } from "./src/nucleo/comandos.js";
-import { checkTriviaAnswer } from "./src/economia/triviaR.js";
+import { checkTriviaAnswer } from "./src/economia/trivia.js";
 import { procesarEspera } from "./src/nucleo/espera.js";
 import { config, manejarCambioParticipantes, getAllAccounts, commandRegistry, startTime, CURRENCY } from "./core.js";
 import fs from "fs";
@@ -119,7 +119,7 @@ async function iniciarPagina() {
     setInterval(contarGrupos, 30 * 60000);
     try {   // chat con el bot desde la sección Chats de la página
       const { Timestamp } = await import("firebase-admin/firestore");
-      iniciarChatPagina({ PAG, Timestamp, config, commandRegistry, manejarComando, procesarEspera, intentarProcesarTexto, checkTriviaAnswer });
+      iniciarChatPagina({ PAG, Timestamp, config, commandRegistry, getAllAccounts, manejarComando, procesarEspera, intentarProcesarTexto, checkTriviaAnswer });
       console.log(chalk.greenBright("✔ Chat de la página activo"));
     } catch (e) { console.log("Chat de la página no iniciado: " + e.message); }
   } catch (e) {
