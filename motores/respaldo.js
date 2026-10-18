@@ -13,12 +13,13 @@ const RETARDO_INICIAL_MS = 15000;
 const TAMANO_LOTE_TURSO = 100;
 const TAMANO_LOTE_MONGO = 500;
 const SEPARADOR = "\u0000";
-const EXCLUIDAS = new Set(
-  (process.env.RESPALDO_EXCLUIR || "")
+const EXCLUIDAS = new Set([
+  "subbots_keys",
+  ...(process.env.RESPALDO_EXCLUIR || "")
     .split(",")
     .map((nombre) => nombre.trim())
     .filter(Boolean)
-);
+]);
 
 let cliente = null;
 let temporizador = null;
@@ -235,4 +236,4 @@ export function iniciarRespaldo() {
   console.log(chalk.cyan(`Respaldo en Turso activo, se ejecuta cada ${MINUTOS} minutos.`));
   setTimeout(respaldoProgramado, RETARDO_INICIAL_MS);
   temporizador = setInterval(respaldoProgramado, INTERVALO_MS);
-}
+      }
