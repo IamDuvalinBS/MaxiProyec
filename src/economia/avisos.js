@@ -2,8 +2,26 @@ import { cuentasConDatos, avisoDe, registrarAviso, migrarTodoDeDisco, cantidadDe
 import { formatTime } from "../../motores/ui.js";
 import { esGrupo, metadatos } from "../grupos/nucleo.js";
 import { botApagado } from "../grupos/estado.js";
-import { encabezado, mencion } from "./estilo.js";
+import { encabezado, mencion } from "./estilo-evento.js";
+// La boda pertenece al perfil, no a la economía: conserva siempre su estilo normal.
+import { encabezado as encabezadoBase } from "./estilo.js";
 import { textoDias } from "./rachas.js";
+import { estilo } from "./temas.js";
+
+const ESTILOS_RACHA = {
+  normal: {
+    emoji: "⏰",
+    titulo: "RACHA EN RIESGO!",
+    aviso: (m, dias, tiempo) => `> ${m} tu racha de *${dias}* en *.daily* se perderá en *${tiempo}*.`,
+    tip: "> Usa *.daily* antes de que finalice el tiempo para conservarla."
+  },
+  halloween: {
+    emoji: "🕯️",
+    titulo: "TU RACHA ESTÁ EN PELIGRO!",
+    aviso: (m, dias, tiempo) => `> ${m} tu racha de *${dias}* en *.daily* será devorada por los fantasmas en *${tiempo}*. 👻`,
+    tip: "> Usa *.daily* antes de la medianoche embrujada para conservarla. 🦇"
+  }
+};
 
 const INTERVALO_MS = 5 * 60 * 1000;
 const AVISO_ANTES_MS = 2 * 60 * 60 * 1000;
@@ -35,11 +53,12 @@ export async function revisarRachas() {
       const restante = ultimo + VENTANA_RACHA_MS - ahora;
       if (restante <= 0 || restante > AVISO_ANTES_MS) continue;
 
+      const E = estilo(ESTILOS_RACHA);
       const texto = [
-        encabezado("⏰", "RACHA EN RIESGO!"),
+        encabezado(E.emoji, E.titulo),
         "",
-        `> ${mencion(sender)} tu racha de *${textoDias(cantidad)}* en *.daily* se perderá en *${formatTime(restante)}*.`,
-        "> Usa *.daily* antes de que finalice el tiempo para conservarla."
+        E.aviso(mencion(sender), textoDias(cantidad), formatTime(restante)),
+        E.tip
       ].join("\n");
 
       const destinos = [...new Set([aviso && aviso.chat, sender].filter(Boolean))].filter((d) => !(esGrupo(d) && botApagado(d)));
@@ -68,7 +87,7 @@ export async function anunciarBoda(sock, chat, a, b, fecha) {
     if (meta) mentions = [...new Set([...meta.participantes.map((p) => p.id), a, b])];
   }
   const texto = [
-    encabezado("💍", "NUEVA BODA!"),
+    encabezadoBase("💍", "NUEVA BODA!"),
     "",
     `> ${mencion(a)} y ${mencion(b)} acaban de casarse.`,
     "",
