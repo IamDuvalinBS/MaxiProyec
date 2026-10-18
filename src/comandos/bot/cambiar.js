@@ -8,7 +8,7 @@ const ANUNCIOS = {
   normal: {
     emoji: "🌸",
     titulo: "ESTILO NORMAL RESTAURADO!",
-    relato: "La economía volvió a su estilo normal. Todos los textos y diseños son los de siempre.",
+    relato: "La economía y el gacha volvieron a su estilo normal. Todos los textos y diseños son los de siempre.",
     lineas: [
       "💾 *DATOS::* intactos (mismos saldos y guardados)",
       "⏳ *ESPERAS::* intactas (mismos cooldowns reales)"
@@ -18,7 +18,7 @@ const ANUNCIOS = {
   halloween: {
     emoji: "🎃",
     titulo: "HALLOWEEN ACTIVADO!",
-    relato: "La noche embrujada ha comenzado. Toda la economía, los trabajos, las apuestas y los negocios ahora tienen estilo de Halloween. 🦇",
+    relato: "La noche embrujada ha comenzado. La economía, los trabajos, las apuestas, los negocios y el gacha ahora tienen estilo de Halloween.",
     lineas: [
       "💾 *DATOS::* intactos (mismos saldos y guardados) 🧙‍♀️",
       "⏳ *ESPERAS::* intactas (mismos cooldowns reales) 🕯️",
@@ -56,7 +56,7 @@ export async function activarEvento(reply, clave) {
 export default {
   names: [".cambiar", ".evento"],
   usage: ".cambiar <evento>",
-  desc: "Cambiar el estilo de toda la economía a un evento (ej: .cambiar halloween). Usa .normalizar para volver a la normalidad (solo owner)",
+  desc: "Cambiar el estilo de la economía y el gacha a un evento (ej: .cambiar halloween). Usa .normalizar para volver a la normalidad (solo owner)",
   category: "Owner",
   handler: ownerCommand(async ({ cleanText, reply }) => {
     const argumento = cleanText.trim().split(/\s+/).slice(1).join(" ");
