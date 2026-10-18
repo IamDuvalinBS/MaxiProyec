@@ -4,12 +4,13 @@ import { mejorDe, personajePorId } from "../../../motores/gacha-db.js";
 import { NIVEL_MAX, estrellasTexto } from "../../../motores/gacha-niveles.js";
 import { poderesDe } from "../../../motores/gacha-poderes.js";
 import { encabezado } from "../../../src/economia/estilo.js";
+import { T } from "../../../motores/gacha-tema.js";
 
 const identificador = (texto) => (/^#?\d+$/.test(texto || "") ? parseInt(String(texto).replace("#", ""), 10) : null);
 
 function ayuda() {
   return [
-    encabezado("⚡", "PODERES"),
+    encabezado("⚡", T("PODERES", "PODERES OSCUROS")),
     "",
     "> Cada personaje tiene 4 poderes: una habilidad, un poder estelar, una mejora y una hipercarga. Se desbloquean al subir de nivel y se vuelven más fuertes con el nivel y las estrellas.",
     "",
@@ -48,7 +49,7 @@ export default {
     const lista = poderesDe(personaje, nivel, NIVEL_MAX[categoria], estrellas);
 
     const lineas = [
-      encabezado("⚡", "PODERES"),
+      encabezado("⚡", T("PODERES", "PODERES OSCUROS")),
       "",
       `> Poderes de *${personaje.nombre}* (#${personaje.id}).`,
       `📊 *Nivel* ›› ${nivel}/${NIVEL_MAX[categoria]}${estrellas ? ` ${estrellasTexto(estrellas)}` : ""}`,
@@ -59,7 +60,7 @@ export default {
       lineas.push(`> ${poder.descripcion}`);
       if (!poder.activo) lineas.push(`> Se desbloquea en el nivel ${poder.requiere}.`);
     }
-    lineas.push("", "> Los poderes se activan solos durante los combates PvP y las batallas por equipos.");
+    lineas.push("", T("> Los poderes se activan solos durante los combates PvP y las batallas por equipos.", "> Los poderes se activan solos durante los duelos PvP y las batallas macabras por equipos."));
     if (!propio) lineas.push("> No tienes este personaje, por eso se muestra al nivel 1.");
     return reply({ text: lineas.join("\n") });
   }

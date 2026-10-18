@@ -8,14 +8,15 @@ import {
 } from "../../../motores/gacha-niveles.js";
 import { registrarActividad } from "../../../motores/gacha-misiones.js";
 import { encabezado } from "../../../src/economia/estilo.js";
+import { T } from "../../../motores/gacha-tema.js";
 
 const identificador = (texto) => (/^#?\d+$/.test(texto || "") ? parseInt(String(texto).replace("#", ""), 10) : null);
 
 function ayuda(sender) {
   return [
-    encabezado("🌟", "ASCENDER"),
+    encabezado("🌟", T("ASCENDER", "ASCENSIÓN OSCURA")),
     "",
-    `> Cuando un personaje llega a su nivel máximo puedes ascenderlo: gana una estrella, su nivel máximo sube ${NIVELES_POR_ESTRELLA} niveles y todas sus estadísticas aumentan ${Math.round(BONO_POR_ESTRELLA * 100)}%. Los poderes también se hacen más fuertes. Máximo ${MAX_ESTRELLAS} estrellas.`,
+    T(`> Cuando un personaje llega a su nivel máximo puedes ascenderlo: gana una estrella, su nivel máximo sube ${NIVELES_POR_ESTRELLA} niveles y todas sus estadísticas aumentan ${Math.round(BONO_POR_ESTRELLA * 100)}%. Los poderes también se hacen más fuertes. Máximo ${MAX_ESTRELLAS} estrellas.`, `> Cuando un personaje llega a su nivel máximo puedes ascenderlo con un ritual: gana una estrella, su nivel máximo sube ${NIVELES_POR_ESTRELLA} niveles y todas sus estadísticas aumentan ${Math.round(BONO_POR_ESTRELLA * 100)}%. Los poderes también se vuelven más siniestros. Máximo ${MAX_ESTRELLAS} estrellas.`),
     "",
     "✱ *Uso* ›› .ascender <categoría> <ID>",
     "✿ *Ejemplo* ›› .ascender pokemon 25",
@@ -48,12 +49,12 @@ export default {
       const costo = costoAscension(estrellas);
       return reply({
         text: [
-          encabezado("🌟", "ASCENDER"),
+          encabezado("🌟", T("ASCENDER", "ASCENSIÓN OSCURA")),
           "",
           `> Tu personaje de mayor nivel es *${p.nombre}* (#${p.id}), nivel ${p.nivel}/${nivelMaxDe(categoria, estrellas)} ${estrellasTexto(estrellas)}.`,
           "",
           `🧩 *Fragmentos* ›› tienes ${fragmentosDe(sender)} y necesitas ${costo.fragmentos}`,
-          `💴 *Dinero en mano* ›› tienes ${monto(getAccount(sender).wallet)} y necesitas ${monto(costo.dinero)}`,
+          T(`💴 *Dinero en mano* ›› tienes ${monto(getAccount(sender).wallet)} y necesitas ${monto(costo.dinero)}`, `🧙‍♀️ *Caldero* ›› tienes ${monto(getAccount(sender).wallet)} y necesitas ${monto(costo.dinero)}`),
           "",
           `> Para ascender usa *.ascender ${categoria} ${p.id}*. Debe estar en su nivel máximo.`
         ].join("\n")
@@ -71,12 +72,12 @@ export default {
       return reply({ text: `❌ Necesitas ${r.costo.fragmentos} fragmentos y tienes ${r.fragmentos}. Se consiguen con personajes repetidos, combates PvP y misiones.` });
     }
     if (r.error === "saldo") {
-      return reply({ text: `❌ Te faltan *${monto(r.costo.dinero - getAccount(sender).wallet)}* en mano para ascender. Usa *.retirar* para sacar dinero del banco.` });
+      return reply({ text: T(`❌ Te faltan *${monto(r.costo.dinero - getAccount(sender).wallet)}* en mano para ascender. Usa *.retirar* para sacar dinero del banco.`, `❌ Te faltan *${monto(r.costo.dinero - getAccount(sender).wallet)}* en el caldero para el ritual. Usa *.retirar* para desenterrar calabazas de la cripta.`) });
     }
 
     const enviado = await reply({
       text: [
-        encabezado("🌟", "ASCENSIÓN"),
+        encabezado("🌟", T("ASCENSIÓN", "ASCENSIÓN MACABRA")),
         "",
         `✍🏻 *Nombre* ›› ${r.p.nombre} (#${r.p.id})`,
         `⭐ *Estrellas* ›› ${r.antes} → *${r.despues}* ${estrellasTexto(r.despues)}`,
@@ -85,7 +86,7 @@ export default {
         `🧩 *Gastaste* ›› ${r.costo.fragmentos} fragmentos y ${monto(r.costo.dinero)}`,
         `🧩 *Te quedan* ›› ${r.restantes} fragmentos`,
         "",
-        "> Sus poderes ahora son más fuertes. Míralos con *.poderes*."
+        T("> Sus poderes ahora son más fuertes. Míralos con *.poderes*.", "> Sus poderes ahora son más siniestros. Míralos con *.poderes*.")
       ].join("\n")
     });
     await registrarActividad({ reply, sender, eventos: [] });

@@ -1,6 +1,7 @@
 import { gachaListo, arroba } from "../../../motores/gacha-core.js";
 import { AUTOMATICAS, insigniasDe, revisarInsignias, tieneInsignia, listaExclusivas } from "../../../motores/gacha-insignias.js";
 import { encabezado } from "../../../src/economia/estilo.js";
+import { T } from "../../../motores/gacha-tema.js";
 
 export default {
   names: [".insignias", ".badges", ".logros"],
@@ -20,7 +21,7 @@ export default {
     const total = AUTOMATICAS.length;
 
     const lineas = [
-      encabezado("🏅", "INSIGNIAS"),
+      encabezado("🏅", T("INSIGNIAS", "INSIGNIAS DE LA NOCHE")),
       "",
       `> Insignias de ${arroba(objetivo)}. Automáticas: *${automaticas.length}/${total}*.`,
       ""

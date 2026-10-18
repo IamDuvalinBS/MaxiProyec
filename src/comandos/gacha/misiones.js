@@ -3,6 +3,7 @@ import { misionesDe, cobrarMisiones } from "../../../motores/gacha-misiones.js";
 import { revisarInsignias } from "../../../motores/gacha-insignias.js";
 import { msHastaMedianoche } from "../../../motores/gacha-config.js";
 import { encabezado, tiempoLargo } from "../../../src/economia/estilo.js";
+import { T } from "../../../motores/gacha-tema.js";
 
 function lineasDeMisiones(lista) {
   const lineas = [];
@@ -12,7 +13,7 @@ function lineasDeMisiones(lista) {
     lineas.push(`> ${estado} ›› ${m.avance}/${m.meta}`);
     const premio = [`${monto(m.dinero)}`];
     if (m.fragmentos) premio.push(`${m.fragmentos} ${m.fragmentos === 1 ? "fragmento" : "fragmentos"}`);
-    lineas.push(`> 🎁 Recompensa: ${premio.join(" + ")}`);
+    lineas.push(T(`> 🎁 Recompensa: ${premio.join(" + ")}`, `> 🍬 Botín: ${premio.join(" + ")}`));
   });
   return lineas;
 }
@@ -32,7 +33,7 @@ export default {
         return reply({ text: "❌ No tienes misiones completadas por cobrar. Revisa tu avance con *.misiones*." });
       }
       const partes = [
-        encabezado("🎁", "RECOMPENSA COBRADA"),
+        encabezado("🎁", T("RECOMPENSA COBRADA", "BOTÍN COBRADO")),
         "",
         `> ${arroba(sender)} cobró ${r.cobradas.length} ${r.cobradas.length === 1 ? "misión" : "misiones"}.`,
         "",
@@ -53,9 +54,9 @@ export default {
     const porCobrar = lista.filter((m) => m.completa && !m.cobrada).length;
     return reply({
       text: [
-        encabezado("📋", "MISIONES DIARIAS"),
+        encabezado("📋", T("MISIONES DIARIAS", "MISIONES DE LA NOCHE")),
         "",
-        `> Tres misiones nuevas cada día. Se renuevan en *${tiempoLargo(msHastaMedianoche())}*. Completar las tres da un ticket de bono.`,
+        T(`> Tres misiones nuevas cada día. Se renuevan en *${tiempoLargo(msHastaMedianoche())}*. Completar las tres da un ticket de bono.`, `> Tres misiones nuevas cada noche. Se renuevan en *${tiempoLargo(msHastaMedianoche())}*. Completar las tres da un ticket de bono.`),
         "",
         ...lineasDeMisiones(lista),
         "",

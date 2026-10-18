@@ -7,6 +7,7 @@ import { misionesDe } from "../../../motores/gacha-misiones.js";
 import { estadistica, insigniasDe, revisarInsignias, AUTOMATICAS } from "../../../motores/gacha-insignias.js";
 import { PITY_TIRADAS } from "../../../motores/gacha-config.js";
 import { encabezado } from "../../../src/economia/estilo.js";
+import { T } from "../../../motores/gacha-tema.js";
 
 export default {
   names: [".perfilgacha", ".gachaperfil", ".micolecciongacha"],
@@ -32,12 +33,12 @@ export default {
     const insignias = insigniasDe(objetivo);
     const misiones = misionesDe(objetivo);
     const lineas = [
-      encabezado("🪪", "PERFIL DE COLECCIONISTA"),
+      encabezado("🪪", T("PERFIL DE COLECCIONISTA", "PERFIL DE CAZADOR DE ALMAS")),
       "",
       `> Perfil de ${arroba(objetivo)}.`,
       "",
       `🎴 *Personajes* ›› ${fmt(filas.length)}`,
-      `💎 *Valor total* ›› ${monto(valor)}`,
+      T(`💎 *Valor total* ›› ${monto(valor)}`, `💎 *Tesoro total* ›› ${monto(valor)}`),
       `🌟 *Estrellas de ascensión* ›› ${fmt(estrellas)}`,
       `🧩 *Fragmentos* ›› ${fmt(fragmentosDe(objetivo))}`,
       ""

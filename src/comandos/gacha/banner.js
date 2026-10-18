@@ -4,6 +4,7 @@ import { leTiene } from "../../../motores/gacha-db.js";
 import { PROBABILIDAD_BANNER, PITY_TIRADAS, PITY_RANGO_MINIMO, msHastaLunes } from "../../../motores/gacha-config.js";
 import { RAREZA_NOMBRES } from "../../../motores/gacha-niveles.js";
 import { encabezado, tiempoLargo } from "../../../src/economia/estilo.js";
+import { T } from "../../../motores/gacha-tema.js";
 
 export default {
   names: [".banner", ".destacados", ".semanal_gacha"],
@@ -13,9 +14,9 @@ export default {
   handler: async ({ sender, reply }) => {
     await gachaListo;
     const lineas = [
-      encabezado("⭐", "DESTACADOS DE LA SEMANA"),
+      encabezado("⭐", T("DESTACADOS DE LA SEMANA", "DESTACADOS DE LA SEMANA MACABRA")),
       "",
-      `> Cada semana un personaje de cada gacha tiene *${Math.round(PROBABILIDAD_BANNER * 100)}%* de probabilidad extra de aparecer en tus tiradas. Cambian en *${tiempoLargo(msHastaLunes())}*.`,
+      T(`> Cada semana un personaje de cada gacha tiene *${Math.round(PROBABILIDAD_BANNER * 100)}%* de probabilidad extra de aparecer en tus tiradas. Cambian en *${tiempoLargo(msHastaLunes())}*.`, `> Cada semana una criatura de cada gacha sale de la niebla con *${Math.round(PROBABILIDAD_BANNER * 100)}%* de probabilidad extra de aparecer en tus tiradas. Cambian en *${tiempoLargo(msHastaLunes())}*.`),
       ""
     ];
 
@@ -35,7 +36,7 @@ export default {
 
     lineas.push(
       "",
-      `> 🍀 La garantía asegura un personaje de rareza ${RAREZA_NOMBRES[PITY_RANGO_MINIMO]} o superior si llegas a ${PITY_TIRADAS} tiradas sin obtenerlo. Se cuenta por separado en cada gacha.`
+      T(`> 🍀 La garantía asegura un personaje de rareza ${RAREZA_NOMBRES[PITY_RANGO_MINIMO]} o superior si llegas a ${PITY_TIRADAS} tiradas sin obtenerlo. Se cuenta por separado en cada gacha.`, `> 🍀 Los espíritus aseguran un personaje de rareza ${RAREZA_NOMBRES[PITY_RANGO_MINIMO]} o superior si llegas a ${PITY_TIRADAS} tiradas sin obtenerlo. Se cuenta por separado en cada gacha.`)
     );
     return reply({ text: lineas.join("\n") });
   }

@@ -5,12 +5,13 @@ import { NIVEL_MAX, estrellasTexto } from "../../../motores/gacha-niveles.js";
 import { poderesActivos } from "../../../motores/gacha-poderes.js";
 import { TAMANO_EQUIPO, equipoDe, guardarEquipo } from "../../../motores/gacha-equipos.js";
 import { encabezado } from "../../../src/economia/estilo.js";
+import { T } from "../../../motores/gacha-tema.js";
 
 const identificador = (texto) => (/^#?\d+$/.test(texto || "") ? parseInt(String(texto).replace("#", ""), 10) : null);
 
 function ayuda() {
   return [
-    encabezado("🛡️", "EQUIPO"),
+    encabezado("🛡️", T("EQUIPO", "EQUIPO MACABRO")),
     "",
     `> Arma un equipo de hasta ${TAMANO_EQUIPO} personajes por gacha para las batallas por equipos. Si no guardas uno se usan tus ${TAMANO_EQUIPO} personajes de mayor nivel.`,
     "",
@@ -25,7 +26,7 @@ function ayuda() {
 
 function tarjeta(categoria, personajes, automatico) {
   const cat = CAT[categoria];
-  const lineas = [encabezado("🛡️", `EQUIPO ${cat.titulo}`), ""];
+  const lineas = [encabezado("🛡️", T(`EQUIPO ${cat.titulo}`, `EQUIPO MACABRO ${cat.titulo}`)), ""];
   if (!personajes.length) {
     lineas.push(`> Todavía no tienes ${cat.unidades}. Consigue uno con *${cat.rollCmd}*.`);
     return lineas.join("\n");
@@ -37,7 +38,7 @@ function tarjeta(categoria, personajes, automatico) {
     const poderes = Object.values(poderesActivos(p, p.nivel, NIVEL_MAX[categoria], p.estrellas || 0)).map((x) => x.nombre);
     lineas.push(`> ✦ ${poderes.length ? poderes.join(" · ") : "Sin poderes desbloqueados todavía"}`);
   });
-  lineas.push("", "> Pelea ordenado de arriba hacia abajo: cuando un personaje cae entra el siguiente.");
+  lineas.push("", T("> Pelea ordenado de arriba hacia abajo: cuando un personaje cae entra el siguiente.", "> Pelea ordenado de arriba hacia abajo: cuando un personaje cae, entra el siguiente desde la oscuridad."));
   return lineas.join("\n");
 }
 
