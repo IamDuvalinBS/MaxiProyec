@@ -1,10 +1,40 @@
 import fs from "fs";
 import { getProfile, pfpPath } from "../../../motores/profile.js";
 import { getAccount } from "../../../motores/db.js";
+import { enviarConBoton } from "../../../motores/botones.js";
+import { FOTO_PATH } from "../../../core.js";
 
-const PIE_DE_PAGINA = "Pᴏᴡᴇʀᴇᴅ Bʏ • ItsDuva";
+const FIRMA = "Bardera of style";
 const NOMBRE_BOT = "𝑀𝑎𝑥𝑖𝑃𝑟𝑜𝑦𝑒𝑐";
 const num = (jid) => jid.split("@")[0];
+
+async function obtenerMedia(sock, target) {
+  const ruta = pfpPath(target);
+
+  if (fs.existsSync(ruta)) {
+    let tipo = "image";
+    try {
+      tipo = fs.readFileSync(ruta + ".tipo", "utf8").trim();
+    } catch (e) {}
+    return { buffer: fs.readFileSync(ruta), tipo };
+  }
+
+  for (const calidad of ["image", "preview"]) {
+    try {
+      const url = await sock.profilePictureUrl(target, calidad);
+      const res = await fetch(url);
+      if (res.ok) return { buffer: Buffer.from(await res.arrayBuffer()), tipo: "image" };
+    } catch (e) {
+      console.log(`[perfil] profilePictureUrl (${calidad}) falló para ${target}: ${e.message}`);
+    }
+  }
+
+  try {
+    if (fs.existsSync(FOTO_PATH)) return { buffer: fs.readFileSync(FOTO_PATH), tipo: "image" };
+  } catch (e) {}
+
+  return { buffer: null, tipo: "image" };
+}
 
 export default {
   names: [".perfil", ".profile"],
@@ -40,43 +70,43 @@ export default {
       `. .┊◟♯ . / 𝑀𝑢𝑠𝑖𝑐𝑎 𝑓𝑎𝑣𝑜𝑟𝑖𝑡𝑎 → ${p.favMusic || "No establecido"}`,
       "   ╰━━ ⋅𖥔⋅ ━━━━━━✶━━━━━━ ⋅𖥔⋅ ━╯",
       "",
-      `> ${PIE_DE_PAGINA}`
+      "> Este es tu perfil de WhatsApp en el bot, puedes ver cómo editarlo usando *.menu Perfil*"
     ].join("\n");
 
     const mentions = [target];
     if (p.marriedTo) mentions.push(p.marriedTo);
 
-    let buffer = null;
-    let tipo = "image";
+    const { buffer, tipo } = await obtenerMedia(sock, target);
+    const esVideo = tipo === "video" || tipo === "gif";
 
-    if (fs.existsSync(pfpPath(target))) {
-      buffer = fs.readFileSync(pfpPath(target));
-      try {
-        tipo = fs.readFileSync(pfpPath(target) + ".tipo", "utf8").trim();
-      } catch (e) {}
-    } else {
-      try {
-        const url = await sock.profilePictureUrl(target, "image");
-        const res = await fetch(url);
-        buffer = Buffer.from(await res.arrayBuffer());
-      } catch (e) {
-        buffer = null;
-      }
-    }
+    const enviado = await enviarConBoton({
+      sock,
+      from,
+      msg,
+      texto,
+      footer: FIRMA,
+      foto: esVideo ? null : buffer,
+      video: esVideo ? buffer : null,
+      gif: tipo === "gif",
+      boton: null,
+      mentions
+    });
+
+    if (enviado) return;
 
     let contenido;
     if (!buffer) {
-      contenido = { text: texto, mentions };
-    } else if (tipo === "video" || tipo === "gif") {
+      contenido = { text: `${texto}\n\n${FIRMA}`, mentions };
+    } else if (esVideo) {
       contenido = {
         video: buffer,
         mimetype: "video/mp4",
         gifPlayback: tipo === "gif",
-        caption: texto,
+        caption: `${texto}\n\n${FIRMA}`,
         mentions
       };
     } else {
-      contenido = { image: buffer, caption: texto, mentions };
+      contenido = { image: buffer, caption: `${texto}\n\n${FIRMA}`, mentions };
     }
 
     await sock.sendMessage(from, contenido, { quoted: msg });
