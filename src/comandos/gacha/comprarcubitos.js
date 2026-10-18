@@ -1,8 +1,21 @@
 import { gachaListo, monto } from "../../../motores/gacha-core.js";
 import { getAccount } from "../../../motores/db.js";
 import { encabezado } from "../../../src/economia/estilo.js";
+import { estilo } from "../../../src/economia/temas.js";
+
+const ESTILOS = {
+  normal: {
+    titulo: "COMPRA REALIZADA",
+    falta: (n) => `❌ Necesitas *${n}* en mano y no te alcanza. Usa *.retirar* para sacar dinero del banco.`,
+    dinero: "⛁ *Dinero en mano*"
+  },
+  halloween: {
+    titulo: "COMPRA MALDITA REALIZADA",
+    falta: (n) => `❌ Necesitas *${n}* en el caldero y no te alcanza. Usa *.retirar* para desenterrar calabazas de la cripta.`,
+    dinero: "🧙‍♀️ *Caldero*"
+  }
+};
 import { PRECIO_CUBITO, comprarCubitos } from "../../../motores/gacha-niveles.js";
-import { registrarActividad } from "../../../motores/gacha-misiones.js";
 
 export default {
   names: [".comprarcubitos", ".cubitoscomprar"],
@@ -11,6 +24,7 @@ export default {
   usage: ".comprarcubitos <cantidad>",
   handler: async ({ sender, cleanText, reply }) => {
     await gachaListo;
+    const E = estilo(ESTILOS);
     const cantidad = parseInt(cleanText.split(/\s+/)[1] || "", 10);
 
     if (!cantidad || cantidad < 1) {
@@ -19,22 +33,20 @@ export default {
 
     const r = comprarCubitos(sender, cantidad);
     if (r.error) {
-      return reply({ text: `❌ Necesitas *${monto(r.total)}* en mano y no te alcanza. Usa *.retirar* para sacar dinero del banco.` });
+      return reply({ text: E.falta(monto(r.total)) });
     }
 
-    const enviado = await reply({
+    return reply({
       text: [
-        encabezado("⚡", "COMPRA REALIZADA"),
+        encabezado("⚡", E.titulo),
         "",
         `🟪 *Compraste* ›› ${cantidad} cubitos`,
         `> Pagaste ${monto(r.total)}.`,
         `🎒 *Ahora tienes* ›› ${r.tiene} cubitos`,
-        `⛁ *Dinero en mano* ›› ${monto(getAccount(sender).wallet)}`,
+        `${E.dinero} ›› ${monto(getAccount(sender).wallet)}`,
         "",
         "> Úsalos con *.subirbrawler [ID] [cantidad|max]*."
       ].join("\n")
     });
-    await registrarActividad({ reply, sender, eventos: [{ tipo: "tienda", cantidad: 1 }] });
-    return enviado;
   }
 };
