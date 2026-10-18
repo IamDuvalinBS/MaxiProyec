@@ -7,6 +7,25 @@ export default crearTrabajo({
   emoji: "🗺️",
   tituloExito: "EXPLORACIÓN COMPLETADA",
   cooldownMs: 90 * 60 * 1000,
+  // Extensión de evento: solo textos y emojis (se emparejan por posición con exitos/fallos).
+  halloween: {
+    emoji: "🌲",
+    tituloExito: "BOSQUE SINIESTRO EXPLORADO",
+    exitos: [
+      "Recorriste un sendero de niebla sin encontrar nada fuera de lo común. 🌫️",
+      "Encontraste una cabaña abandonada sin objetos de valor. 🏚️",
+      "Recolectaste hierbas de luna y las vendiste a una bruja herbolaria. 🌿",
+      "Hallaste monedas antiguas enterradas junto a una tumba cubierta de musgo. 🪦",
+      "Hallaste un mapa de un cementerio olvidado y lo vendiste a un coleccionista. 🗺️",
+      "Cartografiaste un pantano encantado y recibiste una recompensa. 🐸",
+      "Rescataste a un viajero perdido en el bosque embrujado y te recompensó. 🔦",
+      "Descubriste una cueva llena de murciélagos y objetos antiguos. 🦇",
+      "Recuperaste reliquias de una capilla abandonada. ⛪",
+      "Descubriste un cofre hundido en un lago de aguas negras. 🕯️",
+      "Localizaste una cripta secreta repleta de oro. 💀",
+      "Encontraste los restos de una expedición fantasma con su tesoro intacto. 👻"
+    ]
+  },
   exitos: [
     { texto: "Recorriste un sendero sin encontrar nada fuera de lo común.", min: 15, max: 50 },
     { texto: "Encontraste unas ruinas vacías sin objetos de valor.", min: 20, max: 60 },

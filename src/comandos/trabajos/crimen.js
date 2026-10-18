@@ -10,6 +10,33 @@ export default crearTrabajo({
   emojiFallo: "🚔",
   chanceFallo: 0.4,
   cooldownMs: 60 * 60 * 1000,
+  // Extensión de evento: solo textos y emojis (se emparejan por posición con exitos/fallos).
+  halloween: {
+    emoji: "🦇",
+    tituloExito: "TRAVESURA EXITOSA",
+    tituloFallo: "TRAVESURA FALLIDA",
+    emojiFallo: "👻",
+    exitos: [
+      "Le quitaste un caramelo masticado a un niño disfrazado de fantasma. 🍬",
+      "Te llevaste la bolsa de dulces de un transeúnte distraído. 🎃",
+      "Robaste las propinas de la fiesta de disfraces más concurrida. 🎭",
+      "Vaciaste el caldero de dulces de una casa embrujada sin vigilancia. 🧙‍♀️",
+      "Saqueaste la tienda de dulces del barrio durante el truco o trato. 🍭",
+      "Falsificaste entradas a la casa del terror y las vendiste en la puerta. 🎟️",
+      "Vendiste pociones de contrabando en el mercado de las brujas. 🧪",
+      "Falsificaste pergaminos de hechizos y se los vendiste a un brujo apurado. 📜",
+      "Desmantelaste un carruaje fúnebre y vendiste sus piezas. ⚰️",
+      "Robaste el reloj de oro de un vampiro dormido en su ataúd. 🧛",
+      "Encontraste un anillo de oro maldito entre el botín. 💍💀",
+      "Participaste en el saqueo del tesoro de una mansión embrujada. 🏚️"
+    ],
+    fallos: [
+      "Un fantasma guardián te sorprendió en pleno acto y te asustó hasta soltar el botín. 👻",
+      "Un cómplice con disfraz de momia te delató y debiste pagar una fianza. 🧟",
+      "Sonó la campana de la torre embrujada y huiste sin botín. 🔔",
+      "Un cuervo fisgón registró tus movimientos y te cobraron una multa. 🐦‍⬛"
+    ]
+  },
   exitos: [
     { texto: "Sustrajiste un teléfono de juguete que casi no tenía valor.", min: 5, max: 15 },
     { texto: "Sustrajiste la cartera de un transeúnte descuidado.", min: 30, max: 80 },

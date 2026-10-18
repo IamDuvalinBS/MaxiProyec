@@ -7,6 +7,26 @@ export default crearTrabajo({
   emoji: "👷",
   tituloExito: "TRABAJO COMPLETADO",
   cooldownMs: 20 * 60 * 1000,
+  // Extensión de evento: solo textos y emojis (se emparejan por posición con exitos/fallos).
+  halloween: {
+    emoji: "🧹",
+    tituloExito: "TURNO EMBRUJADO COMPLETADO",
+    exitos: [
+      "Paseaste a los perros fantasma de varios vecinos del cementerio. 🐕👻",
+      "Repartiste volantes de la fiesta de Halloween por todo el pueblo. 🎃",
+      "Limpiaste telarañas y polvo de una mansión embrujada al terminar la noche. 🕸️",
+      "Ayudaste a una familia de vampiros con su mudanza de ataúdes. ⚰️",
+      "Completaste un turno como ayudante en la cafetería del Conde Drácula. ☕🧛",
+      "Organizaste el inventario de pociones de la bodega de una bruja. 🧪",
+      "Lavaste escobas voladoras en el estacionamiento de las brujas. 🧹",
+      "Repartiste pasteles de calabaza a domicilio por las casas embrujadas. 🥧",
+      "Diste una clase de refuerzo de hechizos a un aprendiz de brujo. 🧙‍♂️",
+      "Atendiste la caja de la tienda de disfraces durante toda la víspera. 🎭",
+      "Armaste pedidos de calabazas talladas en el almacén de una tienda embrujada. 🎃",
+      "Cubriste el turno de un fantasma en la oficina de correos del más allá. 👻📮",
+      "Terminaste un decorado de terror freelance antes de la medianoche. 🦇"
+    ]
+  },
   exitos: [
     { texto: "Paseaste a los perros de varios vecinos del sector.", min: 20, max: 60 },
     { texto: "Repartiste volantes publicitarios en el centro de la ciudad.", min: 25, max: 55 },

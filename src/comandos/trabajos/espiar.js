@@ -10,6 +10,32 @@ export default crearTrabajo({
   emojiFallo: "🚨",
   chanceFallo: 0.35,
   cooldownMs: 60 * 60 * 1000,
+  // Extensión de evento: solo textos y emojis (se emparejan por posición con exitos/fallos).
+  halloween: {
+    emoji: "🔮",
+    tituloExito: "VISIÓN OCULTA EXITOSA",
+    tituloFallo: "ESPÍRITU DESCUBIERTO",
+    emojiFallo: "🪦",
+    exitos: [
+      "Seguiste a un vampiro toda la noche sin descubrir nada útil. 🦇",
+      "Obtuviste rumores sin importancia de los fantasmas del pasillo. 👻",
+      "Escuchaste una reunión de brujas desde el pasillo y anotaste lo esencial. 🧙‍♀️",
+      "Revisaste el caldero de una bruja y encontraste ingredientes valiosos. 🧪",
+      "Fotografiaste un grimorio prohibido y cobraste por ello. 📖",
+      "Interceptaste una conversación privada entre dos espectros. 👁️",
+      "Colocaste un ojo mágico en la sala de reuniones del aquelarre. 🔮",
+      "Entregaste un informe detallado sobre los movimientos de un hombre lobo rival. 🐺",
+      "Descubriste el plan de una nueva poción de la competencia. 🧪",
+      "Vendiste secretos del castillo del conde a sus rivales. 🏰",
+      "Recuperaste un expediente maldito para un cliente misterioso. 📜",
+      "Dejaste en evidencia a una red de espías del más allá y recibiste una gran recompensa. 💀"
+    ],
+    fallos: [
+      "Te descubrió un espectro y pagaste para evitar su maldición. 👻",
+      "Perdiste tu amuleto de vigilancia durante la misión. 🧿",
+      "Un gato negro notó tu presencia y debiste abandonar la zona. 🐈‍⬛"
+    ]
+  },
   exitos: [
     { texto: "Seguiste a un empresario todo el día sin descubrir nada útil.", min: 15, max: 45 },
     { texto: "Obtuviste rumores sin mayor importancia.", min: 20, max: 60 },
