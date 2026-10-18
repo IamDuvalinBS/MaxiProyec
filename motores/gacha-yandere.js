@@ -224,9 +224,19 @@ export async function animesAleatorios(n, base = BASE) {
 export async function agregarSerie(serie, { base = BASE, max = 40 } = {}) {
   const agregadas = [];
   const rechazos = {};
-  const rel = await api("/tag/related.json", { tags: serie, type: TIPO.personaje }, base);
-  const tagsPj = (rel?.[serie] || []).map(([n]) => n).slice(0, max);
+
+  let tagsPj = [];
+  try {
+    const rel = await api("/tag/related.json", { tags: serie, type: "character" }, base);
+    const lista = rel?.[serie] || Object.values(rel || {})[0] || [];
+    tagsPj = lista.map(([n]) => n);
+  } catch (e) {
+    console.log(`[yanderandom] related ${serie}: ${e.message}`);
+  }
+  console.log(`[yanderandom] ${serie}: ${tagsPj.length} personajes relacionados`);
+
   for (const tag of tagsPj) {
+    if (agregadas.length >= max) break;
     if (personajePorClave("waifu", tag)) { sumar(rechazos, "personaje ya registrado"); continue; }
     let posts;
     try {
@@ -242,6 +252,23 @@ export async function agregarSerie(serie, { base = BASE, max = 40 } = {}) {
       if (r.ok) { agregadas.push(r.personaje); listo = true; break; }
     }
     if (!listo) sumar(rechazos, "sin imagen válida");
+  }
+
+  for (let page = 1; page <= 3 && agregadas.length < max; page++) {
+    let posts;
+    try {
+      posts = await api("/post.json", { tags: `${serie} solo rating:safe order:score`, limit: 40, page }, base);
+    } catch (e) {
+      break;
+    }
+    if (!Array.isArray(posts) || !posts.length) break;
+    for (const post of posts) {
+      if (agregadas.length >= max) break;
+      const r = await procesarPost(post, { base, scoreMin: 0 });
+      if (r.ok) agregadas.push(r.personaje);
+      else sumar(rechazos, r.motivo);
+    }
+    await pausa(300);
   }
   return { agregadas, rechazos };
 }
@@ -296,4 +323,5 @@ export async function agregarPorLink(link) {
     else sumar(rechazos, r.motivo);
   }
   return { ok: agregadas.length > 0, agregadas, rechazos, motivo: Object.keys(rechazos)[0] || "sin resultados" };
-}
+      }
+    
