@@ -1,5 +1,3 @@
-
-
 let libCache;
 
 async function cargarLib() {
@@ -15,13 +13,24 @@ async function cargarLib() {
   return libCache;
 }
 
-export async function enviarConBoton({ sock, from, msg, texto, footer, foto, boton, mentions = [] }) {
+export async function enviarConBoton({ sock, from, msg, texto, footer, foto, video, gif, boton, mentions = [] }) {
   const lib = await cargarLib();
   if (!lib) return false;
 
   try {
     let header = { title: "", hasMediaAttachment: false };
-    if (foto && lib.prepareWAMessageMedia) {
+    if (video && lib.prepareWAMessageMedia) {
+      try {
+        const media = await lib.prepareWAMessageMedia(
+          { video, gifPlayback: !!gif },
+          { upload: sock.waUploadToServer }
+        );
+        header = { title: "", hasMediaAttachment: true, videoMessage: media.videoMessage };
+      } catch (e) {
+        console.log("[botones] No se pudo subir el video del encabezado: " + e.message);
+        return false;
+      }
+    } else if (foto && lib.prepareWAMessageMedia) {
       try {
         const media = await lib.prepareWAMessageMedia({ image: foto }, { upload: sock.waUploadToServer });
         header = { title: "", hasMediaAttachment: true, imageMessage: media.imageMessage };
