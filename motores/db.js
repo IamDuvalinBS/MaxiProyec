@@ -62,7 +62,8 @@ export async function connectDB(intentos = 5) {
           negocios: doc.negocios || {},
           afk: doc.afk || null,
           profile: doc.profile,
-          gachaClaim: doc.gachaClaim
+          gachaClaim: doc.gachaClaim,
+          prestamo: doc.prestamo
         });
       }
       console.log(`Datos cargados desde MongoDB: ${accounts.size} cuentas`);
@@ -150,7 +151,7 @@ function documentoCuenta(sender) {
   const acc = accounts.get(sender);
   if (!acc) return null;
   const doc = { _id: sender, wallet: acc.wallet, bank: acc.bank };
-  for (const clave of ["cooldowns", "rachas", "negocios", "afk", "profile", "gachaClaim"]) {
+  for (const clave of ["cooldowns", "rachas", "negocios", "afk", "profile", "gachaClaim", "prestamo"]) {
     const valor = acc[clave];
     const vacio = valor === undefined || valor === null || (typeof valor === "object" && Object.keys(valor).length === 0);
     if (!vacio) doc[clave] = valor;
@@ -204,7 +205,8 @@ async function arrancarModoRespaldo() {
         negocios: doc.negocios || {},
         afk: doc.afk || null,
         profile: doc.profile,
-          gachaClaim: doc.gachaClaim
+          gachaClaim: doc.gachaClaim,
+          prestamo: doc.prestamo
       });
     }
     const cfgDoc = (datos.config || []).find((d) => d._id === "bot");
@@ -292,7 +294,8 @@ export async function recargarDatos() {
       negocios: doc.negocios || {},
       afk: doc.afk || null,
       profile: doc.profile,
-          gachaClaim: doc.gachaClaim
+          gachaClaim: doc.gachaClaim,
+          prestamo: doc.prestamo
     });
   }
 
@@ -330,7 +333,7 @@ function armarOperacion(sender) {
   }
   const asignar = { wallet: acc.wallet, bank: acc.bank };
   const quitar = {};
-  const opcionales = { cooldowns: acc.cooldowns, rachas: acc.rachas, negocios: acc.negocios, afk: acc.afk, profile: acc.profile, gachaClaim: acc.gachaClaim };
+  const opcionales = { cooldowns: acc.cooldowns, rachas: acc.rachas, negocios: acc.negocios, afk: acc.afk, profile: acc.profile, gachaClaim: acc.gachaClaim, prestamo: acc.prestamo };
   for (const [clave, valor] of Object.entries(opcionales)) {
     const vacio = valor === undefined || valor === null || (typeof valor === "object" && Object.keys(valor).length === 0);
     if (vacio) quitar[clave] = "";
