@@ -1,23 +1,40 @@
 import { getAccount, saveAccount } from "../../motores/db.js";
 import { addXp } from "../../motores/profile.js";
-import { leerMonto, monto, textoEspera } from "./formato.js";
+import { leerMonto, monto, textoEspera } from "./formato-evento.js";
+import { estilo } from "./temas.js";
 import { enfriar } from "../nucleo/espera.js";
 
+const ESTILOS = {
+  normal: {
+    invalido: "⚠️ Indica un monto válido o utiliza *todo*. Ejemplo: *1000*",
+    minima: (n) => `⚠️ La apuesta mínima es de *${monto(n)}*.`,
+    maxima: (n) => `⚠️ La apuesta máxima es de *${monto(n)}*.`,
+    sinFondos: (n) => `⚠️ Fondos insuficientes. Dinero disponible en mano: *${monto(n)}*.`
+  },
+  halloween: {
+    invalido: "⚠️ 🦇 Indica un monto válido o utiliza *todo*. Ejemplo: *1000*",
+    minima: (n) => `⚠️ 🕸️ La apuesta mínima es de *${monto(n)}*.`,
+    maxima: (n) => `⚠️ 💀 La apuesta máxima es de *${monto(n)}*.`,
+    sinFondos: (n) => `⚠️ 💀 No tienes tantas calabazas. En tu caldero solo hay: *${monto(n)}*.`
+  }
+};
+
 export function resolverApuesta(texto, disponible, minimo, maximo) {
+  const E = estilo(ESTILOS);
   const cantidad = leerMonto(texto, disponible);
   if (!cantidad) {
-    return { error: "⚠️ Indica un monto válido o utiliza *todo*. Ejemplo: *1000*" };
+    return { error: E.invalido };
   }
   const esTodo = ["todo", "all", "max"].includes(String(texto).trim().toLowerCase());
   const stake = esTodo ? Math.min(cantidad, maximo) : cantidad;
   if (stake < minimo) {
-    return { error: `⚠️ La apuesta mínima es de *${monto(minimo)}*.` };
+    return { error: E.minima(minimo) };
   }
   if (stake > maximo) {
-    return { error: `⚠️ La apuesta máxima es de *${monto(maximo)}*.` };
+    return { error: E.maxima(maximo) };
   }
   if (stake > disponible) {
-    return { error: `⚠️ Fondos insuficientes. Dinero disponible en mano: *${monto(disponible)}*.` };
+    return { error: E.sinFondos(disponible) };
   }
   return { stake };
 }

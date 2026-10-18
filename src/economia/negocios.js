@@ -1,5 +1,6 @@
 import { getAccount, addToWallet } from "../../motores/db.js";
 import { datosDe, guardarDatos } from "../../motores/almacen-local.js";
+import { esHalloween } from "./temas.js";
 
 export const HORAS_CICLO = 12;
 export const CICLO_MS = HORAS_CICLO * 60 * 60 * 1000;
@@ -9,11 +10,47 @@ export const TOPE_GENERACION = 600000;
 export const RENDIMIENTO = 0.1;
 export const PORCENTAJE_SEMANAL = 0.25;
 
+// Cada negocio conserva su clave y su precio. "emoji" y "nombre" cambian según el evento activo
+// (por eso son getters): la base de datos siempre guarda la misma clave.
+function negocio({ clave, precio, normal, halloween }) {
+  const vista = () => (esHalloween() ? halloween : normal);
+  return {
+    clave,
+    precio,
+    get emoji() {
+      return vista().emoji;
+    },
+    get nombre() {
+      return vista().nombre;
+    }
+  };
+}
+
 export const CATALOGO = [
-  { clave: "chimichangas", emoji: "🌯", nombre: "Puesto de Chimichangas", precio: 500000 },
-  { clave: "abarrotes", emoji: "🛒", nombre: "Tienda de Abarrotes", precio: 1500000 },
-  { clave: "cafeteria", emoji: "☕", nombre: "Cafetería", precio: 3000000 },
-  { clave: "taqueria", emoji: "🌮", nombre: "Taquería", precio: 6000000 }
+  negocio({
+    clave: "chimichangas",
+    precio: 500000,
+    normal: { emoji: "🌯", nombre: "Puesto de Chimichangas" },
+    halloween: { emoji: "🍬", nombre: "Puesto de Dulces Malditos" }
+  }),
+  negocio({
+    clave: "abarrotes",
+    precio: 1500000,
+    normal: { emoji: "🛒", nombre: "Tienda de Abarrotes" },
+    halloween: { emoji: "🧪", nombre: "Tienda de Pociones y Velas" }
+  }),
+  negocio({
+    clave: "cafeteria",
+    precio: 3000000,
+    normal: { emoji: "☕", nombre: "Cafetería" },
+    halloween: { emoji: "🧛", nombre: "Café del Conde Drácula" }
+  }),
+  negocio({
+    clave: "taqueria",
+    precio: 6000000,
+    normal: { emoji: "🌮", nombre: "Taquería" },
+    halloween: { emoji: "🏚️", nombre: "Mansión del Terror" }
+  })
 ];
 
 export function maximoDe(def) {

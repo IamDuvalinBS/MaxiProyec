@@ -248,3 +248,32 @@ export const PREGUNTAS = [
   { pregunta: "¿Quién escribió la letra del Himno Nacional Mexicano?", opciones: ["Jaime Nunó", "Manuel Acuña", "Amado Nervo", "Francisco González Bocanegra"], correcta: 3 },
   { pregunta: "¿Quién compuso la música del Himno Nacional Mexicano?", opciones: ["Miguel Lerdo de Tejada", "Juventino Rosas", "Jaime Nunó", "Ricardo Castro"], correcta: 2 }
 ];
+
+// Preguntas del evento Halloween (mismo formato; "correcta" es el índice en "opciones").
+export const PREGUNTAS_HALLOWEEN = [
+  { pregunta: "¿De qué fruto se talla tradicionalmente el farol de Halloween hoy en día?", opciones: ["Sandía", "Calabaza", "Melón", "Coco"], correcta: 1 },
+  { pregunta: "¿Qué festividad celta es considerada el origen de Halloween?", opciones: ["Beltane", "Samhain", "Imbolc", "Lughnasadh"], correcta: 1 },
+  { pregunta: "¿En qué fecha se celebra Halloween?", opciones: ["1 de octubre", "15 de octubre", "31 de octubre", "2 de noviembre"], correcta: 2 },
+  { pregunta: "¿Quién escribió la novela \"Drácula\"?", opciones: ["Mary Shelley", "Bram Stoker", "Edgar Allan Poe", "H. P. Lovecraft"], correcta: 1 },
+  { pregunta: "¿Quién escribió la novela \"Frankenstein\"?", opciones: ["Mary Shelley", "Bram Stoker", "Stephen King", "Anne Rice"], correcta: 0 },
+  { pregunta: "¿Qué ave da título al famoso poema de Edgar Allan Poe?", opciones: ["El búho", "El cuervo", "La paloma", "El águila"], correcta: 1 },
+  { pregunta: "¿Qué frase se dice al pedir dulces de puerta en puerta en Halloween?", opciones: ["Dulce o fiesta", "Truco o trato", "Paz y dulces", "Fiesta o susto"], correcta: 1 },
+  { pregunta: "¿Qué fiesta mexicana se celebra el 1 y 2 de noviembre?", opciones: ["Día de Muertos", "Noche Buena", "Grito de Independencia", "Día de Reyes"], correcta: 0 },
+  { pregunta: "¿Qué flor es tradicional en las ofrendas del Día de Muertos?", opciones: ["Rosa roja", "Girasol", "Cempasúchil", "Tulipán"], correcta: 2 },
+  { pregunta: "¿Qué ciudad de Estados Unidos es famosa por sus juicios de brujas de 1692?", opciones: ["Salem", "Boston", "Nueva York", "Filadelfia"], correcta: 0 },
+  { pregunta: "Según el folclore, ¿qué provoca que un hombre lobo se transforme?", opciones: ["El sol", "La luna llena", "La lluvia", "La nieve"], correcta: 1 },
+  { pregunta: "Según el folclore, ¿con qué se mata a un vampiro?", opciones: ["Una estaca en el corazón", "Un espejo", "Agua tibia", "Una campana"], correcta: 0 },
+  { pregunta: "¿Qué alimento se dice que espanta a los vampiros?", opciones: ["Cebolla", "Ajo", "Pimiento", "Jengibre"], correcta: 1 },
+  { pregunta: "¿Cuántas patas tiene una araña?", opciones: ["Seis", "Ocho", "Diez", "Doce"], correcta: 1 },
+  { pregunta: "¿Qué mamífero volador se asocia con los vampiros y las cuevas oscuras?", opciones: ["Murciélago", "Colibrí", "Ardilla voladora", "Lechuza"], correcta: 0 },
+  { pregunta: "¿Qué criatura de la mitología griega tenía serpientes en lugar de cabello?", opciones: ["Medusa", "Hidra", "Quimera", "Harpía"], correcta: 0 },
+  { pregunta: "¿En qué vehículo se transportan las brujas según las leyendas?", opciones: ["Alfombra", "Escoba", "Carreta", "Trineo"], correcta: 1 },
+  { pregunta: "¿Qué vegetal se tallaba en Irlanda antes de usar calabazas?", opciones: ["Nabo", "Zanahoria", "Repollo", "Papa"], correcta: 0 },
+  { pregunta: "¿De qué expresión inglesa proviene el nombre \"Halloween\"?", opciones: ["Hello Win", "All Hallows' Eve", "Hollow Night", "Hall of Queens"], correcta: 1 },
+  { pregunta: "¿En qué país se encuentra la región histórica de Transilvania?", opciones: ["Hungría", "Rumania", "Polonia", "Bulgaria"], correcta: 1 },
+  { pregunta: "¿Qué dos colores se asocian principalmente con Halloween?", opciones: ["Rojo y azul", "Verde y rosa", "Naranja y negro", "Blanco y amarillo"], correcta: 2 },
+  { pregunta: "¿Cómo se llama el director de la película de terror \"Halloween\" de 1978?", opciones: ["Wes Craven", "John Carpenter", "Tobe Hooper", "Sam Raimi"], correcta: 1 },
+  { pregunta: "¿Qué animal doméstico negro se asocia con la mala suerte y las brujas?", opciones: ["Perro", "Gato", "Conejo", "Cuervo"], correcta: 1 },
+  { pregunta: "¿Cuántos días tiene el mes de octubre?", opciones: ["28", "30", "31", "29"], correcta: 2 },
+  { pregunta: "¿Qué animal teje telarañas para atrapar a sus presas?", opciones: ["Gusano de seda", "Araña", "Hormiga", "Escarabajo"], correcta: 1 }
+];
