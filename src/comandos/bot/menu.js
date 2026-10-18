@@ -11,7 +11,7 @@ function leerFoto() {
 }
 
 // "categorias" son los nombres reales que usan los archivos de comandos (no se tocan).
-// "titulo" es lo único que se muestra en el menú.
+// "titulo" es lo único que se muestra en el menú. El orden de esta lista es el orden del menú.
 const GRUPOS = [
   {
     titulo: "INFOBOT",
@@ -19,6 +19,20 @@ const GRUPOS = [
     descripcion: "Información del bot y herramientas generales.",
     categorias: ["General", "Utilidad"],
     alias: ["infobot", "general", "utilidad", "utility"]
+  },
+  {
+    titulo: "ECONOMY",
+    icono: "🪙",
+    descripcion: "Gana, trabaja, apuesta y administra tus monedas.",
+    categorias: ["Economía", "Trabajos", "Apuestas"],
+    alias: ["economy", "economia", "trabajos", "trabajo", "jobs", "job", "work", "apuestas", "apuesta", "casino", "bets", "betting"]
+  },
+  {
+    titulo: "GACHA",
+    icono: "🎴",
+    descripcion: "Colecciona waifus, pokémon, brawlers y más.",
+    categorias: ["Gacha"],
+    alias: ["gacha", "waifus", "rw", "pokemon", "brawl"]
   },
   {
     titulo: "GRUPOS",
@@ -42,25 +56,18 @@ const GRUPOS = [
     alias: ["descargas", "downloads", "download"]
   },
   {
-    titulo: "ECONOMIA",
-    icono: "🪙",
-    descripcion: "Gana, trabaja, apuesta y administra tus monedas.",
-    categorias: ["Economía", "Trabajos", "Apuestas"],
-    alias: ["economia", "economy", "trabajos", "trabajo", "jobs", "job", "work", "apuestas", "apuesta", "casino", "bets", "betting"]
-  },
-  {
     titulo: "JUEGOS",
     icono: "🎮",
-    descripcion: "Juegos y comandos de diversión para el grupo.",
-    categorias: ["Juegos", "Diversión"],
-    alias: ["juegos", "juego", "games", "game", "diversion", "fun"]
+    descripcion: "Juegos para divertirte con tus amigos.",
+    categorias: ["Juegos"],
+    alias: ["juegos", "juego", "games", "game"]
   },
   {
-    titulo: "GACHA",
-    icono: "🎴",
-    descripcion: "Colecciona waifus, pokémon, brawlers y más.",
-    categorias: ["Gacha"],
-    alias: ["gacha", "waifus", "rw", "pokemon", "brawl"]
+    titulo: "REACCIONES",
+    icono: "🎭",
+    descripcion: "Reacciones para interactuar con los demás.",
+    categorias: ["Diversión"],
+    alias: ["reacciones", "reaccion", "diversion", "fun"]
   },
   {
     titulo: "STICKERS",
@@ -127,13 +134,13 @@ function textoMenuCompleto(categorias) {
   const total = new Set(commandRegistry.values()).size;
 
   const cabecera = [
-    `> 🐋 *¡Holaa!*, es un gusto tenerte aquí. Soy *⧼⧼ ${config.botNameLong} ⧽⧽*, aquí tienes la lista de comandos. ⬎`,
+    `> 🐋 *¡Holaa!*, es un gusto tenerte aquí. Soy *${config.botNameShort}*, aquí tienes la lista de comandos. ⬎`,
     "",
     "╔≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈⧽⧽",
     "︴ *⨳⌗۵ : ᥆ᥕᥒᥱr ძᥱᥣ ᑲ᥆𝗍 ::*",
     `> ${config.ownerName}`,
     "︴ *⨳⌗۵ : ᥒ᥆mᑲrᥱ ძᥱᥣ ᑲ᥆𝗍 ::*",
-    `> ${config.botNameShort}`,
+    `> ${config.botNameLong}`,
     "︴ *⨳⌗۵ : 𝗍і⍴᥆ / 𝖿ᥙᥒᥴі᥆́ᥒ ::*",
     "> Multi-Device",
     "︴ *⨳⌗۵ : ᥙ́ᥣ𝗍іmᥲ ᥎ᥱrsі᥆́ᥒ ::*",
