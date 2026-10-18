@@ -1,7 +1,31 @@
 import { getAccount } from "../../../motores/db.js";
 import { trabajosRegistrados } from "../../economia/trabajos.js";
-import { fmt, jidObjetivo } from "../../economia/formato.js";
-import { encabezado, mencion, tiempoLargo } from "../../economia/estilo.js";
+import { fmt, jidObjetivo } from "../../economia/formato-evento.js";
+import { encabezado, mencion, tiempoLargo } from "../../economia/estilo-evento.js";
+import { estilo, moneda } from "../../economia/temas.js";
+
+const ESTILOS = {
+  normal: {
+    emoji: "⏳",
+    titulo: "Cooldown de Economía",
+    intro: (m) => `> El tiempo de recarga que falta para utilizar cada comando de economía. ${m}`,
+    marca: "ⴵ",
+    enCooldown: (t) => `> *En cooldown, ${t}.*`,
+    listo: "> *Puedes usarlo*",
+    dinero: (n) => `> ⛁ ${moneda()} » ${n}`,
+    tip: "> Usa .allw para reclamar todos los comandos de economía."
+  },
+  halloween: {
+    emoji: "🕰️",
+    titulo: "Cooldown de la Noche Embrujada",
+    intro: (m) => `> El tiempo que falta para que los espíritus despierten cada comando de economía. ${m} 👻`,
+    marca: "🕯️",
+    enCooldown: (t) => `> *Dormido bajo tierra, ${t}.* 🪦`,
+    listo: "> *¡Despierto! Puedes usarlo* 🎃",
+    dinero: (n) => `> 🧙‍♀️ ${moneda()} » ${n}`,
+    tip: "> Usa .allw para reclamar todos los trabajos embrujados. 🦇"
+  }
+};
 
 const HORA_MS = 60 * 60 * 1000;
 
@@ -33,21 +57,17 @@ export default {
   handler: async ({ sender, msg, reply }) => {
     const objetivo = jidObjetivo(msg) || sender;
     const cuenta = getAccount(objetivo);
+    const E = estilo(ESTILOS);
     const ahora = Date.now();
-    const partes = [
-      encabezado("⏳", "Cooldown de Economía"),
-      "",
-      `> El tiempo de recarga que falta para utilizar cada comando de economía. ${mencion(objetivo)}`,
-      ""
-    ];
+    const partes = [encabezado(E.emoji, E.titulo), "", E.intro(mencion(objetivo)), ""];
 
     for (const comando of listaDeComandos()) {
       const restante = (cuenta.cooldowns[comando.clave] || 0) + comando.ms - ahora;
-      partes.push(`ⴵ ${comando.nombre} » `);
-      partes.push(restante > 0 ? `> *En cooldown, ${tiempoLargo(restante)}.*` : "> *Puedes usarlo*");
+      partes.push(`${E.marca} ${comando.nombre} » `);
+      partes.push(restante > 0 ? E.enCooldown(tiempoLargo(restante)) : E.listo);
     }
 
-    partes.push("", `> ⛁ ¥enes » ${fmt(cuenta.wallet)}`, "> Usa .allw para reclamar todos los comandos de economía.");
+    partes.push("", E.dinero(fmt(cuenta.wallet)), E.tip);
 
     await reply({ text: partes.join("\n"), mentions: [objetivo] });
   }

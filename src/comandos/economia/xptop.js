@@ -1,7 +1,27 @@
 import { getAllAccounts } from "../../../motores/db.js";
-import { tarjeta, fmt } from "../../economia/formato.js";
+import { tarjeta, fmt } from "../../economia/formato-evento.js";
+import { estilo } from "../../economia/temas.js";
 
-const MEDALLAS = ["🥇", "🥈", "🥉"];
+const ESTILOS = {
+  normal: {
+    medallas: ["🥇", "🥈", "🥉"],
+    emoji: "✨",
+    titulo: "RANKING DE XP",
+    relato: "Las personas con más *experiencia* acumulada en el bot.",
+    vacio: "⚠️ Todavía no hay usuarios con experiencia registrada.",
+    fila: (puesto, jid, nivel, total) => `${puesto} @${jid.split("@")[0]} ››\n> Nivel ${nivel} · ${fmt(total)} XP en total.`,
+    tip: "Usa *.perfil* para ver tu nivel y tu experiencia."
+  },
+  halloween: {
+    medallas: ["👑", "🧛", "🧟"],
+    emoji: "🔮",
+    titulo: "RANKING DE ALMAS",
+    relato: "Las almas con más *experiencia sobrenatural* acumulada en el bot. 👻",
+    vacio: "⚠️ 🪦 Todavía no hay almas con experiencia registrada.",
+    fila: (puesto, jid, nivel, total) => `${puesto} @${jid.split("@")[0]} ››\n> Nivel ${nivel} · ${fmt(total)} XP de poder oscuro.`,
+    tip: "Usa *.perfil* para ver el nivel de tu alma. 🕯️"
+  }
+};
 
 export function xpTotal(perfil) {
   const nivel = perfil.level || 1;
@@ -23,25 +43,15 @@ export default {
   desc: "Ver los usuarios con más experiencia",
   category: "Economía",
   handler: async ({ reply }) => {
+    const E = estilo(ESTILOS);
     const ranking = rankingXp(10);
 
-    if (!ranking.length) {
-      return reply({ text: "⚠️ Todavía no hay usuarios con experiencia registrada." });
-    }
+    if (!ranking.length) return reply({ text: E.vacio });
 
-    const lineas = ranking.map((u, i) => {
-      const puesto = MEDALLAS[i] || `*${i + 1}*`;
-      return `${puesto} @${u.jid.split("@")[0]} ››\n> Nivel ${u.nivel} · ${fmt(u.total)} XP en total.`;
-    });
+    const lineas = ranking.map((u, i) => E.fila(E.medallas[i] || `*${i + 1}*`, u.jid, u.nivel, u.total));
 
     await reply({
-      text: tarjeta({
-        emoji: "✨",
-        titulo: "RANKING DE XP",
-        relato: "Las personas con más *experiencia* acumulada en el bot.",
-        lineas,
-        tip: "Usa *.perfil* para ver tu nivel y tu experiencia."
-      }),
+      text: tarjeta({ emoji: E.emoji, titulo: E.titulo, relato: E.relato, lineas, tip: E.tip }),
       mentions: ranking.map((u) => u.jid)
     });
   }

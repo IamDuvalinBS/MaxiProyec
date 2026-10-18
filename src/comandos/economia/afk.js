@@ -1,6 +1,26 @@
-import { monto } from "../../economia/formato.js";
-import { encabezado, mencion } from "../../economia/estilo.js";
+import { monto } from "../../economia/formato-evento.js";
+import { encabezado, mencion } from "../../economia/estilo-evento.js";
 import { estaAfk, activarAfk, desactivarAfk, textoSalidaAfk, MONEDAS_POR_MINUTO } from "../../economia/afk.js";
+import { estilo } from "../../economia/temas.js";
+
+const ESTILOS = {
+  normal: {
+    emoji: "🌙",
+    titulo: "MODO AFK ACTIVADO",
+    aviso: (m) => `> ${m} ahora se encuentra AFK.`,
+    motivo: (t) => `> Motivo: *${t}*`,
+    ganancia: (n) => `🪙 *Ganancia*:: ${monto(n)} por minuto`,
+    tip: "> Escribe cualquier mensaje o usa *.afk* para salir y recibir tus monedas."
+  },
+  halloween: {
+    emoji: "⚰️",
+    titulo: "DURMIENDO EN EL ATAÚD",
+    aviso: (m) => `> ${m} se metió a su ataúd y ahora está AFK. 🧛`,
+    motivo: (t) => `> Motivo del letargo: *${t}*`,
+    ganancia: (n) => `🎃 *Botín nocturno*:: ${monto(n)} por minuto`,
+    tip: "> Escribe cualquier mensaje o usa *.afk* para despertar y recibir tus calabazas. 🦇"
+  }
+};
 
 export default {
   names: [".afk"],
@@ -13,21 +33,13 @@ export default {
       return reply({ text: textoSalidaAfk(sender, datos), mentions: [sender] });
     }
 
+    const E = estilo(ESTILOS);
     const motivo = cleanText.split(/\s+/).slice(1).join(" ").trim();
     activarAfk(sender, motivo);
 
-    const lineas = [
-      encabezado("🌙", "MODO AFK ACTIVADO"),
-      "",
-      `> ${mencion(sender)} ahora se encuentra AFK.`
-    ];
-    if (motivo) lineas.push(`> Motivo: *${motivo}*`);
-    lineas.push(
-      "",
-      `🪙 *Ganancia*:: ${monto(MONEDAS_POR_MINUTO)} por minuto`,
-      "",
-      "> Escribe cualquier mensaje o usa *.afk* para salir y recibir tus monedas."
-    );
+    const lineas = [encabezado(E.emoji, E.titulo), "", E.aviso(mencion(sender))];
+    if (motivo) lineas.push(E.motivo(motivo));
+    lineas.push("", E.ganancia(MONEDAS_POR_MINUTO), "", E.tip);
     await reply({ text: lineas.join("\n"), mentions: [sender] });
   }
 };
