@@ -1,10 +1,39 @@
 import { encabezado } from "../src/economia/estilo.js";
-import { monto } from "../src/economia/formato.js";
+import { fmt } from "../src/economia/formato.js";
+import { estilo, moneda } from "../src/economia/temas.js";
 import { CAT } from "./gacha-categorias.js";
 import { statsEfectivas, NIVEL_MAX, TIENE_NIVELES } from "./gacha-niveles.js";
 import { tipoEs } from "./gacha-pokemon.js";
 
 export const LIMITE_CAPTION = 1000;
+
+// El dinero se ve como calabazas en Halloween (el valor guardado es el mismo).
+const monto = (n) => `${fmt(n)} ${moneda()}`;
+
+const ESTILOS = {
+  normal: {
+    tituloCuriosidades: "CURIOSIDADES",
+    tituloEstadisticas: "ESTADÍSTICAS",
+    descEstadisticas: (cat) => `Estadísticas ${cat.de} ${cat.singular} según su nivel y su rareza.`,
+    salud: "❤️ *Salud*",
+    dano: "⚔️ *Daño*",
+    defensa: "🛡️ *Defensa*",
+    velocidad: "💨 *Velocidad*",
+    tituloValor: "VALOR TOTAL",
+    valor: "💴 *Valor*"
+  },
+  halloween: {
+    tituloCuriosidades: "SECRETOS OCULTOS",
+    tituloEstadisticas: "ESTADÍSTICAS MACABRAS",
+    descEstadisticas: (cat) => `Estadísticas ${cat.de} ${cat.singular} según su nivel y su rareza, bajo la luz de la luna.`,
+    salud: "🩸 *Salud*",
+    dano: "🗡️ *Daño*",
+    defensa: "🛡️ *Defensa*",
+    velocidad: "🦇 *Velocidad*",
+    tituloValor: "TESORO TOTAL",
+    valor: "🪙 *Valor*"
+  }
+};
 
 export function fuenteDe(p) {
   if (p.categoria === "waifu") return p.serie || "Desconocida";
@@ -29,7 +58,7 @@ export function bloqueCabecera(categoria, titulo, lineas = []) {
 
 export function bloqueCuriosidades(p) {
   const lineas = [
-    encabezado("🔍", "CURIOSIDADES"),
+    encabezado("🔍", estilo(ESTILOS).tituloCuriosidades),
     "",
     `🆔 *ID* :: #${p.id}`,
     `✍🏻 *Nombre* ›› ${p.nombre}`,
@@ -48,26 +77,28 @@ export function bloqueEstadisticas(p, nivel = 1) {
   if (!TIENE_NIVELES(p.categoria)) return "";
   const cat = CAT[p.categoria];
   const s = statsEfectivas(p, nivel);
+  const E = estilo(ESTILOS);
   return [
-    encabezado("🛡️", "ESTADÍSTICAS"),
+    encabezado("🛡️", E.tituloEstadisticas),
     "",
-    `> Estadísticas ${cat.de} ${cat.singular} según su nivel y su rareza.`,
+    `> ${E.descEstadisticas(cat)}`,
     "",
     `📊 *Nivel* ›› ${nivel}/${NIVEL_MAX[p.categoria]}`,
     "",
-    `❤️ *Salud* ›› ${dos(s.hp)}`,
+    `${E.salud} ›› ${dos(s.hp)}`,
     "> La vida de tu personaje.",
-    `⚔️ *Daño* ›› ${dos(s.atk)}`,
+    `${E.dano} ›› ${dos(s.atk)}`,
     "> El daño que inflige al atacar.",
-    `🛡️ *Defensa* ›› ${dos(s.def)}`,
+    `${E.defensa} ›› ${dos(s.def)}`,
     "> Reduce el daño que recibe del rival.",
-    `💨 *Velocidad* ›› ${dos(s.spe)}`,
+    `${E.velocidad} ›› ${dos(s.spe)}`,
     "> Define quién ataca primero en un combate PVP: ataca primero quien tenga la velocidad más alta."
   ].join("\n");
 }
 
 export function bloqueValor(p) {
-  return [encabezado("💎", "VALOR TOTAL"), "", `💴 *Valor* ›› ${monto(p.valor)}`].join("\n");
+  const E = estilo(ESTILOS);
+  return [encabezado("💎", E.tituloValor), "", `${E.valor} ›› ${monto(p.valor)}`].join("\n");
 }
 
 export function bloquesDePersonaje(p, nivel = 1) {
@@ -96,6 +127,6 @@ export function lineasPersonaje(p, nivel = null) {
     const n = nivel ?? 1;
     lineas.push(`📊 *Nivel* ›› ${n}/${NIVEL_MAX[p.categoria]}`, textoStats(statsEfectivas(p, n)));
   }
-  lineas.push(`💴 *Valor* ›› ${monto(p.valor)}`);
+  lineas.push(`${estilo(ESTILOS).valor} ›› ${monto(p.valor)}`);
   return lineas;
 }

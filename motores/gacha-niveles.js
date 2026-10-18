@@ -1,70 +1,36 @@
 import { getAccount, addToWallet } from "./db.js";
-import { mejorDe, setNivel, setEstrellas, cantidadItem, sumarItem } from "./gacha-db.js";
-import { estadisticasDeRango } from "./gacha-catalogos.js";
+import { mejorDe, setNivel, cantidadItem, sumarItem } from "./gacha-db.js";
+import { esHalloween } from "../src/economia/temas.js";
 
-export const NIVEL_MAX = { waifu: 50, pokemon: 100, brawler: 30, snake: 50, cod: 50, dragon: 50, clash: 15 };
+export const NIVEL_MAX = { pokemon: 100, brawler: 30, snake: 50, cod: 50, dragon: 50, clash: 15 };
 export const TIENE_NIVELES = (categoria) => categoria in NIVEL_MAX;
-
-export const MAX_ESTRELLAS = 5;
-export const NIVELES_POR_ESTRELLA = 10;
-export const BONO_POR_ESTRELLA = 0.08;
-export const ITEM_FRAGMENTO = "fragmentos";
-
-export const nivelMaxDe = (categoria, estrellas = 0) => NIVEL_MAX[categoria] + NIVELES_POR_ESTRELLA * Math.min(MAX_ESTRELLAS, estrellas || 0);
-export const RAREZA_NOMBRES = { 1: "Común", 2: "Poco común", 3: "Rara", 4: "Súper rara", 5: "Épica", 6: "Mítica", 7: "Legendaria" };
-export const estrellasTexto = (n) => (n ? "★".repeat(n) : "");
-
-const RANGO_RAREZA = {
-  "Común": 1, "Poco común": 2, "Rara": 3, "Súper rara": 4, "Épica": 5, "Mítica": 6, "Legendaria": 7, "Ultra legendaria": 7
-};
-
-export function statsBase(p) {
-  if (p.stats) return p.stats;
-  return estadisticasDeRango(`${p.categoria}:${p.clave ?? p.id}`, RANGO_RAREZA[p.rareza] || 1);
-}
 
 export const MULT_RAREZA = {
   "Común": 1.0, "Poco común": 1.1, "Rara": 1.2, "Súper rara": 1.3,
   "Épica": 1.45, "Mítica": 1.6, "Legendaria": 1.8, "Ultra legendaria": 2.0
 };
 
-const CRECIMIENTO_NIVEL = 2.45;
-const BONO_NIVEL_EXTRA = 0.02;
-export const FACTOR_POKEMON = 1.0;
-export const NIVEL_COMBATE = 50;
-
 export function statsEfectivas(p, nivel = 1) {
-  const s = statsBase(p);
+  const s = p.stats || { hp: 60, atk: 60, def: 60, spe: 60, tipos: [] };
   const L = Math.max(1, nivel);
-  const max = NIVEL_MAX[p.categoria] || 50;
-  const estrellas = 1 + BONO_POR_ESTRELLA * Math.min(MAX_ESTRELLAS, p.estrellas || 0);
-  const dentro = Math.min(L, max) - 1;
-  const extra = Math.max(0, L - max);
-  const f = (1 + (CRECIMIENTO_NIVEL * dentro) / Math.max(1, max - 1) + BONO_NIVEL_EXTRA * extra) * estrellas;
-  const m = p.categoria === "pokemon" ? (MULT_RAREZA[p.rareza] || 1) * FACTOR_POKEMON : 1;
-  const calcular = (base) => Math.max(1, Math.round(base * f * m));
+  if (p.categoria === "pokemon") {
+    const m = MULT_RAREZA[p.rareza] || 1;
+    const otra = (b) => Math.floor((2 * b * m * L) / 100) + 5;
+    return {
+      hp: Math.floor((2 * s.hp * m * L) / 100) + L + 10,
+      atk: otra(s.atk), def: otra(s.def), spe: otra(s.spe),
+      tipos: s.tipos || [], nivel: L, nivelCombate: L
+    };
+  }
+  const paso = p.categoria === "brawler" ? 0.06 : 0.05;
+  const f = 1 + paso * (L - 1);
   return {
-    hp: calcular(s.hp), atk: calcular(s.atk), def: calcular(s.def), spe: calcular(s.spe),
-    tipos: s.tipos || [], nivel: L, nivelCombate: NIVEL_COMBATE
+    hp: Math.round(s.hp * f), atk: Math.round(s.atk * f), def: Math.round(s.def * f), spe: Math.round(s.spe * f),
+    tipos: s.tipos || [], nivel: L, nivelCombate: 50
   };
 }
 
-export const TIENDAS = {
-  waifu: {
-    titulo: "REGALOS WAIFU",
-    emoji: "🎁",
-    nombre: "regalo",
-    plural: "regalos",
-    comandoTienda: ".waifushop",
-    comandoComprar: ".waifucomprar",
-    comandoDar: ".waifudar",
-    items: [
-      { nombre: "Chocolate", emoji: "🍫", precio: 1200, niveles: 1 },
-      { nombre: "Peluche", emoji: "🧸", precio: 4000, niveles: 4 },
-      { nombre: "Ramo de Flores", emoji: "💐", precio: 11000, niveles: 8 },
-      { nombre: "Anillo de Joya", emoji: "💍", precio: 32000, niveles: 15 }
-    ]
-  },
+const TIENDAS_BASE = {
   pokemon: {
     titulo: "POKEMON FOOD",
     emoji: "🥙",
@@ -143,6 +109,75 @@ export const TIENDAS = {
   }
 };
 
+// Extensión de Halloween: solo nombres y emojis (se emparejan por posición con los artículos
+// normales; precios y niveles que otorgan salen siempre de la tienda normal).
+const TIENDAS_HALLOWEEN = {
+  pokemon: {
+    titulo: "POKEMON FOOD MACABRO",
+    items: [
+      { nombre: "Baya Maldita", emoji: "🫐" },
+      { nombre: "Pokélito de Calabaza", emoji: "🎃" },
+      { nombre: "Galleta de Cementerio", emoji: "🍪" },
+      { nombre: "Curry de Bruja", emoji: "🍛" },
+      { nombre: "Caramelo Embrujado", emoji: "🍭" }
+    ]
+  },
+  cod: {
+    titulo: "ARSENAL DE ULTRATUMBA",
+    items: [
+      { nombre: "Munición de Plata", emoji: "🔹" },
+      { nombre: "Mira Espectral", emoji: "🎯" },
+      { nombre: "Silenciador de Sombras", emoji: "🔇" },
+      { nombre: "Camuflaje de Calavera", emoji: "💀" }
+    ]
+  },
+  dragon: {
+    titulo: "FESTÍN DE DRAGONES",
+    items: [
+      { nombre: "Hueso Seco", emoji: "🦴" },
+      { nombre: "Pastel de Calabaza Ardiente", emoji: "🎃" },
+      { nombre: "Fruta Embrujada", emoji: "🍎" },
+      { nombre: "Elixir de Vampiro", emoji: "🧪" }
+    ]
+  },
+  clash: {
+    titulo: "COFRES MALDITOS",
+    items: [
+      { nombre: "Bolsa de Calabazas", emoji: "🎃" },
+      { nombre: "Cofre de Hueso", emoji: "🦴" },
+      { nombre: "Ataúd Dorado", emoji: "⚰️" },
+      { nombre: "Cofre de Bruja", emoji: "🔮" }
+    ]
+  },
+  snake: {
+    titulo: "ORBES MALDITOS",
+    items: [
+      { nombre: "Orbe de Niebla", emoji: "🟢" },
+      { nombre: "Orbe Espectral", emoji: "🔵" },
+      { nombre: "Orbe Hechizado", emoji: "🌈" },
+      { nombre: "Mega Orbe Maldito", emoji: "💎" }
+    ]
+  }
+};
+
+// Vista "viva": consulta el evento activo en cada acceso.
+export const TIENDAS = {};
+for (const [clave, base] of Object.entries(TIENDAS_BASE)) {
+  const vista = { ...base };
+  Object.defineProperty(vista, "titulo", {
+    enumerable: true,
+    get: () => (esHalloween() ? TIENDAS_HALLOWEEN[clave]?.titulo ?? base.titulo : base.titulo)
+  });
+  Object.defineProperty(vista, "items", {
+    enumerable: true,
+    get: () => {
+      const h = esHalloween() ? TIENDAS_HALLOWEEN[clave]?.items : null;
+      return h ? base.items.map((item, i) => ({ ...item, ...(h[i] || {}) })) : base.items;
+    }
+  });
+  TIENDAS[clave] = vista;
+}
+
 export const claveComida = (categoria, n) => `${categoria}:comida:${n}`;
 
 export const comidaDe = (sender, categoria, n) => cantidadItem(sender, claveComida(categoria, n));
@@ -165,8 +200,8 @@ export function darComida({ categoria, sender, nItem, charId, cantidad = 1 }) {
   const p = mejorDe(sender, categoria, charId);
   if (!p) return { error: charId ? "ajeno" : "sinpersonajes" };
 
-  const max = nivelMaxDe(categoria, p.estrellas);
-  if (p.nivel >= max) return { error: "maximo", p, max };
+  const max = NIVEL_MAX[categoria];
+  if (p.nivel >= max) return { error: "maximo", p };
 
   const tiene = comidaDe(sender, categoria, nItem);
   if (tiene < 1) return { error: "sincomida", item, p };
@@ -204,8 +239,8 @@ export function comprarCubitos(sender, cantidad) {
 export function subirBrawler({ sender, charId, veces = 1 }) {
   const p = mejorDe(sender, "brawler", charId);
   if (!p) return { error: charId ? "ajeno" : "sinpersonajes" };
-  const max = nivelMaxDe("brawler", p.estrellas);
-  if (p.nivel >= max) return { error: "maximo", p, max };
+  const max = NIVEL_MAX.brawler;
+  if (p.nivel >= max) return { error: "maximo", p };
 
   let nivel = p.nivel, gastados = 0, tiene = cantidadItem(sender, ITEM_CUBITO), subidos = 0;
   while (subidos < veces && nivel < max) {
@@ -221,43 +256,3 @@ export function subirBrawler({ sender, charId, veces = 1 }) {
 }
 
 export const cubitosDe = (sender) => cantidadItem(sender, ITEM_CUBITO);
-
-export const FRAGMENTOS_POR_RAREZA = {
-  "Común": 1, "Poco común": 1, "Rara": 2, "Súper rara": 2, "Épica": 3, "Mítica": 4, "Legendaria": 5, "Ultra legendaria": 6
-};
-
-export const fragmentosDe = (sender) => cantidadItem(sender, ITEM_FRAGMENTO);
-
-export function darFragmentos(sender, cantidad) {
-  if (cantidad > 0) sumarItem(sender, ITEM_FRAGMENTO, cantidad);
-  return fragmentosDe(sender);
-}
-
-export const costoAscension = (estrellas) => ({ fragmentos: (estrellas + 1) * 5, dinero: (estrellas + 1) * 50000 });
-
-export function ascender({ sender, categoria, charId }) {
-  const p = mejorDe(sender, categoria, charId);
-  if (!p) return { error: charId ? "ajeno" : "sinpersonajes" };
-
-  const estrellas = p.estrellas || 0;
-  if (estrellas >= MAX_ESTRELLAS) return { error: "estrellas", p };
-
-  const max = nivelMaxDe(categoria, estrellas);
-  if (p.nivel < max) return { error: "nivel", p, max };
-
-  const costo = costoAscension(estrellas);
-  const fragmentos = fragmentosDe(sender);
-  if (fragmentos < costo.fragmentos) return { error: "fragmentos", p, costo, fragmentos };
-  if (getAccount(sender).wallet < costo.dinero) return { error: "saldo", p, costo };
-
-  sumarItem(sender, ITEM_FRAGMENTO, -costo.fragmentos);
-  addToWallet(sender, -costo.dinero);
-  setEstrellas(sender, p.id, estrellas + 1);
-
-  const mejorada = { ...p, estrellas: estrellas + 1 };
-  return {
-    ok: true, p: mejorada, antes: estrellas, despues: estrellas + 1, costo,
-    nuevoMax: nivelMaxDe(categoria, estrellas + 1), stats: statsEfectivas(mejorada, p.nivel),
-    restantes: fragmentosDe(sender)
-  };
-}

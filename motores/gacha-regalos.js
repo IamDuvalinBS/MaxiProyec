@@ -1,4 +1,5 @@
 import { encabezado } from "../src/economia/estilo.js";
+import { estilo } from "../src/economia/temas.js";
 import { registrarEspera } from "../src/nucleo/espera.js";
 import { gachaListo, arroba, monto, fmt, CAT, personajePorId } from "./gacha-core.js";
 import { categoriaPorAlias } from "./gacha-categorias.js";
@@ -16,6 +17,35 @@ function destinatarioDe(msg) {
 function leerFichas(cleanText) {
   return cleanText.split(/\s+/).slice(1).filter((x) => x !== "+" && !x.startsWith("@"));
 }
+
+const ESTILOS = {
+  normal: {
+    tituloRegalo: "REGALAR PERSONAJE",
+    relatoRegalo: "Regala uno de tus personajes, de cualquier gacha, a otro usuario. El personaje conserva su nivel.",
+    tituloEntregado: "REGALO ENTREGADO",
+    entregado: (a, b) => `${a} le regaló un personaje a ${b}.`,
+    propio: "❌ No puedes regalarte un personaje a ti mismo.",
+    yaLoTiene: (quien, nombre) => `📦 ${quien} ya tiene a *${nombre}*. No se regaló nada.`,
+    tituloTodo: "REGALAR COLECCIÓN",
+    tituloTodoEntregada: "COLECCIÓN ENTREGADA",
+    todoEntregada: (a, unidades, b) => `${a} regaló su colección de ${unidades} a ${b}.`,
+    tituloConfirmar: "CONFIRMAR REGALO",
+    confirmar: (unidades, quien) => `Vas a regalar *toda* tu colección de ${unidades} a ${quien}.`
+  },
+  halloween: {
+    tituloRegalo: "OFRENDA DE PERSONAJE",
+    relatoRegalo: "Entrega uno de tus personajes, de cualquier gacha, a otra alma como ofrenda. El personaje conserva su nivel.",
+    tituloEntregado: "OFRENDA ENTREGADA",
+    entregado: (a, b) => `${a} dejó una ofrenda con un personaje para ${b}.`,
+    propio: "❌ No puedes hacerte una ofrenda a ti mismo.",
+    yaLoTiene: (quien, nombre) => `📦 ${quien} ya tiene a *${nombre}*. No se entregó nada.`,
+    tituloTodo: "OFRENDA DE COLECCIÓN",
+    tituloTodoEntregada: "COLECCIÓN OFRENDADA",
+    todoEntregada: (a, unidades, b) => `${a} ofrendó su colección de ${unidades} a ${b}.`,
+    tituloConfirmar: "CONFIRMAR OFRENDA",
+    confirmar: (unidades, quien) => `Vas a ofrendar *toda* tu colección de ${unidades} a ${quien}.`
+  }
+};
 
 const listaDeCategorias = "*waifu*, *pokemon*, *brawl*, *snake*, *cod*, *dragon* y *clash*";
 
@@ -35,9 +65,9 @@ export function crearComandoRegalar() {
       if (!categoria || !idTexto || !destino) {
         return reply({
           text: [
-            encabezado("🎁", "REGALAR PERSONAJE"),
+            encabezado("🎁", estilo(ESTILOS).tituloRegalo),
             "",
-            "> Regala uno de tus personajes, de cualquier gacha, a otro usuario. El personaje conserva su nivel.",
+            `> ${estilo(ESTILOS).relatoRegalo}`,
             "",
             "✱ *Uso* ›› .regalar <categoría> <ID> <@usuario>",
             "✿ *Ejemplo* ›› .regalar pokemon 25 @usuario",
@@ -53,20 +83,20 @@ export function crearComandoRegalar() {
       const charId = parseInt(idTexto.replace("#", ""), 10);
       const personaje = personajePorId(charId);
 
-      if (destino === sender) return reply({ text: "❌ No puedes regalarte un personaje a ti mismo." });
+      if (destino === sender) return reply({ text: estilo(ESTILOS).propio });
       if (!personaje || personaje.categoria !== categoria) return reply({ text: `❌ No existe ${cat.indef} con el ID #${charId}.` });
       if (!leTiene(sender, charId)) return reply({ text: `❌ No tienes a *${personaje.nombre}* (#${charId}) en tu colección.` });
 
       const r = transferirPersonaje(sender, destino, charId);
       if (r.estado === "ya_lo_tiene") {
-        return reply({ text: `📦 ${arroba(destino)} ya tiene a *${personaje.nombre}*. No se regaló nada.`, mentions: [destino] });
+        return reply({ text: estilo(ESTILOS).yaLoTiene(arroba(destino), personaje.nombre), mentions: [destino] });
       }
 
       return reply({
         text: [
-          encabezado("🎁", "REGALO ENTREGADO"),
+          encabezado("🎁", estilo(ESTILOS).tituloEntregado),
           "",
-          `> ${arroba(sender)} le regaló un personaje a ${arroba(destino)}.`,
+          `> ${estilo(ESTILOS).entregado(arroba(sender), arroba(destino))}`,
           "",
           `🆔 *ID* :: #${personaje.id}`,
           `✍🏻 *Nombre* ›› ${personaje.nombre}`,
@@ -94,7 +124,7 @@ export function crearComandoRegalarTodo() {
       if (!categoria || !destino) {
         return reply({
           text: [
-            encabezado("🎁", "REGALAR COLECCIÓN"),
+            encabezado("🎁", estilo(ESTILOS).tituloTodo),
             "",
             "> Regala todos tus personajes de una categoría a otro usuario. Antes de entregarlos se te pedirá una confirmación.",
             "",
@@ -128,9 +158,9 @@ export function crearComandoRegalarTodo() {
           const r = transferirColeccion(sender, plan.destino, plan.categoria);
           const respuesta = {
             text: [
-              encabezado("🎁", "COLECCIÓN ENTREGADA"),
+              encabezado("🎁", estilo(ESTILOS).tituloTodoEntregada),
               "",
-              `> ${arroba(sender)} regaló su colección de ${cat.unidades} a ${arroba(plan.destino)}.`,
+              `> ${estilo(ESTILOS).todoEntregada(arroba(sender), cat.unidades, arroba(plan.destino))}`,
               "",
               `🎴 *Entregados* ›› ${fmt(r.transferidos)} ${r.transferidos === 1 ? cat.unidad : cat.unidades}`,
               `💴 *Valor entregado* ›› ${monto(r.valor)}`,
@@ -145,9 +175,9 @@ export function crearComandoRegalarTodo() {
 
       return reply({
         text: [
-          encabezado("⚠️", "CONFIRMAR REGALO"),
+          encabezado("⚠️", estilo(ESTILOS).tituloConfirmar),
           "",
-          `> Vas a regalar *toda* tu colección de ${cat.unidades} a ${arroba(destino)}.`,
+          `> ${estilo(ESTILOS).confirmar(cat.unidades, arroba(destino))}`,
           "",
           `🎴 *Personajes* ›› ${fmt(n)}`,
           `💴 *Valor total* ›› ${monto(total)}`,

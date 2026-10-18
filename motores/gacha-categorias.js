@@ -1,4 +1,6 @@
-export const CAT = {
+import { esHalloween } from "../src/economia/temas.js";
+
+const BASE = {
   waifu: {
     clave: "waifu",
     unidad: "waifu",
@@ -18,7 +20,7 @@ export const CAT = {
     coleccionCmd: ".harem",
     topCmd: ".waifutop",
     emojiTop: "💖",
-    subirNivel: "Para subirlas de nivel usa *.waifushop* y *.waifudar <número> <ID>*.",
+    subirNivel: "Los personajes reclamados no se pueden subir de nivel.",
     ticketCmd: ".ticket",
     tituloColeccion: "TU HAREM",
     tituloTop: "WAIFUS",
@@ -40,6 +42,8 @@ export const CAT = {
     indef: "un Pokémon",
     art: "el",
     de: "del",
+    al: "al",
+    al: "al",
     al: "al",
     plural: "Pokémon",
     unidades: "pokémon",
@@ -71,7 +75,6 @@ export const CAT = {
     indef: "un brawler",
     art: "el",
     de: "del",
-    al: "al",
     plural: "brawlers",
     unidades: "brawlers",
     reclamado: "BRAWLER RECLAMADO",
@@ -102,7 +105,6 @@ export const CAT = {
     indef: "un snake",
     art: "el",
     de: "del",
-    al: "al",
     plural: "snakes",
     unidades: "gusanitos",
     reclamado: "SNAKE ADOPTADO",
@@ -217,6 +219,65 @@ export const CAT = {
     descripcionColeccion: "Aquí aparecen todas las cartas que has desbloqueado. Para conseguir más usa *.clashroyale*."
   }
 };
+
+// Extensión de Halloween: solo cambia títulos y descripciones (sin tocar comandos, claves ni datos).
+const HALLOWEEN = {
+  waifu: {
+    reclamado: "WAIFU CAPTURADA",
+    tituloColeccion: "TU HAREM EMBRUJADO",
+    descripcionColeccion: "Aquí aparecen todas las waifus que capturaste en la noche. Para conseguir más usa *.rw*."
+  },
+  pokemon: {
+    reclamado: "POKÉMON ATRAPADO",
+    mejorado: "POKÉMON FORTALECIDO",
+    tituloColeccion: "TUS POKÉMON NOCTURNOS",
+    descripcionColeccion: "Esta cantidad solo aplica para tus Pokémon, los que salieron de la niebla. Para conseguir más usa *.pokemon*."
+  },
+  brawler: {
+    reclamado: "BRAWLER CAPTURADO",
+    mejorado: "BRAWLER FORTALECIDO",
+    tituloColeccion: "TUS BRAWLERS EMBRUJADOS",
+    descripcionColeccion: "Esta cantidad solo aplica para tus brawlers, los que sobrevivieron a la noche. Para conseguir más usa *.brawlstars*."
+  },
+  snake: {
+    reclamado: "SNAKE ADOPTADO",
+    mejorado: "SNAKE FORTALECIDO",
+    tituloColeccion: "TUS SNAKES MALDITOS",
+    descripcionColeccion: "Esta cantidad solo aplica para tus gusanitos, los que se arrastraron desde la tumba. Para conseguir más usa *.snake*."
+  },
+  cod: {
+    reclamado: "ÍTEM RECLAMADO",
+    mejorado: "ÍTEM FORTALECIDO",
+    tituloColeccion: "TU ARSENAL MACABRO",
+    descripcionColeccion: "Aquí aparecen los operadores, skins y armas de Call of Duty que reclamaste esta noche. Para conseguir más usa *.callofduty*."
+  },
+  dragon: {
+    reclamado: "DRAGÓN CRIADO",
+    mejorado: "DRAGÓN FORTALECIDO",
+    tituloColeccion: "TUS DRAGONES DE LA CRIPTA",
+    descripcionColeccion: "Aquí aparecen todos los dragones que criaste en la oscuridad. Para conseguir más usa *.dragon*."
+  },
+  clash: {
+    reclamado: "CARTA DESBLOQUEADA",
+    mejorado: "CARTA FORTALECIDA",
+    tituloColeccion: "TUS CARTAS MALDITAS",
+    descripcionColeccion: "Aquí aparecen todas las cartas que desbloqueaste esta noche. Para conseguir más usa *.clashroyale*."
+  }
+};
+
+// Vista "viva" de cada categoría: lee el evento activo cada vez que se consulta un campo,
+// así los comandos que guardan `const cat = CAT[...]` también cambian de estilo al instante.
+export const CAT = {};
+for (const [clave, base] of Object.entries(BASE)) {
+  const vista = {};
+  for (const campo of Object.keys(base)) {
+    Object.defineProperty(vista, campo, {
+      enumerable: true,
+      get: () => (esHalloween() && HALLOWEEN[clave]?.[campo] !== undefined ? HALLOWEEN[clave][campo] : base[campo])
+    });
+  }
+  CAT[clave] = vista;
+}
 
 const ALIAS = {
   waifu: "waifu", waifus: "waifu", rw: "waifu",
