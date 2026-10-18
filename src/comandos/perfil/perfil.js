@@ -68,7 +68,7 @@ export default {
       `. .┊◟♯ . / 𝐶𝑎𝑠𝑎𝑑𝑜𝑠 → ${p.marriedSince || "No aplica"}`,
       `. .┊◟♯ . / 𝐽𝑢𝑒𝑔𝑜 𝑓𝑎𝑣 → ${p.favGame || "No establecido"}`,
       `. .┊◟♯ . / 𝑀𝑢𝑠𝑖𝑐𝑎 𝑓𝑎𝑣 → ${p.favMusic || "No establecido"}`,
-      "   ╰━━ ⋅𖥔⋅ ━━━━✶━━━━ ⋅𖥔⋅ ━━╯",
+      "   ╰━━ ⋅𖥔⋅ ━━━━✶━━━━ ⋅𖥔⋅ ━╯",
       "",
       "> Usa *.menu Perfil* para ver cómo editar tu propio perfil."
     ].join("\n");
