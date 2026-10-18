@@ -238,4 +238,4 @@ export function estadoSubbots() {
     limite: MAX_SUBS,
     lista: [...subs.entries()].map(([numero, e]) => ({ numero, enLinea: e.enLinea, reintentos: e.reintentos, vinculando: Boolean(e.vinculando) }))
   };
-    }
+}
