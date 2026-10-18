@@ -12,7 +12,12 @@ import { tarjeta, monto, fmt } from "../src/economia/formato.js";
 import { encabezado } from "../src/economia/estilo.js";
 import { formatTime } from "./ui.js";
 import { renderSnake } from "./gacha-snake.js";
-import { TIENE_NIVELES } from "./gacha-niveles.js";
+import { TIENE_NIVELES, estrellasTexto, darFragmentos, FRAGMENTOS_POR_RAREZA } from "./gacha-niveles.js";
+import { registrarActividad } from "./gacha-misiones.js";
+import { sumarEstadistica } from "./gacha-insignias.js";
+import { elegirConGarantia, registrarTirada, pityDespuesDe } from "./gacha-banner.js";
+import { PITY_TIRADAS, PITY_RANGO_MINIMO } from "./gacha-config.js";
+import { RAREZA_NOMBRES } from "./gacha-niveles.js";
 import { CAT } from "./gacha-categorias.js";
 import { ticketsDe, sorteoTicket } from "./gacha-tickets.js";
 import {
@@ -375,6 +380,36 @@ function tarjetaTicket(sender, cat) {
   ].join("\n");
 }
 
+const PRECARGA_ACTIVA = process.env.GACHA_PRECARGA !== "0";
+const precargas = new Map();
+
+function tomarPrecarga(clave, categoria) {
+  const guardado = precargas.get(clave);
+  precargas.delete(clave);
+  if (!guardado) return null;
+  const vigente = personajePorId(guardado.id);
+  if (!vigente) return null;
+  if (categoria === "waifu" && propietarios(vigente.id).length) return null;
+  return vigente;
+}
+
+function programarPrecarga({ clave, categoria, obtener }) {
+  if (!PRECARGA_ACTIVA) return;
+  setTimeout(async () => {
+    try {
+      const personaje = await obtener();
+      if (!personaje) return;
+      precargas.set(clave, personaje);
+      const urls = [personaje.img, ...(personaje.meta?.alt || [])].filter(Boolean);
+      if (!urls.length || urls[0].startsWith("snake:") || hayRelay(`gacha:${personaje.categoria}:${personaje.img}`)) return;
+      const img = await prepararImagen(urls);
+      img.limpiar();
+    } catch (e) {
+      console.log(`[gacha] Precarga omitida (${categoria}): ${e.message}`);
+    }
+  }, 3000).unref();
+}
+
 export async function hacerRoll({ categoria, obtener, reply, sender, from, cooldownMs, titulo, textoVacio }) {
   const cat = CAT[categoria];
   const clave = `roll:${categoria}:${sender}`;
@@ -385,7 +420,8 @@ export async function hacerRoll({ categoria, obtener, reply, sender, from, coold
   try {
     const INTENTOS = 2;
     for (let intento = 0; intento < INTENTOS; intento++) {
-      const personaje = await obtener();
+      const previo = intento === 0 ? tomarPrecarga(clave, categoria) : null;
+      const { personaje, via } = await elegirConGarantia({ categoria, sender, obtener, previo });
       if (!personaje) return reply({ text: textoVacio });
 
       const duenos = categoria === "waifu" ? propietarios(personaje.id) : [];
@@ -401,6 +437,10 @@ export async function hacerRoll({ categoria, obtener, reply, sender, from, coold
         );
       }
 
+      if (via === "banner") extra.unshift("⭐ *Personaje destacado de la semana.*");
+      if (via === "pity") extra.unshift(`🍀 *Garantía activada:* tirada asegurada de rareza ${RAREZA_NOMBRES[PITY_RANGO_MINIMO]} o superior.`);
+      extra.push(`Garantía ›› *${pityDespuesDe(sender, categoria, personaje)}/${PITY_TIRADAS}* tiradas.`);
+
       try {
         const enviado = await enviarPersonaje({
           reply, personaje, titulo, lineasExtra: extra, mentions,
@@ -408,7 +448,13 @@ export async function hacerRoll({ categoria, obtener, reply, sender, from, coold
         });
         if (!duenos.length && enviado?.key?.id) registrarPendiente(enviado.key.id, from, personaje, sender);
         exito = true;
-        if (sorteoTicket(sender, categoria)) await reply({ text: tarjetaTicket(sender, cat), mentions: [sender] });
+        registrarTirada(sender, categoria, personaje);
+        if (sorteoTicket(sender, categoria)) {
+          sumarEstadistica(sender, "tickets_suerte", 1);
+          await reply({ text: tarjetaTicket(sender, cat), mentions: [sender] });
+        }
+        await registrarActividad({ reply, sender, eventos: [{ tipo: "tirada", categoria }] });
+        programarPrecarga({ clave, categoria, obtener });
         return;
       } catch (e) {
         if (!(e instanceof ErrorDeImagen)) throw e;
@@ -453,12 +499,17 @@ export function crearComandoClaim({ categoria, names, desc }) {
       }
       if (resultado === "repetido") {
         cerrarPendiente(r.id);
-        return reply({ text: `📦 Ya tienes a *${p.nombre}* en tu colección.` });
+        const fragmentos = FRAGMENTOS_POR_RAREZA[p.rareza] || 1;
+        darFragmentos(sender, fragmentos);
+        return reply({
+          text: `📦 Ya tienes a *${p.nombre}* en tu colección. Se convirtió en *${fragmentos}* ${fragmentos === 1 ? "fragmento" : "fragmentos"} de ascensión. Úsalos con *.ascender*.`
+        });
       }
 
       cerrarPendiente(r.id);
       const { texto, mentions } = mensajeReclamo({ categoria, sender, personaje: p });
       await enviarReclamo({ sock, from, msg, texto, mentions, reply });
+      await registrarActividad({ reply, sender, eventos: [{ tipo: "reclamar", categoria }] });
     }
   };
 }
@@ -484,7 +535,7 @@ export async function mostrarColeccion({ categoria, sender, cleanText, reply }) 
   const p = Math.min(pagina, paginas);
   const conNivel = TIENE_NIVELES(categoria);
   const filas = coleccionDe(sender, categoria, POR_PAGINA, (p - 1) * POR_PAGINA).flatMap((c) => {
-    const detalle = [conNivel ? `Nivel ${c.nivel}` : null, c.rareza, `ID :: #${c.id}`];
+    const detalle = [conNivel ? `Nivel ${c.nivel}${c.estrellas ? ` ${estrellasTexto(c.estrellas)}` : ""}` : null, c.rareza, `ID :: #${c.id}`];
     if (categoria === "waifu" && c.serie) detalle.push(c.serie);
     return [`✦ *${c.nombre}*`, `> · ${detalle.filter(Boolean).join(" · ")}`];
   });
@@ -509,6 +560,7 @@ export async function mostrarColeccion({ categoria, sender, cleanText, reply }) 
       ? `> Página ${p}/${paginas}. Usa *${cat.coleccionCmd} ${p + 1}* para ver la siguiente página.`
       : `> Página ${p}/${paginas}.`,
     `> ${cat.subirNivel}`,
+    `> Arma tu equipo con *.equipo ${cat.clave}* y mira sus poderes con *.poderes ${cat.clave}*.`,
     `> Para obtener uno por su ID usa *${cat.ticketCmd} <ID>*.`
   ];
 

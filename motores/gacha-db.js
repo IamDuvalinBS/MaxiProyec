@@ -1,4 +1,5 @@
 import { obtenerBase, enModoRespaldo } from "./db.js";
+import { rangoDeRareza } from "./gacha-config.js";
 
 const COL = {
   personajes: "gacha_personajes",
@@ -80,7 +81,7 @@ function documento(col, id) {
       const usuario = id.slice(0, i);
       const charId = Number(id.slice(i + 1));
       const f = propiedad.get(usuario)?.get(charId);
-      return f ? { _id: id, usuario, char_id: charId, obtenido: f.obtenido, nivel: f.nivel } : null;
+      return f ? { _id: id, usuario, char_id: charId, obtenido: f.obtenido, nivel: f.nivel, estrellas: f.estrellas || 0 } : null;
     }
     case COL.inventario: {
       const i = id.indexOf("|");
@@ -336,7 +337,10 @@ async function cargarDesde(leer) {
 
   const props = (await leer(COL.propiedad)).sort((a, b) => (a.obtenido || 0) - (b.obtenido || 0));
   for (const d of props) {
-    const f = { usuario: d.usuario, char_id: Number(d.char_id), obtenido: Number(d.obtenido) || 0, nivel: Number(d.nivel) || 1 };
+    const f = {
+      usuario: d.usuario, char_id: Number(d.char_id), obtenido: Number(d.obtenido) || 0,
+      nivel: Number(d.nivel) || 1, estrellas: Number(d.estrellas) || 0
+    };
     let m = propiedad.get(f.usuario);
     if (!m) propiedad.set(f.usuario, (m = new Map()));
     let o = duenos.get(f.char_id);
@@ -389,7 +393,10 @@ function aplicarTablas(t) {
     const charId = Number(r.char_id);
     const usuario = String(r.usuario ?? "");
     if (!usuario || !personajes.has(charId) || propiedad.get(usuario)?.has(charId)) continue;
-    agregarPropiedad({ usuario, char_id: charId, obtenido: Number(r.obtenido) || ahora(), nivel: Number(r.nivel) || 1 });
+    agregarPropiedad({
+      usuario, char_id: charId, obtenido: Number(r.obtenido) || ahora(),
+      nivel: Number(r.nivel) || 1, estrellas: Number(r.estrellas) || 0
+    });
     n++;
   }
   for (const r of t.inventario || []) {
@@ -578,7 +585,7 @@ export function reclamar(usuario, personaje) {
   return enTransaccion(() => {
     if (personaje.categoria === "waifu" && propietarios(personaje.id).length) return "ocupado";
     if (leTiene(usuario, personaje.id)) return "repetido";
-    agregarPropiedad({ usuario, char_id: Number(personaje.id), obtenido: ahora(), nivel: 1 });
+    agregarPropiedad({ usuario, char_id: Number(personaje.id), obtenido: ahora(), nivel: 1, estrellas: 0 });
     return "ok";
   });
 }
@@ -587,7 +594,7 @@ export function coleccionDe(usuario, categoria, limite = 15, desplazamiento = 0)
   return filasDe(usuario, categoria)
     .sort((a, b) => porValor(a.p, b.p))
     .slice(desplazamiento, desplazamiento + limite)
-    .map(({ p, prop }) => copia(p, { obtenido: prop.obtenido, nivel: prop.nivel }));
+    .map(({ p, prop }) => copia(p, { obtenido: prop.obtenido, nivel: prop.nivel, estrellas: prop.estrellas || 0 }));
 }
 
 export function contarColeccion(usuario, categoria) {
@@ -600,10 +607,42 @@ export function mejorDe(usuario, categoria, charId = null) {
     const prop = propiedad.get(usuario)?.get(Number(charId));
     const p = prop && personajes.get(Number(charId));
     if (!p || p.categoria !== categoria) return null;
-    return copia(p, { obtenido: prop.obtenido, nivel: prop.nivel });
+    return copia(p, { obtenido: prop.obtenido, nivel: prop.nivel, estrellas: prop.estrellas || 0 });
   }
   const filas = filasDe(usuario, categoria).sort((a, b) => b.prop.nivel - a.prop.nivel || porValor(a.p, b.p));
-  return filas.length ? copia(filas[0].p, { obtenido: filas[0].prop.obtenido, nivel: filas[0].prop.nivel }) : null;
+  return filas.length
+    ? copia(filas[0].p, { obtenido: filas[0].prop.obtenido, nivel: filas[0].prop.nivel, estrellas: filas[0].prop.estrellas || 0 })
+    : null;
+}
+
+export function mejoresDe(usuario, categoria, cantidad = 3) {
+  return filasDe(usuario, categoria)
+    .sort((a, b) => b.prop.nivel - a.prop.nivel || (b.prop.estrellas || 0) - (a.prop.estrellas || 0) || porValor(a.p, b.p))
+    .slice(0, cantidad)
+    .map(({ p, prop }) => copia(p, { obtenido: prop.obtenido, nivel: prop.nivel, estrellas: prop.estrellas || 0 }));
+}
+
+export function filasUsuario(usuario) {
+  const m = propiedad.get(usuario);
+  if (!m) return [];
+  const salida = [];
+  for (const [charId, prop] of m) {
+    const p = personajes.get(charId);
+    if (p) salida.push({ id: charId, categoria: p.categoria, rareza: p.rareza, valor: p.valor, nivel: prop.nivel, estrellas: prop.estrellas || 0 });
+  }
+  return salida;
+}
+
+export function setEstrellas(usuario, charId, estrellas) {
+  const f = propiedad.get(usuario)?.get(Number(charId));
+  if (!f) return;
+  const previo = f.estrellas || 0;
+  f.estrellas = estrellas;
+  marcar(COL.propiedad, `${usuario}|${f.char_id}`);
+  undo(() => {
+    f.estrellas = previo;
+    marcar(COL.propiedad, `${usuario}|${f.char_id}`);
+  });
 }
 
 export function setNivel(usuario, charId, nivel) {
@@ -630,6 +669,24 @@ export function sumarItem(usuario, item, delta) {
     else fijarItem(usuario, item, previo);
     marcar(COL.inventario, `${usuario}|${item}`);
   });
+}
+
+export function quitarItem(usuario, item) {
+  const m = inventario.get(usuario);
+  if (!m || !m.has(item)) return;
+  const previo = m.get(item);
+  m.delete(item);
+  if (!m.size) inventario.delete(usuario);
+  marcar(COL.inventario, `${usuario}|${item}`);
+  undo(() => fijarItem(usuario, item, previo));
+}
+
+export function itemsDe(usuario, prefijo) {
+  const m = inventario.get(usuario);
+  if (!m) return [];
+  const salida = [];
+  for (const [item, cantidad] of m) if (item.startsWith(prefijo)) salida.push([item, cantidad]);
+  return salida;
 }
 
 export function listarPersonajes(categoria, limite = 20, desplazamiento = 0) {
@@ -737,9 +794,10 @@ export function transferirPersonaje(de, a, charId) {
     if (!fila) return { estado: "no_tiene" };
     if (leTiene(a, id)) return { estado: "ya_lo_tiene" };
     const nivel = fila.nivel;
+    const estrellas = fila.estrellas || 0;
     quitarPropiedad(de, id);
-    agregarPropiedad({ usuario: a, char_id: id, obtenido: ahora(), nivel });
-    return { estado: "ok", nivel };
+    agregarPropiedad({ usuario: a, char_id: id, obtenido: ahora(), nivel, estrellas });
+    return { estado: "ok", nivel, estrellas };
   });
 }
 
@@ -754,11 +812,40 @@ export function transferirColeccion(de, a, categoria) {
         continue;
       }
       const nivel = prop.nivel;
+      const estrellas = prop.estrellas || 0;
       quitarPropiedad(de, p.id);
-      agregarPropiedad({ usuario: a, char_id: p.id, obtenido: ahora(), nivel });
+      agregarPropiedad({ usuario: a, char_id: p.id, obtenido: ahora(), nivel, estrellas });
       transferidos++;
       valor += p.valor;
     }
     return { transferidos, omitidos, valor };
   });
+}
+
+export function fijarCantidadItem(usuario, item, cantidad) {
+  const delta = cantidad - cantidadItem(usuario, item);
+  if (delta) sumarItem(usuario, item, delta);
+}
+
+export function usuariosConItem(item) {
+  const salida = [];
+  for (const [usuario, m] of inventario) if ((m.get(item) || 0) > 0) salida.push(usuario);
+  return salida;
+}
+
+export function personajeAleatorioMinRareza(categoria, rangoMinimo, { soloLibres = false, excluirDe = null } = {}) {
+  const lista = porCategoria.get(categoria);
+  if (!lista || !lista.length) return null;
+  const candidatos = lista.filter((f) => {
+    if (rangoDeRareza(f.rareza) < rangoMinimo) return false;
+    if (soloLibres && duenos.has(f.id)) return false;
+    if (excluirDe && propiedad.get(excluirDe)?.has(f.id)) return false;
+    return true;
+  });
+  if (!candidatos.length) return null;
+  return copia(candidatos[Math.floor(Math.random() * candidatos.length)]);
+}
+
+export function personajesDeCategoria(categoria) {
+  return (porCategoria.get(categoria) || []).map((f) => copia(f));
 }

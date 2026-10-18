@@ -5,6 +5,7 @@ import { ticketsDe, usarTicket } from "./gacha-tickets.js";
 import { personajeAleatorio, contarPersonajes } from "./gacha-db.js";
 import { hacerRoll, mostrarColeccion } from "./gacha-core.js";
 import { esOwnerGacha } from "./gacha-owners.js";
+import { COOLDOWN_TIRADA_MS } from "./gacha-config.js";
 import { crearComandoClaim } from "./gacha-core.js";
 import { crearHandlerPvp } from "./gacha-pvp.js";
 import { crearComandoTienda, crearComandoComprar, crearComandoDar } from "./gacha-tienda.js";
@@ -124,13 +125,12 @@ function crearComandoTicketBase({ categoria, names }) {
   };
 }
 
-const COOLDOWN_TIRADA_MS = 10 * 60 * 1000;
 
 function crearComandoTiradaBase({ categoria, names, asegurar, sincronizar, textoVacio, descripcion }) {
   const cat = CAT[categoria];
   return {
     names,
-    desc: descripcion || `Genera ${cat.indef} al azar para reclamar con ${cat.claimCmd} (cada 10 minutos)`,
+    desc: descripcion || `Genera ${cat.indef} al azar para reclamar con ${cat.claimCmd} (cada ${COOLDOWN_TIRADA_MS / 60000} minutos)`,
     category: "Gacha",
     usage: cat.rollCmd,
     handler: async ({ from, sender, cleanText, reply }) => {

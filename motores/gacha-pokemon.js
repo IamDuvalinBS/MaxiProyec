@@ -62,3 +62,16 @@ export async function pokemonAleatorio() {
   }
   return null;
 }
+
+export const IDS_DESTACADOS = [
+  6, 9, 3, 25, 94, 130, 131, 143, 149, 150, 151, 196, 197, 212, 248, 282, 373, 376, 384, 445,
+  448, 483, 487, 493, 609, 635, 658, 700, 706, 719, 778, 812, 815, 887, 892, 1007
+];
+
+export async function pokemonPorId(id) {
+  const guardado = personajePorClave("pokemon", id);
+  if (guardado) return guardado;
+  const datos = await traer(id);
+  crearPersonaje(datos);
+  return personajePorClave("pokemon", id);
+}

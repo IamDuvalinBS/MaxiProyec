@@ -1,6 +1,7 @@
 import { getAccount } from "./db.js";
 import { encabezado } from "../src/economia/estilo.js";
-import { TIENDAS, NIVEL_MAX, comidaDe, comprarComida, darComida } from "./gacha-niveles.js";
+import { TIENDAS, NIVEL_MAX, MAX_ESTRELLAS, comidaDe, comprarComida, darComida } from "./gacha-niveles.js";
+import { registrarActividad } from "./gacha-misiones.js";
 import { monto, CAT, textoStats, gachaListo } from "./gacha-core.js";
 
 const entero = (texto) => (/^\d+$/.test(texto || "") ? parseInt(texto, 10) : null);
@@ -62,7 +63,7 @@ export function crearComandoComprar({ categoria, names, desc }) {
         return reply({ text: `❌ Te faltan *${monto(faltante)}* en mano para comprar ${cantidad} × ${r.item.nombre}. Usa *.retirar* para sacar dinero del banco.` });
       }
 
-      return reply({
+      const enviado = await reply({
         text: [
           encabezado(t.emoji, "COMPRA REALIZADA"),
           "",
@@ -74,6 +75,8 @@ export function crearComandoComprar({ categoria, names, desc }) {
           `> Úsalo con *${t.comandoDar} ${nItem} [ID]*. Si no indicas el ID se elige el personaje de mayor nivel.`
         ].join("\n")
       });
+      await registrarActividad({ reply, sender, eventos: [{ tipo: "tienda", cantidad: r.cantidad }] });
+      return enviado;
     }
   };
 }
@@ -110,12 +113,15 @@ export function crearComandoDar({ categoria, names, desc }) {
       if (r.error === "item") return reply({ text: `❌ No existe el artículo ${nItem}. Consulta la lista con *${t.comandoTienda}*.` });
       if (r.error === "sinpersonajes") return reply({ text: `❌ Todavía no tienes ${cat.indef}. Consíguelo con *${cat.rollCmd}* y *${cat.claimCmd}*.` });
       if (r.error === "ajeno") return reply({ text: `❌ No tienes ${cat.indef} con el ID #${charId}.` });
-      if (r.error === "maximo") return reply({ text: `🏆 *${r.p.nombre}* ya está en el nivel máximo (${NIVEL_MAX[categoria]}).` });
+      if (r.error === "maximo") {
+        const pista = (r.p.estrellas || 0) < MAX_ESTRELLAS ? ` Extiéndelo con *.ascender ${categoria} ${r.p.id}*.` : "";
+        return reply({ text: `🏆 *${r.p.nombre}* ya está en el nivel máximo (${r.max}).${pista}` });
+      }
       if (r.error === "sincomida") {
         return reply({ text: `❌ No tienes ${r.item.nombre}. Cómpralo con *${t.comandoComprar} ${nItem}*.` });
       }
 
-      return reply({
+      const enviado = await reply({
         text: [
           encabezado(t.emoji, cat.mejorado),
           "",
@@ -126,6 +132,8 @@ export function crearComandoDar({ categoria, names, desc }) {
           `🎒 *Te quedan* ›› ${r.restantes}`
         ].join("\n")
       });
+      await registrarActividad({ reply, sender, eventos: [{ tipo: "mejorar", cantidad: r.ganado }] });
+      return enviado;
     }
   };
 }
