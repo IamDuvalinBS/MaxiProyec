@@ -1,5 +1,5 @@
 import { ownerGacha } from "../../../motores/gacha-owners.js";
-import { agregarAleatorias } from "../../../motores/gacha-yandere.js";
+import { agregarAnimes } from "../../../motores/gacha-yandere.js";
 import { gachaListo, tarjeta } from "../../../motores/gacha-core.js";
 import { contarPersonajes } from "../../../motores/gacha-db.js";
 
@@ -9,9 +9,9 @@ let ocupado = false;
 
 export default {
   names: [".yanderandom"],
-  desc: "Agrega waifus nuevas desde yande.re, sin duplicados (solo owners)",
+  desc: "Agrega animes completos (todos sus personajes) desde yande.re y konachan (solo owners)",
   category: "Owner",
-  usage: ".yanderandom [cantidad]",
+  usage: ".yanderandom [cantidad de animes]",
   handler: ownerGacha(async ({ cleanText, reply }) => {
     await gachaListo;
     if (ocupado) return reply({ text: "⏳ Ya hay una carga en curso, espera a que termine." });
@@ -19,19 +19,20 @@ export default {
 
     ocupado = true;
     try {
-      await reply({ text: `🔎 Buscando *${n}* waifus nuevas en yande.re... (la primera vez tarda más porque aprende los tipos de tags).` });
-      const { agregadas, rechazos } = await agregarAleatorias(n);
+      await reply({ text: `🔎 Buscando *${n}* animes y descargando todos sus personajes... esto tarda varios minutos.` });
+      const nom = (s) => s.replace(/_/g, " ");
+      const resumen = await agregarAnimes(n, async (serie, r) => {
+        await reply({ text: `✅ *${nom(serie)}* — ${r.agregadas.length} personajes agregados.` });
+      });
 
-      const lineas = [];
-      if (agregadas.length) lineas.push(...agregadas.map((p, i) => `${i + 1}. *${p.nombre}* — ${p.serie} · ${p.rareza}`));
-      else lineas.push("No se encontró ningún personaje nuevo en esta tanda.");
-      const motivos = Object.entries(rechazos).sort((a, b) => b[1] - a[1]).slice(0, 5);
-      if (motivos.length) lineas.push("", "🚫 *Descartados*", ...motivos.map(([m, c]) => `• ${m}: ${c}`));
+      const total = resumen.reduce((a, s) => a + s.agregadas.length, 0);
+      const lineas = resumen.map((s) => `• *${nom(s.serie)}* — ${s.agregadas.length} personajes`);
+      if (!resumen.length) lineas.push("No se encontró ningún anime en esta tanda.");
       lineas.push("", `📚 *Waifus en la base* ›› ${contarPersonajes("waifu")}`);
 
-      await reply({ text: tarjeta({ emoji: "📥", titulo: `AGREGADAS ${agregadas.length}/${n}`, lineas }) });
+      await reply({ text: tarjeta({ emoji: "📥", titulo: `AGREGADOS ${total} PERSONAJES`, lineas }) });
     } catch (e) {
-      await reply({ text: `❌ Error consultando yande.re: ${e.message}` });
+      await reply({ text: `❌ Error consultando las fuentes: ${e.message}` });
     } finally {
       ocupado = false;
     }
