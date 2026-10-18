@@ -1,6 +1,7 @@
 import { statsEfectivas, NIVEL_MAX } from "./gacha-niveles.js";
 import { poderesActivos } from "./gacha-poderes.js";
 import { encabezado } from "../src/economia/estilo.js";
+import { T } from "./gacha-tema.js";
 
 const EFECTIVIDAD = {
   normal: { rock: .5, ghost: 0, steel: .5 },
@@ -249,8 +250,8 @@ function barra(hp, max) {
 
 function lineaDeEvento(e) {
   if (e.tipo === "habilidad") return [`✦ ${e.actor} usa *${e.nombre}* y ${e.texto}`];
-  if (e.tipo === "aturdido") return [`💫 ${e.actor} está aturdido y pierde su turno`];
-  const extra = e.critico ? " 💥 golpe crítico" : e.eff >= 2 ? " ✨ súper efectivo" : e.eff === 0 ? " 🚫 no afecta" : e.eff < 1 ? " 🔻 poco efectivo" : "";
+  if (e.tipo === "aturdido") return [T(`💫 ${e.actor} está aturdido y pierde su turno`, `💫 ${e.actor} queda hechizado y pierde su turno`)];
+  const extra = e.critico ? T(" 💥 golpe crítico", " 💥 golpe maldito") : e.eff >= 2 ? " ✨ súper efectivo" : e.eff === 0 ? " 🚫 no afecta" : e.eff < 1 ? " 🔻 poco efectivo" : "";
   const prefijo = e.hiper ? `⚡ *${e.nombreHiper}* ›› ` : "• ";
   return [`${prefijo}${e.atacante} ataca a ${e.defensor} (-${e.dano})${extra}`, ...e.notas.map((n) => `  ${n}`)];
 }

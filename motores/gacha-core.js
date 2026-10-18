@@ -9,11 +9,16 @@ import {
   initGachaDB, reclamar, coleccionDe, contarColeccion, personajePorId, propietarios
 } from "./gacha-db.js";
 import { tarjeta, fmt } from "../src/economia/formato.js";
-import { estilo, moneda } from "../src/economia/temas.js";
+import { moneda } from "../src/economia/temas.js";
 import { encabezado } from "../src/economia/estilo.js";
 import { formatTime } from "./ui.js";
 import { renderSnake } from "./gacha-snake.js";
-import { TIENE_NIVELES } from "./gacha-niveles.js";
+import { TIENE_NIVELES, estrellasTexto, darFragmentos, FRAGMENTOS_POR_RAREZA } from "./gacha-niveles.js";
+import { registrarActividad } from "./gacha-misiones.js";
+import { sumarEstadistica } from "./gacha-insignias.js";
+import { elegirConGarantia, registrarTirada, pityDespuesDe } from "./gacha-banner.js";
+import { PITY_TIRADAS, PITY_RANGO_MINIMO } from "./gacha-config.js";
+import { RAREZA_NOMBRES } from "./gacha-niveles.js";
 import { CAT } from "./gacha-categorias.js";
 import { ticketsDe, sorteoTicket } from "./gacha-tickets.js";
 import {
@@ -21,65 +26,15 @@ import {
 } from "./gacha-estilo.js";
 
 export const bloquesDePersonajeParaTicket = (personaje) => bloquesDePersonaje(personaje, 1);
+import { mensajeReclamo, enviarReclamo } from "./gacha-claim.js";
 import { rutaImagenCacheada, guardarImagenCacheada, hayRelay } from "./cache-medios.js";
+import { T } from "./gacha-tema.js";
 
 export { tarjeta, fmt, personajePorId, CAT, lineasPersonaje, textoStats };
-export const arroba = (jid) => `@${jid.split("@")[0]}`;
 
 // El dinero se ve como calabazas en Halloween (el valor guardado es el mismo).
 export const monto = (n) => `${fmt(n)} ${moneda()}`;
-
-// Textos del gacha. En Halloween solo cambia la redacción: sin bandas de emojis arriba ni abajo.
-const ESTILOS = {
-  normal: {
-    cooldown: (t) => `⏳ Debes esperar *${t}* para volver a usar este comando.`,
-    sinImagen: "> 🖼️ La imagen no está disponible en este momento. El personaje se puede reclamar con normalidad.",
-    tituloTicket: "TICKET OBTENIDO",
-    ticket: (quien, plural, cmd) => [
-      `> ${quien} tuviste suerte y obtuviste *1 ticket* de ${plural}.`,
-      `> Úsalo con *${cmd} <ID>* para conseguir el personaje que elijas.`
-    ],
-    yaReclamado: (quien) => `Este personaje ya fue reclamado por *${quien}*.`,
-    disponible: (quien, seg, cmd, min) => [
-      `Personaje disponible para *${quien}*. Tienes *${seg}s* para reclamarlo usando *${cmd}* o respondiendo a este mensaje.`,
-      `Pasado ese tiempo queda libre para todos durante *${min} min*.`
-    ],
-    errorImagen: "❌ No se pudo preparar la imagen. Inténtalo de nuevo en un momento.",
-    otraCategoria: (otra) => `❌ Ese personaje es ${otra.indef} y se reclama con *${otra.claimCmd}*.`,
-    nada: (cat) => `❌ No hay ${cat.indef} disponible para reclamar. Puede que el tiempo haya vencido o que ya lo hayan reclamado. Genera uno nuevo con *${cat.rollCmd}*.`,
-    bloqueado: (dueno, seg) => `🔒 Este personaje pertenece a la tirada de ${dueno}. Quedará libre para todos en *${seg}s*.`,
-    ocupado: "💨 Otra persona lo reclamó primero.",
-    repetido: (nombre) => `📦 Ya tienes a *${nombre}* en tu colección.`,
-    reclamo: (quien, nombre) => `*${quien}* reclamó a *${nombre}*.`,
-    tiradaOriginal: (quien) => `La tirada original era de *${quien}*.`,
-    vacia: (cat) => `Todavía no tienes ${cat.unidades} en tu cuenta. Genera uno con *${cat.rollCmd}* y reclámalo con *${cat.claimCmd}*.`,
-    valorTotal: "Valor total"
-  },
-  halloween: {
-    cooldown: (t) => `⏳ Los espíritus todavía descansan. Espera *${t}* para volver a usar este comando.`,
-    sinImagen: "> 🖼️ La imagen se perdió entre la niebla. El personaje se puede reclamar con normalidad.",
-    tituloTicket: "TICKET MALDITO OBTENIDO",
-    ticket: (quien, plural, cmd) => [
-      `> ${quien}, un espíritu generoso te dejó *1 ticket* de ${plural}.`,
-      `> Úsalo con *${cmd} <ID>* para invocar al personaje que elijas.`
-    ],
-    yaReclamado: (quien) => `Este personaje ya fue capturado por *${quien}*.`,
-    disponible: (quien, seg, cmd, min) => [
-      `Un personaje salió de la niebla para *${quien}*. Tienes *${seg}s* para reclamarlo usando *${cmd}* o respondiendo a este mensaje.`,
-      `Pasado ese tiempo queda libre para todos durante *${min} min*.`
-    ],
-    errorImagen: "❌ La niebla cubrió la imagen. Inténtalo de nuevo en un momento.",
-    otraCategoria: (otra) => `❌ Ese personaje es ${otra.indef} y se reclama con *${otra.claimCmd}*.`,
-    nada: (cat) => `❌ No hay ${cat.indef} disponible. Se desvaneció con la niebla o alguien lo reclamó primero. Genera uno nuevo con *${cat.rollCmd}*.`,
-    bloqueado: (dueno, seg) => `🔒 Este personaje pertenece a la tirada de ${dueno}. Quedará libre para todos en *${seg}s*.`,
-    ocupado: "💨 Otra alma se lo llevó primero.",
-    repetido: (nombre) => `📦 *${nombre}* ya está en tu colección embrujada.`,
-    reclamo: (quien, nombre) => `*${quien}* se llevó a *${nombre}* entre las sombras.`,
-    tiradaOriginal: (quien) => `La tirada original era de *${quien}*.`,
-    vacia: (cat) => `Tu colección está vacía como un cementerio sin visitas. Genera ${cat.indef} con *${cat.rollCmd}* y reclama el resultado con *${cat.claimCmd}*.`,
-    valorTotal: "Tesoro total"
-  }
-};
+export const arroba = (jid) => `@${jid.split("@")[0]}`;
 
 export const gachaListo = initGachaDB().catch((e) => {
   console.log("❌ Gacha: no se pudo cargar desde MongoDB: " + e.message);
@@ -305,7 +260,7 @@ export function restanteCooldown(clave) {
   return Math.max(0, (cooldowns.get(clave) || 0) - Date.now());
 }
 
-export const textoCooldown = (ms) => estilo(ESTILOS).cooldown(formatTime(ms));
+export const textoCooldown = (ms) => T(`⏳ Debes esperar *${formatTime(ms)}* para volver a usar este comando.`, `⏳ Los espíritus aún descansan. Espera *${formatTime(ms)}* para volver a invocar.`);
 
 setInterval(() => {
   const ahora = Date.now();
@@ -406,7 +361,7 @@ export async function enviarPersonaje({ reply, personaje, titulo, lineasExtra = 
   } catch (e) {
     if (!permitirSinImagen) throw new ErrorDeImagen(e.message);
     console.log(`[gacha] Se envía sin imagen a "${personaje.nombre}": ${e.message}`);
-    const aviso = estilo(ESTILOS).sinImagen;
+    const aviso = T("> 🖼️ La imagen no está disponible en este momento. El personaje se puede reclamar con normalidad.", "> 🖼️ La imagen se perdió entre la niebla. El personaje se puede reclamar con normalidad.");
     const enviado = await reply({ text: `${principal}\n\n${aviso}`, mentions });
     await enviarResto();
     return enviado;
@@ -422,17 +377,46 @@ export async function enviarPersonaje({ reply, personaje, titulo, lineasExtra = 
 }
 
 function tarjetaTicket(sender, cat) {
-  const E = estilo(ESTILOS);
   return [
-    encabezado("🎟️", E.tituloTicket),
+    encabezado("🎟️", T("TICKET OBTENIDO", "TICKET MALDITO OBTENIDO")),
     "",
-    ...E.ticket(arroba(sender), cat.plural, cat.ticketCmd)
+    T(`> ${arroba(sender)} tuviste suerte y obtuviste *1 ticket* de ${cat.plural}.`, `> ${arroba(sender)}, un espíritu generoso te dejó *1 ticket* de ${cat.plural}.`),
+    T(`> Úsalo con *${cat.ticketCmd} <ID>* para conseguir el personaje que elijas.`, `> Úsalo con *${cat.ticketCmd} <ID>* para invocar al personaje que elijas.`)
   ].join("\n");
+}
+
+const PRECARGA_ACTIVA = process.env.GACHA_PRECARGA !== "0";
+const precargas = new Map();
+
+function tomarPrecarga(clave, categoria) {
+  const guardado = precargas.get(clave);
+  precargas.delete(clave);
+  if (!guardado) return null;
+  const vigente = personajePorId(guardado.id);
+  if (!vigente) return null;
+  if (categoria === "waifu" && propietarios(vigente.id).length) return null;
+  return vigente;
+}
+
+function programarPrecarga({ clave, categoria, obtener }) {
+  if (!PRECARGA_ACTIVA) return;
+  setTimeout(async () => {
+    try {
+      const personaje = await obtener();
+      if (!personaje) return;
+      precargas.set(clave, personaje);
+      const urls = [personaje.img, ...(personaje.meta?.alt || [])].filter(Boolean);
+      if (!urls.length || urls[0].startsWith("snake:") || hayRelay(`gacha:${personaje.categoria}:${personaje.img}`)) return;
+      const img = await prepararImagen(urls);
+      img.limpiar();
+    } catch (e) {
+      console.log(`[gacha] Precarga omitida (${categoria}): ${e.message}`);
+    }
+  }, 3000).unref();
 }
 
 export async function hacerRoll({ categoria, obtener, reply, sender, from, cooldownMs, titulo, textoVacio }) {
   const cat = CAT[categoria];
-  const E = estilo(ESTILOS);
   const clave = `roll:${categoria}:${sender}`;
   const espera = tomarCooldown(clave, cooldownMs);
   if (espera > 0) return reply({ text: textoCooldown(espera) });
@@ -441,18 +425,26 @@ export async function hacerRoll({ categoria, obtener, reply, sender, from, coold
   try {
     const INTENTOS = 2;
     for (let intento = 0; intento < INTENTOS; intento++) {
-      const personaje = await obtener();
+      const previo = intento === 0 ? tomarPrecarga(clave, categoria) : null;
+      const { personaje, via } = await elegirConGarantia({ categoria, sender, obtener, previo });
       if (!personaje) return reply({ text: textoVacio });
 
       const duenos = categoria === "waifu" ? propietarios(personaje.id) : [];
       const mentions = [sender];
       const extra = [];
       if (duenos.length) {
-        extra.push(E.yaReclamado(arroba(duenos[0])));
+        extra.push(T(`Este personaje ya fue reclamado por *${arroba(duenos[0])}*.`, `Este personaje ya fue capturado por *${arroba(duenos[0])}*.`));
         mentions.push(duenos[0]);
       } else {
-        extra.push(...E.disponible(arroba(sender), EXCLUSIVO_MS / 1000, cat.claimCmd, VIGENCIA_MS / 60000));
+        extra.push(
+          T(`Personaje disponible para *${arroba(sender)}*. Tienes *${EXCLUSIVO_MS / 1000}s* para reclamarlo usando *${cat.claimCmd}* o respondiendo a este mensaje.`, `Un personaje salió de la niebla para *${arroba(sender)}*. Tienes *${EXCLUSIVO_MS / 1000}s* para reclamarlo usando *${cat.claimCmd}* o respondiendo a este mensaje.`),
+          T(`Pasado ese tiempo queda libre para todos durante *${VIGENCIA_MS / 60000} min*.`, `Pasado ese tiempo se lo lleva la oscuridad: queda libre para todos durante *${VIGENCIA_MS / 60000} min*.`)
+        );
       }
+
+      if (via === "banner") extra.unshift(T("⭐ *Personaje destacado de la semana.*", "🎃 *Personaje destacado de la semana, bendecido por la luna.*"));
+      if (via === "pity") extra.unshift(T(`🍀 *Garantía activada:* tirada asegurada de rareza ${RAREZA_NOMBRES[PITY_RANGO_MINIMO]} o superior.`, `🍀 *Garantía activada:* los espíritus aseguraron una tirada de rareza ${RAREZA_NOMBRES[PITY_RANGO_MINIMO]} o superior.`));
+      extra.push(T(`Garantía ›› *${pityDespuesDe(sender, categoria, personaje)}/${PITY_TIRADAS}* tiradas.`, `Garantía de la noche ›› *${pityDespuesDe(sender, categoria, personaje)}/${PITY_TIRADAS}* tiradas.`));
 
       try {
         const enviado = await enviarPersonaje({
@@ -461,14 +453,20 @@ export async function hacerRoll({ categoria, obtener, reply, sender, from, coold
         });
         if (!duenos.length && enviado?.key?.id) registrarPendiente(enviado.key.id, from, personaje, sender);
         exito = true;
-        if (sorteoTicket(sender, categoria)) await reply({ text: tarjetaTicket(sender, cat), mentions: [sender] });
+        registrarTirada(sender, categoria, personaje);
+        if (sorteoTicket(sender, categoria)) {
+          sumarEstadistica(sender, "tickets_suerte", 1);
+          await reply({ text: tarjetaTicket(sender, cat), mentions: [sender] });
+        }
+        await registrarActividad({ reply, sender, eventos: [{ tipo: "tirada", categoria }] });
+        programarPrecarga({ clave, categoria, obtener });
         return;
       } catch (e) {
         if (!(e instanceof ErrorDeImagen)) throw e;
         console.log(`[gacha] No se pudo preparar la imagen de "${personaje.nombre}" (${categoria}): ${e.message}`);
       }
     }
-    await reply({ text: E.errorImagen });
+    await reply({ text: T("❌ No se pudo preparar la imagen. Inténtalo de nuevo en un momento.", "❌ La niebla cubrió la imagen. Inténtalo de nuevo en un momento.") });
   } finally {
     if (!exito) soltarCooldown(clave);
   }
@@ -478,22 +476,21 @@ export function crearComandoClaim({ categoria, names, desc }) {
   const cat = CAT[categoria];
   return {
     names, desc, category: "Gacha",
-    handler: async ({ from, sender, msg, reply }) => {
+    handler: async ({ sock, from, sender, msg, reply }) => {
       await gachaListo;
-      const E = estilo(ESTILOS);
       const r = buscarPendiente({ from, categoria, idCitado: idMensajeCitado(msg), sender });
 
       if (r.estado === "otra_categoria") {
         const otra = CAT[r.categoriaReal];
-        return reply({ text: E.otraCategoria(otra) });
+        return reply({ text: `❌ Ese personaje es ${otra.indef} y se reclama con *${otra.claimCmd}*.` });
       }
       if (r.estado === "nada") {
-        return reply({ text: E.nada(cat) });
+        return reply({ text: T(`❌ No hay ${cat.indef} disponible para reclamar. Puede que el tiempo haya vencido o que ya lo hayan reclamado. Genera uno nuevo con *${cat.rollCmd}*.`, `❌ No hay ${cat.indef} disponible. Se desvaneció con la niebla o alguien lo reclamó primero. Genera uno nuevo con *${cat.rollCmd}*.`) });
       }
       if (r.estado === "bloqueado") {
         const dueno = r.pendiente.dueno;
         return reply({
-          text: E.bloqueado(arroba(dueno), Math.ceil(r.restanteMs / 1000)),
+          text: T(`🔒 Este personaje pertenece a la tirada de ${arroba(dueno)}. Quedará libre para todos en *${Math.ceil(r.restanteMs / 1000)}s*.`, `🔒 Este personaje pertenece a la tirada de ${arroba(dueno)}. La oscuridad lo liberará para todos en *${Math.ceil(r.restanteMs / 1000)}s*.`),
           mentions: [dueno]
         });
       }
@@ -503,29 +500,27 @@ export function crearComandoClaim({ categoria, names, desc }) {
       const resultado = reclamar(sender, p);
       if (resultado === "ocupado") {
         cerrarPendiente(r.id);
-        return reply({ text: E.ocupado });
+        return reply({ text: T("💨 Otra persona lo reclamó primero.", "💨 Otra alma se lo llevó primero.") });
       }
       if (resultado === "repetido") {
         cerrarPendiente(r.id);
-        return reply({ text: E.repetido(p.nombre) });
+        const fragmentos = FRAGMENTOS_POR_RAREZA[p.rareza] || 1;
+        darFragmentos(sender, fragmentos);
+        return reply({
+          text: T(`📦 Ya tienes a *${p.nombre}* en tu colección. Se convirtió en *${fragmentos}* ${fragmentos === 1 ? "fragmento" : "fragmentos"} de ascensión. Úsalos con *.ascender*.`, `📦 *${p.nombre}* ya está en tu colección embrujada. Se convirtió en *${fragmentos}* ${fragmentos === 1 ? "fragmento" : "fragmentos"} de ascensión. Úsalos con *.ascender*.`)
+        });
       }
 
       cerrarPendiente(r.id);
-      const mentions = [sender];
-      const lineas = [E.reclamo(arroba(sender), p.nombre)];
-      if (pendiente.dueno !== sender) {
-        lineas.push(E.tiradaOriginal(arroba(pendiente.dueno)));
-        mentions.push(pendiente.dueno);
-      }
-      const bloques = [bloqueCabecera(categoria, cat.reclamado, lineas), ...bloquesDePersonaje(p, 1)];
-      await reply({ text: bloques.join("\n\n"), mentions });
+      const { texto, mentions } = mensajeReclamo({ categoria, sender, personaje: p });
+      await enviarReclamo({ sock, from, msg, texto, mentions, reply });
+      await registrarActividad({ reply, sender, eventos: [{ tipo: "reclamar", categoria }] });
     }
   };
 }
 
 export async function mostrarColeccion({ categoria, sender, cleanText, reply }) {
   const cat = CAT[categoria];
-  const E = estilo(ESTILOS);
   const pagina = Math.max(1, parseInt(cleanText.split(/\s+/)[1], 10) || 1);
   const POR_PAGINA = 15;
   const { n, total } = contarColeccion(sender, categoria);
@@ -536,7 +531,7 @@ export async function mostrarColeccion({ categoria, sender, cleanText, reply }) 
       text: [
         encabezado(cat.emoji, cat.tituloColeccion),
         "",
-        `> ${E.vacia(cat)}`
+        T(`> Todavía no tienes ${cat.unidades} en tu cuenta. Genera uno con *${cat.rollCmd}* y reclámalo con *${cat.claimCmd}*.`, `> Tu colección está vacía como un cementerio sin visitas. Genera ${cat.indef} con *${cat.rollCmd}* y reclama el resultado con *${cat.claimCmd}*.`)
       ].join("\n")
     });
   }
@@ -545,7 +540,7 @@ export async function mostrarColeccion({ categoria, sender, cleanText, reply }) 
   const p = Math.min(pagina, paginas);
   const conNivel = TIENE_NIVELES(categoria);
   const filas = coleccionDe(sender, categoria, POR_PAGINA, (p - 1) * POR_PAGINA).flatMap((c) => {
-    const detalle = [conNivel ? `Nivel ${c.nivel}` : null, c.rareza, `ID :: #${c.id}`];
+    const detalle = [conNivel ? `Nivel ${c.nivel}${c.estrellas ? ` ${estrellasTexto(c.estrellas)}` : ""}` : null, c.rareza, `ID :: #${c.id}`];
     if (categoria === "waifu" && c.serie) detalle.push(c.serie);
     return [`✦ *${c.nombre}*`, `> · ${detalle.filter(Boolean).join(" · ")}`];
   });
@@ -557,7 +552,7 @@ export async function mostrarColeccion({ categoria, sender, cleanText, reply }) 
     "",
     `⧼${cat.emojiTotal}⧽ *${cat.etiquetaTotal}* ››`,
     `> ${fmt(n)} ${n === 1 ? cat.unidad : cat.unidades} en tu cuenta.`,
-    `⧼${cat.emojiValor}⧽ *${E.valorTotal}* ››`,
+    T(`⧼${cat.emojiValor}⧽ *Valor total* ››`, `⧼${cat.emojiValor}⧽ *Tesoro total* ››`),
     `> ${monto(total)} en total.`,
     `⧼🎟️⧽ *${cat.etiquetaTickets}* ››`,
     `> ${tickets} ${tickets === 1 ? "ticket" : "tickets"} en tu cuenta.`,
@@ -570,6 +565,7 @@ export async function mostrarColeccion({ categoria, sender, cleanText, reply }) 
       ? `> Página ${p}/${paginas}. Usa *${cat.coleccionCmd} ${p + 1}* para ver la siguiente página.`
       : `> Página ${p}/${paginas}.`,
     `> ${cat.subirNivel}`,
+    `> Arma tu equipo con *.equipo ${cat.clave}* y mira sus poderes con *.poderes ${cat.clave}*.`,
     `> Para obtener uno por su ID usa *${cat.ticketCmd} <ID>*.`
   ];
 

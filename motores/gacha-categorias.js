@@ -20,7 +20,7 @@ const BASE = {
     coleccionCmd: ".harem",
     topCmd: ".waifutop",
     emojiTop: "💖",
-    subirNivel: "Los personajes reclamados no se pueden subir de nivel.",
+    subirNivel: "Para subirlas de nivel usa *.waifushop* y *.waifudar <número> <ID>*.",
     ticketCmd: ".ticket",
     tituloColeccion: "TU HAREM",
     tituloTop: "WAIFUS",
@@ -42,8 +42,6 @@ const BASE = {
     indef: "un Pokémon",
     art: "el",
     de: "del",
-    al: "al",
-    al: "al",
     al: "al",
     plural: "Pokémon",
     unidades: "pokémon",
@@ -75,6 +73,7 @@ const BASE = {
     indef: "un brawler",
     art: "el",
     de: "del",
+    al: "al",
     plural: "brawlers",
     unidades: "brawlers",
     reclamado: "BRAWLER RECLAMADO",
@@ -105,6 +104,7 @@ const BASE = {
     indef: "un snake",
     art: "el",
     de: "del",
+    al: "al",
     plural: "snakes",
     unidades: "gusanitos",
     reclamado: "SNAKE ADOPTADO",
@@ -220,7 +220,7 @@ const BASE = {
   }
 };
 
-// Extensión de Halloween: solo cambia títulos y descripciones (sin tocar comandos, claves ni datos).
+// Extensión de Halloween: solo títulos y descripciones (no cambia comandos, claves ni datos).
 const HALLOWEEN = {
   waifu: {
     reclamado: "WAIFU CAPTURADA",
@@ -265,8 +265,8 @@ const HALLOWEEN = {
   }
 };
 
-// Vista "viva" de cada categoría: lee el evento activo cada vez que se consulta un campo,
-// así los comandos que guardan `const cat = CAT[...]` también cambian de estilo al instante.
+// Vista "viva": lee el evento activo en cada acceso, así los comandos que guardan
+// `const cat = CAT[...]` también cambian de estilo al instante.
 export const CAT = {};
 for (const [clave, base] of Object.entries(BASE)) {
   const vista = {};

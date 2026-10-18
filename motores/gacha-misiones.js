@@ -5,6 +5,7 @@ import { darTickets } from "./gacha-tickets.js";
 import { CAT } from "./gacha-categorias.js";
 import { sumarEstadistica, revisarInsignias } from "./gacha-insignias.js";
 import { encabezado } from "../src/economia/estilo.js";
+import { T } from "./gacha-tema.js";
 
 const ZONA = process.env.GACHA_ZONA || "America/Mexico_City";
 const formatoFecha = new Intl.DateTimeFormat("en-CA", { timeZone: ZONA });
@@ -157,16 +158,16 @@ export async function registrarActividad({ reply, sender, eventos }) {
     const partes = [];
     if (completadas.length) {
       partes.push(
-        encabezado("📋", "MISIÓN COMPLETADA"),
+        encabezado("📋", T("MISIÓN COMPLETADA", "MISIÓN MALDITA COMPLETADA")),
         "",
         ...completadas.map((m) => `> ${arroba(sender)} completó: *${m.texto}*.`),
-        "> Cobra tu recompensa con *.misiones cobrar*."
+        T("> Cobra tu recompensa con *.misiones cobrar*.", "> Cobra tu botín con *.misiones cobrar*.")
       );
     }
     if (insignias.length) {
       if (partes.length) partes.push("");
       partes.push(
-        encabezado("🏅", "NUEVA INSIGNIA"),
+        encabezado("🏅", T("NUEVA INSIGNIA", "NUEVA INSIGNIA DE LA NOCHE")),
         "",
         ...insignias.map((i) => `> ${arroba(sender)} desbloqueó ${i.emoji} *${i.nombre}*. ${i.desc}`)
       );

@@ -1,35 +1,9 @@
 import { getAccount } from "./db.js";
 import { encabezado } from "../src/economia/estilo.js";
-import { TIENDAS, NIVEL_MAX, comidaDe, comprarComida, darComida } from "./gacha-niveles.js";
+import { TIENDAS, NIVEL_MAX, MAX_ESTRELLAS, comidaDe, comprarComida, darComida } from "./gacha-niveles.js";
+import { registrarActividad } from "./gacha-misiones.js";
 import { monto, CAT, textoStats, gachaListo } from "./gacha-core.js";
-import { estilo } from "../src/economia/temas.js";
-
-const ESTILOS = {
-  normal: {
-    tituloShop: (t) => `SHOP - ${t.titulo}`,
-    cantidad: (n, tiene) => `> Cantidad 1 = ${n}. Tienes ${tiene}.`,
-    dinero: (n) => `⛁ *DINERO*:: ${n}`,
-    tipComprar: (t) => `> Para comprar usa *${t.comandoComprar} <número> [cantidad]*.`,
-    tipUsar: (t) => `> Para usar lo que compraste en un personaje usa *${t.comandoDar} <número> [ID]*.`,
-    sinNumero: (t) => `❌ Indica el número del artículo que deseas comprar. Ejemplo: *${t.comandoComprar} 1*. Consulta la lista con *${t.comandoTienda}*.`,
-    faltante: (falta, cantidad, nombre) => `❌ Te faltan *${falta}* en mano para comprar ${cantidad} × ${nombre}. Usa *.retirar* para sacar dinero del banco.`,
-    tituloCompra: "COMPRA REALIZADA",
-    dineroMano: "⛁ *Dinero en mano*",
-    pagaste: (n) => `> Pagaste ${n}.`
-  },
-  halloween: {
-    tituloShop: (t) => `SHOP - ${t.titulo}`,
-    cantidad: (n, tiene) => `> Cantidad 1 = ${n}. Tienes ${tiene}.`,
-    dinero: (n) => `🧙‍♀️ *CALDERO*:: ${n}`,
-    tipComprar: (t) => `> Para comprar usa *${t.comandoComprar} <número> [cantidad]*.`,
-    tipUsar: (t) => `> Para usar lo que compraste en un personaje usa *${t.comandoDar} <número> [ID]*.`,
-    sinNumero: (t) => `❌ Indica el número del artículo que deseas comprar. Ejemplo: *${t.comandoComprar} 1*. Consulta la lista con *${t.comandoTienda}*.`,
-    faltante: (falta, cantidad, nombre) => `❌ Te faltan *${falta}* en el caldero para comprar ${cantidad} × ${nombre}. Usa *.retirar* para desenterrar calabazas de la cripta.`,
-    tituloCompra: "COMPRA MALDITA REALIZADA",
-    dineroMano: "🧙‍♀️ *Caldero*",
-    pagaste: (n) => `> Pagaste ${n} al mercader de las sombras.`
-  }
-};
+import { T } from "./gacha-tema.js";
 
 const entero = (texto) => (/^\d+$/.test(texto || "") ? parseInt(texto, 10) : null);
 const identificador = (texto) => (/^#?\d+$/.test(texto || "") ? parseInt(String(texto).replace("#", ""), 10) : null);
@@ -44,22 +18,21 @@ export function crearComandoTienda({ categoria, names, desc }) {
     names, desc, category: "Gacha", usage: t.comandoTienda,
     handler: async ({ sender, reply }) => {
       await gachaListo;
-      const E = estilo(ESTILOS);
-      const lineas = [encabezado(t.emoji, E.tituloShop(t)), ""];
+      const lineas = [encabezado(t.emoji, `SHOP - ${t.titulo}`), ""];
 
       t.items.forEach((item, i) => {
         const tiene = comidaDe(sender, categoria, i + 1);
         lineas.push(`${item.emoji} *${i + 1}. ${item.nombre}* ›› *${monto(item.precio)}*`);
-        lineas.push(E.cantidad(textoNiveles(item.niveles), tiene));
+        lineas.push(`> Cantidad 1 = ${textoNiveles(item.niveles)}. Tienes ${tiene}.`);
       });
 
       lineas.push(
         "",
-        E.dinero(monto(getAccount(sender).wallet)),
+        T(`⛁ *DINERO*:: ${monto(getAccount(sender).wallet)}`, `🧙‍♀️ *CALDERO*:: ${monto(getAccount(sender).wallet)}`),
         `✿ *Nivel Max.*:: ${NIVEL_MAX[categoria]} Niveles`,
         "",
-        E.tipComprar(t),
-        E.tipUsar(t)
+        `> Para comprar usa *${t.comandoComprar} <número> [cantidad]*.`,
+        `> Para usar lo que compraste en un personaje usa *${t.comandoDar} <número> [ID]*.`
       );
       return reply({ text: lineas.join("\n") });
     }
@@ -72,13 +45,14 @@ export function crearComandoComprar({ categoria, names, desc }) {
     names, desc, category: "Gacha", usage: `${t.comandoComprar} <número> [cantidad]`,
     handler: async ({ sender, cleanText, reply }) => {
       await gachaListo;
-      const E = estilo(ESTILOS);
       const partes = cleanText.split(/\s+/).slice(1);
       const nItem = entero(partes[0]);
       const cantidad = entero(partes[1]) || 1;
 
       if (!nItem) {
-        return reply({ text: E.sinNumero(t) });
+        return reply({
+          text: T(`❌ Indica el número del artículo que deseas comprar. Ejemplo: *${t.comandoComprar} 1*. Consulta la lista con *${t.comandoTienda}*.`, `❌ Indica el número del artículo que deseas comprar. Ejemplo: *${t.comandoComprar} 1*. Mira lo que vende el mercader con *${t.comandoTienda}*.`)
+        });
       }
 
       const r = comprarComida({ categoria, sender, nItem, cantidad });
@@ -87,21 +61,23 @@ export function crearComandoComprar({ categoria, names, desc }) {
       }
       if (r.error === "saldo") {
         const faltante = r.total - getAccount(sender).wallet;
-        return reply({ text: E.faltante(monto(faltante), cantidad, r.item.nombre) });
+        return reply({ text: T(`❌ Te faltan *${monto(faltante)}* en mano para comprar ${cantidad} × ${r.item.nombre}. Usa *.retirar* para sacar dinero del banco.`, `❌ Te faltan *${monto(faltante)}* en el caldero para comprar ${cantidad} × ${r.item.nombre}. Usa *.retirar* para desenterrar calabazas de la cripta.`) });
       }
 
-      return reply({
+      const enviado = await reply({
         text: [
-          encabezado(t.emoji, E.tituloCompra),
+          encabezado(t.emoji, T("COMPRA REALIZADA", "COMPRA MALDITA REALIZADA")),
           "",
           `${r.item.emoji} *Compraste* ›› ${r.cantidad} × ${r.item.nombre}`,
-          E.pagaste(monto(r.total)),
+          T(`> Pagaste ${monto(r.total)}.`, `> Pagaste ${monto(r.total)} al mercader de las sombras.`),
           `🎒 *Ahora tienes* ›› ${r.tiene}`,
-          `${E.dineroMano} ›› ${monto(getAccount(sender).wallet)}`,
+          T(`⛁ *Dinero en mano* ›› ${monto(getAccount(sender).wallet)}`, `🧙‍♀️ *Caldero* ›› ${monto(getAccount(sender).wallet)}`),
           "",
           `> Úsalo con *${t.comandoDar} ${nItem} [ID]*. Si no indicas el ID se elige el personaje de mayor nivel.`
         ].join("\n")
       });
+      await registrarActividad({ reply, sender, eventos: [{ tipo: "tienda", cantidad: r.cantidad }] });
+      return enviado;
     }
   };
 }
@@ -138,12 +114,15 @@ export function crearComandoDar({ categoria, names, desc }) {
       if (r.error === "item") return reply({ text: `❌ No existe el artículo ${nItem}. Consulta la lista con *${t.comandoTienda}*.` });
       if (r.error === "sinpersonajes") return reply({ text: `❌ Todavía no tienes ${cat.indef}. Consíguelo con *${cat.rollCmd}* y *${cat.claimCmd}*.` });
       if (r.error === "ajeno") return reply({ text: `❌ No tienes ${cat.indef} con el ID #${charId}.` });
-      if (r.error === "maximo") return reply({ text: `🏆 *${r.p.nombre}* ya está en el nivel máximo (${NIVEL_MAX[categoria]}).` });
+      if (r.error === "maximo") {
+        const pista = (r.p.estrellas || 0) < MAX_ESTRELLAS ? ` Extiéndelo con *.ascender ${categoria} ${r.p.id}*.` : "";
+        return reply({ text: `🏆 *${r.p.nombre}* ya está en el nivel máximo (${r.max}).${pista}` });
+      }
       if (r.error === "sincomida") {
         return reply({ text: `❌ No tienes ${r.item.nombre}. Cómpralo con *${t.comandoComprar} ${nItem}*.` });
       }
 
-      return reply({
+      const enviado = await reply({
         text: [
           encabezado(t.emoji, cat.mejorado),
           "",
@@ -154,6 +133,8 @@ export function crearComandoDar({ categoria, names, desc }) {
           `🎒 *Te quedan* ›› ${r.restantes}`
         ].join("\n")
       });
+      await registrarActividad({ reply, sender, eventos: [{ tipo: "mejorar", cantidad: r.ganado }] });
+      return enviado;
     }
   };
 }
