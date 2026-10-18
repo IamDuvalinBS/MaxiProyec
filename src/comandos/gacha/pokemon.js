@@ -1,11 +1,12 @@
+import { COOLDOWN_TIRADA_MS } from "../../../motores/gacha-config.js";
 import { pokemonAleatorio } from "../../../motores/gacha-pokemon.js";
 import { hacerRoll, gachaListo } from "../../../motores/gacha-core.js";
 
-const COOLDOWN_MS = 10 * 60 * 1000;
+const COOLDOWN_MS = COOLDOWN_TIRADA_MS;
 
 export default {
   names: [".pokemon"],
-  desc: "Genera un Pokémon al azar para reclamar con .atrapar (cada 10 minutos)",
+  desc: "Genera un Pokémon al azar para reclamar con .atrapar (cada 20 minutos)",
   category: "Gacha",
   handler: async ({ from, sender, reply }) => {
     await gachaListo;

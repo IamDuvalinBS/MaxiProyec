@@ -26,7 +26,7 @@ export default {
           "✱ *Uso* ›› .darticket <categoría> <cantidad> @usuario",
           "✿ *Ejemplo* ›› .darticket Brawl 1 @usuario",
           "",
-          "> Categorías disponibles: *waifu*, *pokemon*, *brawl* y *snake*.",
+          "> Categorías disponibles: *waifu*, *pokemon*, *brawl*, *snake*, *cod*, *dragon* y *clash*.",
           "> También puedes responder al mensaje de la persona en lugar de mencionarla."
         ].join("\n")
       });

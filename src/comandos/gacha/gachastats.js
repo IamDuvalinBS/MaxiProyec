@@ -7,7 +7,7 @@ import { encabezado } from "../../../src/economia/estilo.js";
 const POR_PAGINA = 20;
 
 export default {
-  names: [".gachastats", ".statsgacha", ".gachainfo", ".wachainfo", ".waifuinfo"],
+  names: [".gachastats", ".statsgacha", ".gachainfo"],
   desc: "Muestra cuántos personajes hay en cada sistema del gacha y permite listarlos (solo owners)",
   category: "Gacha",
   usage: ".gachastats [waifu|pokemon|brawl|snake] [página]",

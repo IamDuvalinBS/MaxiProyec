@@ -1,6 +1,7 @@
 import { gachaListo, textoStats } from "../../../motores/gacha-core.js";
 import { encabezado } from "../../../src/economia/estilo.js";
-import { subirBrawler, NIVEL_MAX } from "../../../motores/gacha-niveles.js";
+import { subirBrawler, nivelMaxDe } from "../../../motores/gacha-niveles.js";
+import { registrarActividad } from "../../../motores/gacha-misiones.js";
 
 export default {
   names: [".subirbrawler", ".levelupbrawler"],
@@ -28,22 +29,26 @@ export default {
     const r = subirBrawler({ sender, charId, veces });
     if (r.error === "sinpersonajes") return reply({ text: "❌ Todavía no tienes ningún brawler. Consigue uno con *.brawlstars* y reclámalo con *.drop*." });
     if (r.error === "ajeno") return reply({ text: `❌ No tienes ningún brawler con el ID #${charId}.` });
-    if (r.error === "maximo") return reply({ text: `🏆 *${r.p.nombre}* ya está en el nivel máximo (${NIVEL_MAX.brawler}).` });
+    if (r.error === "maximo") {
+      return reply({ text: `🏆 *${r.p.nombre}* ya está en el nivel máximo (${r.max}). Extiéndelo con *.ascender brawl ${r.p.id}*.` });
+    }
     if (r.error === "cubitos") {
       return reply({
         text: `❌ Para subir a *${r.p.nombre}* al nivel ${r.p.nivel + 1} necesitas ${r.necesarios} cubitos y tienes ${r.tiene}. Compra los que faltan con *.comprarcubitos ${r.faltan}*.`
       });
     }
 
-    return reply({
+    const enviado = await reply({
       text: [
         encabezado("⭐", "BRAWLER MEJORADO"),
         "",
         `✍🏻 *Nombre* ›› ${r.p.nombre} (#${r.p.id})`,
-        `📊 *Nivel* ›› ${r.antes} → *${r.despues}* / ${NIVEL_MAX.brawler}`,
+        `📊 *Nivel* ›› ${r.antes} → *${r.despues}* / ${nivelMaxDe("brawler", r.p.estrellas)}`,
         textoStats(r.stats),
         `🟪 *Gastaste* ›› ${r.gastados} cubitos (te quedan ${r.restantes})`
       ].join("\n")
     });
+    await registrarActividad({ reply, sender, eventos: [{ tipo: "mejorar", cantidad: r.despues - r.antes }] });
+    return enviado;
   }
 };

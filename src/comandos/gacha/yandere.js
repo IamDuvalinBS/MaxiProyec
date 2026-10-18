@@ -1,6 +1,6 @@
 import { ownerGacha } from "../../../motores/gacha-owners.js";
 import { agregarPorLink } from "../../../motores/gacha-yandere.js";
-import { gachaListo, enviarPersonaje, registrarPendiente } from "../../../motores/gacha-core.js";
+import { gachaListo, enviarPersonaje, registrarPendiente, EXCLUSIVO_MS } from "../../../motores/gacha-core.js";
 
 export default {
   names: [".yandere"],
@@ -23,7 +23,7 @@ export default {
     try {
       const enviado = await enviarPersonaje({
         reply, personaje: r.personaje, titulo: "WAIFU AGREGADA",
-        lineasExtra: ["✅ Guardada en la base. Responde con *.claim* para reclamarla (30s)."]
+        lineasExtra: [`✅ Guardada en la base. Responde con *.claim* para reclamarla (${EXCLUSIVO_MS / 1000}s).`]
       });
       if (enviado?.key?.id) registrarPendiente(enviado.key.id, from, r.personaje, sender);
     } catch (e) {

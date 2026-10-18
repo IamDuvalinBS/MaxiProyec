@@ -2,6 +2,7 @@ import { gachaListo, monto } from "../../../motores/gacha-core.js";
 import { getAccount } from "../../../motores/db.js";
 import { encabezado } from "../../../src/economia/estilo.js";
 import { PRECIO_CUBITO, comprarCubitos } from "../../../motores/gacha-niveles.js";
+import { registrarActividad } from "../../../motores/gacha-misiones.js";
 
 export default {
   names: [".comprarcubitos", ".cubitoscomprar"],
@@ -21,7 +22,7 @@ export default {
       return reply({ text: `❌ Necesitas *${monto(r.total)}* en mano y no te alcanza. Usa *.retirar* para sacar dinero del banco.` });
     }
 
-    return reply({
+    const enviado = await reply({
       text: [
         encabezado("⚡", "COMPRA REALIZADA"),
         "",
@@ -33,5 +34,7 @@ export default {
         "> Úsalos con *.subirbrawler [ID] [cantidad|max]*."
       ].join("\n")
     });
+    await registrarActividad({ reply, sender, eventos: [{ tipo: "tienda", cantidad: 1 }] });
+    return enviado;
   }
 };

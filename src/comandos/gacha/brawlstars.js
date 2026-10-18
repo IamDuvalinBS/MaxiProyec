@@ -1,13 +1,14 @@
+import { COOLDOWN_TIRADA_MS } from "../../../motores/gacha-config.js";
 import { personajeAleatorio } from "../../../motores/gacha-db.js";
 import { asegurarBrawlers, sincronizarBrawlers } from "../../../motores/gacha-brawl.js";
 import { hacerRoll, gachaListo } from "../../../motores/gacha-core.js";
 import { esOwnerGacha } from "../../../motores/gacha-owners.js";
 
-const COOLDOWN_MS = 10 * 60 * 1000;
+const COOLDOWN_MS = COOLDOWN_TIRADA_MS;
 
 export default {
   names: [".brawlstars", ".brawl"],
-  desc: "Genera un Brawler al azar para reclamar con .drop (cada 10 minutos)",
+  desc: "Genera un Brawler al azar para reclamar con .drop (cada 20 minutos)",
   category: "Gacha",
   usage: ".brawlstars",
   handler: async ({ from, sender, cleanText, reply }) => {

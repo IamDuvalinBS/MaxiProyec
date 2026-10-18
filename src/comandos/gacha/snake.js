@@ -1,12 +1,13 @@
+import { COOLDOWN_TIRADA_MS } from "../../../motores/gacha-config.js";
 import { personajeAleatorioPonderado } from "../../../motores/gacha-db.js";
 import { asegurarSnakes, PESOS_SNAKE } from "../../../motores/gacha-snake.js";
 import { hacerRoll, gachaListo } from "../../../motores/gacha-core.js";
 
-const COOLDOWN_MS = 10 * 60 * 1000;
+const COOLDOWN_MS = COOLDOWN_TIRADA_MS;
 
 export default {
   names: [".snake", ".gusanito"],
-  desc: "Genera un gusanito (skin de Snake) al azar para adoptar con .adoptar (cada 10 minutos)",
+  desc: "Genera un gusanito (skin de Snake) al azar para adoptar con .adoptar (cada 20 minutos)",
   category: "Gacha",
   handler: async ({ from, sender, reply }) => {
     await gachaListo;
