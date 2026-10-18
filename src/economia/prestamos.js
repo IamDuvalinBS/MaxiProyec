@@ -1,7 +1,6 @@
-import fs from "fs";
-import path from "path";
-import { getAccount, saveAccount, addToWallet } from "../../motores/db.js";
-import * as perfil from "../../motores/profile.js";
+import { getAccount, getAllAccounts, saveAccount, addToWallet } from "../../motores/db.js";
+import { getProfile } from "../../motores/profile.js";
+import { registrarEspera } from "../nucleo/espera.js";
 import { tarjeta, monto, elegir } from "./formato-evento.js";
 import { estilo } from "./temas.js";
 
@@ -23,7 +22,6 @@ const LIMITES = [
   [0, 10000]
 ];
 const CAMPOS_BANCO = ["bank", "banco"];
-const ARCHIVO = path.join(process.cwd(), "data", "prestamos.json");
 
 const ESTILOS = {
   normal: {
@@ -130,24 +128,16 @@ const ESTILOS = {
   }
 };
 
-const pendientes = new Map();
-let prestamos = cargar();
 let intervalo = null;
 let sockActual = null;
 
-function cargar() {
-  try {
-    return JSON.parse(fs.readFileSync(ARCHIVO, "utf8"));
-  } catch {
-    return {};
-  }
+function prestamoDe(sender) {
+  return getAccount(sender).prestamo || null;
 }
 
-function guardar() {
-  fs.mkdirSync(path.dirname(ARCHIVO), { recursive: true });
-  const temporal = `${ARCHIVO}.tmp`;
-  fs.writeFileSync(temporal, JSON.stringify(prestamos));
-  fs.renameSync(temporal, ARCHIVO);
+function guardarPrestamo(sender, p) {
+  getAccount(sender).prestamo = p;
+  saveAccount(sender);
 }
 
 function tasa(dias) {
@@ -167,11 +157,7 @@ function duracion(ms) {
 }
 
 function nivelDe(sender) {
-  const lector = [perfil.getLevel, perfil.getNivel].find((f) => typeof f === "function");
-  const valor = lector ? lector(sender) : null;
-  const cuenta = getAccount(sender);
-  const fuente = valor && typeof valor === "object" ? (valor.level ?? valor.nivel) : valor;
-  const nivel = Number(fuente ?? cuenta.level ?? cuenta.nivel ?? 1);
+  const nivel = Number(getProfile(sender).level);
   return Number.isFinite(nivel) && nivel > 0 ? Math.floor(nivel) : 1;
 }
 
@@ -237,7 +223,7 @@ function crearPrestamo(sender, chat, principal, dias, modalidad) {
   const total = Math.round(principal * (1 + tasa(dias)));
   const cuotas = modalidad === "pagos" ? dias : 1;
   const unidad = modalidad === "pagos" ? DIA_MS : dias * DIA_MS;
-  prestamos[sender] = {
+  const p = {
     chat,
     principal,
     total,
@@ -253,8 +239,8 @@ function crearPrestamo(sender, chat, principal, dias, modalidad) {
     mora: false,
     inicio: Date.now()
   };
-  guardar();
-  return prestamos[sender];
+  guardarPrestamo(sender, p);
+  return p;
 }
 
 function proximoCobro(p) {
@@ -331,19 +317,18 @@ async function notificar(sender, p, evento) {
 
 async function revisar() {
   const ahora = Date.now();
-  let cambios = false;
-  for (const [sender, p] of Object.entries(prestamos)) {
+  for (const [sender, cuenta] of [...getAllAccounts().entries()]) {
+    const p = cuenta.prestamo;
+    if (!p) continue;
     try {
-      const antes = `${p.vencido}|${p.pendiente}|${p.asignadas}`;
       const evento = procesar(sender, p, ahora);
-      if (`${p.vencido}|${p.pendiente}|${p.asignadas}` !== antes) cambios = true;
-      if (evento.saldado) delete prestamos[sender];
+      if (evento.saldado) cuenta.prestamo = null;
+      if (evento.saldado || evento.cobrado > 0 || evento.mora) saveAccount(sender);
       await notificar(sender, p, evento);
     } catch (error) {
       console.error("[prestamos]", error?.message || error);
     }
   }
-  if (cambios) guardar();
 }
 
 export function iniciarCobranzaPrestamos(sock) {
@@ -357,7 +342,7 @@ export function iniciarCobranzaPrestamos(sock) {
 export function manejarPrestamo(sender, from, argumento) {
   const E = estilo(ESTILOS);
   const arg = String(argumento ?? "").trim().toLowerCase();
-  const p = prestamos[sender];
+  const p = prestamoDe(sender);
 
   if (["estado", "info", "deuda"].includes(arg)) {
     if (!p) return E.err.sinPrestamo;
@@ -373,8 +358,7 @@ export function manejarPrestamo(sender, from, argumento) {
     const disponible = disponibleDe(sender);
     if (disponible < p.pendiente) return E.err.sinFondos(p.pendiente, disponible);
     const cobrado = cobrar(sender, p.pendiente);
-    delete prestamos[sender];
-    guardar();
+    guardarPrestamo(sender, null);
     return tarjeta({
       emoji: E.e.saldado,
       titulo: E.t.saldado,
@@ -392,7 +376,11 @@ export function manejarPrestamo(sender, from, argumento) {
   if (cantidad < PRESTAMO_MIN) return E.err.minimo(PRESTAMO_MIN);
   if (cantidad > limite) return E.err.maximo(limite);
 
-  pendientes.set(`${from}:${sender}`, { monto: cantidad, expira: Date.now() + RESPUESTA_MS });
+  registrarEspera(`${from}:${sender}`, {
+    tipo: "prestamo",
+    duracionMs: RESPUESTA_MS,
+    alResponder: (texto, ctx) => responderSolicitud(texto, ctx, cantidad)
+  });
   return tarjeta({
     emoji: E.e.solicitud,
     titulo: E.t.solicitud,
@@ -406,43 +394,35 @@ export function manejarPrestamo(sender, from, argumento) {
   });
 }
 
-export async function checkPrestamoRespuesta(sock, from, sender, text, msg) {
-  const clave = `${from}:${sender}`;
-  const pendiente = pendientes.get(clave);
-  if (!pendiente) return false;
-  if (Date.now() > pendiente.expira) {
-    pendientes.delete(clave);
-    return false;
-  }
-
-  const respuesta = leerRespuesta(text);
+async function responderSolicitud(texto, ctx, cantidad) {
+  const { sock, from, sender, msg } = ctx;
+  const respuesta = leerRespuesta(texto);
   if (!respuesta) return false;
 
   const E = estilo(ESTILOS);
   const enviar = (contenido) => sock.sendMessage(from, { text: contenido }, { quoted: msg });
 
   if (respuesta.cancelar) {
-    pendientes.delete(clave);
     await enviar(E.cancelado);
     return true;
   }
   if (respuesta.error) {
     await enviar(E.err[respuesta.error]);
-    return true;
+    return false;
   }
 
-  pendientes.delete(clave);
-  if (prestamos[sender]) {
-    await enviar(E.err.activo(prestamos[sender].pendiente));
+  const activo = prestamoDe(sender);
+  if (activo) {
+    await enviar(E.err.activo(activo.pendiente));
     return true;
   }
   const limite = limiteDe(sender);
-  if (pendiente.monto > limite) {
+  if (cantidad > limite) {
     await enviar(E.err.maximo(limite));
     return true;
   }
 
-  const p = crearPrestamo(sender, from, pendiente.monto, respuesta.dias, respuesta.modalidad);
+  const p = crearPrestamo(sender, from, cantidad, respuesta.dias, respuesta.modalidad);
   addToWallet(sender, p.principal);
 
   const lineas = lineasDetalle(E, p);
@@ -456,5 +436,4 @@ export async function checkPrestamoRespuesta(sock, from, sender, text, msg) {
     })
   );
   return true;
-      }
-  
+}
