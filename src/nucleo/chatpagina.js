@@ -33,6 +33,8 @@ const BLOQ_CAT = null;           // ej: /grupo/i para no usar esas categorías d
 const BLOQ_CMD = new Set([]);    // comandos sueltos bloqueados, ej: ".algo"
 // ───────────────────────────────────────────────
 
+// Identifica a ESTA copia del bot: así se detecta si hay otra respondiendo el mismo chat (versión vieja, otro hosting, otra sesión de Termux…)
+const INSTANCIA = crypto.randomBytes(4).toString("hex"), INICIO = Date.now(), VERSION = "chat-v7";
 const log = (e) => console.log("Chat página: " + (e?.message || e));
 const dep = (s) => { if (DEPURAR) console.log("Chat página: " + s); };
 function recortar(s) {
@@ -326,6 +328,25 @@ function desdeProto(m) {
 export function iniciarChatPagina({ PAG, Timestamp, config, commandRegistry, getAllAccounts, manejarComando, procesarEspera, intentarProcesarTexto, checkTriviaAnswer }) {
   const hecho = new Map();                 // cid -> Timestamp del último mensaje ya atendido
   const ocupado = new Set(), repetir = new Set(), chatsVistos = new Set();
+  let retirada = false, ultimoAvisoCopia = 0;
+  function avisarCopia(bi) {
+    if (Date.now() - ultimoAvisoCopia < 300000) return;
+    ultimoAvisoCopia = Date.now();
+    console.log("⚠ Chat página: OTRA copia del bot está respondiendo en este chat (" + (bi ? "id " + bi : "versión vieja") + "). Apaga las demás copias: otras sesiones de Termux, Render, Replit, otro celular…");
+  }
+  // Si arranca una copia más nueva, esta se retira (así no se duplican respuestas entre copias con este mismo código)
+  function tomarTurno() {
+    const ref = PAG.fs.collection("bot").doc("chatpagina");
+    ref.set({ id: INSTANCIA, v: VERSION, t: PAG.FV.serverTimestamp() }).then(() => {
+      ref.onSnapshot((snap) => {
+        const d = snap.exists ? snap.data() : null;
+        if (d && d.id && d.id !== INSTANCIA && !retirada) {
+          retirada = true;
+          console.log("⚠ Chat página: una copia más nueva del bot (" + d.id + ") tomó el chat de la página. Esta copia deja de responderlo para no repetir mensajes. Si esta es la que querías, reiníciala y cierra la otra.");
+        }
+      }, (e) => log(e));
+    }).catch(log);
+  }
   const usos = new Map();                  // uid -> { t: [...], dia, n }
   const sesiones = new Map();              // número -> contexto del último comando hecho desde la página
   const descarte = (to) => ({ enviar: async (c) => mensajeFalso(c, to), reenviar: async (m, o) => o?.messageId || "PAG" });
@@ -487,7 +508,7 @@ export function iniciarChatPagina({ PAG, Timestamp, config, commandRegistry, get
 
   async function escribir(cid, m) {
     const ref = PAG.fs.collection("chats").doc(cid).collection("msgs").doc();
-    await ref.set({ de: "bot", t: PAG.FV.serverTimestamp(), ...m });
+    await ref.set({ de: "bot", bi: INSTANCIA, t: PAG.FV.serverTimestamp(), ...m });
     const t = setTimeout(() => ref.delete().catch(() => {}), TTL_MS);   // se borra solo
     if (t.unref) t.unref();
   }
@@ -636,6 +657,7 @@ export function iniciarChatPagina({ PAG, Timestamp, config, commandRegistry, get
   // Toma los mensajes nuevos de la persona. Cada uno se borra de Firebase ANTES de ejecutarse: así no queda guardado y,
   // si el bot se reinicia a mitad, el comando no se repite (importante para la economía). Se ejecutan en paralelo.
   async function revisar(cid, uid) {
+    if (retirada) return;
     if (ocupado.has(cid)) { repetir.add(cid); return; }
     ocupado.add(cid);
     try {
@@ -647,7 +669,7 @@ export function iniciarChatPagina({ PAG, Timestamp, config, commandRegistry, get
           const d = doc.data();
           if (!d.t) continue;
           hecho.set(cid, d.t);
-          if (d.de === "bot") continue;
+          if (d.de === "bot") { if (d.bi !== INSTANCIA && d.t.toMillis() > INICIO) avisarCopia(d.bi); continue; }   // respuesta de otra copia del bot
           await doc.ref.delete().catch(log);
           if (Date.now() - d.t.toMillis() > VENCE_MS) continue;
           atender(cid, uid, d).catch(log);
@@ -671,6 +693,7 @@ export function iniciarChatPagina({ PAG, Timestamp, config, commandRegistry, get
   }
 
   escuchar();
+  tomarTurno();
   setTimeout(subirUsuarios, 15000);
   setInterval(subirUsuarios, 10 * 60000);
   setInterval(() => chatsVistos.forEach(limpiar), 20 * 60000);
