@@ -7,7 +7,7 @@ import {
 import pino from "pino";
 import http from "http";
 import { manejarComando } from "./src/nucleo/comandos.js";
-import { checkTriviaAnswer } from "./src/economia/triviaR.js";
+import { checkTriviaAnswer } from "./src/economia/trivia.js";
 import { procesarEspera } from "./src/nucleo/espera.js";
 import { config, manejarCambioParticipantes, getAllAccounts, commandRegistry, startTime, CURRENCY } from "./core.js";
 import fs from "fs";
