@@ -8,6 +8,9 @@ import pino from "pino";
 import http from "http";
 import { manejarComando } from "./src/nucleo/comandos.js";
 import { checkTriviaAnswer } from "./src/economia/trivia.js";
+import { iniciarSubbots } from "./src/subbots/gestor.js";
+import { reclamarMensaje } from "./src/subbots/dedupe.js";
+import { iniciarCobranzaPrestamos } from "./src/economia/prestamos.js";
 import { procesarEspera } from "./src/nucleo/espera.js";
 import { config, manejarCambioParticipantes, getAllAccounts, commandRegistry, startTime, CURRENCY } from "./core.js";
 import fs from "fs";
@@ -227,87 +230,7 @@ async function vincularPagina(sock, from, sender, resto, msg) {
 iniciarPagina();
 // ═════════════════════════════════════════════════════════════════
 
-let isConnecting = false;
-
-let bannerImpreso = false;
-
-async function startBot() {
-  if (!bannerImpreso) {
-    bannerImpreso = true;
-    imprimirBanner();
-  }
-
-  if (isConnecting) {
-    console.log(chalk.yellow("Ya hay un intento de conexion en curso, se ignora este pedido duplicado."));
-    return;
-  }
-  isConnecting = true;
-
-  const { state, saveCreds } = await useMultiFileAuthState("auth_info");
-  const { version } = await fetchLatestBaileysVersion();
-
-  const sock = makeWASocket({
-    auth: state,
-    version: version,
-    logger: pino({ level: "silent" }),
-    printQRInTerminal: false,
-    browser: ["Ubuntu", "Chrome", "20.0.04"],
-    keepAliveIntervalMs: 10000,
-    connectTimeoutMs: 60000,
-    defaultQueryTimeoutMs: 60000,
-    markOnlineOnConnect: false,
-    syncFullHistory: false,
-    shouldSyncHistoryMessage: () => false,
-    generateHighQualityLinkPreview: false
-  });
-
-  console.log("Intentando conectar con WhatsApp...");
-
-  sock.ev.on("connection.update", async (update) => {
-    const connection = update.connection;
-    const lastDisconnect = update.lastDisconnect;
-    const qr = update.qr;
-
-    if (connection) {
-      console.log("Estado de conexion: " + connection);
-    }
-
-    if (qr && !sock.authState.creds.registered && !pairingRequested) {
-      pairingRequested = true;
-      try {
-        await esperarSilencio();
-        const numero = (await question("\n📱 Ingresá el número a vincular (con código de país, sin +, sin espacios): ")).trim();
-        const CODIGO_PERSONALIZADO = "MAXIBOTS";
-        const code = await sock.requestPairingCode(numero, CODIGO_PERSONALIZADO);
-        currentCode = code;
-        codeTime = Date.now();
-        console.log(chalk.bgMagenta.white.bold(" CODIGO DE VINCULACION ") + " " + chalk.bold.cyanBright(code));
-      } catch (e) {
-        console.log("Error pidiendo el codigo: " + e.message);
-        pairingRequested = false;
-      }
-    }
-
-    if (connection === "close") {
-      const statusCode = lastDisconnect && lastDisconnect.error && lastDisconnect.error.output
-        ? lastDisconnect.error.output.statusCode
-        : "sin codigo";
-      console.log(chalk.red("Conexion cerrada. Codigo: " + statusCode));
-      pairingRequested = false;
-      isConnecting = false;
-      PAG.enLinea = false; subirEstado();
-      setTimeout(startBot, 10000);
-    } else if (connection === "open") {
-      currentCode = "CONECTADO";
-      isConnecting = false;
-      console.log(chalk.greenBright.bold("✔ Bot conectado a WhatsApp"));
-      iniciarAvisosRacha(sock);
-      PAG.sock = sock; PAG.enLinea = true; contarGrupos(); subirEstado();
-    }
-  });
-
-  sock.ev.on("creds.update", saveCreds);
-
+function enlazarEventos(sock, esSub) {
   sock.ev.on("group-participants.update", async (update) => {
     try {
       await manejarCambioParticipantes(sock, update);
@@ -328,6 +251,7 @@ async function startBot() {
   sock.ev.on("messages.upsert", async (m) => {
     const msg = m.messages[0];
     if (!msg.message) return;
+    if (!(await reclamarMensaje(msg, esSub))) return;
     if (m.type === "notify" && !msg.key.fromMe) PAG.msgsHoy++;
 
     const from = msg.key.remoteJid;
@@ -410,5 +334,96 @@ async function startBot() {
   });
 }
 
+let subbotsIniciados = false;
+let isConnecting = false;
+
+let bannerImpreso = false;
+
+async function startBot() {
+  if (!bannerImpreso) {
+    bannerImpreso = true;
+    imprimirBanner();
+  }
+
+  if (isConnecting) {
+    console.log(chalk.yellow("Ya hay un intento de conexion en curso, se ignora este pedido duplicado."));
+    return;
+  }
+  isConnecting = true;
+
+  const { state, saveCreds } = await useMultiFileAuthState("auth_info");
+  const { version } = await fetchLatestBaileysVersion();
+
+  const sock = makeWASocket({
+    auth: state,
+    version: version,
+    logger: pino({ level: "silent" }),
+    printQRInTerminal: false,
+    browser: ["Ubuntu", "Chrome", "20.0.04"],
+    keepAliveIntervalMs: 10000,
+    connectTimeoutMs: 60000,
+    defaultQueryTimeoutMs: 60000,
+    markOnlineOnConnect: false,
+    syncFullHistory: false,
+    shouldSyncHistoryMessage: () => false,
+    generateHighQualityLinkPreview: false
+  });
+
+  console.log("Intentando conectar con WhatsApp...");
+
+  sock.ev.on("connection.update", async (update) => {
+    const connection = update.connection;
+    const lastDisconnect = update.lastDisconnect;
+    const qr = update.qr;
+
+    if (connection) {
+      console.log("Estado de conexion: " + connection);
+    }
+
+    if (qr && !sock.authState.creds.registered && !pairingRequested) {
+      pairingRequested = true;
+      try {
+        await esperarSilencio();
+        const numero = (await question("\n📱 Ingresá el número a vincular (con código de país, sin +, sin espacios): ")).trim();
+        const CODIGO_PERSONALIZADO = "MAXIBOTS";
+        const code = await sock.requestPairingCode(numero, CODIGO_PERSONALIZADO);
+        currentCode = code;
+        codeTime = Date.now();
+        console.log(chalk.bgMagenta.white.bold(" CODIGO DE VINCULACION ") + " " + chalk.bold.cyanBright(code));
+      } catch (e) {
+        console.log("Error pidiendo el codigo: " + e.message);
+        pairingRequested = false;
+      }
+    }
+
+    if (connection === "close") {
+      const statusCode = lastDisconnect && lastDisconnect.error && lastDisconnect.error.output
+        ? lastDisconnect.error.output.statusCode
+        : "sin codigo";
+      console.log(chalk.red("Conexion cerrada. Codigo: " + statusCode));
+      pairingRequested = false;
+      isConnecting = false;
+      PAG.enLinea = false; subirEstado();
+      setTimeout(startBot, 10000);
+    } else if (connection === "open") {
+      currentCode = "CONECTADO";
+      isConnecting = false;
+      console.log(chalk.greenBright.bold("✔ Bot conectado a WhatsApp"));
+      iniciarAvisosRacha(sock);
+      iniciarCobranzaPrestamos(sock);
+      if (!subbotsIniciados) {
+        subbotsIniciados = true;
+        iniciarSubbots((subSock) => enlazarEventos(subSock, true)).catch((e) => console.log("Subbots: " + e.message));
+      }
+      PAG.sock = sock; PAG.enLinea = true; contarGrupos(); subirEstado();
+    }
+  });
+
+  sock.ev.on("creds.update", saveCreds);
+
+  enlazarEventos(sock, false);
+}
+
 startBot();
-             
+
+                              
