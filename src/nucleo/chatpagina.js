@@ -22,6 +22,7 @@ const DEPURAR = true;           // escribe en la consola qué recibe y qué mand
 const MAX_IMG_BYTES = 120000;    // las imágenes se achican para que quepan en Firestore
 const MAX_CARD_BYTES = 30000;    // miniaturas de previas
 const MAX_PREV_BYTES = 45000;    // imagen de la previa de un enlace
+const AVISO_MS = Number(process.env.CHAT_PAGINA_AVISO_MS) || 45000;   // si un comando tarda más, la página avisa que sigue en proceso
 const UA = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Mobile Safari/537.36";
 const MAX_MEDIA = 60 * 1024 * 1024;
 // Audio, video y archivos no caben en Firestore: se suben a un hosting gratis temporal (litterbox,
@@ -199,6 +200,23 @@ async function previa(url, intento = 0) {
   return res;
 }
 
+// La previa de enlace que arma el propio comando (la misma que WhatsApp mostraría): título, descripción y miniatura
+async function previaDe(c) {
+  const lp = c && c.linkPreview;
+  if (!lp || typeof lp !== "object") return null;
+  const u = lp["canonical-url"] || lp.canonicalUrl || lp.url || lp["matched-text"] || lp.matchedText || "";
+  const card = { t: String(lp.title || "").slice(0, 100), b: String(lp.description || "").slice(0, 160) };
+  if (/^https?:\/\//i.test(u)) card.u = String(u).slice(0, 500);
+  let buf = null;
+  try { if (lp.highQualityThumbnail) buf = await descargarProto(lp.highQualityThumbnail, "image"); } catch (e) { dep("previa del comando: no pude bajar la imagen grande (" + e.message + ")"); }
+  const jt = lp.jpegThumbnail || lp.thumbnail;
+  if (!buf && jt) buf = typeof jt === "string" ? Buffer.from(jt, "base64") : Buffer.from(jt);
+  if (buf) { try { const img = await imagenADataUrl(buf, 520, MAX_PREV_BYTES); if (img) card.img = img; } catch (e) { dep("previa del comando: imagen no válida (" + e.message + ")"); } }
+  const ou = lp.originalThumbnailUrl || lp.thumbnailUrl;
+  if (!card.img && typeof ou === "string" && /^https:\/\//i.test(ou)) card.iu = ou.slice(0, 1500);
+  return card.t || card.b || card.img || card.iu ? card : null;
+}
+
 // ───────── botones, listas y texto ─────────
 function extraerBotones(c) {
   const bt = [], bu = [], lineas = [];
@@ -267,7 +285,11 @@ function desdeProto(m) {
   }
   const med = (t, n) => ({ _p: { t, n }, caption: n.caption, contextInfo: n.contextInfo });
   if (m.conversation) return { text: m.conversation };
-  if (m.extendedTextMessage) return { text: m.extendedTextMessage.text, contextInfo: m.extendedTextMessage.contextInfo };
+  if (m.extendedTextMessage) {
+    const e = m.extendedTextMessage, out = { text: e.text, contextInfo: e.contextInfo };
+    if (e.title || e.description || e.jpegThumbnail || e.canonicalUrl) out.linkPreview = { "canonical-url": e.canonicalUrl, "matched-text": e.matchedText, title: e.title, description: e.description, jpegThumbnail: e.jpegThumbnail };
+    return out;
+  }
   if (m.imageMessage) return med("image", m.imageMessage);
   if (m.videoMessage) return med("video", m.videoMessage);
   if (m.audioMessage) return med("audio", m.audioMessage);
@@ -331,6 +353,26 @@ export function iniciarChatPagina({ PAG, Timestamp, config, commandRegistry, get
     if (s === ultimaLista) return;
     try { await PAG.fs.collection("bot").doc("usuarios").set({ lista, t: PAG.FV.serverTimestamp() }); ultimaLista = s; }
     catch (e) { log(e); }
+  }
+
+  // Los comandos reciben este "sock": aunque guarden una referencia suelta (const { sendMessage } = sock) o respondan horas
+  // después, lo que sea para este chat se queda en la página; lo demás sigue al WhatsApp real. Y deja registro de cada llamada.
+  function crearSockPagina(real, ctx) {
+    const suyo = (to) => typeof to === "string" && !to.endsWith("@g.us") && (to.endsWith("@pagina") || num(to) === num(ctx.jid));
+    return new Proxy(real, {
+      get(t, p) {
+        if (p === "sendMessage") return (to, c, o) => suyo(to) ? ctx.enviar(c, o) : t.sendMessage(to, c, o);
+        if (p === "relayMessage") return (to, m, o) => suyo(to) ? ctx.reenviar(m, o) : t.relayMessage(to, m, o);
+        if (p === "sendPresenceUpdate" || p === "presenceSubscribe" || p === "readMessages") return async () => {};
+        const v = t[p];
+        if (typeof v !== "function") return v;
+        return (...a) => {
+          dep(`sock.${String(p)}(${typeof a[0] === "string" ? a[0].slice(-14) : typeof a[0]})`);
+          if (typeof a[0] === "string" && a[0].endsWith("@pagina")) a[0] = ctx.jid;     // consultas (foto, estado…) con tu número real
+          return v.apply(t, a);
+        };
+      }
+    });
   }
 
   const nombresCmd = () => new Set([...commandRegistry.values()].flatMap((c) => c.names));
@@ -429,9 +471,10 @@ export function iniciarChatPagina({ PAG, Timestamp, config, commandRegistry, get
     if (Object.keys(mn).length) m.mn = mn;
 
     // previa de enlace (como WhatsApp) cuando el mensaje es solo texto
-    if (m.tp === "t" && !m.ar) {
+    if (c.linkPreview) { const lp0 = await previaDe(c); if (lp0) m.lp = lp0; }
+    if (m.tp === "t" && !m.ar && !m.lp) {
       const u = (tx.match(/https?:\/\/[^\s<>"']+/) || [])[0];
-      if (u) { const p = await Promise.race([previa(u.replace(/[.,;:!?)\]]+$/, "")), new Promise((r) => setTimeout(() => r(null), 12000))]); if (p) m.lp = p; }
+      if (u) m._previa = u.replace(/[.,;:!?)\]]+$/, "");     // la previa se pide aparte: el mensaje sale ya y la previa aparece cuando esté lista
     }
 
     if (tx) m.tx = recortar(tx);
@@ -512,12 +555,15 @@ export function iniciarChatPagina({ PAG, Timestamp, config, commandRegistry, get
     const salida = (c, id, o) => (cola = cola.then(async () => {
       const m = await aMensaje(c);
       if (m) {
+        const pv = m._previa; delete m._previa;
         if (m.tp !== "r" && m.tp !== "x") {
           if (c.edit && c.edit.id) m.ed = String(c.edit.id).slice(0, 60);          // editar un mensaje que ya está en la página
           else if (id) m.ci = id;
           const q = citaDe(c, o); if (q) Object.assign(m, q);                      // responder (citar) un mensaje
         }
         salio++; await escribir(cid, m);
+        const ref = m.ci || m.ed;
+        if (pv && ref) previa(pv).then((lp) => lp && escribir(cid, { tp: "p", re: ref, lp })).catch(log);     // previa de enlace, cuando esté lista
       }
     }).catch(async (e) => {
       log(e); dep("fallo mostrando una respuesta: " + (e && e.stack ? e.stack.split("\n").slice(0, 3).join(" | ") : e));
@@ -536,7 +582,7 @@ export function iniciarChatPagina({ PAG, Timestamp, config, commandRegistry, get
       messageTimestamp: Math.floor(Date.now() / 1000),
       paginaChat: true
     };
-    const sock = PAG.sock;
+    const sock = crearSockPagina(PAG.sock, ctx);
     sesiones.set(num(jid), ctx);
     if (sesiones.size > 500) sesiones.delete(sesiones.keys().next().value);
     dep(`${uid} → ${bid ? "botón " + bid : texto.slice(0, 60)}`);
@@ -551,6 +597,9 @@ export function iniciarChatPagina({ PAG, Timestamp, config, commandRegistry, get
       return await manejarComando(sock, vjid, jid, textoCmd, msg);
     };
 
+    let terminado = false;
+    const aviso = setTimeout(() => { if (!terminado) resp("Este comando sigue en proceso… si tarda demasiado, revisa la consola de Termux.").catch(log); }, AVISO_MS);
+    if (aviso.unref) aviso.unref();
     await als.run(ctx, async () => {
       try {
         let manejado = false;
@@ -581,6 +630,7 @@ export function iniciarChatPagina({ PAG, Timestamp, config, commandRegistry, get
         await resp("Ocurrió un error ejecutando eso. Intenta de nuevo.").catch(log);
       }
     });
+    terminado = true; clearTimeout(aviso);
   }
 
   // Toma los mensajes nuevos de la persona. Cada uno se borra de Firebase ANTES de ejecutarse: así no queda guardado y,
