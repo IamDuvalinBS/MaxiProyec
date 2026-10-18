@@ -12,18 +12,18 @@ export default crearTrabajo({
     emoji: "🌲",
     tituloExito: "BOSQUE SINIESTRO EXPLORADO",
     exitos: [
-      "Recorriste un sendero de niebla sin encontrar nada fuera de lo común. 🌫️",
-      "Encontraste una cabaña abandonada sin objetos de valor. 🏚️",
-      "Recolectaste hierbas de luna y las vendiste a una bruja herbolaria. 🌿",
-      "Hallaste monedas antiguas enterradas junto a una tumba cubierta de musgo. 🪦",
-      "Hallaste un mapa de un cementerio olvidado y lo vendiste a un coleccionista. 🗺️",
-      "Cartografiaste un pantano encantado y recibiste una recompensa. 🐸",
-      "Rescataste a un viajero perdido en el bosque embrujado y te recompensó. 🔦",
-      "Descubriste una cueva llena de murciélagos y objetos antiguos. 🦇",
-      "Recuperaste reliquias de una capilla abandonada. ⛪",
-      "Descubriste un cofre hundido en un lago de aguas negras. 🕯️",
-      "Localizaste una cripta secreta repleta de oro. 💀",
-      "Encontraste los restos de una expedición fantasma con su tesoro intacto. 👻"
+      "Recorriste un sendero con niebla y solo escuchaste una risa lejana. Nada más 🌫️.",
+      "Encontraste una cabaña abandonada con la cena servida para nadie. No comiste 🏚️.",
+      "Recolectaste hierbas de luna; la bruja herbolaria te las compró y te advirtió que no las olieras 🌿.",
+      "Hallaste monedas junto a una tumba con musgo; la tumba decía 'devuélvelas' y no hiciste caso 🪦.",
+      "Hallaste el mapa de un cementerio olvidado; el coleccionista pagó sin saber que el mapa se mueve solo 🗺️.",
+      "Cartografiaste un pantano encantado y una rana gigante te dio la mano y una recompensa 🐸.",
+      "Rescataste a un viajero perdido; era el Silbón, silbó de agradecimiento y te pagó con huesos de oro 🦴.",
+      "Descubriste una cueva con miles de murciélagos; uno llevaba un reloj de oro y te lo dejó 🦇.",
+      "Recuperaste reliquias de una capilla abandonada; el cura fantasma te bendijo y te dio permiso de venderlas ⛪.",
+      "Descubriste un cofre hundido en un lago negro; una mano lo soltó mientras te miraba con envidia 🕯️.",
+      "Localizaste una cripta repleta de oro; el esqueleto guardián dormía la siesta 💀.",
+      "Hallaste los restos de una expedición fantasma con su tesoro; los exploradores te saludaron y te pidieron el wifi 👻."
     ]
   },
   exitos: [

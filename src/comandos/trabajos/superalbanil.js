@@ -7,6 +7,25 @@ export default crearTrabajo({
   emoji: "🧱",
   tituloExito: "OBRA FINALIZADA",
   cooldownMs: 180 * 60 * 1000,
+  // Extensión de evento: solo textos y emojis (se emparejan por posición con exitos/fallos).
+  halloween: {
+    emoji: "🏚️",
+    tituloExito: "CASA EMBRUJADA FINALIZADA",
+    exitos: [
+      "Resanaste grietas de una mansión embrujada; de una grieta salió una mano a darte las gracias 🕸️.",
+      "Instalaste una puerta que rechina y una ventana nueva; la puerta solo abre sola cuando no estás 🚪.",
+      "Reparaste una pared por donde asomaban fantasmas; ahora asoman por la ventana nueva, pero sin quejas 👻.",
+      "Colocaste piso de madera crujiente; cruje justo la tabla de 'alguien camina detrás de ti' 🪵.",
+      "Terminaste la cocina de una bruja con caldero; lloró de felicidad y te pagó con sapos de oro 🧙‍♀️.",
+      "Construiste una barda de hierro alrededor de un cementerio; sus inquilinos agradecieron la privacidad 🪦.",
+      "Reforzaste los cimientos de un castillo; algo aplaudió desde el sótano y no preguntaste qué 🏰.",
+      "Levantaste la estructura de una mansión completa; la casa te dio las gracias con un crujido 🏚️.",
+      "Levantaste una torre con vista a la luna llena; el lobo del vecino ya la reservó para aullar 🌕.",
+      "Dirigiste a esqueletos en la construcción de una cripta; ellos cobraron en huesos, tú en oro 💀.",
+      "Hiciste albañilería, plomería y electricidad en una casa embrujada; el fantasma jura que la luz parpadeante era decorativa 🔌.",
+      "Entregaste una casa del terror antes de tiempo; el dueño, un vampiro, te dio un bono y no se acercó al ajo 🎃🧛."
+    ]
+  },
   exitos: [
     { texto: "Resanaste las grietas de un muro exterior.", min: 120, max: 260 },
     { texto: "Instalaste una puerta y una ventana nuevas.", min: 200, max: 380 },

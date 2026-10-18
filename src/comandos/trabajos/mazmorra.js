@@ -10,6 +10,32 @@ export default crearTrabajo({
   emojiFallo: "☠️",
   chanceFallo: 0.55,
   cooldownMs: 120 * 60 * 1000,
+  // Extensión de evento: solo textos y emojis (se emparejan por posición con exitos/fallos).
+  halloween: {
+    emoji: "🏰",
+    tituloExito: "CRIPTA SUPERADA",
+    tituloFallo: "CRIPTA FATAL",
+    emojiFallo: "⚰️",
+    exitos: [
+      "Encontraste unas monedas en la entrada de la cripta; algunas aún estaban tibias, mejor no pensar por qué 🪙.",
+      "Derrotaste una nube de murciélagos y recogiste lo que dejaron, que no fueron cosas lindas 🦇.",
+      "Derrotaste a un esqueleto; se quejó de la espalda y te dio monedas por lástima 💀.",
+      "Resolviste el acertijo de un sarcófago; la momia dijo 'pasa' y pidió que cerraras la puerta ⚰️.",
+      "Saqueaste un cofre tras una telaraña gigante; la araña dueña te dejó, siempre que no volvieras 🕸️.",
+      "Rescataste a un fantasma prisionero que te dio su fortuna... y su dirección por si querías visitarlo 👻.",
+      "Superaste una sala de trampas con pinchos; el esqueleto de la entrada dejó una nota: 'yo no pude' 🕷️.",
+      "Descubriste una armería encantada; las espadas se quejaban de que nadie las afilaba, las vendiste igual ⚔️.",
+      "Eliminaste a una momia y sacaste las joyas de sus vendas; juró volver, pero lleva 3000 años diciéndolo 🧟.",
+      "Derrotaste al vampiro jefe final; antes de desvanecerse pidió que no contaras que lo venció alguien nivel 3 🧛.",
+      "Venciste a un dragón esqueleto; no quedó nada del dragón, solo su tesoro y un reclamo legal 🐉.",
+      "Reclamaste la corona del rey caído; el rey fantasma dijo que te la prestaba 'por tiempo indefinido' 👑."
+    ],
+    fallos: [
+      "Te emboscaron zombis; intentaste razonar con ellos, pero solo pedían cerebro y ninguno tenía wifi 🧟.",
+      "Caíste en una trampa mortal y perdiste parte del equipo; el esqueleto de la entrada murmuró 'te lo advertí' 🕷️.",
+      "Un guardián espectral te derrotó; huiste tan rápido que hasta tu sombra se quedó atrás 👻."
+    ]
+  },
   exitos: [
     { texto: "Encontraste unas cuantas monedas entre los escombros de la entrada.", min: 100, max: 220 },
     { texto: "Derrotaste a un grupo de murciélagos y recogiste lo que dejaron.", min: 150, max: 300 },

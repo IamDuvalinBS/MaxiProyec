@@ -7,6 +7,25 @@ export default crearTrabajo({
   emoji: "🌭",
   tituloExito: "VENTA REALIZADA",
   cooldownMs: 30 * 60 * 1000,
+  // Extensión de evento: solo textos y emojis (se emparejan por posición con exitos/fallos).
+  halloween: {
+    emoji: "🎃",
+    tituloExito: "VENTA EMBRUJADA REALIZADA",
+    exitos: [
+      "Vendiste globos de fantasma en una feria; uno se soltó y se fue solo, nadie sabe si era globo 👻.",
+      "Vendiste hot dogs momificados en la esquina; los clientes dijeron que 'saben a historia' 🌭.",
+      "Vendiste dulces artesanales a la salida de una escuela disfrazada; uno de los 'niños' pidió factura y tenía colmillos 🍬.",
+      "Vendiste máscaras de terror en un semáforo; una se pegó sola a un conductor y se la quedó 🎭.",
+      "Vendiste elotes con sabor a calabaza en la plaza; la Catrina pidió dos y pagó con monedas de colores 🌽💀.",
+      "Vendiste paletas de calavera en el parque; los clientes decían que las paletas les sonreían 🍭.",
+      "Vendiste pociones de colores en un evento de terror; la verde cura la tos, la roja mejor no preguntes 🧪.",
+      "Ofreciste velas en plena tormenta y se agotaron; un fantasma compró todas y agradeció la luz 🕯️.",
+      "Vendiste cempasúchil para las ofrendas de Día de Muertos; los difuntos pasaron a agradecerte 🌼.",
+      "Vendiste disfraces antes de la gran noche; el de vampiro se vendió tan bien que casi no quedan vampiros 🧛.",
+      "Vendiste gatos negros de artesanía a turistas; uno maulló y nadie sabe de qué lado lo hizo 🐈‍⬛.",
+      "Atendiste un puesto en el mercado de Halloween; la clienta de las 3:00 a. m. nunca tocó el suelo con los pies 🎃."
+    ]
+  },
   exitos: [
     { texto: "Vendiste globos durante una feria local.", min: 35, max: 75 },
     { texto: "Vendiste hot dogs en la esquina de una avenida.", min: 40, max: 80 },

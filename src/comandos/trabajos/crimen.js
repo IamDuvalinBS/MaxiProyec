@@ -17,24 +17,24 @@ export default crearTrabajo({
     tituloFallo: "TRAVESURA FALLIDA",
     emojiFallo: "👻",
     exitos: [
-      "Le quitaste un caramelo masticado a un niño disfrazado de fantasma. 🍬",
-      "Te llevaste la bolsa de dulces de un transeúnte distraído. 🎃",
-      "Robaste las propinas de la fiesta de disfraces más concurrida. 🎭",
-      "Vaciaste el caldero de dulces de una casa embrujada sin vigilancia. 🧙‍♀️",
-      "Saqueaste la tienda de dulces del barrio durante el truco o trato. 🍭",
-      "Falsificaste entradas a la casa del terror y las vendiste en la puerta. 🎟️",
-      "Vendiste pociones de contrabando en el mercado de las brujas. 🧪",
-      "Falsificaste pergaminos de hechizos y se los vendiste a un brujo apurado. 📜",
-      "Desmantelaste un carruaje fúnebre y vendiste sus piezas. ⚰️",
-      "Robaste el reloj de oro de un vampiro dormido en su ataúd. 🧛",
-      "Encontraste un anillo de oro maldito entre el botín. 💍💀",
-      "Participaste en el saqueo del tesoro de una mansión embrujada. 🏚️"
+      "Le robaste unos dulces a un niño... Al final no era un niño, era la Llorona. Corriste, pero te quedaste con los dulces 💀.",
+      "Te llevaste la bolsa de dulces de un transeúnte distraído; era un esqueleto y ni cuenta se dio 🦴.",
+      "Robaste las propinas de la fiesta de disfraces; nadie notó nada, todos culparon al Chupacabras 🐐.",
+      "Vaciaste el caldero de dulces de una casa embrujada mientras la bruja dormía... por suerte roncaba fuerte 🧙‍♀️.",
+      "Saqueaste la tienda de dulces durante el truco o trato y le echaron la culpa al Charro Negro 🐎.",
+      "Vendiste entradas falsas a la casa del terror; nadie reclamó, de todos modos el susto fue real 🎟️.",
+      "Vendiste pociones de contrabando; la 'poción de belleza' dejó a tu cliente peludo y feliz, un hombre lobo satisfecho 🐺🧪.",
+      "Falsificaste pergaminos de hechizos y los vendiste a un brujo apurado; solo sirven para estornudar, pero ya no estabas ahí 📜.",
+      "Desmantelaste un carruaje fúnebre; el fantasma del cochero te vio y, en vez de asustarte, te ayudó a cargar las ruedas ⚰️.",
+      "Robaste el reloj de oro de un vampiro dormido. Despertó, pero con el sol afuera no pudo perseguirte 🧛☀️.",
+      "Encontraste un anillo maldito en el botín; se te pegó al dedo, pero ya lo empeñaste con dedo y todo 💍💀.",
+      "Participaste en el saqueo de una mansión embrujada; los fantasmas, hartos de la casa, hasta te ayudaron a sacar el tesoro 🏚️."
     ],
     fallos: [
-      "Un fantasma guardián te sorprendió en pleno acto y te asustó hasta soltar el botín. 👻",
-      "Un cómplice con disfraz de momia te delató y debiste pagar una fianza. 🧟",
-      "Sonó la campana de la torre embrujada y huiste sin botín. 🔔",
-      "Un cuervo fisgón registró tus movimientos y te cobraron una multa. 🐦‍⬛"
+      "Un fantasma guardián te sorprendió y gritaste tan fuerte que soltaste el botín. Él también gritó 👻.",
+      "Tu cómplice con disfraz de momia te delató; resultó que no era disfraz, era la momia del museo y cobra fianza 🧟.",
+      "Entraste a robar y era la casa de la Llorona; saliste llorando más fuerte que ella y dejaste tu cartera 😭.",
+      "Un cuervo te vio y te delató con todo el pueblo; nunca confíes en un cuervo chismoso 🐦‍⬛."
     ]
   },
   exitos: [

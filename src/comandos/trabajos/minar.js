@@ -7,6 +7,25 @@ export default crearTrabajo({
   emoji: "⛏️",
   tituloExito: "MINERÍA EXITOSA",
   cooldownMs: 40 * 60 * 1000,
+  // Extensión de evento: solo textos y emojis (se emparejan por posición con exitos/fallos).
+  halloween: {
+    emoji: "⛏️",
+    tituloExito: "MINA MALDITA EXITOSA",
+    exitos: [
+      "Extrajiste piedras sombrías de bajo valor; una tenía grabado un 'ayuda', pero esa es otra historia 🪨.",
+      "Extrajiste arcilla de cementerio de excelente calidad; mejor no preguntar de qué está hecha ⚱️.",
+      "Obtuviste carbón negro como la noche; una de las piedras ronroneó 🐈‍⬛.",
+      "Recolectaste cobre de una tumba antigua; el difunto pidió recibo y no se lo diste 🪙.",
+      "Encontraste un filón de estaño embrujado; las paredes cantaban por lo bajo 🕯️.",
+      "Descubriste un yacimiento de hierro con armaduras; una aún tenía caballero adentro y te pidió direcciones 🛡️.",
+      "Extrajiste cuarzo que brilla en la oscuridad; también ilumina a lo que te sigue 🔮.",
+      "Localizaste una veta de plata lunar; un hombre lobo te vio y solo pidió una porción para sus collares 🐺.",
+      "Recolectaste esmeraldas en una galería de murciélagos; ellos juraban que eran de su propiedad 🦇💚.",
+      "Descubriste una veta de oro maldito; cada pepita susurraba tu nombre al cargarla 💀.",
+      "Hallaste un diamante en bruto custodiado por un esqueleto minero; se jubiló y te lo regaló 💎.",
+      "Localizaste una geoda encantada; dentro dormía un duende que pidió no ser molestado 🔮."
+    ]
+  },
   exitos: [
     { texto: "Extrajiste piedras comunes de bajo valor.", min: 20, max: 50 },
     { texto: "Extrajiste arcilla y arena de buena calidad.", min: 25, max: 60 },

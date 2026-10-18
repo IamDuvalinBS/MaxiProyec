@@ -17,23 +17,23 @@ export default crearTrabajo({
     tituloFallo: "ESPÍRITU DESCUBIERTO",
     emojiFallo: "🪦",
     exitos: [
-      "Seguiste a un vampiro toda la noche sin descubrir nada útil. 🦇",
-      "Obtuviste rumores sin importancia de los fantasmas del pasillo. 👻",
-      "Escuchaste una reunión de brujas desde el pasillo y anotaste lo esencial. 🧙‍♀️",
-      "Revisaste el caldero de una bruja y encontraste ingredientes valiosos. 🧪",
-      "Fotografiaste un grimorio prohibido y cobraste por ello. 📖",
-      "Interceptaste una conversación privada entre dos espectros. 👁️",
-      "Colocaste un ojo mágico en la sala de reuniones del aquelarre. 🔮",
-      "Entregaste un informe detallado sobre los movimientos de un hombre lobo rival. 🐺",
-      "Descubriste el plan de una nueva poción de la competencia. 🧪",
-      "Vendiste secretos del castillo del conde a sus rivales. 🏰",
-      "Recuperaste un expediente maldito para un cliente misterioso. 📜",
-      "Dejaste en evidencia a una red de espías del más allá y recibiste una gran recompensa. 💀"
+      "Seguiste a un vampiro toda la noche... solo iba por ajo para su cena de brujas. Nada útil 🦇.",
+      "Obtuviste rumores sin importancia: dicen que el fantasma del segundo piso no paga renta 👻.",
+      "Escuchaste una reunión de brujas; discutían a quién le tocaba pagar el caldero. Anotaste lo esencial 🧙‍♀️.",
+      "Revisaste el caldero de una bruja: la receta secreta usa ingredientes carísimos y los apuntaste 🧪.",
+      "Fotografiaste un grimorio prohibido; salió una sombra detrás que no era tuya, pero la foto se vendió cara 📖.",
+      "Interceptaste a dos espectros chismeando; uno le debía una cadena al otro desde 1823 👁️.",
+      "Pusiste un ojo mágico en el aquelarre; el ojo se enamoró de una bruja, pero entregó la grabación 🔮.",
+      "Entregaste un informe sobre un hombre lobo rival; en luna llena cambió de equipo, pero ya habías cobrado 🐺.",
+      "Descubriste la nueva poción de la competencia: sabe a menta y desaparece las canas. La vendiste primero 🧪.",
+      "Vendiste secretos del castillo del conde; ni se inmutó, solo preguntó si ya habías cenado 🏰.",
+      "Recuperaste un expediente maldito; cada vez que lo abrías el pasillo se alargaba un metro, pero lo entregaste 📜.",
+      "Descubriste una red de espías del más allá; eran puros gatos negros con gabardina y te pagaron en grande 🐈‍⬛."
     ],
     fallos: [
-      "Te descubrió un espectro y pagaste para evitar su maldición. 👻",
-      "Perdiste tu amuleto de vigilancia durante la misión. 🧿",
-      "Un gato negro notó tu presencia y debiste abandonar la zona. 🐈‍⬛"
+      "Un espectro te descubrió, te acompañó hasta tu casa y te cobró por no embrujarte 👻.",
+      "Perdiste tu amuleto de vigilancia en el cementerio; ahora un esqueleto lo usa de collar 🧿💀.",
+      "Un gato negro te miró fijamente tres segundos y abortaste la misión; nadie aguanta esa mirada 🐈‍⬛."
     ]
   },
   exitos: [

@@ -10,6 +10,32 @@ export default crearTrabajo({
   emojiFallo: "😭",
   chanceFallo: 0.25,
   cooldownMs: 60 * 60 * 1000,
+  // Extensión de evento: solo textos y emojis (se emparejan por posición con exitos/fallos).
+  halloween: {
+    emoji: "🕯️",
+    tituloExito: "CUIDADO NOCTURNO EXITOSO",
+    tituloFallo: "INCIDENTE EMBRUJADO",
+    emojiFallo: "😱",
+    exitos: [
+      "Preparaste la merienda de unos niños disfrazados de monstruos; el más pequeño se comió el plato de cartón y todo 🧸.",
+      "Leíste un cuento de fantasmas hasta dormirlos; desde la página tres el cuento se leía solo 📖.",
+      "Cuidaste al bebé vampiro de Sarita y Duva; solo pidió leche... tibia y de color rojo 🧛🍼.",
+      "Acompañaste a los niños al truco o trato; regresaron con las bolsas llenas y un fantasma extra que no se quiso ir 🎃.",
+      "Ayudaste con la tarea de unos niños; el de ciencias resultó ser un Frankenstein en miniatura 🧟‍♂️.",
+      "Organizaste una fiesta de cumpleaños de Halloween; el invitado sorpresa fue la Catrina y repartió pastel 🎂💀.",
+      "Dormiste al bebé sin llanto; hasta el trueno se quedó callado para no despertarlo 🌩️.",
+      "Cuidaste a tres niños zombis; lo único que pidieron fue pizza con cerebro... de pepperoni, claro 🍕.",
+      "Resolviste un susto con un fantasma con calma y los papás se impresionaron; el fantasma pidió trabajo 👻.",
+      "Los padres te dejaron propina; la mamá era bruja y la propina vino con un hechizo de suerte 🍬✨.",
+      "Calmaste al bebé durante toda la tormenta; la cuna flotaba, pero el bebé estaba feliz 🌙.",
+      "Los niños te nombraron cuidador oficial y te dieron un bono; el contrato lo firmó hasta el hombre lobo del primer piso 👑🐺."
+    ],
+    fallos: [
+      "Te quedaste dormido y el bebé lloró por los truenos; al despertar, el bebé consolaba a un fantasma 🌩️.",
+      "Los niños llegaron con hambre y llenos de dulces; el más chico se comió tu zapato y la tarea del vecino 🍭.",
+      "Olvidaste preparar la cena de Halloween; los niños se disfrazaron de ti con cara de susto y cobraron ellos 🎃."
+    ]
+  },
   exitos: [
     { texto: "Preparaste la merienda de los niños y los acostaste a tiempo.", min: 1000, max: 2000 },
     { texto: "Leíste un cuento hasta que los niños se durmieron.", min: 1000, max: 2200 },

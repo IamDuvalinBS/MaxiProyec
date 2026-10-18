@@ -12,19 +12,19 @@ export default crearTrabajo({
     emoji: "🧹",
     tituloExito: "TURNO EMBRUJADO COMPLETADO",
     exitos: [
-      "Paseaste a los perros fantasma de varios vecinos del cementerio. 🐕👻",
-      "Repartiste volantes de la fiesta de Halloween por todo el pueblo. 🎃",
-      "Limpiaste telarañas y polvo de una mansión embrujada al terminar la noche. 🕸️",
-      "Ayudaste a una familia de vampiros con su mudanza de ataúdes. ⚰️",
-      "Completaste un turno como ayudante en la cafetería del Conde Drácula. ☕🧛",
-      "Organizaste el inventario de pociones de la bodega de una bruja. 🧪",
-      "Lavaste escobas voladoras en el estacionamiento de las brujas. 🧹",
-      "Repartiste pasteles de calabaza a domicilio por las casas embrujadas. 🥧",
-      "Diste una clase de refuerzo de hechizos a un aprendiz de brujo. 🧙‍♂️",
-      "Atendiste la caja de la tienda de disfraces durante toda la víspera. 🎭",
-      "Armaste pedidos de calabazas talladas en el almacén de una tienda embrujada. 🎃",
-      "Cubriste el turno de un fantasma en la oficina de correos del más allá. 👻📮",
-      "Terminaste un decorado de terror freelance antes de la medianoche. 🦇"
+      "Paseaste unos perros del vecindario... uno tenía tres cabezas y ladraba en latín. Era Cerbero 🐕💀.",
+      "Repartiste volantes de la fiesta y una señora de blanco te pidió uno... flotando. Era la Dama del Cementerio 👻.",
+      "Limpiaste telarañas de una mansión; la araña dueña de la casa te dejó propina por no tocarla 🕷️.",
+      "Ayudaste a unos vampiros con su mudanza y descubriste que los ataúdes pesan más cuando tienen dueño adentro ⚰️🧛.",
+      "Atendiste la cafetería del Conde Drácula; el 'café rojo' que pedían todos no era café, y mejor no preguntes ☕🩸.",
+      "Ordenaste la bodega de una bruja; una poción te dejó verde cinco minutos, pero te pagó doble 🧪.",
+      "Lavaste escobas voladoras; una se escapó contigo encima y aterrizaste en el techo, pero igual te pagaron 🧹.",
+      "Repartiste pasteles de calabaza; en la última casa abrió el Jinete sin Cabeza, se llevó el pastel... y dejó propina 🎃.",
+      "Diste clase de hechizos a un aprendiz que convirtió tu cartera en rana... al revertirlo salió con más calabazas 🐸✨.",
+      "Cobraste en la tienda de disfraces toda la noche; el cliente con el disfraz de momia más realista nunca se quitó las vendas 🧟.",
+      "Armaste pedidos de calabazas talladas y una te guiñó el ojo. Decidiste no preguntar y cobrar 🎃👁️.",
+      "Cubriste el turno de un fantasma en el correo del más allá; las cartas llegan en 200 años, pero el sueldo llegó hoy 📮👻.",
+      "Terminaste un decorado de terror tan realista que te dieron bono... y te pidieron que dejaras de aparecer en las fotos 🦇."
     ]
   },
   exitos: [

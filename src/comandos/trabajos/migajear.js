@@ -7,6 +7,25 @@ export default crearTrabajo({
   emoji: "🙏",
   tituloExito: "AYUDA RECIBIDA",
   cooldownMs: 30 * 60 * 1000,
+  // Extensión de evento: solo textos y emojis (se emparejan por posición con exitos/fallos).
+  halloween: {
+    emoji: "🍬",
+    tituloExito: "DULCES RECIBIDOS",
+    exitos: [
+      "Tocaste puertas toda la noche; en una abrió la Llorona y te dio un pañuelo por solidaridad 😭.",
+      "Pocas casas abrieron; la última no tenía dueño y te lanzó un hueso como saludo 🦴.",
+      "Alguien te lanzó un caramelo desde una ventana oscura; no se veía quién, pero sabía rico 🍬.",
+      "Un niño disfrazado de fantasma compartió sus dulces; luego descubriste que era un fantasma de verdad, y de los generosos 👻.",
+      "Una señora amable te dio monedas y caramelos; tenía una verruga sospechosa y sombrero puntiagudo 🧙‍♀️🍭.",
+      "Un panadero te regaló pan de muerto; el pan decía 'cómeme' y obedeciste 🍞.",
+      "Un comerciante te pagó por ayudarle a colgar calaveras; tres de ellas te dieron las gracias 💀.",
+      "Una señora te ofreció pastel de calabaza y cambio; el pastel no paraba de hablar de su ex 🥧.",
+      "Un turista disfrazado de vampiro te dio su cambio; luego se fue volando, no era disfraz 🧛.",
+      "Un desconocido enmascarado te dio una suma gigante; era el Charro Negro y no pidió nada a cambio... por ahora 🐎.",
+      "Un grupo de niños monstruo hizo colecta para ti; Frankenstein, el más grande, puso más que todos 🧟‍♂️.",
+      "Un conductor disfrazado de calabaza se detuvo y te dio un billete; el carro no tenía motor, solo un cuervo 🐦‍⬛🎃."
+    ]
+  },
   exitos: [
     { texto: "Pasaste la mañana sin recibir ninguna ayuda.", min: 1, max: 6 },
     { texto: "Pocas personas prestaron atención a tu solicitud.", min: 2, max: 10 },
