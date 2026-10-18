@@ -4,8 +4,8 @@ import { getAccount } from "../../../motores/db.js";
 import { enviarConBoton } from "../../../motores/botones.js";
 import { FOTO_PATH } from "../../../core.js";
 
-const FIRMA = "Estilo de Bardera ✔";
-const NOMBRE_BOT = "𝑀𝑎𝑚𝑏𝑜𝑃𝑟𝑜𝑦𝑒𝑐";
+const FIRMA = "Estilo de Bardera ✿";
+const NOMBRE_BOT = "𝑀𝑎𝑚𝑏𝑜 - 𝑃𝑟𝑜𝑦𝑒𝑐";
 const num = (jid) => jid.split("@")[0];
 
 async function obtenerMedia(sock, target) {
@@ -54,9 +54,9 @@ export default {
       "",
       "         /) /)",
       `      (｡•ㅅ•｡)〝₎₎ 𖥻 𝑃𝑒𝑟𝑓𝑖𝑙 𝑑𝑒 → @${num(target)} ! ꨄ ˊ˗`,
-      ". .╭━∪━∪━⋅𖥔⋅ ━━✶━━ ⋅𖥔⋅ ━╮",
+      ". .╭━∪━∪━⋅𖥔⋅ ━━✶━━━ ⋅𖥔⋅ ━╮",
       `. .┊ ◟﹫ 𝑁𝑜𝑚𝑏𝑟𝑒 → ${p.name || num(target)} ! ꨄ`,
-      "     · · ───── ·✶· ──── · ·‧₊˚✧",
+      "     · · ───── ·✶· ───── · ·‧₊˚✧",
       `. .┊◟♯ . / 𝑁𝑖𝑣𝑒𝑙 → ${p.level} (${p.xp || 0}/${p.level * 100} XP)`,
       "",
       "> ── - ̗̀ ᯠ _ ̫ _ᯄ੭ ¡ 𝑆𝑜𝑏𝑟𝑒 𝑚𝑖 !",
@@ -68,7 +68,7 @@ export default {
       `. .┊◟♯ . / 𝐶𝑎𝑠𝑎𝑑𝑜𝑠 → ${p.marriedSince || "No aplica"}`,
       `. .┊◟♯ . / 𝐽𝑢𝑒𝑔𝑜 𝑓𝑎𝑣 → ${p.favGame || "No establecido"}`,
       `. .┊◟♯ . / 𝑀𝑢𝑠𝑖𝑐𝑎 𝑓𝑎𝑣 → ${p.favMusic || "No establecido"}`,
-      "   ╰━━ ⋅𖥔⋅ ━━━━✶━━━━ ⋅𖥔⋅ ━╯",
+      "   ╰━━ ⋅𖥔⋅ ━━━━✶━━━━ ⋅𖥔⋅ ━━╯",
       "",
       "> Usa *.menu Perfil* para ver cómo editar tu propio perfil."
     ].join("\n");
