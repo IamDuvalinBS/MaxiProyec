@@ -20,7 +20,7 @@ import readline from "readline";
 import cfonts from "cfonts";
 import chalk from "chalk";
 import { iniciarAvisosRacha } from "./src/economia/avisos.js";
-import { tieneAfk, desactivarAfk, textoSalidaAfk } from "./src/economia/afk.js";
+import { enlazarSalidaAfk } from "./src/economia/afk-auto.js";
 import { idDeRespuestaInteractiva } from "./motores/respuestas-botones.js";
 import { manejarParticipantes } from "./src/eventos/participantes.js";
 import { antilinkActivo, botApagado } from "./src/grupos/estado.js";
@@ -231,6 +231,8 @@ iniciarPagina();
 // ═════════════════════════════════════════════════════════════════
 
 function enlazarEventos(sock, esSub) {
+  enlazarSalidaAfk(sock, () => (config.prefixes && config.prefixes.length) ? config.prefixes : [config.prefix || "."]);
+
   sock.ev.on("group-participants.update", async (update) => {
     try {
       await manejarCambioParticipantes(sock, update);
@@ -302,16 +304,6 @@ function enlazarEventos(sock, esSub) {
 
     const esMambo = Boolean(prefijoUsado) && /^\s*mambo\s+(on|off)\s*$/i.test(text.slice(prefijoUsado.length));
     if (apagadoAqui && !esMambo) return;
-
-    if (!msg.key.fromMe && !apagadoAqui && m.type === "notify" && tieneAfk(sender)) {
-      const tipoMensaje = Object.keys(msg.message)[0];
-      const ignorado = ["protocolMessage", "reactionMessage", "senderKeyDistributionMessage"].includes(tipoMensaje);
-      const esComandoAfk = prefijoUsado && /^\s*afk(\s|$)/i.test(text.slice(prefijoUsado.length));
-      if (!ignorado && !esComandoAfk) {
-        const datos = desactivarAfk(sender);
-        await sock.sendMessage(from, { text: textoSalidaAfk(sender, datos), mentions: [sender] }, { quoted: msg });
-      }
-    }
 
     if (prefijoUsado && !msg.key.fromMe && !apagadoAqui && m.type === "notify" && await vincularPagina(sock, from, sender, text.slice(prefijoUsado.length), msg)) return;
 
