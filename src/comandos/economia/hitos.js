@@ -9,7 +9,7 @@ function barra(actual, meta) {
 }
 
 export default {
-  names: [".hitos", ".insigniaseco", ".logroseco", ".metas"],
+  names: [".hitos", ".elogros", ".metas"],
   desc: "Insignias por llegar a ciertas cantidades de dinero: .hitos [@usuario]",
   category: "Economía",
   usage: ".hitos [@usuario]",
