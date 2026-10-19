@@ -4,6 +4,7 @@ import { fileURLToPath, pathToFileURL } from "url";
 import { connectDB, commandRegistry, simularEscritura, delayAleatorio, comandoEstaBaneado } from "../../core.js";
 import { soloAdminsActivo, botApagado } from "../grupos/estado.js";
 import { esAdminOOwner, ajustarMenciones } from "../grupos/nucleo.js";
+import { antesDeComando, despuesDeComando } from "../economia/logros.js";
 import { enviarConCache, reenviarCacheado, guardarRelay, registrarMedio, claveDeDescarga } from "../../motores/cache-medios.js";
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -119,8 +120,11 @@ export async function manejarComando(sock, from, sender, text, msg) {
   if (claveDescarga && (await reenviarCacheado(sock, from, claveDescarga, msg))) return true;
   if (claveDescarga) capturados = [];
 
+  const antes = msg.key.fromMe ? null : antesDeComando(sender);
+
   try {
     await handler({ sock, from, sender, cleanText, msg, reply });
+    if (antes) await despuesDeComando({ antes, sender, comando, categoria: categoriaDeComando.get(comando), reply });
     if (claveDescarga && capturados.length) guardarRelay(claveDescarga, capturados);
   } catch (e) {
     console.log(`❌ ERROR ejecutando el comando "${comando}": ${e.stack || e.message}`);
