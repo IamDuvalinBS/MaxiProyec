@@ -3,11 +3,11 @@ let libCache;
 async function cargarLib() {
   if (libCache !== undefined) return libCache;
   try {
-    const mod = await import("@fer2809fl/baileys");
+    const mod = await import("@whiskeysockets/baileys");
     const lib = mod.default && typeof mod.default === "object" ? { ...mod, ...mod.default } : mod;
     libCache = lib.proto && lib.generateWAMessageFromContent ? lib : null;
   } catch (e) {
-    console.log("[botones] @fer2809fl/baileys no disponible: " + e.message);
+    console.log("[botones] @whiskeysockets/baileys no disponible: " + e.message);
     libCache = null;
   }
   return libCache;

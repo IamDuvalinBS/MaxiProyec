@@ -1,5 +1,5 @@
 /**
- * Envío de mensajes con botones de respuesta rápida para @fer2809fl/baileys (7.0.7+).
+ * Envío de mensajes con botones de respuesta rápida para @whiskeysockets/baileys (7.0.7+).
  * Misma firma que antes: enviarConBotonesRapidos({ sock, from, msg, texto, footer, botones,
  * mentions, imagen, vistaPrevia, esperar }) -> true si se envió, false si falló.
  *
@@ -15,7 +15,7 @@ async function cargarLibreria() {
   if (libreria !== undefined) return libreria;
 
   try {
-    const modulo = await import("@fer2809fl/baileys");
+    const modulo = await import("@whiskeysockets/baileys");
     const lib = modulo.default && typeof modulo.default === "object"
       ? { ...modulo, ...modulo.default }
       : modulo;
