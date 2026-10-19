@@ -33,6 +33,7 @@ const COMANDOS_BASE = [
   { nombre: "Daily", clave: "daily", ms: 24 * HORA_MS },
   { nombre: "Semanal", clave: "semanal", ms: 7 * 24 * HORA_MS },
   { nombre: "Cofre", clave: "cofre", ms: 24 * HORA_MS },
+  { nombre: "Misiones", clave: "misioneseco", ms: 24 * HORA_MS },
   { nombre: "Trivia", clave: "trivia", ms: 15 * 60 * 1000 }
 ];
 
