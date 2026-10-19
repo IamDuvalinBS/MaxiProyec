@@ -27,7 +27,7 @@ export default {
   usage: ".afk [motivo]",
   desc: "Activar o desactivar el modo AFK y ganar monedas por minuto",
   category: "Economía",
-  handler: async ({ sender, cleanText, reply }) => {
+  handler: async ({ from, sender, cleanText, reply }) => {
     if (estaAfk(sender)) {
       const datos = desactivarAfk(sender);
       return reply({ text: textoSalidaAfk(sender, datos), mentions: [sender] });
@@ -35,7 +35,7 @@ export default {
 
     const E = estilo(ESTILOS);
     const motivo = cleanText.split(/\s+/).slice(1).join(" ").trim();
-    activarAfk(sender, motivo);
+    activarAfk(sender, motivo, from);
 
     const lineas = [encabezado(E.emoji, E.titulo), "", E.aviso(mencion(sender))];
     if (motivo) lineas.push(E.motivo(motivo));
