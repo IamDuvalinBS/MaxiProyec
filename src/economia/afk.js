@@ -4,7 +4,7 @@ import { monto } from "./formato-evento.js";
 import { encabezado, mencion, tiempoLargo } from "./estilo-evento.js";
 import { estilo } from "./temas.js";
 
-export const MONEDAS_POR_MINUTO = 2;
+export const MONEDAS_POR_MINUTO = 5;
 const MOTIVO_MAX = 60;
 
 export function tieneAfk(sender) {
