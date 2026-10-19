@@ -46,7 +46,7 @@ export default {
         titulo: T("INSIGNIAS DE MONEDAS", "INSIGNIAS DE LA NOCHE"),
         relato: `Patrimonio de ${mencion(objetivo)} (mano + banco): *${monto(actual)}*. Insignias: *${logrados}/${lista.length}*. Cada meta entrega una recompensa una sola vez.`,
         lineas,
-        tip: "Usa *.misioneseco* para ver tus misiones de economía."
+        tip: "Usa *.tareas* para ver tus misiones de economía."
       }),
       mentions: [objetivo]
     });
