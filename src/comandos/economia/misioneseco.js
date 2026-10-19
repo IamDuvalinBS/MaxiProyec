@@ -84,7 +84,7 @@ function vistaCobro(sender) {
 }
 
 export default {
-  names: [".misioneseco", ".misioneseconomia", ".mecon", ".tareas"],
+  names: [".emisiones", ".misioneseconomia", ".tareas"],
   desc: "Misiones diarias y fijas de economía con recompensas: .misioneseco [fijas|cobrar]",
   category: "Economía",
   usage: ".misioneseco [fijas|cobrar]",
