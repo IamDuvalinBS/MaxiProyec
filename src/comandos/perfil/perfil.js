@@ -1,6 +1,7 @@
 import fs from "fs";
 import { getProfile, pfpPath } from "../../../motores/profile.js";
 import { getAccount } from "../../../motores/db.js";
+import { resumenPerfil } from "../../economia/logros.js";
 import { enviarConBoton } from "../../../motores/botones.js";
 import { FOTO_PATH } from "../../../core.js";
 
@@ -48,6 +49,7 @@ export default {
     const acc = getAccount(target);
 
     const casadoCon = p.marriedTo ? "@" + num(p.marriedTo) : "Nadie";
+    const eco = resumenPerfil(target);
 
     const texto = [
       `✦₊˚ 𓂃★ ⸝ *${NOMBRE_BOT}*⸝ ✦₊˚`,
@@ -58,6 +60,8 @@ export default {
       `. .┊ ◟﹫ 𝑁𝑜𝑚𝑏𝑟𝑒 → ${p.name || num(target)} ! ꨄ`,
       "     · · ───── ·✶· ───── · ·‧₊˚✧",
       `. .┊◟♯ . / 𝑁𝑖𝑣𝑒𝑙 → ${p.level} (${p.xp || 0}/${p.level * 100} XP)`,
+      `. .┊◟♯ . / 𝐼𝑛𝑠𝑖𝑔𝑛𝑖𝑎𝑠 → ${eco.insignias}`,
+      `. .┊◟♯ . / 𝑀𝑖𝑠𝑖𝑜𝑛𝑒𝑠 → ${eco.misiones} cobradas`,
       "",
       "> ── - ̗̀ ᯠ _ ̫ _ᯄ੭ ¡ 𝑆𝑜𝑏𝑟𝑒 𝑚𝑖 !",
       "",
