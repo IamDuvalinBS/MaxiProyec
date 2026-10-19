@@ -3,7 +3,7 @@ import { agregarAnimes } from "../../../motores/gacha-yandere.js";
 import { gachaListo, tarjeta } from "../../../motores/gacha-core.js";
 import { contarPersonajes } from "../../../motores/gacha-db.js";
 
-const POR_DEFECTO = 5;
+const POR_DEFECTO = 6;
 const MAXIMO = 10;
 let ocupado = false;
 
@@ -22,7 +22,9 @@ export default {
       await reply({ text: `🔎 Buscando *${n}* animes y descargando todos sus personajes... esto tarda varios minutos.` });
       const nom = (s) => s.replace(/_/g, " ");
       const resumen = await agregarAnimes(n, async (serie, r) => {
-        await reply({ text: `✅ *${nom(serie)}* — ${r.agregadas.length} personajes agregados.` });
+        const motivo = Object.entries(r.rechazos).sort((x, y) => y[1] - x[1])[0];
+        const extra = !r.agregadas.length && motivo ? ` (${motivo[0]}: ${motivo[1]})` : "";
+        await reply({ text: `✅ *${nom(serie)}* — ${r.agregadas.length} personajes agregados.${extra}` });
       });
 
       const total = resumen.reduce((a, s) => a + s.agregadas.length, 0);
@@ -38,3 +40,4 @@ export default {
     }
   })
 };
+                                 
