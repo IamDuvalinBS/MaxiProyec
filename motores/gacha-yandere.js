@@ -240,7 +240,7 @@ export async function agregarSerie(serie, { base = BASE, max = 40 } = {}) {
     if (personajePorClave("waifu", tag)) { sumar(rechazos, "personaje ya registrado"); continue; }
     let posts;
     try {
-      posts = await api("/post.json", { tags: `${tag} ${serie} solo rating:safe order:score`, limit: 10 }, base);
+      posts = await api("/post.json", { tags: `${tag} rating:safe order:score`, limit: 15 }, base);
     } catch (e) {
       sumar(rechazos, "error de consulta");
       continue;
@@ -257,7 +257,7 @@ export async function agregarSerie(serie, { base = BASE, max = 40 } = {}) {
   for (let page = 1; page <= 3 && agregadas.length < max; page++) {
     let posts;
     try {
-      posts = await api("/post.json", { tags: `${serie} solo rating:safe order:score`, limit: 40, page }, base);
+      posts = await api("/post.json", { tags: `${serie} rating:safe order:score`, limit: 40, page }, base);
     } catch (e) {
       break;
     }
@@ -323,5 +323,5 @@ export async function agregarPorLink(link) {
     else sumar(rechazos, r.motivo);
   }
   return { ok: agregadas.length > 0, agregadas, rechazos, motivo: Object.keys(rechazos)[0] || "sin resultados" };
-      }
-    
+                                                                                                }
+      
