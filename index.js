@@ -234,6 +234,7 @@ function enlazarEventos(sock, esSub) {
   enlazarSalidaAfk(sock, () => (config.prefixes && config.prefixes.length) ? config.prefixes : [config.prefix || "."]);
 
   sock.ev.on("group-participants.update", async (update) => {
+    cacheGrupos.delete(update.id);
     try {
       await manejarCambioParticipantes(sock, update);
     } catch (e) {
@@ -247,7 +248,7 @@ function enlazarEventos(sock, esSub) {
   });
 
   sock.ev.on("groups.update", (cambios) => {
-    for (const cambio of cambios) if (cambio.id) olvidarMetadatos(cambio.id);
+    for (const cambio of cambios) if (cambio.id) { olvidarMetadatos(cambio.id); cacheGrupos.delete(cambio.id); }
   });
 
   sock.ev.on("messages.upsert", (m) => {
@@ -343,6 +344,23 @@ function enlazarEventos(sock, esSub) {
 let subbotsIniciados = false;
 let isConnecting = false;
 
+const CACHE_GRUPOS_MS = 5 * 60000;
+const cacheGrupos = new Map();
+const cacheGruposPendientes = new Map();
+let socketPrincipal = null;
+const metadatosParaEnvio = async (jid) => {
+  const guardado = cacheGrupos.get(jid);
+  if (guardado && guardado.vence > Date.now()) return guardado.meta;
+  if (cacheGruposPendientes.has(jid)) return cacheGruposPendientes.get(jid);
+  if (!socketPrincipal) return undefined;
+  const promesa = socketPrincipal.groupMetadata(jid)
+    .then((meta) => { cacheGrupos.set(jid, { meta, vence: Date.now() + CACHE_GRUPOS_MS }); return meta; })
+    .catch(() => (guardado ? guardado.meta : undefined))
+    .finally(() => cacheGruposPendientes.delete(jid));
+  cacheGruposPendientes.set(jid, promesa);
+  return promesa;
+};
+
 let bannerImpreso = false;
 
 async function startBot() {
@@ -372,8 +390,10 @@ async function startBot() {
     markOnlineOnConnect: false,
     syncFullHistory: false,
     shouldSyncHistoryMessage: () => false,
-    generateHighQualityLinkPreview: false
+    generateHighQualityLinkPreview: false,
+    cachedGroupMetadata: metadatosParaEnvio
   });
+  socketPrincipal = sock;
 
   console.log("Intentando conectar con WhatsApp...");
 
@@ -443,4 +463,5 @@ async function startBot() {
 
 startBot();
 
-                              
+
+  
