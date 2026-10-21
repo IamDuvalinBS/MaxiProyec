@@ -4,8 +4,8 @@ import { fileURLToPath, pathToFileURL } from "url";
 import { connectDB, commandRegistry, simularEscritura, delayAleatorio, comandoEstaBaneado } from "../../core.js";
 import { soloAdminsActivo, botApagado } from "../grupos/estado.js";
 import { esAdminOOwner, ajustarMenciones } from "../grupos/nucleo.js";
-import { antesDeComando, despuesDeComando } from "../economia/logros.js";
 import { enviarConCache, reenviarCacheado, guardarRelay, registrarMedio, claveDeDescarga } from "../../motores/cache-medios.js";
+import { contarComando } from "../../motores/estadisticas.js";
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const CARPETAS_EXCLUIDAS = new Set([
@@ -14,6 +14,7 @@ const CARPETAS_EXCLUIDAS = new Set([
 
 const comandos = new Map();
 const categoriaDeComando = new Map();
+const principalDeComando = new Map();
 
 function descubrirCarpetas() {
   const carpetas = [];
@@ -51,6 +52,7 @@ async function cargarComandos() {
           if (comandos.has(nombre)) console.log(`⚠️ El comando ${nombre} está repetido (${relativa}).`);
           comandos.set(nombre, cmd.handler);
           categoriaDeComando.set(nombre, categoria);
+          principalDeComando.set(nombre, cmd.names[0]);
         }
         commandRegistry.set(cmd.names[0], {
           names: cmd.names,
@@ -120,11 +122,9 @@ export async function manejarComando(sock, from, sender, text, msg) {
   if (claveDescarga && (await reenviarCacheado(sock, from, claveDescarga, msg))) return true;
   if (claveDescarga) capturados = [];
 
-  const antes = msg.key.fromMe ? null : antesDeComando(sender);
-
   try {
     await handler({ sock, from, sender, cleanText, msg, reply });
-    if (antes) await despuesDeComando({ antes, sender, comando, categoria: categoriaDeComando.get(comando), reply });
+    contarComando(principalDeComando.get(comando));
     if (claveDescarga && capturados.length) guardarRelay(claveDescarga, capturados);
   } catch (e) {
     console.log(`❌ ERROR ejecutando el comando "${comando}": ${e.stack || e.message}`);
