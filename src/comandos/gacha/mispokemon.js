@@ -1,17 +1,19 @@
 import axios from "axios";
 import { gachaListo, mostrarColeccion, monto } from "../../../motores/gacha-core.js";
-import { coleccionDe } from "../../../motores/gacha-db.js";
+import { coleccionDe, contarColeccion, recargarGacha } from "../../../motores/gacha-db.js";
 import { statsEfectivas, nivelMaxDe } from "../../../motores/gacha-niveles.js";
 import { tipoEs } from "../../../motores/gacha-pokemon.js";
 import { getProfile } from "../../../motores/profile.js";
 import { htmlPokedex } from "../../../motores/pokedex-html.js";
 
 const TOTAL_DEX = 1025;
-const POR_PARTE = 30;
+const POR_PARTE = 36;
 const FIRMA = "Powered By ItsDuva";
+const ESPERA_RECARGA_MS = 60 * 1000;
 const SPRITE = (dex) => `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${dex}.png`;
 
 const cacheSprites = new Map();
+let ultimaRecarga = 0;
 
 async function spriteDe(dex) {
   if (cacheSprites.has(dex)) return cacheSprites.get(dex);
@@ -33,9 +35,45 @@ async function spritesDe(lista) {
   return salida;
 }
 
-const respaldoTexto = ({ sender, cleanText, reply }) =>
+const limpiarJid = (jid) => (typeof jid === "string" ? jid.replace(/:\d+(?=@)/, "") : "");
+
+function candidatosDeUsuario(sock, msg, sender) {
+  const k = msg?.key || {};
+  const crudos = k.fromMe
+    ? [sender, sock.user?.id, sock.user?.lid, sock.user?.jid]
+    : [sender, k.participant, k.participantAlt, k.participantPn, k.remoteJidAlt, k.remoteJid];
+  return [...new Set(crudos.map(limpiarJid).filter((j) => j && !j.endsWith("@g.us") && !j.endsWith("@broadcast")))];
+}
+
+function elegirUsuario(candidatos) {
+  let mejor = { usuario: candidatos[0], n: 0 };
+  for (const usuario of candidatos) {
+    const { n } = contarColeccion(usuario, "pokemon");
+    if (n > mejor.n) mejor = { usuario, n };
+  }
+  return mejor;
+}
+
+async function buscarUsuario(candidatos) {
+  let mejor = elegirUsuario(candidatos);
+  if (mejor.n) return mejor.usuario;
+
+  if (Date.now() - ultimaRecarga > ESPERA_RECARGA_MS) {
+    ultimaRecarga = Date.now();
+    try {
+      await recargarGacha();
+      mejor = elegirUsuario(candidatos);
+    } catch (e) {
+      console.log("[mispokemon] no se pudo recargar el gacha: " + e.message);
+    }
+  }
+  if (!mejor.n) console.log("[mispokemon] sin Pokémon para: " + candidatos.join(", "));
+  return mejor.usuario;
+}
+
+const respaldoTexto = ({ usuario, cleanText, reply }) =>
   mostrarColeccion({
-    categoria: "pokemon", titulo: "Tus Pokémon", sender, cleanText, reply,
+    categoria: "pokemon", titulo: "Tus Pokémon", sender: usuario, cleanText, reply,
     pista: "🍖 Súbelos de nivel con *.pokecomida* (usa #id para elegir cuál)."
   });
 
@@ -46,9 +84,10 @@ export default {
   usage: ".mispokemon [parte]",
   handler: async ({ sock, from, sender, msg, cleanText, reply }) => {
     await gachaListo;
-    const todos = coleccionDe(sender, "pokemon", 100000, 0);
+    const usuario = await buscarUsuario(candidatosDeUsuario(sock, msg, sender));
+    const todos = coleccionDe(usuario, "pokemon", 100000, 0);
     if (!todos.length || typeof sock.sendHtml !== "function") {
-      return respaldoTexto({ sender, cleanText, reply });
+      return respaldoTexto({ usuario, cleanText, reply });
     }
 
     try {
@@ -61,13 +100,14 @@ export default {
       for (const c of todos) conteoRareza.set(c.rareza, (conteoRareza.get(c.rareza) || 0) + 1);
 
       const datos = {
-        nombre: msg?.pushName || getProfile(sender).name || "Entrenador",
+        nombre: msg?.pushName || getProfile(usuario).name || "Entrenador",
         n: todos.length,
         totalDex: TOTAL_DEX,
         valorTxt: monto(todos.reduce((a, c) => a + c.valor, 0)),
         rarezas: [...conteoRareza].map(([n, c]) => ({ n, c })),
         parte,
         partes,
+        porParte: POR_PARTE,
         firma: FIRMA,
         items: trozo.map((c, i) => {
           const st = statsEfectivas(c, c.nivel);
@@ -89,8 +129,7 @@ export default {
       await sock.sendHtml(from, htmlPokedex(datos), [], undefined, {});
     } catch (e) {
       console.log("[mispokemon] ERROR: " + e.stack);
-      await respaldoTexto({ sender, cleanText, reply });
+      await respaldoTexto({ usuario, cleanText, reply });
     }
   }
 };
-      
