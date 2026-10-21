@@ -18,7 +18,7 @@ const MAX_BYTES_TEXTO = 900000;  // sin límite práctico: solo el tope de Fires
 // Firebase solo es la tubería entre la página y el bot: cada mensaje se borra solo (el tuyo en cuanto el bot lo recibe,
 // las respuestas a los pocos minutos). Nada se guarda como historial.
 const TTL_MS = Number(process.env.CHAT_PAGINA_TTL_MS) || 3 * 60000;
-const DEPURAR = true;           // escribe en la consola qué recibe y qué manda la página
+const DEPURAR = false;          // escribe en la consola qué recibe y qué manda la página
 const MAX_IMG_BYTES = 120000;    // las imágenes se achican para que quepan en Firestore
 const MAX_CARD_BYTES = 30000;    // miniaturas de previas
 const MAX_PREV_BYTES = 45000;    // imagen de la previa de un enlace
@@ -35,7 +35,7 @@ const BLOQ_CMD = new Set([]);    // comandos sueltos bloqueados, ej: ".algo"
 
 // Identifica a ESTA copia del bot: así se detecta si hay otra respondiendo el mismo chat (versión vieja, otro hosting, otra sesión de Termux…)
 const INSTANCIA = crypto.randomBytes(4).toString("hex"), INICIO = Date.now(), VERSION = "chat-v7";
-const log = (e) => console.log("Chat página: " + (e?.message || e));
+const log = (e, donde) => console.log("Chat página" + (donde ? " [" + donde + "]" : "") + ": " + (e?.code ? e.code + " " : "") + (e?.message || e) + (e?.stack ? "\n" + String(e.stack).split("\n").slice(1, 4).join("\n") : ""));
 const dep = (s) => { if (DEPURAR) console.log("Chat página: " + s); };
 function recortar(s) {
   s = String(s);
@@ -344,8 +344,8 @@ export function iniciarChatPagina({ PAG, Timestamp, config, commandRegistry, get
           retirada = true;
           console.log("⚠ Chat página: una copia más nueva del bot (" + d.id + ") tomó el chat de la página. Esta copia deja de responderlo para no repetir mensajes. Si esta es la que querías, reiníciala y cierra la otra.");
         }
-      }, (e) => log(e));
-    }).catch(log);
+      }, (e) => log(e, "turno-escucha"));
+    }).catch((e) => log(e, "turno-set"));
   }
   const usos = new Map();                  // uid -> { t: [...], dia, n }
   const sesiones = new Map();              // número -> contexto del último comando hecho desde la página
@@ -373,7 +373,7 @@ export function iniciarChatPagina({ PAG, Timestamp, config, commandRegistry, get
     const s = JSON.stringify(lista);
     if (s === ultimaLista) return;
     try { await PAG.fs.collection("bot").doc("usuarios").set({ lista, t: PAG.FV.serverTimestamp() }); ultimaLista = s; }
-    catch (e) { log(e); }
+    catch (e) { log(e, "subirUsuarios"); }
   }
 
   // Los comandos reciben este "sock": aunque guarden una referencia suelta (const { sendMessage } = sock) o respondan horas
@@ -508,7 +508,8 @@ export function iniciarChatPagina({ PAG, Timestamp, config, commandRegistry, get
 
   async function escribir(cid, m) {
     const ref = PAG.fs.collection("chats").doc(cid).collection("msgs").doc();
-    await ref.set({ de: "bot", bi: INSTANCIA, t: PAG.FV.serverTimestamp(), ...m });
+    try { await ref.set({ de: "bot", bi: INSTANCIA, t: PAG.FV.serverTimestamp(), ...m }); }
+    catch (e) { log(e, "enviar-respuesta " + Object.keys(m || {}).join(",")); throw e; }
     const t = setTimeout(() => ref.delete().catch(() => {}), TTL_MS);   // se borra solo
     if (t.unref) t.unref();
   }
@@ -519,7 +520,7 @@ export function iniciarChatPagina({ PAG, Timestamp, config, commandRegistry, get
       if (s.empty) return;
       const b = PAG.fs.batch(); s.docs.forEach((d) => b.delete(d.ref)); await b.commit();
       dep(`limpieza: ${s.size} mensajes viejos borrados`);
-    } catch (e) { log(e); }
+    } catch (e) { log(e, "limpiar"); }
   }
 
   // Desvía a la página lo que cualquier parte del bot mande al WhatsApp de quien usa el chat
@@ -675,7 +676,7 @@ export function iniciarChatPagina({ PAG, Timestamp, config, commandRegistry, get
           atender(cid, uid, d).catch(log);
         }
       } while (repetir.has(cid));
-    } catch (e) { log(e); }
+    } catch (e) { log(e, "revisar"); }
     finally { ocupado.delete(cid); }
   }
 
@@ -689,7 +690,7 @@ export function iniciarChatPagina({ PAG, Timestamp, config, commandRegistry, get
         if (!hecho.has(cid)) { hecho.set(cid, Timestamp.fromMillis(Date.now() - VENCE_MS)); chatsVistos.add(cid); limpiar(cid); }
         revisar(cid, uid);
       }
-    }, (e) => { log(e); setTimeout(escuchar, 30000); });
+    }, (e) => { log(e, "escuchar"); setTimeout(escuchar, 30000); });
   }
 
   escuchar();

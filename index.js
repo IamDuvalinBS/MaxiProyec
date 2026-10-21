@@ -234,6 +234,7 @@ function enlazarEventos(sock, esSub) {
   enlazarSalidaAfk(sock, () => (config.prefixes && config.prefixes.length) ? config.prefixes : [config.prefix || "."]);
 
   sock.ev.on("group-participants.update", async (update) => {
+    cacheGrupos.delete(update.id);
     try {
       await manejarCambioParticipantes(sock, update);
     } catch (e) {
@@ -247,11 +248,25 @@ function enlazarEventos(sock, esSub) {
   });
 
   sock.ev.on("groups.update", (cambios) => {
-    for (const cambio of cambios) if (cambio.id) olvidarMetadatos(cambio.id);
+    for (const cambio of cambios) if (cambio.id) { olvidarMetadatos(cambio.id); cacheGrupos.delete(cambio.id); }
   });
 
-  sock.ev.on("messages.upsert", async (m) => {
-    const msg = m.messages[0];
+  sock.ev.on("messages.upsert", (m) => {
+    const lote = m.messages || [];
+    const manejar = (msg) => procesarMensaje(m, msg).catch((e) => console.log("Error procesando mensaje: " + e.message));
+    if (lote.length <= 1) {
+      for (const msg of lote) manejar(msg);
+      return;
+    }
+    (async () => {
+      for (const msg of lote) {
+        manejar(msg);
+        await new Promise((r) => setTimeout(r, 400));
+      }
+    })();
+  });
+
+  async function procesarMensaje(m, msg) {
     if (!msg.message) return;
     if (!(await reclamarMensaje(msg, esSub))) return;
     if (m.type === "notify" && !msg.key.fromMe) PAG.msgsHoy++;
@@ -323,11 +338,28 @@ function enlazarEventos(sock, esSub) {
         await checkTriviaAnswer(sock, from, sender, text, msg);
       }
     }
-  });
+  }
 }
 
 let subbotsIniciados = false;
 let isConnecting = false;
+
+const CACHE_GRUPOS_MS = 5 * 60000;
+const cacheGrupos = new Map();
+const cacheGruposPendientes = new Map();
+let socketPrincipal = null;
+const metadatosParaEnvio = async (jid) => {
+  const guardado = cacheGrupos.get(jid);
+  if (guardado && guardado.vence > Date.now()) return guardado.meta;
+  if (cacheGruposPendientes.has(jid)) return cacheGruposPendientes.get(jid);
+  if (!socketPrincipal) return undefined;
+  const promesa = socketPrincipal.groupMetadata(jid)
+    .then((meta) => { cacheGrupos.set(jid, { meta, vence: Date.now() + CACHE_GRUPOS_MS }); return meta; })
+    .catch(() => (guardado ? guardado.meta : undefined))
+    .finally(() => cacheGruposPendientes.delete(jid));
+  cacheGruposPendientes.set(jid, promesa);
+  return promesa;
+};
 
 let bannerImpreso = false;
 
@@ -352,14 +384,16 @@ async function startBot() {
     logger: pino({ level: "silent" }),
     printQRInTerminal: false,
     browser: ["Ubuntu", "Chrome", "20.0.04"],
-    keepAliveIntervalMs: 10000,
+    keepAliveIntervalMs: 30000,
     connectTimeoutMs: 60000,
     defaultQueryTimeoutMs: 60000,
     markOnlineOnConnect: false,
     syncFullHistory: false,
     shouldSyncHistoryMessage: () => false,
-    generateHighQualityLinkPreview: false
+    generateHighQualityLinkPreview: false,
+    cachedGroupMetadata: metadatosParaEnvio
   });
+  socketPrincipal = sock;
 
   console.log("Intentando conectar con WhatsApp...");
 
@@ -396,7 +430,18 @@ async function startBot() {
       pairingRequested = false;
       isConnecting = false;
       PAG.enLinea = false; subirEstado();
-      setTimeout(startBot, 10000);
+      try { sock.ev.removeAllListeners(); } catch {}
+      try { sock.end(undefined); } catch {}
+      if (statusCode === DisconnectReason.loggedOut) {
+        console.log(chalk.yellow("La sesion fue cerrada desde WhatsApp. Borra la carpeta auth_info y vincula de nuevo."));
+      } else {
+        let espera = 3000;
+        if (statusCode === DisconnectReason.connectionReplaced) {
+          espera = 30000;
+          console.log(chalk.yellow("Otra copia del bot esta usando esta misma sesion. Cierra la otra (otro Termux, otro telefono u hosting)."));
+        }
+        setTimeout(startBot, espera);
+      }
     } else if (connection === "open") {
       currentCode = "CONECTADO";
       isConnecting = false;
@@ -418,4 +463,5 @@ async function startBot() {
 
 startBot();
 
-                              
+
+  
