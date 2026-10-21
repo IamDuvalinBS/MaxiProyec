@@ -41,6 +41,24 @@ export const config = {
   channelLink: "https://whatsapp.com/channel/0029Vb92LdaCnA7rdqUbdw38"
 };
 
+const saldosBase = new Map();
+
+function cargarCuenta(doc) {
+  const cuenta = {
+    wallet: doc.wallet || 0,
+    bank: doc.bank || 0,
+    cooldowns: doc.cooldowns || {},
+    rachas: doc.rachas || {},
+    negocios: doc.negocios || {},
+    afk: doc.afk || null,
+    profile: doc.profile,
+    gachaClaim: doc.gachaClaim,
+    prestamo: doc.prestamo
+  };
+  accounts.set(doc._id, cuenta);
+  saldosBase.set(doc._id, { wallet: cuenta.wallet, bank: cuenta.bank });
+}
+
 export async function connectDB(intentos = 5) {
   if (!MONGO_URI) {
     console.log(chalk.red("Falta la variable de entorno MONGO_URI. Configúrala antes de iniciar el bot."));
@@ -54,17 +72,7 @@ export async function connectDB(intentos = 5) {
       console.log(chalk.greenBright.bold("✅ Mongo conectado con éxito"));
 
       for await (const doc of collection.find({})) {
-        accounts.set(doc._id, {
-          wallet: doc.wallet || 0,
-          bank: doc.bank || 0,
-          cooldowns: doc.cooldowns || {},
-          rachas: doc.rachas || {},
-          negocios: doc.negocios || {},
-          afk: doc.afk || null,
-          profile: doc.profile,
-          gachaClaim: doc.gachaClaim,
-          prestamo: doc.prestamo
-        });
+        cargarCuenta(doc);
       }
       console.log(`Datos cargados desde MongoDB: ${accounts.size} cuentas`);
 
@@ -197,17 +205,7 @@ async function arrancarModoRespaldo() {
     }
 
     for (const doc of datos.accounts) {
-      accounts.set(doc._id, {
-        wallet: doc.wallet || 0,
-        bank: doc.bank || 0,
-        cooldowns: doc.cooldowns || {},
-        rachas: doc.rachas || {},
-        negocios: doc.negocios || {},
-        afk: doc.afk || null,
-        profile: doc.profile,
-          gachaClaim: doc.gachaClaim,
-          prestamo: doc.prestamo
-      });
+      cargarCuenta(doc);
     }
     const cfgDoc = (datos.config || []).find((d) => d._id === "bot");
     if (cfgDoc) Object.assign(config, cfgDoc);
@@ -235,8 +233,17 @@ async function sincronizarOffline() {
   if (!pendientesOffline.size) return;
   const claves = [...pendientesOffline];
   const porColeccion = new Map();
+  const itemsCuentas = [];
   for (const clave of claves) {
     const [coleccion, id] = clave.split(SEP);
+    if (coleccion === "accounts") {
+      if (!accounts.has(id)) continue;
+      const item = armarOperacion(id);
+      itemsCuentas.push(item);
+      if (!porColeccion.has(coleccion)) porColeccion.set(coleccion, []);
+      porColeccion.get(coleccion).push(item.op);
+      continue;
+    }
     const doc = documentoDe(coleccion, id);
     if (!doc) continue;
     if (!porColeccion.has(coleccion)) porColeccion.set(coleccion, []);
@@ -247,6 +254,7 @@ async function sincronizarOffline() {
       await baseDatos.collection(nombre).bulkWrite(operaciones.slice(i, i + 500), { ordered: false });
     }
   }
+  itemsCuentas.forEach(confirmarBase);
   for (const clave of claves) pendientesOffline.delete(clave);
 }
 
@@ -286,17 +294,7 @@ export async function recargarDatos() {
   cuentasPendientes.clear();
   accounts.clear();
   for await (const doc of collection.find({})) {
-    accounts.set(doc._id, {
-      wallet: doc.wallet || 0,
-      bank: doc.bank || 0,
-      cooldowns: doc.cooldowns || {},
-      rachas: doc.rachas || {},
-      negocios: doc.negocios || {},
-      afk: doc.afk || null,
-      profile: doc.profile,
-          gachaClaim: doc.gachaClaim,
-          prestamo: doc.prestamo
-    });
+    cargarCuenta(doc);
   }
 
   const cfgDoc = await configCollection.findOne({ _id: "bot" });
@@ -331,7 +329,16 @@ function armarOperacion(sender) {
   for (const clave of Object.keys(acc.cooldowns)) {
     if (ahora - acc.cooldowns[clave] > VIGENCIA_MAXIMA_ESPERA_MS) delete acc.cooldowns[clave];
   }
-  const asignar = { wallet: acc.wallet, bank: acc.bank };
+  const base = saldosBase.get(sender) || { wallet: 0, bank: 0 };
+  const incrementar = {};
+  const dWallet = acc.wallet - base.wallet;
+  const dBank = acc.bank - base.bank;
+  if (dWallet) incrementar.wallet = dWallet;
+  if (dBank) incrementar.bank = dBank;
+  const alInsertar = {};
+  if (!dWallet) alInsertar.wallet = acc.wallet;
+  if (!dBank) alInsertar.bank = acc.bank;
+  const asignar = {};
   const quitar = {};
   const opcionales = { cooldowns: acc.cooldowns, rachas: acc.rachas, negocios: acc.negocios, afk: acc.afk, profile: acc.profile, gachaClaim: acc.gachaClaim, prestamo: acc.prestamo };
   for (const [clave, valor] of Object.entries(opcionales)) {
@@ -339,9 +346,20 @@ function armarOperacion(sender) {
     if (vacio) quitar[clave] = "";
     else asignar[clave] = valor;
   }
-  const actualizacion = { $set: asignar };
+  const actualizacion = {};
+  if (Object.keys(asignar).length) actualizacion.$set = asignar;
   if (Object.keys(quitar).length) actualizacion.$unset = quitar;
-  return { updateOne: { filter: { _id: sender }, update: actualizacion, upsert: true } };
+  if (Object.keys(incrementar).length) actualizacion.$inc = incrementar;
+  if (Object.keys(alInsertar).length) actualizacion.$setOnInsert = alInsertar;
+  return {
+    sender,
+    nuevaBase: { wallet: acc.wallet, bank: acc.bank },
+    op: { updateOne: { filter: { _id: sender }, update: actualizacion, upsert: true } }
+  };
+}
+
+function confirmarBase(item) {
+  saldosBase.set(item.sender, item.nuevaBase);
 }
 
 export async function guardarCuentasPendientes() {
@@ -352,12 +370,33 @@ export async function guardarCuentasPendientes() {
   if ((!collection && !modoRespaldo) || !cuentasPendientes.size) return;
   const lote = [...cuentasPendientes];
   cuentasPendientes.clear();
+  if (modoRespaldo) {
+    try {
+      await guardarOffline(lote.map((sender) => ["accounts", sender]));
+    } catch (e) {
+      console.log("Error guardando cuentas en el respaldo: " + e.message);
+      lote.forEach((sender) => cuentasPendientes.add(sender));
+      temporizadorGuardado = setTimeout(guardarCuentasPendientes, RETARDO_GUARDADO_MS * 5);
+    }
+    return;
+  }
+  const items = lote.filter((sender) => accounts.has(sender)).map(armarOperacion);
+  if (!items.length) return;
   try {
-    if (modoRespaldo) await guardarOffline(lote.map((sender) => ["accounts", sender]));
-    else await collection.bulkWrite(lote.map(armarOperacion), { ordered: false });
+    await collection.bulkWrite(items.map((i) => i.op), { ordered: false });
+    items.forEach(confirmarBase);
   } catch (e) {
     console.log("Error guardando cuentas: " + e.message);
-    lote.forEach((sender) => cuentasPendientes.add(sender));
+    const errores = e && e.writeErrors ? [].concat(e.writeErrors) : [];
+    const fallidos = new Set(errores.map((x) => x.index ?? x.err?.index).filter((n) => Number.isInteger(n)));
+    if (errores.length && fallidos.size) {
+      items.forEach((item, idx) => {
+        if (fallidos.has(idx)) cuentasPendientes.add(item.sender);
+        else confirmarBase(item);
+      });
+    } else {
+      items.forEach((item) => cuentasPendientes.add(item.sender));
+    }
     temporizadorGuardado = setTimeout(guardarCuentasPendientes, RETARDO_GUARDADO_MS * 5);
   }
 }
