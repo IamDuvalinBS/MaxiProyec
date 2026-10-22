@@ -1,31 +1,47 @@
-import { extraerImagenDeMensaje, crearSticker } from "../../nucleo/sticker.js";
+import {
+  extraerMediaDeMensaje,
+  crearSticker,
+  contextoMeta,
+  esStickerAnimado,
+  MAX_SEGUNDOS_STICKER
+} from "../../nucleo/sticker.js";
 
 export default {
   names: [".s", ".sticker"],
-  desc: "Convierte una imagen (citada) en sticker",
+  desc: "Convierte una imagen, GIF o video (citado) en sticker",
   category: "Stickers",
-  usage: ".s (respondiendo a una imagen)",
+  usage: ".s (respondiendo a una imagen, GIF o video)",
   handler: async ({ msg, sender, from, sock, reply }) => {
-    let buffer = null;
+    let media = null;
     try {
-      buffer = await extraerImagenDeMensaje(msg);
+      media = await extraerMediaDeMensaje(msg);
     } catch (e) {
-      console.log("❌ Error descargando la imagen para sticker: " + e.message);
-      await reply({ text: "❌ No se pudo descargar la imagen. Intenta enviarla nuevamente." });
+      console.log("❌ Error descargando el archivo para sticker: " + e.message);
+      await reply({ text: "❌ No se pudo descargar el archivo. Intenta enviarlo nuevamente." });
       return;
     }
 
-    if (!buffer) {
-      await reply({ text: "🖼️ Responde a una imagen con *.s* para convertirla en sticker." });
+    if (!media) {
+      await reply({ text: "🖼️ Responde a una imagen, GIF o video con *.s* para convertirlo en sticker." });
+      return;
+    }
+
+    if (media.segundos > MAX_SEGUNDOS_STICKER) {
+      await reply({ text: `❌ El video dura ${media.segundos} segundos. Máximo ${MAX_SEGUNDOS_STICKER} segundos.` });
       return;
     }
 
     try {
-      const stickerBuffer = await crearSticker(buffer, sender);
-      await sock.sendMessage(from, { sticker: stickerBuffer }, { quoted: msg });
+      const contexto = await contextoMeta({ sock, from, sender, msg });
+      const stickerBuffer = await crearSticker(media.buffer, sender, contexto);
+      await sock.sendMessage(
+        from,
+        { sticker: stickerBuffer, isAnimated: esStickerAnimado(stickerBuffer) },
+        { quoted: msg }
+      );
     } catch (e) {
       console.log("❌ Error creando sticker: " + e.message);
-      await reply({ text: "❌ No se pudo convertir esa imagen en sticker." });
+      await reply({ text: "❌ No se pudo convertir ese archivo en sticker." });
     }
   }
 };
