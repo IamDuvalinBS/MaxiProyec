@@ -23,7 +23,7 @@ import { iniciarAvisosRacha } from "./src/economia/avisos.js";
 import { enlazarSalidaAfk } from "./src/economia/afk-auto.js";
 import { idDeRespuestaInteractiva } from "./motores/respuestas-botones.js";
 import { manejarParticipantes } from "./src/eventos/participantes.js";
-import { antilinkActivo, botApagado } from "./src/grupos/estado.js";
+import { antilinkActivo, botApagado, ajustesDe } from "./src/grupos/estado.js";
 import { eliminarEnlace } from "./src/grupos/enlaces.js";
 import { olvidarMetadatos } from "./src/grupos/nucleo.js";
 import { recordarNombre } from "./motores/profile.js";
@@ -230,11 +230,18 @@ async function vincularPagina(sock, from, sender, resto, msg) {
 iniciarPagina();
 // ═════════════════════════════════════════════════════════════════
 
+function puedeResponderEnGrupo(sock, grupo) {
+  const principal = ajustesDe(grupo).principal;
+  if (!principal || !sock.user || !sock.user.id) return true;
+  return sock.user.id.split(":")[0].split("@")[0] === String(principal);
+}
+
 function enlazarEventos(sock, esSub) {
   enlazarSalidaAfk(sock, () => (config.prefixes && config.prefixes.length) ? config.prefixes : [config.prefix || "."]);
 
   sock.ev.on("group-participants.update", async (update) => {
     cacheGrupos.delete(update.id);
+    if (!puedeResponderEnGrupo(sock, update.id)) return;
     try {
       await manejarCambioParticipantes(sock, update);
     } catch (e) {
@@ -268,6 +275,10 @@ function enlazarEventos(sock, esSub) {
 
   async function procesarMensaje(m, msg) {
     if (!msg.message) return;
+    if (msg.key.remoteJid.endsWith("@g.us") && !puedeResponderEnGrupo(sock, msg.key.remoteJid)) {
+      const crudo = msg.message.conversation || (msg.message.extendedTextMessage && msg.message.extendedTextMessage.text) || "";
+      if (esSub || !/^\s*\S{0,3}setprimary\b/i.test(crudo)) return;
+    }
     if (!(await reclamarMensaje(msg, esSub))) return;
     if (m.type === "notify" && !msg.key.fromMe) PAG.msgsHoy++;
 
@@ -463,5 +474,4 @@ async function startBot() {
 
 startBot();
 
-
-  
+                              
