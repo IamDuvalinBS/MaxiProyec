@@ -233,6 +233,10 @@ export function esSubbot(sock) {
   return false;
 }
 
+export function socketsSubbots() {
+  return [...subs.entries()].filter(([, e]) => e.sock).map(([numero, e]) => ({ numero, sock: e.sock }));
+}
+
 export function estadoSubbots() {
   return {
     limite: MAX_SUBS,
