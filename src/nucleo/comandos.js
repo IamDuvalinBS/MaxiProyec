@@ -6,6 +6,7 @@ import { soloAdminsActivo, botApagado } from "../grupos/estado.js";
 import { esAdminOOwner, ajustarMenciones } from "../grupos/nucleo.js";
 import { enviarConCache, reenviarCacheado, guardarRelay, registrarMedio, claveDeDescarga } from "../../motores/cache-medios.js";
 import { contarComando } from "../../motores/estadisticas.js";
+import { antesDeComando, despuesDeComando, COMANDOS_LOGROS } from "../economia/logros.js";
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const CARPETAS_EXCLUIDAS = new Set([
@@ -74,6 +75,7 @@ connectDB();
 const cargaLista = cargarComandos();
 
 const COMANDOS_PROTEGIDOS = new Set([".banear", ".desbanear", ".baneos"]);
+const CATEGORIAS_LOGROS = new Set(["Economía", "Trabajos", "Apuestas", "Negocios"]);
 
 const historialComandos = new Map();
 
@@ -122,9 +124,14 @@ export async function manejarComando(sock, from, sender, text, msg) {
   if (claveDescarga && (await reenviarCacheado(sock, from, claveDescarga, msg))) return true;
   if (claveDescarga) capturados = [];
 
+  const categoriaActual = categoriaDeComando.get(comando);
+  const cuentaLogros = CATEGORIAS_LOGROS.has(categoriaActual) && !COMANDOS_LOGROS.has(comando);
+  const antesLogros = cuentaLogros ? antesDeComando(sender) : null;
+
   try {
     await handler({ sock, from, sender, cleanText, msg, reply });
     contarComando(principalDeComando.get(comando));
+    if (antesLogros) await despuesDeComando({ antes: antesLogros, sender, comando, categoria: categoriaActual, reply });
     if (claveDescarga && capturados.length) guardarRelay(claveDescarga, capturados);
   } catch (e) {
     console.log(`❌ ERROR ejecutando el comando "${comando}": ${e.stack || e.message}`);
