@@ -1,5 +1,4 @@
 import axios from "axios";
-import * as cheerio from "cheerio";
 import { config } from "../../../motores/db.js";
 import { tarjetaUso, tarjetaAviso } from "../../descargas/tarjetas.js";
 
@@ -7,7 +6,6 @@ const ESPERA_MS = 8000;
 const CACHE_MS = 5 * 60 * 1000;
 const CACHE_MAX = 60;
 const MAX_RESULTADOS = 6;
-const UA = "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Mobile Safari/537.36";
 
 const esperas = new Map();
 const cache = new Map();
@@ -179,51 +177,31 @@ function respuestaInstantanea(q) {
   return respuestaCalculo(q) || respuestaHora(q) || respuestaFecha(q);
 }
 
-// --- BÚSQUEDA WEB (REPARADA) ---
+// --- BÚSQUEDA WEB (WIKIPEDIA API) ---
 async function buscarWeb(consulta) {
   const clave = consulta.toLowerCase();
   const previo = cache.get(clave);
   if (previo && Date.now() - previo.t < CACHE_MS) return previo.datos;
 
   try {
-    const { data: html } = await axios.post(
-      "https://html.duckduckgo.com/html/",
-      new URLSearchParams({ q: consulta, kl: "mx-es" }).toString(),
-      {
-        timeout: 15000,
-        headers: { "User-Agent": UA, "Content-Type": "application/x-www-form-urlencoded", "Accept-Language": "es-MX,es;q=0.9" },
-        responseType: "text",
-      }
-    );
-
-    const $ = cheerio.load(html);
-    const resultados = [];
-    const vistos = new Set();
-
-    $(".result").each((_, el) => {
-      if (resultados.length >= MAX_RESULTADOS) return;
-      const $el = $(el);
-      if ($el.hasClass("result--ad")) return;
-
-      const $a = $el.find(".result__a");
-      const href = $a.attr("href");
-      const titulo = $a.text().trim();
-      const snippet = $el.find(".result__snippet").text().trim();
-
-      if (!href || !titulo) return;
-
-      let url = href;
-      if (url.includes("uddg=")) {
-        try { url = decodeURIComponent(url.split("uddg=")[1].split("&")[0]); } catch { return; }
-      }
-      if (!/^https?:\/\//i.test(url) || vistos.has(url)) return;
-      vistos.add(url);
-
-      let dominio = url;
-      try { dominio = new URL(url).hostname.replace(/^www\./, ""); } catch {}
-
-      resultados.push({ titulo: recortar(titulo, 90), url, dominio, texto: recortar(snippet, 230) });
+    const { data } = await axios.get("https://es.wikipedia.org/w/api.php", {
+      params: {
+        action: "query",
+        list: "search",
+        srsearch: consulta,
+        format: "json",
+        srlimit: MAX_RESULTADOS
+      },
+      timeout: 10000
     });
+
+    const resultados = (data.query?.search || []).map(item => ({
+      titulo: item.title,
+      url: `https://es.wikipedia.org/wiki/${encodeURIComponent(item.title)}`,
+      dominio: "es.wikipedia.org",
+      // Quitamos las etiquetas HTML (<span class="searchmatch">) que devuelve Wikipedia
+      texto: recortar(item.snippet.replace(/<[^>]+>/g, ""), 230)
+    }));
 
     if (cache.size >= CACHE_MAX) cache.delete(cache.keys().next().value);
     cache.set(clave, { t: Date.now(), datos: resultados });
@@ -248,43 +226,48 @@ function urlGoogle(consulta) {
   return "https://www.google.com/search?q=" + encodeURIComponent(consulta);
 }
 
-// --- CSS CON EL ESTILO DE MISPOKEMON.JS ---
+// --- DISEÑO GOOGLE CLEAN ---
 const CSS = `
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-html{background:#d4e8ff;overflow-x:hidden}
-body{background:#d4e8ff;color:#1c2540;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:13px;padding:12px;overflow-x:hidden;overscroll-behavior:none}
-small{color:#62708f;font-size:11px}
-.cab{display:flex;align-items:center;gap:10px;margin-bottom:10px}
-.ball{width:38px;height:38px;flex:none;border-radius:50%;border:3px solid #1c2540;background:linear-gradient(#ee4455 0 45%,#1c2540 45% 55%,#fff 55%);position:relative}
-.ball:after{content:"";position:absolute;left:50%;top:50%;width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:50%;background:#fff;border:3px solid #1c2540}
-.tit{flex:1;min-width:0}
-.tit b{display:block;font-size:18px;line-height:1.15;overflow-wrap:anywhere}
-.q{display:flex;align-items:center;gap:8px;background:#fff;border-radius:20px;padding:12px 16px;font-size:14px;font-weight:700;box-shadow:0 2px 6px rgba(28,37,64,.12);margin-bottom:10px}
-.q span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.chips{display:flex;gap:6px;margin-bottom:12px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+html{background:#f8f9fa;overflow-x:hidden}
+body{background:#f8f9fa;color:#202124;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:13px;padding:12px;overflow-x:hidden;overscroll-behavior:none}
+small{color:#5f6368;font-size:11px}
+.cab{display:flex;align-items:center;gap:8px;margin-bottom:14px;justify-content:center}
+.logo{font-size:22px;font-weight:800;letter-spacing:-0.5px}
+.logo span:nth-child(1){color:#4285F4}
+.logo span:nth-child(2){color:#EA4335}
+.logo span:nth-child(3){color:#FBBC05}
+.logo span:nth-child(4){color:#4285F4}
+.logo span:nth-child(5){color:#34A853}
+.logo span:nth-child(6){color:#EA4335}
+.logo span:nth-child(7){color:#4285F4}
+.logo span:nth-child(8){color:#EA4335}
+.q{display:flex;align-items:center;gap:10px;background:#fff;border-radius:24px;padding:12px 18px;font-size:14px;box-shadow:0 1px 6px rgba(32,33,36,.15);margin-bottom:12px;border:1px solid #dadce0}
+.q span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500}
+.chips{display:flex;gap:8px;margin-bottom:16px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px;justify-content:center}
 .chips::-webkit-scrollbar{display:none}
-.chip{flex:none;font-size:11px;font-weight:700;padding:4px 12px;border-radius:20px;background:#fff;color:#1c2540;border:2px solid transparent;box-shadow:0 2px 6px rgba(28,37,64,.12)}
-.chip.on{background:#1c2540;color:#fff}
-.ans{background:#fff;border-radius:20px;padding:20px;box-shadow:0 4px 16px rgba(28,37,64,.15);margin-bottom:12px;text-align:center}
-.ans small{display:block;font-size:10px;letter-spacing:1.5px;color:#62708f;margin-bottom:8px;font-weight:700}
-.big{font-size:36px;font-weight:800;line-height:1.1;word-break:break-word;color:#1c2540}
-.det{margin-top:6px;font-size:13px;color:#62708f;font-weight:600}
-.lug{margin-top:10px;display:inline-block;padding:4px 12px;border-radius:20px;background:#eef5ff;font-size:11px;color:#62708f;font-weight:700}
-.res{display:flex;flex-direction:column;gap:8px}
-.sec{font-size:10px;letter-spacing:1.5px;color:#62708f;font-weight:700;margin:4px 4px 0}
-.r{display:block;padding:14px;border-radius:16px;background:#fff;box-shadow:0 2px 6px rgba(28,37,64,.12);text-decoration:none;color:inherit}
-.r:active{background:#f0f6ff}
-.d{font-size:11px;color:#2fa36b;font-weight:700;margin-bottom:3px}
-.t{font-size:15px;font-weight:800;color:#3b82f6;line-height:1.25}
-.x{font-size:12.5px;color:#4a5878;margin-top:5px;line-height:1.4}
-table{width:100%;border-collapse:collapse;margin-bottom:10px;border-radius:16px;overflow:hidden;font-size:13px;box-shadow:0 2px 6px rgba(28,37,64,.12)}
-th{background:#eef5ff;color:#62708f;font-size:10px;letter-spacing:1px;text-align:left;padding:10px 12px;font-weight:700}
-td{background:#fff;padding:10px 12px;border-top:1px solid #eef5ff}
-td b{color:#c2410c}
-.go{display:block;margin-top:12px;padding:15px;border-radius:20px;background:#3b82f6;color:#fff;text-align:center;text-decoration:none;font-weight:800;font-size:14px;box-shadow:0 4px 12px rgba(59,130,246,.3)}
-.go:active{transform:scale(.98)}
-.none{padding:24px;text-align:center;color:#62708f;font-size:14px;font-weight:600;background:#fff;border-radius:20px;box-shadow:0 4px 16px rgba(28,37,64,.15)}
-.foot{display:flex;align-items:center;justify-content:center;gap:6px;padding:16px 0 8px;font-size:11px;color:#62708f;font-weight:600}
+.chip{flex:none;font-size:11px;font-weight:600;padding:6px 14px;border-radius:20px;background:#fff;color:#5f6368;border:1px solid #dadce0;transition:all .2s}
+.chip.on{background:#e8f0fe;color:#1967d2;border-color:#e8f0fe}
+.ans{background:#fff;border-radius:16px;padding:24px;box-shadow:0 1px 6px rgba(32,33,36,.1);margin-bottom:14px;text-align:center;border:1px solid #dadce0}
+.ans small{display:block;font-size:10px;letter-spacing:1.5px;color:#5f6368;margin-bottom:8px;font-weight:600}
+.big{font-size:38px;font-weight:700;line-height:1.1;word-break:break-word;color:#202124}
+.det{margin-top:8px;font-size:13px;color:#5f6368}
+.lug{margin-top:12px;display:inline-block;padding:5px 14px;border-radius:20px;background:#f1f3f4;font-size:11px;color:#5f6368;font-weight:600}
+.res{display:flex;flex-direction:column;gap:10px}
+.sec{font-size:11px;letter-spacing:1px;color:#5f6368;font-weight:600;margin:6px 4px 2px}
+.r{display:block;padding:14px;border-radius:12px;background:#fff;box-shadow:0 1px 4px rgba(32,33,36,.1);text-decoration:none;color:inherit;border:1px solid #dadce0}
+.r:active{background:#f8f9fa}
+.d{font-size:11px;color:#0d652d;margin-bottom:4px}
+.t{font-size:16px;font-weight:500;color:#1a0dab;line-height:1.3}
+.x{font-size:13px;color:#4d5156;margin-top:6px;line-height:1.5}
+table{width:100%;border-collapse:collapse;margin-bottom:12px;border-radius:12px;overflow:hidden;font-size:13px;box-shadow:0 1px 4px rgba(32,33,36,.1);border:1px solid #dadce0}
+th{background:#f8f9fa;color:#5f6368;font-size:10px;letter-spacing:1px;text-align:left;padding:10px 12px;font-weight:600}
+td{background:#fff;padding:10px 12px;border-top:1px solid #dadce0}
+td b{color:#202124}
+.go{display:block;margin-top:14px;padding:14px;border-radius:12px;background:#1a73e8;color:#fff;text-align:center;text-decoration:none;font-weight:600;font-size:14px;box-shadow:0 1px 3px rgba(26,115,232,.3)}
+.go:active{background:#1765cc}
+.none{padding:24px;text-align:center;color:#5f6368;font-size:14px;background:#fff;border-radius:16px;box-shadow:0 1px 6px rgba(32,33,36,.1);border:1px solid #dadce0}
+.foot{display:flex;align-items:center;justify-content:center;gap:6px;padding:16px 0 8px;font-size:11px;color:#5f6368}
 `;
 
 function bloqueRespuesta(r) {
@@ -305,7 +288,7 @@ function bloqueResultados(resultados, modo) {
     if (filas.length) {
       precios =
         `<div class="sec">TABLA DE PRECIOS</div><table><tr><th>SITIO</th><th>PRECIO</th></tr>` +
-        filas.map((f) => `<tr><td><a style="color:#3b82f6;text-decoration:none;font-weight:700" href="${esc(f.url)}" target="_blank">${esc(f.sitio)}</a></td><td><b>${esc(f.precio)}</b></td></tr>`).join("") +
+        filas.map((f) => `<tr><td><a style="color:#1a0dab;text-decoration:none;font-weight:600" href="${esc(f.url)}" target="_blank">${esc(f.sitio)}</a></td><td><b>${esc(f.precio)}</b></td></tr>`).join("") +
         `</table>`;
     }
   }
@@ -322,12 +305,12 @@ function armarHtml({ consulta, modo, instantanea, resultados, firma }) {
   const cuerpo = instantanea ? bloqueRespuesta(instantanea) : "";
   const lista = resultados ? bloqueResultados(resultados, modo) : "";
   return `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"><style>${CSS}</style></head><body>
-  <div class="cab"><div class="ball"></div><div class="tit"><b>Buscador</b><small>Powered by ${esc(firma)}</small></div></div>
-  <div class="q"><span>🔎</span><span>${esc(consulta)}</span></div>
+  <div class="cab"><div class="logo"><span>B</span><span>u</span><span>s</span><span>c</span><span>a</span><span>d</span><span>o</span><span>r</span></div></div>
+  <div class="q"><span>🔍</span><span>${esc(consulta)}</span></div>
   <div class="chips">${chips}</div>
   ${cuerpo}${lista}
-  <a class="go" href="${esc(urlGoogle(consulta))}" target="_blank" rel="noopener">🔎 Ver en Google</a>
-  <div class="foot"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.7"/><path d="M8 7v4.2M8 4.7v.1" stroke-linecap="round"/></svg>Buscador integrado</div>
+  <a class="go" href="${esc(urlGoogle(consulta))}" target="_blank" rel="noopener">Ver en Google</a>
+  <div class="foot"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.7"/><path d="M8 7v4.2M8 4.7v.1" stroke-linecap="round"/></svg>Powered by ${esc(firma)}</div>
   ${instantanea ? scriptReloj(instantanea) : ""}
   </body></html>`;
 }
