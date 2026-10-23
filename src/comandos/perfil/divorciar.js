@@ -1,4 +1,4 @@
-import { getProfile } from "../../../motores/profile.js";
+import { getProfile, getConyuge } from "../../../motores/profile.js";
 import { saveAccount } from "../../../motores/db.js";
 
 export default {
@@ -6,8 +6,8 @@ export default {
   desc: "Separarte de tu pareja actual",
   category: "Perfil",
   handler: async ({ sender, reply }) => {
+    if (!getConyuge(sender)) return reply({ text: "❌ No estás casado con nadie." });
     const p = getProfile(sender);
-    if (!p.marriedTo) return reply({ text: "❌ No estás casado con nadie." });
 
     const exPareja = getProfile(p.marriedTo);
     const exId = p.marriedTo;
