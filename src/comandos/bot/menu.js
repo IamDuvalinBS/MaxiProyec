@@ -56,6 +56,13 @@ const GRUPOS = [
     alias: ["descargas", "downloads", "download"]
   },
   {
+    titulo: "TOOLS",
+    icono: "🧰",
+    descripcion: "Herramientas útiles: buscador, hora, calculadora y más.",
+    categorias: ["Tools"],
+    alias: ["tools", "tool", "herramientas", "herramienta"]
+  },
+  {
     titulo: "JUEGOS",
     icono: "🎮",
     descripcion: "Juegos para divertirte con tus amigos.",
