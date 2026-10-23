@@ -1,4 +1,5 @@
 import axios from "axios";
+import * as cheerio from "cheerio";
 import { config } from "../../../motores/db.js";
 import { tarjetaUso, tarjetaAviso } from "../../descargas/tarjetas.js";
 
@@ -177,54 +178,115 @@ function respuestaInstantanea(q) {
   return respuestaCalculo(q) || respuestaHora(q) || respuestaFecha(q);
 }
 
-// --- BÚSQUEDA WEB CON SEARXNG (SIN LÍMITES) ---
+// --- BÚSQUEDA WEB CON SCRAPING DE GOOGLE Y RESPALDO DUCKDUCKGO ---
 async function buscarWeb(consulta) {
   const clave = consulta.toLowerCase();
   const previo = cache.get(clave);
   if (previo && Date.now() - previo.t < CACHE_MS) return previo.datos;
 
   let resultados = [];
-  
-  // Instancias públicas de SearXNG (si una falla, salta a la siguiente)
-  const instancias = [
-    "https://searx.be",
-    "https://searx.party",
-    "https://search.sapti.me",
-    "https://searx.tiekoetter.com",
-    "https://search.bus-hit.me",
-    "https://searxng.site"
-  ];
 
-  for (const baseUrl of instancias) {
-    try {
-      const { data } = await axios.get(`${baseUrl}/search`, {
-        params: {
-          q: consulta,
-          format: "json",
-          language: "es",
-          safesearch: 0
-        },
-        timeout: 8000,
-        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" }
+  // 1. INTENTO CON SCRAPING DE GOOGLE
+  try {
+    const { data: html } = await axios.get("https://www.google.com/search", {
+      params: { q: consulta, hl: "es", gl: "mx" },
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept-Language": "es-MX,es;q=0.9,en;q=0.8"
+      },
+      timeout: 10000
+    });
+
+    // Detectar Captcha de Google
+    if (html.includes("captcha") || html.includes("unusual traffic")) {
+      throw new Error("Captcha detectado");
+    }
+
+    const $ = cheerio.load(html);
+    const vistos = new Set();
+
+    $("div.g, div.MjjYud").each((_, el) => {
+      if (resultados.length >= MAX_RESULTADOS) return;
+      const $el = $(el);
+      const $a = $el.find("a").first();
+      const href = $a.attr("href");
+      const titulo = $el.find("h3").text().trim();
+      const snippet = $el.find(".VwiC3b").text().trim();
+
+      if (!href || !titulo || !href.startsWith("http")) return;
+      if (vistos.has(href)) return;
+      vistos.add(href);
+
+      let dominio = "web";
+      try { dominio = new URL(href).hostname.replace(/^www\./, ""); } catch {}
+
+      resultados.push({
+        titulo: recortar(titulo, 90),
+        url: href,
+        dominio: dominio,
+        texto: recortar(snippet, 230)
       });
+    });
 
-      if (data.results && data.results.length > 0) {
-        resultados = data.results.slice(0, MAX_RESULTADOS).map(item => {
-          let dominio = "";
-          try { dominio = new URL(item.url).hostname.replace(/^www\./, ""); } catch { dominio = "web"; }
-          
-          return {
-            titulo: recortar(item.title, 90),
-            url: item.url,
-            dominio: dominio,
-            texto: recortar(item.content || "", 230)
-          };
+    if (resultados.length > 0) console.log(`[GOOGLE] Búsqueda exitosa vía Scraping Google (${resultados.length} res)`);
+  } catch (error) {
+    console.log("[GOOGLE] Scraping Google falló o Captcha. Usando DuckDuckGo...");
+  }
+
+  // 2. RESPALDO: SCRAPING DE DUCKDUCKGO HTML
+  if (resultados.length === 0) {
+    try {
+      const { data: htmlDDG } = await axios.post(
+        "https://html.duckduckgo.com/html/",
+        new URLSearchParams({ q: consulta, kl: "mx-es" }).toString(),
+        {
+          timeout: 12000,
+          headers: {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Accept-Language": "es-MX,es;q=0.9"
+          },
+          responseType: "text"
+        }
+      );
+
+      const $ = cheerio.load(htmlDDG);
+      const vistos = new Set();
+
+      $(".result").each((_, el) => {
+        if (resultados.length >= MAX_RESULTADOS) return;
+        const $el = $(el);
+        if ($el.hasClass("result--ad")) return;
+
+        const $a = $el.find(".result__a");
+        const href = $a.attr("href");
+        const titulo = $a.text().trim();
+        const snippet = $el.find(".result__snippet").text().trim();
+
+        if (!href || !titulo) return;
+
+        let url = href;
+        if (url.includes("uddg=")) {
+          try { url = decodeURIComponent(url.split("uddg=")[1].split("&")[0]); } catch { return; }
+        }
+
+        if (!/^https?:\/\//i.test(url) || vistos.has(url)) return;
+        vistos.add(url);
+
+        let dominio = "web";
+        try { dominio = new URL(url).hostname.replace(/^www\./, ""); } catch {}
+
+        resultados.push({
+          titulo: recortar(titulo, 90),
+          url: url,
+          dominio: dominio,
+          texto: recortar(snippet, 230)
         });
-        console.log(`[GOOGLE] Búsqueda exitosa vía SearXNG (${baseUrl})`);
-        break; // Si obtiene resultados, detiene el bucle
-      }
-    } catch (error) {
-      // Si falla, silenciosamente pasa a la siguiente instancia
+      });
+      if (resultados.length > 0) console.log(`[GOOGLE] Búsqueda exitosa vía DuckDuckGo Respaldo (${resultados.length} res)`);
+    } catch (e) {
+      console.log("[GOOGLE] Falló también el respaldo de DuckDuckGo.");
     }
   }
 
