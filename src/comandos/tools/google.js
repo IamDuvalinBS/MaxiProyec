@@ -177,39 +177,60 @@ function respuestaInstantanea(q) {
   return respuestaCalculo(q) || respuestaHora(q) || respuestaFecha(q);
 }
 
-// --- BÚSQUEDA WEB (WIKIPEDIA API) ---
+// --- BÚSQUEDA WEB CON SEARXNG (SIN LÍMITES) ---
 async function buscarWeb(consulta) {
   const clave = consulta.toLowerCase();
   const previo = cache.get(clave);
   if (previo && Date.now() - previo.t < CACHE_MS) return previo.datos;
 
-  try {
-    const { data } = await axios.get("https://es.wikipedia.org/w/api.php", {
-      params: {
-        action: "query",
-        list: "search",
-        srsearch: consulta,
-        format: "json",
-        srlimit: MAX_RESULTADOS
-      },
-      timeout: 10000
-    });
+  let resultados = [];
+  
+  // Instancias públicas de SearXNG (si una falla, salta a la siguiente)
+  const instancias = [
+    "https://searx.be",
+    "https://searx.party",
+    "https://search.sapti.me",
+    "https://searx.tiekoetter.com",
+    "https://search.bus-hit.me",
+    "https://searxng.site"
+  ];
 
-    const resultados = (data.query?.search || []).map(item => ({
-      titulo: item.title,
-      url: `https://es.wikipedia.org/wiki/${encodeURIComponent(item.title)}`,
-      dominio: "es.wikipedia.org",
-      // Quitamos las etiquetas HTML (<span class="searchmatch">) que devuelve Wikipedia
-      texto: recortar(item.snippet.replace(/<[^>]+>/g, ""), 230)
-    }));
+  for (const baseUrl of instancias) {
+    try {
+      const { data } = await axios.get(`${baseUrl}/search`, {
+        params: {
+          q: consulta,
+          format: "json",
+          language: "es",
+          safesearch: 0
+        },
+        timeout: 8000,
+        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" }
+      });
 
-    if (cache.size >= CACHE_MAX) cache.delete(cache.keys().next().value);
-    cache.set(clave, { t: Date.now(), datos: resultados });
-    return resultados;
-  } catch (error) {
-    console.error("[GOOGLE] Error en búsqueda:", error.message);
-    return [];
+      if (data.results && data.results.length > 0) {
+        resultados = data.results.slice(0, MAX_RESULTADOS).map(item => {
+          let dominio = "";
+          try { dominio = new URL(item.url).hostname.replace(/^www\./, ""); } catch { dominio = "web"; }
+          
+          return {
+            titulo: recortar(item.title, 90),
+            url: item.url,
+            dominio: dominio,
+            texto: recortar(item.content || "", 230)
+          };
+        });
+        console.log(`[GOOGLE] Búsqueda exitosa vía SearXNG (${baseUrl})`);
+        break; // Si obtiene resultados, detiene el bucle
+      }
+    } catch (error) {
+      // Si falla, silenciosamente pasa a la siguiente instancia
+    }
   }
+
+  if (cache.size >= CACHE_MAX) cache.delete(cache.keys().next().value);
+  cache.set(clave, { t: Date.now(), datos: resultados });
+  return resultados;
 }
 
 function extraerPrecios(resultados) {
@@ -264,7 +285,7 @@ table{width:100%;border-collapse:collapse;margin-bottom:12px;border-radius:12px;
 th{background:#f8f9fa;color:#5f6368;font-size:10px;letter-spacing:1px;text-align:left;padding:10px 12px;font-weight:600}
 td{background:#fff;padding:10px 12px;border-top:1px solid #dadce0}
 td b{color:#202124}
-.go{display:block;margin-top:14px;padding:14px;border-radius:12px;background:#1a73e8;color:#fff;text-align:center;text-decoration:none;font-weight:600;font-size:14px;box-shadow:0 1px 3px rgba(26,115,232,.3)}
+.go{display:block;margin-top:14px;padding:14px;border-radius:12px;background:#1a73e8;color:#fff;text-align:center;text-decoration:none;font-weight:600;font-size:14px;box-shadow:0 1px 3px rgba(26,115,232,.3);cursor:pointer}
 .go:active{background:#1765cc}
 .none{padding:24px;text-align:center;color:#5f6368;font-size:14px;background:#fff;border-radius:16px;box-shadow:0 1px 6px rgba(32,33,36,.1);border:1px solid #dadce0}
 .foot{display:flex;align-items:center;justify-content:center;gap:6px;padding:16px 0 8px;font-size:11px;color:#5f6368}
@@ -288,12 +309,12 @@ function bloqueResultados(resultados, modo) {
     if (filas.length) {
       precios =
         `<div class="sec">TABLA DE PRECIOS</div><table><tr><th>SITIO</th><th>PRECIO</th></tr>` +
-        filas.map((f) => `<tr><td><a style="color:#1a0dab;text-decoration:none;font-weight:600" href="${esc(f.url)}" target="_blank">${esc(f.sitio)}</a></td><td><b>${esc(f.precio)}</b></td></tr>`).join("") +
+        filas.map((f) => `<tr><td><a style="color:#1a0dab;text-decoration:none;font-weight:600" href="${esc(f.url)}" target="_blank" rel="noopener noreferrer">${esc(f.sitio)}</a></td><td><b>${esc(f.precio)}</b></td></tr>`).join("") +
         `</table>`;
     }
   }
   const tarjetas = resultados
-    .map((r) => `<a class="r" href="${esc(r.url)}" target="_blank" rel="noopener"><div class="d">${esc(r.dominio)}</div><div class="t">${esc(r.titulo)}</div>${r.texto ? `<div class="x">${esc(r.texto)}</div>` : ""}</a>`)
+    .map((r) => `<a class="r" href="${esc(r.url)}" target="_blank" rel="noopener noreferrer"><div class="d">${esc(r.dominio)}</div><div class="t">${esc(r.titulo)}</div>${r.texto ? `<div class="x">${esc(r.texto)}</div>` : ""}</a>`)
     .join("");
   return `${precios}<div class="sec">FUENTES · ${resultados.length}</div><div class="res">${tarjetas}</div>`;
 }
@@ -304,12 +325,15 @@ function armarHtml({ consulta, modo, instantanea, resultados, firma }) {
     .join("");
   const cuerpo = instantanea ? bloqueRespuesta(instantanea) : "";
   const lista = resultados ? bloqueResultados(resultados, modo) : "";
+  
+  const urlG = urlGoogle(consulta);
+  
   return `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"><style>${CSS}</style></head><body>
   <div class="cab"><div class="logo"><span>B</span><span>u</span><span>s</span><span>c</span><span>a</span><span>d</span><span>o</span><span>r</span></div></div>
   <div class="q"><span>🔍</span><span>${esc(consulta)}</span></div>
   <div class="chips">${chips}</div>
   ${cuerpo}${lista}
-  <a class="go" href="${esc(urlGoogle(consulta))}" target="_blank" rel="noopener">Ver en Google</a>
+  <a class="go" href="${esc(urlG)}" target="_blank" rel="noopener noreferrer">Ver en Google</a>
   <div class="foot"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.7"/><path d="M8 7v4.2M8 4.7v.1" stroke-linecap="round"/></svg>Powered by ${esc(firma)}</div>
   ${instantanea ? scriptReloj(instantanea) : ""}
   </body></html>`;
