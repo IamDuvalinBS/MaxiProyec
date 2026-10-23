@@ -1,4 +1,4 @@
-import { getAccount, saveAccount, checkCooldown, addToWallet } from "../../motores/db.js";
+import { getAccount, getAllAccounts, saveAccount, checkCooldown, addToWallet } from "../../motores/db.js";
 import { getProfile, addXp } from "../../motores/profile.js";
 import { initGachaDB } from "../../motores/gacha-db.js";
 import { darTickets } from "../../motores/gacha-tickets.js";
@@ -487,4 +487,33 @@ export async function despuesDeComando({ antes, sender, comando, categoria, repl
   } catch (e) {
     console.log("[logros] " + e.message);
   }
+}
+
+const ESPERAS_POR_EVENTO = { cofres: ["cofre"], dailies: ["daily"], semanales: ["semanal"], trivias: ["trivia"] };
+
+export function recuperarMisionesDiarias() {
+  const ahora = Date.now();
+  const resumen = { cuentas: 0, misiones: 0, revisadas: 0 };
+  for (const [jid, acc] of getAllAccounts()) {
+    const diarias = acc.profile && acc.profile.eco && acc.profile.eco.diarias;
+    const inicio = acc.cooldowns && acc.cooldowns[CLAVE_DIARIAS];
+    if (!diarias || !Array.isArray(diarias.lista) || !inicio || ahora - inicio >= VIDA_DIARIAS_MS) continue;
+    resumen.revisadas++;
+    let cambios = 0;
+    for (const m of diarias.lista) {
+      const def = POOL_POR_ID.get(m.id);
+      if (!def || m.cobrada || m.avance >= 1) continue;
+      const claves = def.evento === "trabajos" ? [...trabajosRegistrados.keys()] : (ESPERAS_POR_EVENTO[def.evento] || []);
+      const huboUso = claves.some((clave) => (acc.cooldowns[clave] || 0) > inicio);
+      if (!huboUso) continue;
+      m.avance = Math.min(m.meta, 1);
+      cambios++;
+    }
+    if (cambios) {
+      saveAccount(jid);
+      resumen.cuentas++;
+      resumen.misiones += cambios;
+    }
+  }
+  return resumen;
 }
