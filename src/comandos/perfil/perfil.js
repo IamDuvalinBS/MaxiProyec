@@ -1,5 +1,5 @@
 import fs from "fs";
-import { getProfile, pfpPath } from "../../../motores/profile.js";
+import { getProfile, getConyuge, pfpPath } from "../../../motores/profile.js";
 import { getAccount } from "../../../motores/db.js";
 import { resumenPerfil } from "../../economia/logros.js";
 import { enviarConBoton } from "../../../motores/botones.js";
@@ -45,10 +45,11 @@ export default {
   handler: async ({ sock, from, sender, msg, reply }) => {
     const mentioned = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid;
     const target = (mentioned && mentioned[0]) || sender;
+    const conyuge = getConyuge(target);
     const p = getProfile(target);
     const acc = getAccount(target);
 
-    const casadoCon = p.marriedTo ? "@" + num(p.marriedTo) : "Nadie";
+    const casadoCon = conyuge ? "@" + num(conyuge) : "Nadie";
     const eco = resumenPerfil(target);
 
     const texto = [
@@ -78,7 +79,7 @@ export default {
     ].join("\n");
 
     const mentions = [target];
-    if (p.marriedTo) mentions.push(p.marriedTo);
+    if (conyuge) mentions.push(conyuge);
 
     const { buffer, tipo } = await obtenerMedia(sock, target);
     const esVideo = tipo === "video" || tipo === "gif";

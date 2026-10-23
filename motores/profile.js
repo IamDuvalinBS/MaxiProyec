@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { getAccount, saveAccount } from "./db.js";
+import { getAccount, saveAccount, getAllAccounts } from "./db.js";
 
 const PERFILES_DIR = "./perfiles";
 if (!fs.existsSync(PERFILES_DIR)) fs.mkdirSync(PERFILES_DIR);
@@ -22,6 +22,23 @@ export function getProfile(sender) {
   }
   if (acc.profile.xp === undefined) acc.profile.xp = 0;
   return acc.profile;
+}
+
+// Devuelve el cónyuge de `jid`. Si su perfil no lo tiene anotado pero el del
+// otro sí apunta a él, lo recupera y repara el perfil (matrimonio de un solo lado).
+export function getConyuge(jid) {
+  const p = getProfile(jid);
+  if (p.marriedTo) return p.marriedTo;
+
+  for (const [otro, acc] of getAllAccounts()) {
+    if (otro !== jid && acc.profile && acc.profile.marriedTo === jid) {
+      p.marriedTo = otro;
+      p.marriedSince = acc.profile.marriedSince || "";
+      saveAccount(jid);
+      return otro;
+    }
+  }
+  return "";
 }
 
 export function addXp(sender, amount) {
