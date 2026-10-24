@@ -19,7 +19,11 @@ const MODOS = {
   videos: "youtube",
   noticias: "noticias",
   noticia: "noticias",
-  news: "noticias"
+  news: "noticias",
+  fotos: "fotos",
+  foto: "fotos",
+  imagenes: "fotos",
+  imagen: "fotos"
 };
 
 function detectarModo(texto) {
@@ -61,14 +65,21 @@ function textoRespaldo({ consulta, instantanea, datos }) {
   return partes.join("\n");
 }
 
-function sinImagenes(datos) {
+function sinImagenes(paquete) {
   const quitar = (v) => ({ ...v, img: "" });
-  return { ...datos, populares: datos.populares.map(quitar), recientes: datos.recientes.map(quitar), ans: datos.ans?.img ? { ...datos.ans, img: "" } : datos.ans };
+  return {
+    ...paquete,
+    populares: paquete.populares.map(quitar),
+    recientes: paquete.recientes.map(quitar),
+    noticias: paquete.noticias.map(quitar),
+    fotos: [],
+    ans: paquete.ans?.img ? { ...paquete.ans, img: "" } : paquete.ans
+  };
 }
 
 export default {
   names: [".google", ".buscar"],
-  desc: "Busca en la web, noticias y YouTube con fuentes. Responde al instante hora, fecha y cálculos. Modos: info, precio, youtube, noticias",
+  desc: "Busca información, noticias, fotos y videos con texto legible dentro del mensaje. Responde hora, fecha y cálculos. Modos: info, precio, youtube, noticias, fotos",
   category: "Tools",
   usage: ".google <búsqueda>",
   handler: async ({ sock, from, sender, msg, cleanText, reply }) => {
@@ -77,8 +88,8 @@ export default {
       return reply({
         text: tarjetaUso({
           comando: ".google <búsqueda>",
-          ejemplo: ".google qué hora es   |   .google precio iphone 15   |   .google youtube música para estudiar   |   .google noticias méxico",
-          nota: "Modos: info, precio, youtube y noticias. También resuelve hora, fecha y operaciones como 25*4+10."
+          ejemplo: ".google fotosíntesis   |   .google noticias méxico   |   .google youtube música para estudiar   |   .google precio iphone 15",
+          nota: "Modos: info, precio, youtube, noticias y fotos. También resuelve hora, fecha y operaciones como 25*4+10."
         })
       });
     }
@@ -100,7 +111,7 @@ export default {
       await sock.sendMessage(from, { react: { text: "🔎", key: msg.key } });
     } catch {}
 
-    let datos = { web: [], noticias: [], populares: [], recientes: [], wiki: null, via: "", precios: [], ms: 0 };
+    let datos = { web: [], noticias: [], populares: [], recientes: [], wiki: null, fotos: [], via: "", precios: [], ms: 0 };
     if (!instantanea) {
       try {
         datos = await buscarTodo(consulta, modo);
@@ -109,10 +120,12 @@ export default {
       }
     }
 
-    let paquete = { q: consulta, modo, firma, ans: instantanea || datos.wiki, ...datos };
+    const { wiki, ...resto } = datos;
+    const paquete = { q: consulta, modo, firma, ans: instantanea || wiki, ...resto };
     let html = "";
     try {
       html = htmlGoogle(paquete);
+      if (Buffer.byteLength(html) > LIMITE_HTML) html = htmlGoogle({ ...paquete, fotos: [] });
       if (Buffer.byteLength(html) > LIMITE_HTML) html = htmlGoogle(sinImagenes(paquete));
       if (typeof sock.sendHtml !== "function") throw new Error("sin sendHtml");
       await sock.sendHtml(from, html, [], undefined, {});
