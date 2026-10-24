@@ -581,11 +581,11 @@ export function leTiene(usuario, charId) {
   return !!propiedad.get(usuario)?.has(Number(charId));
 }
 
-export function reclamar(usuario, personaje) {
+export function reclamar(usuario, personaje, nivel = 1) {
   return enTransaccion(() => {
     if (personaje.categoria === "waifu" && propietarios(personaje.id).length) return "ocupado";
     if (leTiene(usuario, personaje.id)) return "repetido";
-    agregarPropiedad({ usuario, char_id: Number(personaje.id), obtenido: ahora(), nivel: 1, estrellas: 0 });
+    agregarPropiedad({ usuario, char_id: Number(personaje.id), obtenido: ahora(), nivel: Math.max(1, Number(nivel) || 1), estrellas: 0 });
     return "ok";
   });
 }
@@ -819,31 +819,6 @@ export function transferirColeccion(de, a, categoria) {
       valor += p.valor;
     }
     return { transferidos, omitidos, valor };
-  });
-}
-
-export function fusionarUsuarioGacha(origen, destino) {
-  if (!origen || !destino || origen === destino) return false;
-  const props = propiedad.get(origen);
-  const inv = inventario.get(origen);
-  if (!props?.size && !inv?.size) return false;
-  return enTransaccion(() => {
-    for (const [charId, fila] of [...(props || [])]) {
-      const actual = propiedad.get(destino)?.get(charId);
-      if (actual) {
-        actual.nivel = Math.max(actual.nivel || 1, fila.nivel || 1);
-        actual.estrellas = Math.max(actual.estrellas || 0, fila.estrellas || 0);
-        marcar(COL.propiedad, `${destino}|${charId}`);
-      } else {
-        agregarPropiedad({ usuario: destino, char_id: charId, obtenido: fila.obtenido, nivel: fila.nivel, estrellas: fila.estrellas || 0 });
-      }
-      quitarPropiedad(origen, charId);
-    }
-    for (const [item, cantidad] of [...(inv || [])]) {
-      sumarItem(destino, item, cantidad);
-      quitarItem(origen, item);
-    }
-    return true;
   });
 }
 

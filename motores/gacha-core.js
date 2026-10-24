@@ -6,14 +6,16 @@ import crypto from "crypto";
 import { Transform } from "stream";
 import { pipeline } from "stream/promises";
 import {
-  initGachaDB, reclamar, coleccionDe, contarColeccion, personajePorId, propietarios
+  initGachaDB, reclamar, coleccionDe, contarColeccion, personajePorId, propietarios, contarPersonajes
 } from "./gacha-db.js";
 import { tarjeta, fmt } from "../src/economia/formato.js";
-import { moneda } from "../src/economia/temas.js";
+import { moneda, esHalloween } from "../src/economia/temas.js";
+import { createCanvas, loadImage } from "@napi-rs/canvas";
+import { htmlColeccion } from "./gacha-coleccion-html.js";
 import { encabezado } from "../src/economia/estilo.js";
 import { formatTime } from "./ui.js";
 import { renderSnake } from "./gacha-snake.js";
-import { TIENE_NIVELES, estrellasTexto, darFragmentos, FRAGMENTOS_POR_RAREZA } from "./gacha-niveles.js";
+import { TIENE_NIVELES, estrellasTexto, darFragmentos, FRAGMENTOS_POR_RAREZA, nivelAleatorio, statsEfectivas, nivelMaxDe } from "./gacha-niveles.js";
 import { registrarActividad } from "./gacha-misiones.js";
 import { sumarEstadistica } from "./gacha-insignias.js";
 import { elegirConGarantia, registrarTirada, pityDespuesDe } from "./gacha-banner.js";
@@ -22,13 +24,14 @@ import { RAREZA_NOMBRES } from "./gacha-niveles.js";
 import { CAT } from "./gacha-categorias.js";
 import { ticketsDe, sorteoTicket } from "./gacha-tickets.js";
 import {
-  bloqueCabecera, bloquesDePersonaje, repartirBloques, lineasPersonaje, textoStats
+  bloqueCabecera, bloquesDePersonaje, repartirBloques, lineasPersonaje, textoStats, fuenteDe
 } from "./gacha-estilo.js";
 
-export const bloquesDePersonajeParaTicket = (personaje) => bloquesDePersonaje(personaje, 1);
+export const bloquesDePersonajeParaTicket = (personaje, nivel = 1) => bloquesDePersonaje(personaje, nivel);
 import { mensajeReclamo, enviarReclamo } from "./gacha-claim.js";
 import { rutaImagenCacheada, guardarImagenCacheada, hayRelay } from "./cache-medios.js";
 import { T } from "./gacha-tema.js";
+import { revisarMigracion } from "./gacha-migracion.js";
 
 export { tarjeta, fmt, personajePorId, CAT, lineasPersonaje, textoStats };
 
@@ -268,7 +271,7 @@ setInterval(() => {
 }, 10 * 60 * 1000).unref();
 
 export const EXCLUSIVO_MS = 45_000;
-export const VIGENCIA_MS = 3 * 60_000;
+export const VIGENCIA_MS = 90_000;
 
 const pendientes = new Map();
 
@@ -338,7 +341,7 @@ class ErrorDeImagen extends Error {}
 
 export async function enviarPersonaje({ reply, personaje, titulo, lineasExtra = [], mentions = [], permitirSinImagen = true }) {
   const cabecera = bloqueCabecera(personaje.categoria, titulo, lineasExtra);
-  const { principal, resto } = repartirBloques([cabecera, ...bloquesDePersonaje(personaje, 1)]);
+  const { principal, resto } = repartirBloques([cabecera, ...bloquesDePersonaje(personaje, personaje.nivelInicial ?? 1)]);
   const cacheKey = `gacha:${personaje.categoria}:${personaje.img}`;
 
   const enviarResto = async () => {
@@ -416,6 +419,7 @@ function programarPrecarga({ clave, categoria, obtener }) {
 }
 
 export async function hacerRoll({ categoria, obtener, reply, sender, from, cooldownMs, titulo, textoVacio }) {
+  await revisarMigracion({ sender, from, reply }).catch((e) => console.log("[gacha] migración: " + e.message));
   const cat = CAT[categoria];
   const clave = `roll:${categoria}:${sender}`;
   const espera = tomarCooldown(clave, cooldownMs);
@@ -426,8 +430,9 @@ export async function hacerRoll({ categoria, obtener, reply, sender, from, coold
     const INTENTOS = 2;
     for (let intento = 0; intento < INTENTOS; intento++) {
       const previo = intento === 0 ? tomarPrecarga(clave, categoria) : null;
-      const { personaje, via } = await elegirConGarantia({ categoria, sender, obtener, previo });
-      if (!personaje) return reply({ text: textoVacio });
+      const { personaje: base, via } = await elegirConGarantia({ categoria, sender, obtener, previo });
+      if (!base) return reply({ text: textoVacio });
+      const personaje = { ...base, nivelInicial: nivelAleatorio(categoria) };
 
       const duenos = categoria === "waifu" ? propietarios(personaje.id) : [];
       const mentions = [sender];
@@ -436,10 +441,7 @@ export async function hacerRoll({ categoria, obtener, reply, sender, from, coold
         extra.push(T(`Este personaje ya fue reclamado por *${arroba(duenos[0])}*.`, `Este personaje ya fue capturado por *${arroba(duenos[0])}*.`));
         mentions.push(duenos[0]);
       } else {
-        extra.push(
-          T(`Personaje disponible para *${arroba(sender)}*. Tienes *${EXCLUSIVO_MS / 1000}s* para reclamarlo usando *${cat.claimCmd}* o respondiendo a este mensaje.`, `Un personaje salió de la niebla para *${arroba(sender)}*. Tienes *${EXCLUSIVO_MS / 1000}s* para reclamarlo usando *${cat.claimCmd}* o respondiendo a este mensaje.`),
-          T(`Pasado ese tiempo queda libre para todos durante *${VIGENCIA_MS / 60000} min*.`, `Pasado ese tiempo se lo lleva la oscuridad: queda libre para todos durante *${VIGENCIA_MS / 60000} min*.`)
-        );
+        extra.push(T(`Personaje disponible para *${arroba(sender)}*. Tienes *${EXCLUSIVO_MS / 1000}s* para reclamarlo *tú* con *${cat.claimCmd}*`, `Un personaje salió de la niebla para *${arroba(sender)}*. Tienes *${EXCLUSIVO_MS / 1000}s* para reclamarlo *tú* con *${cat.claimCmd}*`));
       }
 
       if (via === "banner") extra.unshift(T("⭐ *Personaje destacado de la semana.*", "🎃 *Personaje destacado de la semana, bendecido por la luna.*"));
@@ -497,7 +499,7 @@ export function crearComandoClaim({ categoria, names, desc }) {
 
       const { pendiente } = r;
       const p = pendiente.personaje;
-      const resultado = reclamar(sender, p);
+      const resultado = reclamar(sender, p, p.nivelInicial ?? 1);
       if (resultado === "ocupado") {
         cerrarPendiente(r.id);
         return reply({ text: T("💨 Otra persona lo reclamó primero.", "💨 Otra alma se lo llevó primero.") });
@@ -519,12 +521,95 @@ export function crearComandoClaim({ categoria, names, desc }) {
   };
 }
 
-export async function mostrarColeccion({ categoria, sender, cleanText, reply }) {
+const miniaturas = new Map();
+
+async function miniaturaDe(c) {
+  const clave = `${c.categoria}:${c.id}`;
+  if (miniaturas.has(clave)) return miniaturas.get(clave);
+  let uri = "";
+  try {
+    const img = await prepararImagen([c.img, ...(c.meta?.alt || [])]);
+    try {
+      const origen = await loadImage(fs.readFileSync(img.ruta));
+      const lado = 96;
+      const lienzo = createCanvas(lado, lado);
+      const ctx = lienzo.getContext("2d");
+      const k = Math.min(lado / origen.width, lado / origen.height);
+      const w = Math.round(origen.width * k);
+      const h = Math.round(origen.height * k);
+      ctx.drawImage(origen, Math.round((lado - w) / 2), Math.round((lado - h) / 2), w, h);
+      uri = "data:image/png;base64," + lienzo.toBuffer("image/png").toString("base64");
+    } finally {
+      img.limpiar();
+    }
+  } catch (e) {
+    console.log(`[gacha] Miniatura omitida (${c.nombre}): ${e.message}`);
+  }
+  if (uri) {
+    if (miniaturas.size > 800) miniaturas.delete(miniaturas.keys().next().value);
+    miniaturas.set(clave, uri);
+  }
+  return uri;
+}
+
+async function enviarColeccionHtml({ sock, from, msg, categoria, sender, pagina, todos, n, total }) {
+  const cat = CAT[categoria];
+  const POR_PARTE = 12;
+  const paginas = Math.ceil(n / POR_PARTE);
+  const p = Math.min(pagina, paginas);
+  const trozo = todos.slice((p - 1) * POR_PARTE, p * POR_PARTE);
+
+  const imagenes = [];
+  for (let i = 0; i < trozo.length; i += 6) {
+    imagenes.push(...await Promise.all(trozo.slice(i, i + 6).map(miniaturaDe)));
+  }
+
+  const conteo = new Map();
+  for (const c of todos) conteo.set(c.rareza, (conteo.get(c.rareza) || 0) + 1);
+  const conNivel = TIENE_NIVELES(categoria);
+
+  const datos = {
+    halloween: esHalloween(),
+    clave: categoria,
+    nombre: msg?.pushName || arroba(sender),
+    n,
+    totalCat: Math.max(n, contarPersonajes(categoria)),
+    valorTxt: monto(total),
+    rarezas: [...conteo].map(([nombre, c]) => ({ n: nombre, c })),
+    pagina: p,
+    paginas,
+    comando: cat.coleccionCmd,
+    firma: "Powered By ItsDuva",
+    items: trozo.map((c, i) => {
+      const item = { id: c.id, nombre: c.nombre, rareza: c.rareza, valorTxt: monto(c.valor), img: imagenes[i], fuente: fuenteDe(c) };
+      if (conNivel) {
+        const st = statsEfectivas(c, c.nivel);
+        Object.assign(item, { nivel: c.nivel, max: nivelMaxDe(categoria, c.estrellas), estrellas: c.estrellas || 0, st: { hp: st.hp, atk: st.atk, def: st.def, spe: st.spe } });
+      }
+      return item;
+    })
+  };
+
+  await sock.sendHtml(from, htmlColeccion(datos), [], msg, {});
+}
+
+export async function mostrarColeccion({ sock, from, msg, categoria, sender, cleanText, reply }) {
+  await revisarMigracion({ sender, from, reply }).catch((e) => console.log("[gacha] migración: " + e.message));
   const cat = CAT[categoria];
   const pagina = Math.max(1, parseInt(cleanText.split(/\s+/)[1], 10) || 1);
   const POR_PAGINA = 15;
   const { n, total } = contarColeccion(sender, categoria);
   const tickets = ticketsDe(sender, categoria);
+
+  if (n && sock && from && typeof sock.sendHtml === "function") {
+    try {
+      const todos = coleccionDe(sender, categoria, 100000, 0);
+      await enviarColeccionHtml({ sock, from, msg, categoria, sender, pagina, todos, n, total });
+      return;
+    } catch (e) {
+      console.log(`[gacha] La colección en HTML falló (${categoria}), se envía en texto: ${e.stack || e.message}`);
+    }
+  }
 
   if (!n) {
     return reply({
