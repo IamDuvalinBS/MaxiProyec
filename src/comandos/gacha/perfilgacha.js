@@ -8,17 +8,34 @@ import { estadistica, insigniasDe, revisarInsignias, AUTOMATICAS } from "../../.
 import { PITY_TIRADAS } from "../../../motores/gacha-config.js";
 import { encabezado } from "../../../src/economia/estilo.js";
 import { T } from "../../../motores/gacha-tema.js";
+import { getProfile } from "../../../motores/profile.js";
+import { htmlPerfilDe } from "../../../motores/perfil-gacha-datos.js";
+import { candidatosDeUsuario, buscarUsuarioConDatos } from "../../../motores/gacha-usuario.js";
 
 export default {
   names: [".perfilgacha", ".gachaperfil", ".micolecciongacha"],
   desc: "Muestra el perfil de coleccionista de una persona: .perfilgacha [@usuario]",
   category: "Gacha",
   usage: ".perfilgacha [@usuario]",
-  handler: async ({ sender, msg, reply }) => {
+  handler: async ({ sock, from, sender, msg, reply }) => {
     await gachaListo;
     const contexto = msg.message?.extendedTextMessage?.contextInfo;
-    const objetivo = contexto?.mentionedJid?.[0] || contexto?.participant || sender;
-    if (objetivo === sender) revisarInsignias(sender);
+    const mencionado = contexto?.mentionedJid?.[0] || contexto?.participant || null;
+    const propio = !mencionado || mencionado === sender;
+    const objetivo = propio
+      ? await buscarUsuarioConDatos(candidatosDeUsuario(sock, msg, sender), (u) => filasUsuario(u).length, "perfilgacha")
+      : mencionado;
+    if (propio) revisarInsignias(objetivo);
+
+    if (typeof sock.sendHtml === "function") {
+      try {
+        const nombre = (propio && msg?.pushName) || getProfile(objetivo).name || objetivo.split("@")[0];
+        await sock.sendHtml(from, await htmlPerfilDe(objetivo, { nombre }), [], undefined, {});
+        return;
+      } catch (e) {
+        console.log("[perfilgacha] ERROR: " + e.stack);
+      }
+    }
 
     const filas = filasUsuario(objetivo);
     const porCategoria = {};
