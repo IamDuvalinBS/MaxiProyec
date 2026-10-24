@@ -147,9 +147,9 @@ export async function obtenerInfoYoutube(link) {
   return resultado;
 }
 
-export async function buscarVideosYoutube(consulta, limite = 10) {
+export async function buscarVideosYoutube(consulta, limite = 10, opciones = {}) {
   const yt = await obtenerCliente();
-  const resultados = await yt.search(consulta, { type: "video" });
+  const resultados = await yt.search(consulta, { type: "video", ...opciones });
   const videos = resultados.videos ?? (resultados.results || []).filter((r) => r.type === "Video");
 
   return videos.slice(0, limite).map((v) => ({
