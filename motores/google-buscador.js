@@ -267,8 +267,10 @@ async function primerNivel(nivel, consulta, etiqueta) {
       }
     })
   );
-  const bueno = salidas.find((s) => s.items.length);
-  return bueno ? { items: bueno.items, via: bueno.p.nombre.replace(/ HTML| Lite/, "") } : null;
+  const con = salidas.filter((x) => x.items.length);
+  if (!con.length) return null;
+  const items = juntar(con.flatMap((x) => x.items), 14);
+  return { items, via: con.map((x) => x.p.nombre.replace(/ HTML| Lite/, "")).join(" + ") };
 }
 
 async function wikiLista(consulta) {
@@ -351,14 +353,27 @@ export function extraerArticulo(html, base, maxChars = 1800) {
   return { img, desc: recortar(desc, 260), cuerpo: bloques };
 }
 
+const paginas = new Map();
+
+async function articuloDe(url, maxChars) {
+  const clave = url + "|" + maxChars;
+  const previo = paginas.get(clave);
+  if (previo && Date.now() - previo.t < CACHE_MS * 2) return previo.art;
+  const { buffer, tipo } = await descargar(url, { ms: 6000 });
+  if (!/html|xml|text/i.test(tipo)) return null;
+  const art = extraerArticulo(textoDe(buffer, tipo), url, maxChars);
+  if (paginas.size >= 60) paginas.delete(paginas.keys().next().value);
+  paginas.set(clave, { t: Date.now(), art });
+  return art;
+}
+
 async function enriquecer(items, { maxChars = 1800, conImagen = false } = {}) {
   await Promise.all(
     items.map(async (it) => {
       if (SIN_TEXTO.test(it.dominio) || SIN_TEXTO.test(dominioDe(it.url))) return;
       try {
-        const { buffer, tipo } = await descargar(it.url);
-        if (!/html|xml|text/i.test(tipo)) return;
-        const art = extraerArticulo(textoDe(buffer, tipo), it.url, maxChars);
+        const art = await articuloDe(it.url, maxChars);
+        if (!art) return;
         if (art.cuerpo.length) it.cuerpo = art.cuerpo;
         if (!it.texto && art.desc) it.texto = art.desc;
         if (conImagen && !it.imgUrl && art.img) it.imgUrl = art.img;
@@ -372,9 +387,10 @@ async function enriquecer(items, { maxChars = 1800, conImagen = false } = {}) {
 async function buscarWeb(consulta) {
   const r = (await primerNivel(WEB_NIVEL_1, consulta, "web")) || (await primerNivel(WEB_NIVEL_2, consulta, "web")) || (await wikiLista(consulta));
   if (!r) return { items: [], via: "" };
-  const elegibles = r.items.filter((it) => !SIN_TEXTO.test(dominioDe(it.url))).slice(0, 3);
+  const ordenados = ordenarPorRelevancia(r.items, consulta, 8);
+  const elegibles = ordenados.filter((it) => !SIN_TEXTO.test(dominioDe(it.url))).slice(0, 3);
   await enriquecer(elegibles, { maxChars: 1800 });
-  return r;
+  return { items: ordenados, via: r.via };
 }
 
 async function buscarNoticias(consulta) {
@@ -398,8 +414,11 @@ async function buscarNoticias(consulta) {
     vistos.add(k);
     lista.push(r);
   }
-  lista.sort((a, b) => b.ts - a.ts);
-  const items = lista.slice(0, 10);
+  const tokensN = tokensClave(consulta);
+  const afines = lista.filter((n) => cobertura(tokensN, n.titulo + " " + n.texto) >= 0.6);
+  const candidatas = tokensN.length && afines.length >= 3 ? afines : lista;
+  candidatas.sort((a, b) => b.ts - a.ts);
+  const items = candidatas.slice(0, 10);
   if (!items.length) return { items: [], via: "" };
 
   await enriquecer(items.filter((n) => !SIN_TEXTO.test(dominioDe(n.url))).slice(0, 4), { maxChars: 2200, conImagen: true });
@@ -422,12 +441,76 @@ async function imagenDatos(url, max = 400000) {
   }
 }
 
-const PALABRAS_VACIAS = new Set(["que", "quien", "quienes", "como", "cual", "cuales", "donde", "cuando", "es", "son", "fue", "del", "los", "las", "una", "uno", "por", "para", "con", "sobre", "the"]);
+const PALABRAS_VACIAS = new Set([
+  "que", "quien", "quienes", "como", "cual", "cuales", "donde", "cuando", "cuanto", "cuantos", "es", "son", "fue", "era", "del", "los", "las", "una", "uno", "por", "para", "con", "sobre",
+  "the", "and", "para", "sus", "mas", "muy", "tiene", "hay", "hacer", "puedo", "dime", "busca", "buscar", "quiero", "saber", "algo", "este", "esta", "esto", "ese", "esa"
+]);
+
+const PALABRAS_INTENCION = new Set(["sale", "salir", "salio", "estreno", "estrena", "estrenara", "fecha", "lanzamiento", "lanza", "dia", "hora", "significa", "significado"]);
+
+const raiz = (w) => w.replace(/s$/, "");
+
+export function tokensClave(consulta) {
+  const t = limpiar(consulta).split(" ").filter((w) => w.length > 2 && !PALABRAS_VACIAS.has(w) && !PALABRAS_INTENCION.has(w));
+  return [...new Set(t)];
+}
+
+export function cobertura(tokens, texto) {
+  if (!tokens.length) return 0;
+  const t = limpiar(texto).split(" ").filter((w) => w.length > 1);
+  const hay = tokens.filter((a) =>
+    t.some((b) => {
+      if (a === b) return true;
+      const x = raiz(a);
+      const y = raiz(b);
+      return x.length >= 4 && y.length >= 4 && (x === y || x.startsWith(y) || y.startsWith(x));
+    })
+  );
+  return hay.length / tokens.length;
+}
 
 function relevante(consulta, titulo) {
-  const q = limpiar(consulta).split(" ").filter((w) => w.length > 2 && !PALABRAS_VACIAS.has(w));
-  const t = limpiar(titulo).split(" ").filter((w) => w.length > 2);
-  return q.some((a) => t.some((b) => a === b || (a.length > 4 && b.length > 4 && (a.startsWith(b) || b.startsWith(a)))));
+  return cobertura(tokensClave(consulta), titulo) >= 0.6;
+}
+
+export function ordenarPorRelevancia(items, consulta, max = 8) {
+  const tokens = tokensClave(consulta);
+  if (!tokens.length) return items.slice(0, max);
+  const medidos = items.map((it, i) => ({
+    it,
+    i,
+    cov: Math.max(cobertura(tokens, it.titulo + " " + it.texto), cobertura(tokens, it.titulo + " " + dominioDe(it.url) + " " + it.url.replace(/[-_/.]/g, " ")))
+  }));
+  const buenos = medidos.filter((m) => m.cov >= 0.6);
+  const base = buenos.length >= 3 ? buenos : medidos;
+  base.sort((a, b) => (b.cov >= 0.6) - (a.cov >= 0.6) || b.cov - a.cov || a.i - b.i);
+  return base.slice(0, max).map((m) => m.it);
+}
+
+const FECHA_RE = /\b(20\d\d|enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre|estren\w*|lanz\w*|disponible)\b/i;
+
+export function mejorRespuesta(consulta, { noticias = [], web = [], wiki = null } = {}) {
+  const tokens = tokensClave(consulta);
+  if (!tokens.length) return null;
+  const piden = /(^|\s)(cuando|fecha|estreno|sale|salida|lanzamiento)(\s|$)/.test(limpiar(consulta));
+  const minimo = tokens.length <= 2 ? 1 : 0.6;
+  const candidatos = [];
+  const agregar = (bloques, fuente, url, base) => {
+    for (const b of bloques) {
+      if (!b || b.startsWith("## ") || b.length < 60) continue;
+      const cov = cobertura(tokens, b);
+      if (cov < minimo) continue;
+      candidatos.push({ texto: recortar(b, 520), fuente, url, score: cov * 3 + base + (piden && FECHA_RE.test(b) ? 1.5 : 0) });
+    }
+  };
+  noticias.slice(0, 6).forEach((n, i) => agregar([n.texto, ...(n.cuerpo || [])], n.dominio, n.url, 0.6 - i * 0.05));
+  web.slice(0, 5).forEach((w, i) => agregar([w.texto, ...(w.cuerpo || [])], w.dominio, w.url, 0.3 - i * 0.03));
+  if (wiki) agregar([wiki.texto, ...(wiki.largo || [])], "Wikipedia", wiki.url, 0.4);
+  candidatos.sort((a, b) => b.score - a.score);
+  const mejor = candidatos[0];
+  if (!mejor || mejor.score < 1.8) return null;
+  const otra = candidatos.find((c) => c.fuente !== mejor.fuente && c.score >= 1.8);
+  return [mejor, otra].filter(Boolean).map(({ texto, fuente, url }) => ({ texto, fuente, url }));
 }
 
 const CABECERA_WIKI = { "User-Agent": "MaxiProyec/1.0 (bot de WhatsApp)", "Api-User-Agent": "MaxiProyec/1.0" };
@@ -499,10 +582,11 @@ async function imagenesWiki(titulo, consulta, max = 8, idioma = "es") {
 
 async function buscarWikipedia(consulta, { maxFotos = 8 } = {}) {
   let wiki = null;
-  if (!/\d/.test(consulta) && consulta.split(/\s+/).length <= 7) {
+  const entidad = tokensClave(consulta).join(" ");
+  if (entidad && consulta.split(/\s+/).length <= 8) {
     try {
       const { data } = await axios.get("https://es.wikipedia.org/w/api.php", {
-        params: { action: "query", list: "search", srsearch: consulta, srlimit: 1, format: "json", utf8: 1 },
+        params: { action: "query", list: "search", srsearch: entidad, srlimit: 1, format: "json", utf8: 1 },
         timeout: 8000,
         headers: CABECERA_WIKI
       });
@@ -620,7 +704,9 @@ export async function buscarTodo(consulta, modo) {
     quiere.wiki ? conTiempo(buscarWikipedia(consulta, { maxFotos: modo === "fotos" ? 14 : 8 }), 26000, SIN_WIKI) : SIN_WIKI
   ]);
 
+  const respuesta = mejorRespuesta(consulta, { noticias: noticias.items, web: web.items, wiki: enciclopedia.wiki });
   const datos = {
+    respuesta,
     web: web.items,
     noticias: noticias.items,
     populares: videos.populares,
