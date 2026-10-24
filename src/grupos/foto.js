@@ -1,24 +1,62 @@
+import fs from "fs";
 import path from "path";
 import { createCanvas, loadImage } from "@napi-rs/canvas";
 import { fileURLToPath } from "url";
 import { limpiarJid } from "./nucleo.js";
 
-const PREDETERMINADA = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../assets/imagenes/perfil-predeterminado.png");
-const ESPERA_MS = 6000;
+const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+const CANDIDATAS = [
+  "assets/imagenes/perfil-predeterminado.png",
+  "assets/perfil-predeterminado.png",
+  "photo/perfil-predeterminado.png"
+].map((ruta) => path.join(RAIZ, ruta));
+const ESPERA_MS = 8000;
+const DESCARGA_MS = 6000;
+const MAXIMO_CACHE = 300;
 const LADO_FOTO_GRUPO = 640;
+const fotosGuardadas = new Map();
+let predeterminada;
 
-async function buscarFoto(sock, ids) {
-  for (const id of ids) {
-    for (const tipo of ["image", "preview"]) {
-      try {
-        const url = await sock.profilePictureUrl(id, tipo);
-        if (url) return url;
-      } catch (e) {
-        continue;
-      }
+function fotoPredeterminada() {
+  if (predeterminada !== undefined) return predeterminada;
+  const ruta = CANDIDATAS.find((r) => fs.existsSync(r));
+  predeterminada = ruta ? fs.readFileSync(ruta) : null;
+  if (!predeterminada) console.log("Falta la foto predeterminada. Búscala en: " + CANDIDATAS.join(" | "));
+  return predeterminada;
+}
+
+async function urlDe(sock, id) {
+  for (const tipo of ["image", "preview"]) {
+    try {
+      const url = await sock.profilePictureUrl(id, tipo);
+      if (url) return url;
+    } catch (e) {
+      continue;
     }
   }
-  return null;
+  throw new Error("sin foto");
+}
+
+async function buscarFoto(sock, ids) {
+  try {
+    return await Promise.any(ids.map((id) => urlDe(sock, id)));
+  } catch (e) {
+    return null;
+  }
+}
+
+async function descargar(url) {
+  const respuesta = await fetch(url, { signal: AbortSignal.timeout(DESCARGA_MS) });
+  if (!respuesta.ok) throw new Error("HTTP " + respuesta.status);
+  return Buffer.from(await respuesta.arrayBuffer());
+}
+
+function recordar(ids, buffer) {
+  for (const id of ids) {
+    fotosGuardadas.delete(id);
+    fotosGuardadas.set(id, buffer);
+  }
+  while (fotosGuardadas.size > MAXIMO_CACHE) fotosGuardadas.delete(fotosGuardadas.keys().next().value);
 }
 
 export async function imagenDePerfil(sock, ids) {
@@ -29,24 +67,42 @@ export async function imagenDePerfil(sock, ids) {
   });
   const url = await Promise.race([buscarFoto(sock, unicos), limite]);
   clearTimeout(temporizador);
-  return url || PREDETERMINADA;
+
+  if (url) {
+    try {
+      const buffer = await descargar(url);
+      recordar(unicos, buffer);
+      return buffer;
+    } catch (e) {
+      return url;
+    }
+  }
+
+  const guardada = unicos.map((id) => fotosGuardadas.get(id)).find(Boolean);
+  return guardada || fotoPredeterminada();
 }
 
+const comoImagen = (imagen) => (Buffer.isBuffer(imagen) ? imagen : { url: imagen });
+
 export async function enviarConImagen(sock, grupo, imagen, texto, mentions) {
-  try {
-    await sock.sendMessage(grupo, { image: { url: imagen }, caption: texto, mentions });
-  } catch (e) {
-    console.log(`No se pudo enviar la imagen de perfil: ${e.message}`);
-    if (imagen !== PREDETERMINADA) {
-      try {
-        await sock.sendMessage(grupo, { image: { url: PREDETERMINADA }, caption: texto, mentions });
-        return;
-      } catch (error) {
-        console.log(`No se pudo enviar la imagen predeterminada: ${error.message}`);
-      }
+  if (imagen) {
+    try {
+      await sock.sendMessage(grupo, { image: comoImagen(imagen), caption: texto, mentions });
+      return;
+    } catch (e) {
+      console.log(`No se pudo enviar la imagen de perfil: ${e.message}`);
     }
-    await sock.sendMessage(grupo, { text: texto, mentions });
   }
+  const respaldo = fotoPredeterminada();
+  if (respaldo && imagen !== respaldo) {
+    try {
+      await sock.sendMessage(grupo, { image: respaldo, caption: texto, mentions });
+      return;
+    } catch (error) {
+      console.log(`No se pudo enviar la imagen predeterminada: ${error.message}`);
+    }
+  }
+  await sock.sendMessage(grupo, { text: texto, mentions });
 }
 
 async function prepararFotoGrupo(buffer) {

@@ -22,7 +22,7 @@ export async function eliminarEnlace(sock, msg, grupo, sender, texto) {
   if (codigoPropio(grupo) === coincidencia[1]) return false;
 
   try {
-    await sock.sendMessage(grupo, { delete: msg.key });
+    await sock.groupParticipantsUpdate(grupo, [autor?.id || sender], "remove");
   } catch (e) {
     return false;
   }
@@ -30,7 +30,7 @@ export async function eliminarEnlace(sock, msg, grupo, sender, texto) {
   const ahora = Date.now();
   if (ahora - (ultimoAviso.get(grupo) || 0) > ESPERA_AVISO_MS) {
     ultimoAviso.set(grupo, ahora);
-    const texto = aviso("🛡️", "ANTILINK", `Se eliminó un enlace de otro grupo enviado por @${numeroDe(sender)}.\n\n> Los enlaces externos no están permitidos en este grupo.`);
+    const texto = aviso("🛡️", "ANTILINK", `@${numeroDe(sender)} fue eliminado del grupo por enviar un enlace de invitación a otro grupo.\n\n> Los enlaces externos no están permitidos en este grupo.`);
     await sock.sendMessage(grupo, { text: texto, mentions: [sender] }).catch(() => {});
   }
   return true;
