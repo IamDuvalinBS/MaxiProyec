@@ -70,29 +70,25 @@ export function bloqueCuriosidades(p) {
   if (["cod", "dragon", "clash"].includes(p.categoria) && p.meta?.tipo) lineas.push(`🎯 *Tipo* ›› ${p.meta.tipo}`);
   if (p.categoria === "clash" && p.meta?.elixir != null) lineas.push(`💧 *Elixir* ›› ${p.meta.elixir}`);
   lineas.push(`✨ *Rareza* ›› ${p.rareza}`);
+  lineas.push(`${estilo(ESTILOS).valor} ›› ${monto(p.valor)}`);
   return lineas.join("\n");
 }
 
 export function bloqueEstadisticas(p, nivel = 1) {
   if (!TIENE_NIVELES(p.categoria)) return "";
-  const cat = CAT[p.categoria];
   const s = statsEfectivas(p, nivel);
   const E = estilo(ESTILOS);
+  const calidad = s.hp + s.atk + s.def + s.spe;
   return [
     encabezado("🛡️", E.tituloEstadisticas),
     "",
-    `> ${E.descEstadisticas(cat)}`,
+    `> Estadísticas de *${p.nombre}* *(${p.rareza})*`,
     "",
-    `📊 *Nivel* ›› ${nivel}/${NIVEL_MAX[p.categoria]}`,
+    `📊 *Nivel* ›› ${nivel}/${NIVEL_MAX[p.categoria]}  • ${E.salud} ›› ${s.hp}`,
     "",
-    `${E.salud} ›› ${dos(s.hp)}`,
-    "> La vida de tu personaje.",
-    `${E.dano} ›› ${dos(s.atk)}`,
-    "> El daño que inflige al atacar.",
-    `${E.defensa} ›› ${dos(s.def)}`,
-    "> Reduce el daño que recibe del rival.",
-    `${E.velocidad} ›› ${dos(s.spe)}`,
-    "> Define quién ataca primero en un combate PVP: ataca primero quien tenga la velocidad más alta."
+    `${E.dano} ›› ${s.atk}  • ${E.defensa} ›› ${s.def}`,
+    "",
+    `${E.velocidad} ›› ${s.spe}  • 📚 *Calidad* ›› ${fmt(calidad)}`
   ].join("\n");
 }
 
@@ -102,7 +98,7 @@ export function bloqueValor(p) {
 }
 
 export function bloquesDePersonaje(p, nivel = 1) {
-  return [bloqueCuriosidades(p), bloqueEstadisticas(p, nivel), bloqueValor(p)].filter(Boolean);
+  return [bloqueCuriosidades(p), bloqueEstadisticas(p, nivel)].filter(Boolean);
 }
 
 export function repartirBloques(bloques, limite = LIMITE_CAPTION) {

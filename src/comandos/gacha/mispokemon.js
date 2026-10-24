@@ -5,6 +5,7 @@ import { statsEfectivas, nivelMaxDe } from "../../../motores/gacha-niveles.js";
 import { tipoEs } from "../../../motores/gacha-pokemon.js";
 import { getProfile } from "../../../motores/profile.js";
 import { htmlPokedex } from "../../../motores/pokedex-html.js";
+import { esHalloween } from "../../economia/temas.js";
 
 const TOTAL_DEX = 1025;
 const POR_PARTE = 36;
@@ -85,6 +86,7 @@ export default {
   handler: async ({ sock, from, sender, msg, cleanText, reply }) => {
     await gachaListo;
     const usuario = await buscarUsuario(candidatosDeUsuario(sock, msg, sender));
+    if (esHalloween()) return mostrarColeccion({ sock, from, msg, categoria: "pokemon", sender: usuario, cleanText, reply });
     const todos = coleccionDe(usuario, "pokemon", 100000, 0);
     if (!todos.length || typeof sock.sendHtml !== "function") {
       return respaldoTexto({ usuario, cleanText, reply });
@@ -126,7 +128,7 @@ export default {
         })
       };
 
-      await sock.sendHtml(from, htmlPokedex(datos), [], undefined, {});
+      await sock.sendHtml(from, htmlPokedex(datos), [], msg, {});
     } catch (e) {
       console.log("[mispokemon] ERROR: " + e.stack);
       await respaldoTexto({ usuario, cleanText, reply });

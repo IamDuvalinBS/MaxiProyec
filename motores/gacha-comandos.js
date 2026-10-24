@@ -121,7 +121,7 @@ function crearComandoTicketBase({ categoria, names }) {
         T(`> ${arroba(sender)} usó un ticket y obtuvo a *${r.personaje.nombre}*.`, `> ${arroba(sender)} usó un ticket y el más allá le entregó a *${r.personaje.nombre}*.`),
         `> Te quedan ${r.restantes} ${r.restantes === 1 ? "ticket" : "tickets"} de ${cat.plural}.`
       ].join("\n");
-      return reply({ text: [cabecera, ...bloquesDePersonajeParaTicket(r.personaje)].join("\n\n"), mentions: [sender] });
+      return reply({ text: [cabecera, ...bloquesDePersonajeParaTicket(r.personaje, r.nivel)].join("\n\n"), mentions: [sender] });
     }
   };
 }
@@ -180,9 +180,9 @@ function crearComandoColeccionBase({ categoria, names }) {
     desc: `Muestra tus ${cat.unidades} con su nivel`,
     category: "Gacha",
     usage: `${cat.coleccionCmd} [página]`,
-    handler: async ({ sender, cleanText, reply }) => {
+    handler: async ({ sock, from, msg, sender, cleanText, reply }) => {
       await esperarListo();
-      await mostrarColeccion({ categoria, sender, cleanText, reply });
+      await mostrarColeccion({ sock, from, msg, categoria, sender, cleanText, reply });
     }
   };
 }
