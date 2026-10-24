@@ -13,7 +13,7 @@ async function cargarLib() {
   return libCache;
 }
 
-export async function enviarConBoton({ sock, from, msg, texto, footer, foto, video, gif, boton, mentions = [] }) {
+export async function enviarConBoton({ sock, from, msg, texto, footer, foto, video, gif, boton, lista, mentions = [] }) {
   const lib = await cargarLib();
   if (!lib) return false;
 
@@ -39,19 +39,11 @@ export async function enviarConBoton({ sock, from, msg, texto, footer, foto, vid
       }
     }
 
-    const botones = boton
-      ? [
-          boton.copiar
-            ? {
-                name: "cta_copy",
-                buttonParamsJson: JSON.stringify({ display_text: boton.texto, copy_code: boton.copiar })
-              }
-            : {
-                name: "cta_url",
-                buttonParamsJson: JSON.stringify({ display_text: boton.texto, url: boton.url, merchant_url: boton.url })
-              }
-        ]
-      : [];
+    const convertir = (b) =>
+      b.copiar
+        ? { name: "cta_copy", buttonParamsJson: JSON.stringify({ display_text: b.texto, copy_code: b.copiar }) }
+        : { name: "cta_url", buttonParamsJson: JSON.stringify({ display_text: b.texto, url: b.url, merchant_url: b.url }) };
+    const botones = (Array.isArray(lista) && lista.length ? lista : boton ? [boton] : []).map(convertir);
 
     const interactiveMessage = {
       body: { text: texto },
