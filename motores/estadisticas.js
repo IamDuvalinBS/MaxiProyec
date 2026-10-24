@@ -26,7 +26,7 @@ const IGNORADOS = new Set([
   "pollUpdateMessage", "messageContextInfo", "keepInChatMessage", "editedMessage",
   "requestPhoneNumberMessage", "peerDataOperationRequestMessage", "call", "bcallMessage"
 ]);
-const ENVOLTURAS = ["ephemeralMessage", "viewOnceMessage", "viewOnceMessageV2", "viewOnceMessageV2Extension", "documentWithCaptionMessage"];
+const ENVOLTURAS = ["ephemeralMessage", "viewOnceMessage", "viewOnceMessageV2", "viewOnceMessageV2Extension", "documentWithCaptionMessage", "deviceSentMessage"];
 
 // true solo si es un mensaje real escrito/enviado por una persona en un grupo
 // (texto, foto, video, audio, sticker, documento, encuesta, etc.), sin reacciones, ediciones ni mensajes del sistema.
