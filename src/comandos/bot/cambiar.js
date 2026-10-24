@@ -22,7 +22,9 @@ const ANUNCIOS = {
     lineas: [
       "💾 *DATOS::* intactos (mismos saldos y guardados) 🧙‍♀️",
       "⏳ *ESPERAS::* intactas (mismos cooldowns reales) 🕯️",
-      "🪙 *MONEDA::* se muestra como calabazas 🎃"
+      "🪙 *MONEDA::* se muestra como calabazas 🎃",
+      "🕸️ *GACHA::* .misbrawlers, .mispokemon, .perfilgacha e .insignias con diseño de Halloween",
+      "🧟 *INSIGNIAS::* las insignias de temporada (telarañas, brujas, zombis y más) se entregan con .insigniaowner"
     ],
     tip: "Usa *.normalizar* para volver todo al estilo normal. 👻"
   }

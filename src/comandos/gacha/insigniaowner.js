@@ -1,6 +1,6 @@
 import { ownerGacha } from "../../../motores/gacha-owners.js";
 import { gachaListo, arroba } from "../../../motores/gacha-core.js";
-import { crearExclusiva, borrarExclusiva, listaExclusivas, definicion, otorgar, retirar } from "../../../motores/gacha-insignias.js";
+import { crearExclusiva, borrarExclusiva, listaExclusivas, definicion, otorgar, retirar, TEMPORADA, TEMPORADA_HALLOWEEN } from "../../../motores/gacha-insignias.js";
 import { encabezado } from "../../../src/economia/estilo.js";
 
 const AYUDA = [
@@ -13,6 +13,7 @@ const AYUDA = [
   "✦ *Quitar* ›› .insigniaowner quitar <id> @usuario",
   "✧ *Borrar* ›› .insigniaowner borrar <id>",
   "✪ *Lista* ›› .insigniaowner lista",
+  "🎃 *Temporada* ›› .insigniaowner temporada",
   "",
   "> El id solo admite letras minúsculas, números y guion bajo (de 2 a 20 caracteres)."
 ].join("\n");
@@ -30,11 +31,23 @@ export default {
     const contexto = msg.message?.extendedTextMessage?.contextInfo;
     const destino = contexto?.mentionedJid?.[0] || contexto?.participant || null;
 
+    if (accion === "temporada") {
+      return reply({
+        text: [
+          encabezado("🎃", `TEMPORADA ${TEMPORADA_HALLOWEEN.toUpperCase()}`),
+          "",
+          "> Insignias súper exclusivas ya incluidas. Se entregan con *.insigniaowner dar <id> @usuario*.",
+          "",
+          ...TEMPORADA.map((i) => `${i.emoji} *${i.id}* ›› ${i.nombre}`)
+        ].join("\n")
+      });
+    }
+
     if (accion === "lista") {
       const lista = listaExclusivas();
       if (!lista.length) return reply({ text: "📭 Todavía no hay insignias exclusivas creadas." });
       return reply({
-        text: [encabezado("💠", "EXCLUSIVAS CREADAS"), "", ...lista.map((i) => `${i.emoji} *${i.id}* ›› ${i.nombre} · ${i.desc}`)].join("\n")
+        text: [encabezado("💠", "EXCLUSIVAS"), "", ...lista.map((i) => `${i.emoji} *${i.id}* ›› ${i.nombre}${i.temporada ? " 🎃" : ""} · ${i.desc}`)].join("\n")
       });
     }
 
@@ -65,6 +78,7 @@ export default {
 
     if (accion === "borrar") {
       const id = (resto.split(/\s+/)[0] || "").toLowerCase();
+      if (TEMPORADA.some((i) => i.id === id)) return reply({ text: "❌ Las insignias de temporada vienen incluidas y no se pueden borrar. Usa *quitar* para retirarlas de una persona." });
       if (!(await borrarExclusiva(id))) return reply({ text: `❌ No existe una insignia exclusiva con el id *${id || "?"}*.` });
       return reply({ text: `✅ Se borró la insignia *${id}*. Quienes la tenían dejarán de verla.` });
     }
