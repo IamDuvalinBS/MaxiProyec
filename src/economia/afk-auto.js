@@ -1,5 +1,6 @@
 import { tieneAfk, desactivarAfk, textoSalidaAfk } from "./afk.js";
 import { botApagado } from "../grupos/estado.js";
+import { pnRapido } from "../nucleo/identidad.js";
 
 // Claves que WhatsApp mete en el mensaje pero que NO son actividad del usuario.
 // Ojo: senderKeyDistributionMessage y messageContextInfo suelen venir PRIMERO en el objeto,
@@ -56,7 +57,7 @@ async function revisarMensaje(sock, msg, prefijos) {
   if (!esEstado && from.endsWith("@broadcast")) return;
   if (from.endsWith("@newsletter")) return;
 
-  const sender = esEstado ? msg.key.participant : (msg.key.participant || from);
+  const sender = pnRapido(esEstado ? msg.key.participant : (msg.key.participant || from), msg.key);
   if (!sender || !tieneAfk(sender)) return;
 
   if (esComandoAfk(textoDe(msg.message), prefijos)) return; // .afk se encarga solo
