@@ -27,6 +27,7 @@ import { antilinkActivo, botApagado, ajustesDe } from "./src/grupos/estado.js";
 import { eliminarEnlace } from "./src/grupos/enlaces.js";
 import { olvidarMetadatos } from "./src/grupos/nucleo.js";
 import { recordarNombre } from "./motores/profile.js";
+import { normalizarMensaje, aprenderTodosLosGrupos } from "./src/nucleo/identidad.js";
 import { iniciarChatPagina } from "./src/nucleo/chatpagina.js";
 import { pasesParaPagina, pasesReclamados, alReclamarPase } from "./motores/gacha-pases.js";
 
@@ -283,9 +284,13 @@ function enlazarEventos(sock, esSub) {
     if (m.type === "notify" && !msg.key.fromMe) PAG.msgsHoy++;
 
     const from = msg.key.remoteJid;
-    const sender = msg.key.fromMe
-      ? sock.user.id.split(":")[0] + "@s.whatsapp.net"
-      : (msg.key.participant || msg.key.remoteJid);
+    const sender = await normalizarMensaje(
+      sock,
+      msg,
+      msg.key.fromMe
+        ? sock.user.id.split(":")[0] + "@s.whatsapp.net"
+        : (msg.key.participant || msg.key.remoteJid)
+    );
 
     if (!msg.key.fromMe && m.type === "notify" && msg.pushName) recordarNombre(sender, msg.pushName);
 
@@ -464,6 +469,7 @@ async function startBot() {
         iniciarSubbots((subSock) => enlazarEventos(subSock, true)).catch((e) => console.log("Subbots: " + e.message));
       }
       PAG.sock = sock; PAG.enLinea = true; contarGrupos(); subirEstado();
+      setTimeout(() => aprenderTodosLosGrupos(sock), 15000);
     }
   });
 

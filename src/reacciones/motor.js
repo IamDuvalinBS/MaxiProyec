@@ -4,6 +4,9 @@ import os from "os";
 import path from "path";
 import { Readable } from "stream";
 import { pipeline } from "stream/promises";
++import { DATOS } from "./datos.js";
++
++const elegir = (lista) => lista[Math.floor(Math.random() * lista.length)];
 
 const HEADERS = { "User-Agent": "MaxiProyecBot/1.0 (WhatsApp bot, contacto en GitHub IamDuvalinBS)" };
 
@@ -64,9 +67,11 @@ export function reactionCommand({ apiAction, fraseConOtro, fraseSolo }) {
 
     const nombreDe = "@" + sender.split("@")[0];
     const nombrePara = "@" + target.split("@")[0];
-    const caption = esASiMismo ? `${nombreDe} ${fraseSolo}` : `${nombreDe} ${fraseConOtro} ${nombrePara}`;
-    const mentions = esASiMismo ? [sender] : [sender, target];
-
+    -    const caption = esASiMismo ? `${nombreDe} ${fraseSolo}` : `${nombreDe} ${fraseConOtro} ${nombrePara}`;
++    const datos = DATOS[apiAction];
++    const [conOtro, solo] = datos ? elegir(datos.frases) : [fraseConOtro, fraseSolo];
++    const diseno = datos ? " " + elegir(datos.disenos) : "";
++    const caption = esASiMismo ? `${nombreDe} ${solo}${diseno}` : `${nombreDe} ${conOtro} ${nombrePara}.${diseno}`;
     await sock.sendMessage(from, { video: buffer, mimetype: "video/mp4", gifPlayback: true, caption, mentions }, { quoted: msg });
   };
 }
