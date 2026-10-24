@@ -53,8 +53,8 @@ function resolverEnlace(href) {
 }
 
 function atributo(etiqueta, nombre) {
-  const m = new RegExp(nombre + "\\s*=\\s*[\"']([^\"']*)[\"']", "i").exec(etiqueta);
-  return m ? m[1] : "";
+  const m = new RegExp(nombre + "\\s*=\\s*(?:\"([^\"]*)\"|'([^']*)')", "i").exec(etiqueta);
+  return m ? (m[1] ?? m[2] ?? "") : "";
 }
 
 function desenvolverBing(href) {
@@ -155,9 +155,22 @@ export function tiempoRelativo(ts) {
   return new Date(ts).toLocaleDateString("es-MX", { day: "numeric", month: "short", year: "numeric" });
 }
 
+function urlDeGoogleNoticias(url) {
+  try {
+    const u = new URL(url);
+    if (u.hostname !== "news.google.com") return url;
+    const id = u.pathname.split("/").pop();
+    const crudo = Buffer.from(id.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("latin1");
+    const m = /https?:\/\/[\x21-\x7e]+/.exec(crudo);
+    return m ? m[0] : url;
+  } catch {
+    return url;
+  }
+}
+
 export function analizarRssNoticias(xml) {
   const lista = itemsRss(xml).map((it) => {
-    let url = textoXml(campoRss(it, "link"));
+    let url = urlDeGoogleNoticias(textoXml(campoRss(it, "link")));
     const real = /bing\.com\/news\/apiclick[^\s]*[?&]url=([^&]+)/.exec(url);
     if (real) url = decodeURIComponent(real[1]);
     if (!/^https?:\/\//i.test(url)) return null;
@@ -167,12 +180,21 @@ export function analizarRssNoticias(xml) {
     let texto = textoXml(campoRss(it, "description"));
     if (!texto || texto.includes(titulo.slice(0, 28))) texto = "";
     const ts = Date.parse(campoRss(it, "pubDate")) || 0;
-    return { titulo: recortar(titulo, 130), url, dominio: fuente, texto: recortar(texto, 200), ts, hace: tiempoRelativo(ts), nuevo: ts > 0 && Date.now() - ts < 6 * 3600 * 1000 };
+    const imgUrl = textoXml(campoRss(it, "News:Image"));
+    return {
+      titulo: recortar(titulo, 130),
+      url,
+      dominio: fuente,
+      texto: recortar(texto, 220),
+      ts,
+      hace: tiempoRelativo(ts),
+      nuevo: ts > 0 && Date.now() - ts < 6 * 3600 * 1000,
+      imgUrl: /^https?:\/\//i.test(imgUrl) ? imgUrl : ""
+    };
   });
   return lista
     .filter(Boolean)
-    .sort((a, b) => b.ts - a.ts)
-    .slice(0, 10);
+    .sort((a, b) => b.ts - a.ts);
 }
 
 const UNIDADES = {
@@ -269,14 +291,125 @@ async function wikiLista(consulta) {
   return null;
 }
 
+const SIN_TEXTO = /(^|\.)(youtube\.com|youtu\.be|facebook\.com|instagram\.com|tiktok\.com|twitter\.com|x\.com|pinterest\.[a-z.]+|reddit\.com|news\.google\.com|bing\.com)$/;
+
+async function descargar(url, { max = 1500000, ms = 7000 } = {}) {
+  const r = await axios.get(url, {
+    responseType: "arraybuffer",
+    timeout: ms,
+    maxContentLength: max,
+    maxRedirects: 4,
+    headers: { "User-Agent": UA, "Accept-Language": "es-MX,es;q=0.9,en;q=0.5", Accept: "text/html,application/xhtml+xml,*/*;q=0.8" }
+  });
+  return { buffer: Buffer.from(r.data), tipo: String(r.headers["content-type"] || "") };
+}
+
+function textoDe(buffer, tipo) {
+  let charset = /charset=([\w-]+)/i.exec(tipo)?.[1];
+  if (!charset) charset = /<meta[^>]+charset=["']?([\w-]+)/i.exec(buffer.subarray(0, 4096).toString("latin1"))?.[1];
+  try {
+    return new TextDecoder((charset || "utf-8").toLowerCase()).decode(buffer);
+  } catch {
+    return buffer.toString("utf8");
+  }
+}
+
+const BASURA = /cookies?|suscr[ií]b|newsletter|derechos reservados|aviso de privacidad|pol[ií]tica de|inicia sesi[oó]n|javascript|compartir en|publicidad|todos los derechos|copyright|©|whatsapp|telegram/i;
+
+export function extraerArticulo(html, base, maxChars = 1800) {
+  const sinComentarios = String(html).replace(/<!--[\s\S]*?-->/g, "");
+  const metaImg = (sinComentarios.match(/<meta\b[^>]*(?:og:image|twitter:image)[^>]*>/gi) || []).map((t) => atributo(t, "content")).find(Boolean);
+  const metaDesc = (sinComentarios.match(/<meta\b[^>]*(?:og:description|name=["']description["'])[^>]*>/i) || [])[0];
+  let img = "";
+  try {
+    img = metaImg ? new URL(decodificar(metaImg), base).href : "";
+  } catch {
+    img = "";
+  }
+  const desc = metaDesc ? decodificar(atributo(metaDesc, "content")) : "";
+  const limpio = sinComentarios.replace(/<(script|style|noscript|svg|nav|header|footer|aside|form|iframe|figure|button|select)\b[\s\S]*?<\/\1>/gi, " ");
+  const cont = (/<article\b[\s\S]*?<\/article>/i.exec(limpio) || /<main\b[\s\S]*?<\/main>/i.exec(limpio) || [limpio])[0];
+  const bloques = [];
+  const vistos = new Set();
+  let total = 0;
+  const re = /<(p|h2|h3|li)\b[^>]*>([\s\S]*?)<\/\1>/gi;
+  let m;
+  while ((m = re.exec(cont)) && total < maxChars) {
+    const t = decodificar(m[2]);
+    const tag = m[1].toLowerCase();
+    if (tag === "h2" || tag === "h3") {
+      if (t.length >= 4 && t.length <= 90 && !BASURA.test(t)) bloques.push("## " + t);
+      continue;
+    }
+    if (t.length < (tag === "li" ? 50 : 70) || BASURA.test(t) || vistos.has(t)) continue;
+    vistos.add(t);
+    const corto = recortar(t, 700);
+    bloques.push(corto);
+    total += corto.length;
+  }
+  while (bloques.length && bloques[bloques.length - 1].startsWith("## ")) bloques.pop();
+  return { img, desc: recortar(desc, 260), cuerpo: bloques };
+}
+
+async function enriquecer(items, { maxChars = 1800, conImagen = false } = {}) {
+  await Promise.all(
+    items.map(async (it) => {
+      if (SIN_TEXTO.test(it.dominio) || SIN_TEXTO.test(dominioDe(it.url))) return;
+      try {
+        const { buffer, tipo } = await descargar(it.url);
+        if (!/html|xml|text/i.test(tipo)) return;
+        const art = extraerArticulo(textoDe(buffer, tipo), it.url, maxChars);
+        if (art.cuerpo.length) it.cuerpo = art.cuerpo;
+        if (!it.texto && art.desc) it.texto = art.desc;
+        if (conImagen && !it.imgUrl && art.img) it.imgUrl = art.img;
+      } catch (e) {
+        console.log(`[GOOGLE] página ${dominioDe(it.url)}: ${e.message}`);
+      }
+    })
+  );
+}
+
 async function buscarWeb(consulta) {
   const r = (await primerNivel(WEB_NIVEL_1, consulta, "web")) || (await primerNivel(WEB_NIVEL_2, consulta, "web")) || (await wikiLista(consulta));
-  return r || { items: [], via: "" };
+  if (!r) return { items: [], via: "" };
+  const elegibles = r.items.filter((it) => !SIN_TEXTO.test(dominioDe(it.url))).slice(0, 3);
+  await enriquecer(elegibles, { maxChars: 1800 });
+  return r;
 }
 
 async function buscarNoticias(consulta) {
-  const r = await primerNivel(NOTICIAS, consulta, "noticias");
-  return r || { items: [], via: "" };
+  const salidas = await Promise.all(
+    NOTICIAS.map(async (p) => {
+      try {
+        const items = await p.buscar(consulta);
+        console.log(`[GOOGLE] noticias · ${p.nombre}: ${items.length} resultados`);
+        return { p, items };
+      } catch (e) {
+        console.log(`[GOOGLE] noticias · ${p.nombre} falló: ${e.message}`);
+        return { p, items: [] };
+      }
+    })
+  );
+  const vistos = new Set();
+  const lista = [];
+  for (const r of salidas.flatMap((x) => x.items)) {
+    const k = limpiar(r.titulo).slice(0, 40);
+    if (vistos.has(k)) continue;
+    vistos.add(k);
+    lista.push(r);
+  }
+  lista.sort((a, b) => b.ts - a.ts);
+  const items = lista.slice(0, 10);
+  if (!items.length) return { items: [], via: "" };
+
+  await enriquecer(items.filter((n) => !SIN_TEXTO.test(dominioDe(n.url))).slice(0, 4), { maxChars: 2200, conImagen: true });
+  await Promise.all(
+    items.slice(0, 5).map(async (n) => {
+      if (n.imgUrl) n.img = await imagenDatos(n.imgUrl, 120000);
+    })
+  );
+  items.forEach((n) => delete n.imgUrl);
+  return { items, via: salidas.filter((x) => x.items.length).map((x) => x.p.nombre.replace(" Noticias", "")).join(" + ") };
 }
 
 async function imagenDatos(url, max = 400000) {
@@ -297,31 +430,113 @@ function relevante(consulta, titulo) {
   return q.some((a) => t.some((b) => a === b || (a.length > 4 && b.length > 4 && (a.startsWith(b) || b.startsWith(a)))));
 }
 
-async function buscarWikipedia(consulta) {
-  if (/\d/.test(consulta) || consulta.split(/\s+/).length > 7) return null;
-  try {
-    const cab = { "User-Agent": "MaxiProyec/1.0 (bot de WhatsApp)", "Api-User-Agent": "MaxiProyec/1.0" };
-    const { data } = await axios.get("https://es.wikipedia.org/w/api.php", {
-      params: { action: "query", list: "search", srsearch: consulta, srlimit: 1, format: "json", utf8: 1 },
-      timeout: 8000,
-      headers: cab
-    });
-    const golpe = data?.query?.search?.[0];
-    if (!golpe || !relevante(consulta, golpe.title)) return null;
-    const r = await axios.get("https://es.wikipedia.org/api/rest_v1/page/summary/" + enc(golpe.title.replace(/ /g, "_")), { timeout: 8000, headers: cab });
-    const d = r.data;
-    if (!d?.extract || d.type === "disambiguation") return null;
-    return {
-      tipo: "wiki",
-      titulo: d.title,
-      texto: recortar(d.extract, 520),
-      url: d.content_urls?.desktop?.page || "",
-      img: d.thumbnail?.source ? await imagenDatos(d.thumbnail.source) : ""
-    };
-  } catch (e) {
-    console.log("[GOOGLE] Wikipedia falló: " + e.message);
-    return null;
+const CABECERA_WIKI = { "User-Agent": "MaxiProyec/1.0 (bot de WhatsApp)", "Api-User-Agent": "MaxiProyec/1.0" };
+
+const SECCIONES_FINALES = /^(véase también|referencias|enlaces externos|notas|bibliografía|notas y referencias|fuentes|galería|further reading|references|external links|see also)$/i;
+
+export function formatearWiki(texto, maxChars = 4200) {
+  const bloques = [];
+  let total = 0;
+  for (const linea of String(texto || "").split("\n")) {
+    const t = linea.trim();
+    if (!t) continue;
+    const h = /^=+\s*(.+?)\s*=+$/.exec(t);
+    if (h) {
+      if (SECCIONES_FINALES.test(h[1])) break;
+      bloques.push("## " + h[1]);
+      continue;
+    }
+    if (t.length < 40) continue;
+    const corto = recortar(t, 900);
+    bloques.push(corto);
+    total += corto.length;
+    if (total >= maxChars) break;
   }
+  while (bloques.length && bloques[bloques.length - 1].startsWith("## ")) bloques.pop();
+  return bloques;
+}
+
+const ARCHIVO_BASURA = /(logo|icon|flag|bandera|escudo|wikimedia|commons-|symbol|ambox|edit-|pictogram|question|folder|portal|stub|disambig|nuvola|crystal|oojs|increase|decrease|steady|loudspeaker|wiktionary|wikiquote|wikisource)/i;
+
+async function imagenesWiki(titulo, consulta, max = 8, idioma = "es") {
+  const encontrados = [];
+  const agregar = (data, exigirRelevancia) => {
+    for (const pag of Object.values(data?.query?.pages || {})) {
+      const info = pag.imageinfo?.[0];
+      if (!info?.thumburl || !/^image\/(jpeg|png)$/.test(info.mime || "")) continue;
+      const nombre = String(pag.title || "").replace(/^(File|Archivo):/i, "").replace(/\.[a-z]+$/i, "").replace(/_/g, " ");
+      if (ARCHIVO_BASURA.test(nombre) || (info.width && info.width < 200)) continue;
+      if (exigirRelevancia && !relevante(consulta, nombre)) continue;
+      encontrados.push({ url: info.thumburl, titulo: recortar(nombre, 70), pagina: info.descriptionurl || "" });
+    }
+  };
+  const base = { action: "query", prop: "imageinfo", iiprop: "url|mime|size", iiurlwidth: 360, format: "json", redirects: 1 };
+  try {
+    if (titulo) {
+      const { data } = await axios.get(`https://${idioma}.wikipedia.org/w/api.php`, { params: { ...base, generator: "images", titles: titulo, gimlimit: 20 }, timeout: 8000, headers: CABECERA_WIKI });
+      agregar(data, false);
+    }
+  } catch (e) {
+    console.log("[GOOGLE] imágenes de Wikipedia fallaron: " + e.message);
+  }
+  if (encontrados.length < max) {
+    try {
+      const { data } = await axios.get("https://commons.wikimedia.org/w/api.php", {
+        params: { ...base, generator: "search", gsrsearch: consulta, gsrnamespace: 6, gsrlimit: 10 },
+        timeout: 8000,
+        headers: CABECERA_WIKI
+      });
+      agregar(data, true);
+    } catch (e) {
+      console.log("[GOOGLE] imágenes de Commons fallaron: " + e.message);
+    }
+  }
+  const vistos = new Set();
+  const unicos = encontrados.filter((f) => !vistos.has(f.url) && vistos.add(f.url)).slice(0, max);
+  const listas = await Promise.all(unicos.map(async (f) => ({ img: await imagenDatos(f.url, 90000), titulo: f.titulo, url: f.pagina || f.url })));
+  return listas.filter((f) => f.img);
+}
+
+async function buscarWikipedia(consulta, { maxFotos = 8 } = {}) {
+  let wiki = null;
+  if (!/\d/.test(consulta) && consulta.split(/\s+/).length <= 7) {
+    try {
+      const { data } = await axios.get("https://es.wikipedia.org/w/api.php", {
+        params: { action: "query", list: "search", srsearch: consulta, srlimit: 1, format: "json", utf8: 1 },
+        timeout: 8000,
+        headers: CABECERA_WIKI
+      });
+      const golpe = data?.query?.search?.[0];
+      if (golpe && relevante(consulta, golpe.title)) {
+        const [resumen, completo] = await Promise.all([
+          axios.get("https://es.wikipedia.org/api/rest_v1/page/summary/" + enc(golpe.title.replace(/ /g, "_")), { timeout: 8000, headers: CABECERA_WIKI }),
+          axios
+            .get("https://es.wikipedia.org/w/api.php", {
+              params: { action: "query", prop: "extracts", explaintext: 1, exsectionformat: "wiki", titles: golpe.title, redirects: 1, format: "json", utf8: 1 },
+              timeout: 9000,
+              headers: CABECERA_WIKI
+            })
+            .catch(() => null)
+        ]);
+        const d = resumen.data;
+        if (d?.extract && d.type !== "disambiguation") {
+          const pagina = Object.values(completo?.data?.query?.pages || {})[0];
+          wiki = {
+            tipo: "wiki",
+            titulo: d.title,
+            texto: recortar(d.extract, 360),
+            largo: formatearWiki(pagina?.extract || d.extract),
+            url: d.content_urls?.desktop?.page || "",
+            img: d.thumbnail?.source ? await imagenDatos(d.thumbnail.source) : ""
+          };
+        }
+      }
+    } catch (e) {
+      console.log("[GOOGLE] Wikipedia falló: " + e.message);
+    }
+  }
+  const fotos = await imagenesWiki(wiki?.titulo || null, consulta, maxFotos);
+  return { wiki, fotos };
 }
 
 async function videosDe(consulta, limite, opciones) {
@@ -333,6 +548,7 @@ async function videosDe(consulta, limite, opciones) {
       .map((v) => {
         const f = traducirFecha(v.fecha);
         return {
+          id: /v=([\w-]{11})/.exec(v.url)?.[1] || "",
           titulo: recortar(v.titulo, 110),
           url: v.url,
           canal: v.canal,
@@ -391,15 +607,17 @@ export async function buscarTodo(consulta, modo) {
     web: modo === "info" || modo === "precio",
     noticias: modo === "info" || modo === "noticias",
     videos: modo === "info" || modo === "youtube",
-    wiki: modo === "info"
+    wiki: modo === "info" || modo === "fotos"
   };
   const consultaWeb = modo === "precio" ? (/precio|costo|cuesta/i.test(consulta) ? consulta + " comprar" : consulta + " precio comprar") : consulta;
+  const SIN_VIDEOS = { populares: [], recientes: [] };
+  const SIN_WIKI = { wiki: null, fotos: [] };
 
-  const [web, noticias, videos, wiki] = await Promise.all([
-    quiere.web ? conTiempo(buscarWeb(consultaWeb), 22000, VACIO_LISTA) : VACIO_LISTA,
-    quiere.noticias ? conTiempo(buscarNoticias(consulta), 14000, VACIO_LISTA) : VACIO_LISTA,
-    quiere.videos ? conTiempo(buscarVideos(consulta, modo === "youtube" ? 6 : 4), 25000, { populares: [], recientes: [] }) : { populares: [], recientes: [] },
-    quiere.wiki ? conTiempo(buscarWikipedia(consulta), 14000, null) : null
+  const [web, noticias, videos, enciclopedia] = await Promise.all([
+    quiere.web ? conTiempo(buscarWeb(consultaWeb), 30000, VACIO_LISTA) : VACIO_LISTA,
+    quiere.noticias ? conTiempo(buscarNoticias(consulta), 28000, VACIO_LISTA) : VACIO_LISTA,
+    quiere.videos ? conTiempo(buscarVideos(consulta, modo === "youtube" ? 6 : 4), 25000, SIN_VIDEOS) : SIN_VIDEOS,
+    quiere.wiki ? conTiempo(buscarWikipedia(consulta, { maxFotos: modo === "fotos" ? 14 : 8 }), 26000, SIN_WIKI) : SIN_WIKI
   ]);
 
   const datos = {
@@ -407,8 +625,9 @@ export async function buscarTodo(consulta, modo) {
     noticias: noticias.items,
     populares: videos.populares,
     recientes: videos.recientes,
-    wiki,
-    via: modo === "youtube" ? "YouTube" : modo === "noticias" ? noticias.via : web.via || noticias.via || (wiki ? "Wikipedia" : ""),
+    wiki: enciclopedia.wiki,
+    fotos: enciclopedia.fotos,
+    via: modo === "youtube" ? "YouTube" : modo === "noticias" ? noticias.via : web.via || noticias.via || (enciclopedia.wiki ? "Wikipedia" : ""),
     precios: modo === "precio" ? extraerPrecios(web.items) : [],
     ms: Date.now() - t0
   };
