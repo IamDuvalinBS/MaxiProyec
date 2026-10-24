@@ -1,5 +1,5 @@
 import { isOwner } from "../../../motores/owner.js";
-import { quitarSubbot } from "../../subbots/gestor.js";
+import { quitarSubbot, canonico, mismoNumero, soloDigitos } from "../../subbots/gestor.js";
 
 export default {
   names: [".stopsub", ".delsub"],
@@ -7,12 +7,13 @@ export default {
   desc: "Elimina tu subbot y cierra su sesión",
   category: "Subbots",
   handler: async ({ sender, cleanText, reply }) => {
-    const argumento = (cleanText.split(/\s+/)[1] || "").replace(/\D/g, "");
-    const propio = sender.endsWith("@s.whatsapp.net") ? sender.split("@")[0].split(":")[0] : null;
+    const resto = cleanText.replace(/^\S+\s*/, "");
+    const argumento = soloDigitos(resto) ? canonico(resto) : "";
+    const propio = sender.endsWith("@s.whatsapp.net") ? canonico(sender) : null;
     const numero = isOwner(sender) && argumento ? argumento : propio || argumento;
 
-    if (!numero) return reply({ text: "⚙️ Uso: *.stopsub <tu número con código de país>*" });
-    if (propio && argumento && argumento !== propio && !isOwner(sender)) {
+    if (!numero) return reply({ text: "⚙️ Uso: *.stopsub <tu número>*" });
+    if (propio && argumento && !mismoNumero(argumento, propio) && !isOwner(sender)) {
       return reply({ text: "⚠️ Solo puedes eliminar tu propio subbot." });
     }
 

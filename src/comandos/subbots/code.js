@@ -1,5 +1,5 @@
-import { checkCooldown } from "../../../motores/db.js";
-import { solicitarCodigo, esSubbot } from "../../subbots/gestor.js";
+import { checkCooldown, getAccount, saveAccount } from "../../../motores/db.js";
+import { solicitarCodigo, esSubbot, canonico, mismoNumero, esNumeroValido, soloDigitos } from "../../subbots/gestor.js";
 
 const ESPERA_MS = 2 * 60 * 1000;
 
@@ -17,14 +17,17 @@ export default {
   handler: async ({ sock, from, sender, cleanText, msg, reply }) => {
     if (esSubbot(sock)) return reply({ text: "⚠️ Este comando solo puede utilizarse desde el bot principal." });
 
-    const argumento = (cleanText.split(/\s+/)[1] || "").replace(/\D/g, "");
-    const propio = sender.endsWith("@s.whatsapp.net") ? sender.split("@")[0].split(":")[0] : null;
+    // Acepta "+52 1 55 1234 5678", "(55) 1234-5678", 5215512345678, 525512345678, etc.
+    const argumento = canonico(cleanText.replace(/^\S+\s*/, ""));
+    // Con el sistema nuevo de WhatsApp (LID / usuarios) el remitente puede no traer número: en ese caso se pide.
+    const propio = sender.endsWith("@s.whatsapp.net") ? canonico(sender) : null;
     const numero = propio || argumento;
 
-    if (!numero || numero.length < 8 || numero.length > 15) {
-      return reply({ text: "⚙️ Uso: *.code <tu número con código de país>*\nEjemplo: *.code 5215512345678*" });
+    if (!numero || !esNumeroValido(numero)) {
+      const sinNumero = sender.endsWith("@lid") ? "\n\nℹ️ Tu cuenta usa el sistema nuevo de WhatsApp y no puedo ver tu número automáticamente, escríbelo tú." : "";
+      return reply({ text: "⚙️ Uso: *.code <tu número>*\nEjemplos: *.code 5512345678*, *.code 525512345678* o *.code 5215512345678*" + sinNumero });
     }
-    if (propio && argumento && argumento !== propio) {
+    if (propio && soloDigitos(cleanText.replace(/^\S+\s*/, "")) && !mismoNumero(argumento, propio)) {
       return reply({ text: "⚠️ Solo puedes vincular tu propio número." });
     }
 
@@ -32,18 +35,23 @@ export default {
     if (espera > 0) {
       return reply({ text: `⏳ Espera ${Math.ceil(espera / 1000)} segundos antes de solicitar otro código.` });
     }
+    const liberarEspera = () => {   // si falla, no se castiga con 2 minutos de espera
+      try { getAccount(sender).cooldowns.code = 0; saveAccount(sender); } catch {}
+    };
 
     let pedido;
     try {
       pedido = await solicitarCodigo(numero, sender);
     } catch (e) {
-      return reply({ text: ERRORES[e.message] || "❌ No se pudo generar el código. Intenta nuevamente." });
+      liberarEspera();
+      return reply({ text: ERRORES[e.message] || "❌ No se pudo generar el código. Verifica que el número esté bien escrito e intenta nuevamente." });
     }
 
     let codigo;
     try {
       codigo = await pedido.codigo;
     } catch {
+      liberarEspera();
       return reply({ text: "❌ No se pudo generar el código. Intenta nuevamente." });
     }
 
