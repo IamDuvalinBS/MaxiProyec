@@ -27,6 +27,7 @@ import { antilinkActivo, botApagado, ajustesDe } from "./src/grupos/estado.js";
 import { eliminarEnlace } from "./src/grupos/enlaces.js";
 import { olvidarMetadatos } from "./src/grupos/nucleo.js";
 import { recordarNombre } from "./motores/profile.js";
+import { esMensajeDePersona, contarMensajeGrupo } from "./motores/estadisticas.js";
 import { normalizarMensaje, aprenderTodosLosGrupos } from "./src/nucleo/identidad.js";
 import { iniciarChatPagina } from "./src/nucleo/chatpagina.js";
 import { pasesParaPagina, pasesReclamados, alReclamarPase } from "./motores/gacha-pases.js";
@@ -282,6 +283,7 @@ function enlazarEventos(sock, esSub) {
     }
     if (!(await reclamarMensaje(msg, esSub))) return;
     if (m.type === "notify" && !msg.key.fromMe) PAG.msgsHoy++;
+    if (esMensajeDePersona(msg, m.type)) contarMensajeGrupo(msg.key.remoteJid);
 
     const from = msg.key.remoteJid;
     const sender = await normalizarMensaje(
