@@ -1,12 +1,14 @@
 import axios from "axios";
-import * as cheerio from "cheerio";
 import { config } from "../../../motores/db.js";
 import { tarjetaUso, tarjetaAviso } from "../../descargas/tarjetas.js";
+import { htmlGoogle } from "../../../motores/google-html.js";
+import { enviarConBoton } from "../../../motores/botones.js";
 
 const ESPERA_MS = 8000;
 const CACHE_MS = 5 * 60 * 1000;
 const CACHE_MAX = 60;
 const MAX_RESULTADOS = 6;
+const UA = "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Mobile Safari/537.36";
 
 const esperas = new Map();
 const cache = new Map();
@@ -56,11 +58,7 @@ const ZONAS = {
 
 const ZONA_POR_DEFECTO = ["America/Mexico_City", "Ciudad de México"];
 
-const MODOS = {
-  info: { etiqueta: "Info", emoji: "📖" },
-  precio: { etiqueta: "Precio", emoji: "🏷️" },
-  codigo: { etiqueta: "Código", emoji: "💻" }
-};
+const MODOS = { info: 1, precio: 1, youtube: 1 };
 
 const esc = (s) =>
   String(s ?? "")
@@ -78,7 +76,41 @@ const recortar = (s, n) => {
   return t.length > n ? t.slice(0, n - 1).trimEnd() + "…" : t;
 };
 
-// --- LÓGICA DE INSTANTÁNEAS (Hora, Fecha, Cálculo) ---
+function decodificar(s) {
+  return String(s || "")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#x27;|&#39;/g, "'")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function dominioDe(url) {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return url;
+  }
+}
+
+function resolverEnlace(href) {
+  let url = decodificar(href);
+  if (url.startsWith("//")) url = "https:" + url;
+  try {
+    const u = new URL(url);
+    const real = u.searchParams.get("uddg");
+    if (real) return decodeURIComponent(real);
+  } catch {
+    return null;
+  }
+  return /^https?:\/\//i.test(url) ? url : null;
+}
+
 function evaluarMatematica(texto) {
   const src = texto.replace(/×|x(?=\s*\d)/gi, "*").replace(/÷/g, "/").replace(/\^/g, "**").replace(/,/g, ".").replace(/\s+/g, "");
   let i = 0;
@@ -90,8 +122,14 @@ function evaluarMatematica(texto) {
     return parseFloat(m[0]);
   }
   function primario() {
-    if (peek() === "-") { i++; return -primario(); }
-    if (peek() === "+") { i++; return primario(); }
+    if (peek() === "-") {
+      i++;
+      return -primario();
+    }
+    if (peek() === "+") {
+      i++;
+      return primario();
+    }
     if (peek() === "(") {
       i++;
       const v = suma();
@@ -103,8 +141,14 @@ function evaluarMatematica(texto) {
   }
   function potencia() {
     let v = primario();
-    while (src.startsWith("**", i)) { i += 2; v = Math.pow(v, primario()); }
-    while (peek() === "%") { i++; v /= 100; }
+    while (src.startsWith("**", i)) {
+      i += 2;
+      v = Math.pow(v, primario());
+    }
+    while (peek() === "%") {
+      i++;
+      v /= 100;
+    }
     return v;
   }
   function producto() {
@@ -137,7 +181,9 @@ function respuestaCalculo(q) {
     const r = evaluarMatematica(t);
     const texto = Number.isInteger(r) ? String(r) : String(Number(r.toFixed(8)));
     return { tipo: "calculo", titulo: "Calculadora", grande: texto, detalle: t.replace(/\s+/g, " ") + " =" };
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 function buscarZona(q) {
@@ -158,9 +204,12 @@ function respuestaHora(q) {
   const fecha = new Intl.DateTimeFormat("es-MX", { timeZone: zona, weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(ahora);
   const gmt = new Intl.DateTimeFormat("en-US", { timeZone: zona, timeZoneName: "shortOffset" }).formatToParts(ahora).find((p) => p.type === "timeZoneName")?.value || "";
   return {
-    tipo: "hora", titulo: "Hora actual",
+    tipo: "hora",
+    titulo: "Hora actual",
     grande: hora.replace(/\s?([ap])\.?\s?m\.?/i, (_, l) => " " + l.toLowerCase() + ".m."),
-    detalle: `${fecha} (${gmt})`, lugar: nombre, zona
+    detalle: `${fecha} (${gmt})`,
+    lugar: nombre,
+    zona
   };
 }
 
@@ -178,121 +227,240 @@ function respuestaInstantanea(q) {
   return respuestaCalculo(q) || respuestaHora(q) || respuestaFecha(q);
 }
 
-// --- BÚSQUEDA WEB CON SCRAPING DE GOOGLE Y RESPALDO DUCKDUCKGO ---
+function detectarModo(texto) {
+  const palabras = texto.trim().split(/\s+/);
+  const primera = sinTildes(palabras[0] || "").toLowerCase();
+  const alias = { yt: "youtube", video: "youtube", videos: "youtube" };
+  const modo = MODOS[primera] ? primera : alias[primera];
+  if (modo && palabras.length > 1) return { modo, consulta: palabras.slice(1).join(" ") };
+  if (/^(precio|cuanto cuesta|cuanto vale|costo)\b/.test(limpiar(texto))) return { modo: "precio", consulta: texto };
+  return { modo: "info", consulta: texto };
+}
+
+function consultaParaBuscar(modo, consulta) {
+  if (modo === "precio") return /precio|costo|cuesta/i.test(consulta) ? consulta + " comprar" : consulta + " precio comprar";
+  return consulta;
+}
+
+const peticion = (url, opciones = {}) =>
+  axios.get(url, {
+    timeout: 10000,
+    responseType: "text",
+    headers: { "User-Agent": UA, "Accept-Language": "es-MX,es;q=0.9", Accept: "text/html,application/xhtml+xml" },
+    ...opciones
+  });
+
+function atributo(etiqueta, nombre) {
+  const m = new RegExp(nombre + '\\s*=\\s*["\']([^"\']*)["\']', "i").exec(etiqueta);
+  return m ? m[1] : "";
+}
+
+function desenvolverBing(href) {
+  try {
+    const u = new URL(decodificar(href));
+    if (/bing\.com$/.test(u.hostname) && u.pathname.startsWith("/ck/")) {
+      const p = u.searchParams.get("u") || "";
+      if (p.startsWith("a1")) return Buffer.from(p.slice(2).replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8");
+    }
+    return u.href;
+  } catch {
+    return null;
+  }
+}
+
+function armarResultado(url, titulo, texto) {
+  if (!url || !/^https?:\/\//i.test(url) || !titulo) return null;
+  return { titulo: recortar(decodificar(titulo), 90), url, dominio: dominioDe(url), texto: recortar(decodificar(texto), 230) };
+}
+
+function juntar(lista) {
+  const vistos = new Set();
+  const salida = [];
+  for (const r of lista) {
+    if (!r || vistos.has(r.url)) continue;
+    vistos.add(r.url);
+    salida.push(r);
+    if (salida.length >= MAX_RESULTADOS) break;
+  }
+  return salida;
+}
+
+export function analizarDuckHtml(html) {
+  const lista = [];
+  for (const bloque of String(html).split(/class="[^"]*\bresult__body\b/).slice(1)) {
+    const tags = bloque.match(/<a\b[^>]*>/g) || [];
+    const tagA = tags.find((t) => /result__a/.test(t));
+    if (!tagA) continue;
+    const titulo = new RegExp(tagA.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "([\\s\\S]*?)</a>").exec(bloque);
+    const snip = /<a\b[^>]*result__snippet[^>]*>([\s\S]*?)<\/a>/.exec(bloque);
+    lista.push(armarResultado(resolverEnlace(atributo(tagA, "href")), titulo ? titulo[1] : "", snip ? snip[1] : ""));
+  }
+  return juntar(lista);
+}
+
+export function analizarDuckLite(html) {
+  const lista = [];
+  const re = /<a\b[^>]*result-link[^>]*>([\s\S]*?)<\/a>[\s\S]*?<td[^>]*result-snippet[^>]*>([\s\S]*?)<\/td>/g;
+  const tags = String(html).match(/<a\b[^>]*result-link[^>]*>/g) || [];
+  let m;
+  let i = 0;
+  while ((m = re.exec(html))) {
+    lista.push(armarResultado(resolverEnlace(atributo(tags[i++] || "", "href")), m[1], m[2]));
+  }
+  return juntar(lista);
+}
+
+export function analizarBing(html) {
+  const lista = [];
+  for (const bloque of String(html).split(/<li[^>]+class="[^"]*\bb_algo\b[^"]*"/).slice(1)) {
+    const h2 = /<h2[^>]*>\s*(<a\b[^>]*>)([\s\S]*?)<\/a>/.exec(bloque);
+    if (!h2) continue;
+    const snip = /<p[^>]*>([\s\S]*?)<\/p>/.exec(bloque);
+    lista.push(armarResultado(desenvolverBing(atributo(h2[1], "href")), h2[2], snip ? snip[1] : ""));
+  }
+  return juntar(lista);
+}
+
+export function analizarMojeek(html) {
+  const lista = [];
+  for (const bloque of String(html).split(/<li[^>]*>/).slice(1)) {
+    const tag = (bloque.match(/<a\b[^>]*class="[^"]*\btitle\b[^"]*"[^>]*>/) || [])[0];
+    if (!tag) continue;
+    const titulo = /class="[^"]*\btitle\b[^"]*"[^>]*>([\s\S]*?)<\/a>/.exec(bloque);
+    const snip = /<p[^>]*class="[^"]*\bs\b[^"]*"[^>]*>([\s\S]*?)<\/p>/.exec(bloque);
+    lista.push(armarResultado(atributo(tag, "href"), titulo ? titulo[1] : "", snip ? snip[1] : ""));
+  }
+  return juntar(lista);
+}
+
+const PROVEEDORES = [
+  {
+    nombre: "DuckDuckGo",
+    buscar: async (q) =>
+      analizarDuckHtml(
+        (
+          await axios.post("https://html.duckduckgo.com/html/", new URLSearchParams({ q, kl: "mx-es" }).toString(), {
+            timeout: 10000,
+            responseType: "text",
+            headers: { "User-Agent": UA, "Content-Type": "application/x-www-form-urlencoded", "Accept-Language": "es-MX,es;q=0.9" }
+          })
+        ).data
+      )
+  },
+  {
+    nombre: "Bing",
+    buscar: async (q) =>
+      analizarBing((await peticion("https://www.bing.com/search?setlang=es&cc=MX&q=" + encodeURIComponent(q))).data)
+  },
+  {
+    nombre: "Mojeek",
+    buscar: async (q) => analizarMojeek((await peticion("https://www.mojeek.com/search?q=" + encodeURIComponent(q))).data)
+  },
+  {
+    nombre: "DuckDuckGo Lite",
+    buscar: async (q) =>
+      analizarDuckLite(
+        (
+          await axios.post("https://lite.duckduckgo.com/lite/", new URLSearchParams({ q, kl: "mx-es" }).toString(), {
+            timeout: 10000,
+            responseType: "text",
+            headers: { "User-Agent": UA, "Content-Type": "application/x-www-form-urlencoded" }
+          })
+        ).data
+      )
+  }
+];
+
 async function buscarWeb(consulta) {
-  const clave = consulta.toLowerCase();
+  const clave = "web:" + consulta.toLowerCase();
   const previo = cache.get(clave);
   if (previo && Date.now() - previo.t < CACHE_MS) return previo.datos;
 
-  let resultados = [];
-
-  // 1. INTENTO CON SCRAPING DE GOOGLE
-  try {
-    const { data: html } = await axios.get("https://www.google.com/search", {
-      params: { q: consulta, hl: "es", gl: "mx" },
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-        "Accept-Language": "es-MX,es;q=0.9,en;q=0.8"
-      },
-      timeout: 10000
-    });
-
-    // Detectar Captcha de Google
-    if (html.includes("captcha") || html.includes("unusual traffic")) {
-      throw new Error("Captcha detectado");
-    }
-
-    const $ = cheerio.load(html);
-    const vistos = new Set();
-
-    $("div.g, div.MjjYud").each((_, el) => {
-      if (resultados.length >= MAX_RESULTADOS) return;
-      const $el = $(el);
-      const $a = $el.find("a").first();
-      const href = $a.attr("href");
-      const titulo = $el.find("h3").text().trim();
-      const snippet = $el.find(".VwiC3b").text().trim();
-
-      if (!href || !titulo || !href.startsWith("http")) return;
-      if (vistos.has(href)) return;
-      vistos.add(href);
-
-      let dominio = "web";
-      try { dominio = new URL(href).hostname.replace(/^www\./, ""); } catch {}
-
-      resultados.push({
-        titulo: recortar(titulo, 90),
-        url: href,
-        dominio: dominio,
-        texto: recortar(snippet, 230)
-      });
-    });
-
-    if (resultados.length > 0) console.log(`[GOOGLE] Búsqueda exitosa vía Scraping Google (${resultados.length} res)`);
-  } catch (error) {
-    console.log("[GOOGLE] Scraping Google falló o Captcha. Usando DuckDuckGo...");
-  }
-
-  // 2. RESPALDO: SCRAPING DE DUCKDUCKGO HTML
-  if (resultados.length === 0) {
+  for (const p of PROVEEDORES) {
     try {
-      const { data: htmlDDG } = await axios.post(
-        "https://html.duckduckgo.com/html/",
-        new URLSearchParams({ q: consulta, kl: "mx-es" }).toString(),
-        {
-          timeout: 12000,
-          headers: {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
-            "Content-Type": "application/x-www-form-urlencoded",
-            "Accept-Language": "es-MX,es;q=0.9"
-          },
-          responseType: "text"
-        }
-      );
-
-      const $ = cheerio.load(htmlDDG);
-      const vistos = new Set();
-
-      $(".result").each((_, el) => {
-        if (resultados.length >= MAX_RESULTADOS) return;
-        const $el = $(el);
-        if ($el.hasClass("result--ad")) return;
-
-        const $a = $el.find(".result__a");
-        const href = $a.attr("href");
-        const titulo = $a.text().trim();
-        const snippet = $el.find(".result__snippet").text().trim();
-
-        if (!href || !titulo) return;
-
-        let url = href;
-        if (url.includes("uddg=")) {
-          try { url = decodeURIComponent(url.split("uddg=")[1].split("&")[0]); } catch { return; }
-        }
-
-        if (!/^https?:\/\//i.test(url) || vistos.has(url)) return;
-        vistos.add(url);
-
-        let dominio = "web";
-        try { dominio = new URL(url).hostname.replace(/^www\./, ""); } catch {}
-
-        resultados.push({
-          titulo: recortar(titulo, 90),
-          url: url,
-          dominio: dominio,
-          texto: recortar(snippet, 230)
-        });
-      });
-      if (resultados.length > 0) console.log(`[GOOGLE] Búsqueda exitosa vía DuckDuckGo Respaldo (${resultados.length} res)`);
+      const resultados = await p.buscar(consulta);
+      console.log(`[GOOGLE] ${p.nombre}: ${resultados.length} resultados`);
+      if (resultados.length) {
+        const datos = { resultados, via: p.nombre };
+        if (cache.size >= CACHE_MAX) cache.delete(cache.keys().next().value);
+        cache.set(clave, { t: Date.now(), datos });
+        return datos;
+      }
     } catch (e) {
-      console.log("[GOOGLE] Falló también el respaldo de DuckDuckGo.");
+      console.log(`[GOOGLE] ${p.nombre} falló: ${e.message}`);
     }
   }
+  return { resultados: [], via: "" };
+}
 
+const PALABRAS_VACIAS = new Set(["que", "quien", "quienes", "como", "cual", "cuales", "donde", "cuando", "es", "son", "fue", "del", "los", "las", "una", "uno", "por", "para", "con", "sobre", "the"]);
+
+function relevante(consulta, titulo) {
+  const q = limpiar(consulta).split(" ").filter((w) => w.length > 2 && !PALABRAS_VACIAS.has(w));
+  const t = limpiar(titulo).split(" ").filter((w) => w.length > 2);
+  return q.some((a) => t.some((b) => a === b || (a.length > 4 && b.length > 4 && (a.startsWith(b) || b.startsWith(a)))));
+}
+
+async function imagenDatos(url, max = 400000) {
+  try {
+    const { data, headers } = await axios.get(url, { responseType: "arraybuffer", timeout: 7000, headers: { "User-Agent": UA }, maxContentLength: max });
+    const tipo = String(headers["content-type"] || "image/jpeg").split(";")[0];
+    return `data:${tipo};base64,` + Buffer.from(data).toString("base64");
+  } catch {
+    return "";
+  }
+}
+
+async function buscarWikipedia(consulta) {
+  if (/\d/.test(consulta) || consulta.split(/\s+/).length > 7) return null;
+  try {
+    const cab = { "User-Agent": "MaxiProyec/1.0 (bot de WhatsApp)", "Api-User-Agent": "MaxiProyec/1.0" };
+    const { data } = await axios.get("https://es.wikipedia.org/w/api.php", {
+      params: { action: "query", list: "search", srsearch: consulta, srlimit: 1, format: "json", utf8: 1 },
+      timeout: 8000,
+      headers: cab
+    });
+    const golpe = data?.query?.search?.[0];
+    if (!golpe || !relevante(consulta, golpe.title)) return null;
+    const r = await axios.get("https://es.wikipedia.org/api/rest_v1/page/summary/" + encodeURIComponent(golpe.title.replace(/ /g, "_")), { timeout: 8000, headers: cab });
+    const d = r.data;
+    if (!d?.extract || d.type === "disambiguation") return null;
+    return {
+      tipo: "wiki",
+      titulo: d.title,
+      texto: recortar(d.extract, 420),
+      url: d.content_urls?.desktop?.page || "",
+      img: d.thumbnail?.source ? await imagenDatos(d.thumbnail.source) : ""
+    };
+  } catch (e) {
+    console.log("[GOOGLE] Wikipedia falló: " + e.message);
+    return null;
+  }
+}
+
+async function buscarVideos(consulta) {
+  const clave = "yt:" + consulta.toLowerCase();
+  const previo = cache.get(clave);
+  if (previo && Date.now() - previo.t < CACHE_MS) return previo.datos;
+  const { buscarVideosYoutube } = await import("../../descargas/youtube-engine.js");
+  const videos = (await buscarVideosYoutube(consulta, 5)).filter((v) => v.url);
+  const items = await Promise.all(
+    videos.map(async (v) => {
+      const id = /v=([\w-]{11})/.exec(v.url)?.[1];
+      return {
+        titulo: recortar(v.titulo, 100),
+        url: v.url,
+        canal: v.canal,
+        duracion: v.duracion,
+        fecha: v.fecha,
+        dominio: "youtube.com",
+        img: id ? await imagenDatos(`https://i.ytimg.com/vi/${id}/mqdefault.jpg`, 200000) : ""
+      };
+    })
+  );
   if (cache.size >= CACHE_MAX) cache.delete(cache.keys().next().value);
-  cache.set(clave, { t: Date.now(), datos: resultados });
-  return resultados;
+  cache.set(clave, { t: Date.now(), datos: items });
+  return items;
 }
 
 function extraerPrecios(resultados) {
@@ -309,126 +477,31 @@ function urlGoogle(consulta) {
   return "https://www.google.com/search?q=" + encodeURIComponent(consulta);
 }
 
-// --- DISEÑO GOOGLE CLEAN ---
-const CSS = `
-*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-html{background:#f8f9fa;overflow-x:hidden}
-body{background:#f8f9fa;color:#202124;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:13px;padding:12px;overflow-x:hidden;overscroll-behavior:none}
-small{color:#5f6368;font-size:11px}
-.cab{display:flex;align-items:center;gap:8px;margin-bottom:14px;justify-content:center}
-.logo{font-size:22px;font-weight:800;letter-spacing:-0.5px}
-.logo span:nth-child(1){color:#4285F4}
-.logo span:nth-child(2){color:#EA4335}
-.logo span:nth-child(3){color:#FBBC05}
-.logo span:nth-child(4){color:#4285F4}
-.logo span:nth-child(5){color:#34A853}
-.logo span:nth-child(6){color:#EA4335}
-.logo span:nth-child(7){color:#4285F4}
-.logo span:nth-child(8){color:#EA4335}
-.q{display:flex;align-items:center;gap:10px;background:#fff;border-radius:24px;padding:12px 18px;font-size:14px;box-shadow:0 1px 6px rgba(32,33,36,.15);margin-bottom:12px;border:1px solid #dadce0}
-.q span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500}
-.chips{display:flex;gap:8px;margin-bottom:16px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px;justify-content:center}
-.chips::-webkit-scrollbar{display:none}
-.chip{flex:none;font-size:11px;font-weight:600;padding:6px 14px;border-radius:20px;background:#fff;color:#5f6368;border:1px solid #dadce0;transition:all .2s}
-.chip.on{background:#e8f0fe;color:#1967d2;border-color:#e8f0fe}
-.ans{background:#fff;border-radius:16px;padding:24px;box-shadow:0 1px 6px rgba(32,33,36,.1);margin-bottom:14px;text-align:center;border:1px solid #dadce0}
-.ans small{display:block;font-size:10px;letter-spacing:1.5px;color:#5f6368;margin-bottom:8px;font-weight:600}
-.big{font-size:38px;font-weight:700;line-height:1.1;word-break:break-word;color:#202124}
-.det{margin-top:8px;font-size:13px;color:#5f6368}
-.lug{margin-top:12px;display:inline-block;padding:5px 14px;border-radius:20px;background:#f1f3f4;font-size:11px;color:#5f6368;font-weight:600}
-.res{display:flex;flex-direction:column;gap:10px}
-.sec{font-size:11px;letter-spacing:1px;color:#5f6368;font-weight:600;margin:6px 4px 2px}
-.r{display:block;padding:14px;border-radius:12px;background:#fff;box-shadow:0 1px 4px rgba(32,33,36,.1);text-decoration:none;color:inherit;border:1px solid #dadce0}
-.r:active{background:#f8f9fa}
-.d{font-size:11px;color:#0d652d;margin-bottom:4px}
-.t{font-size:16px;font-weight:500;color:#1a0dab;line-height:1.3}
-.x{font-size:13px;color:#4d5156;margin-top:6px;line-height:1.5}
-table{width:100%;border-collapse:collapse;margin-bottom:12px;border-radius:12px;overflow:hidden;font-size:13px;box-shadow:0 1px 4px rgba(32,33,36,.1);border:1px solid #dadce0}
-th{background:#f8f9fa;color:#5f6368;font-size:10px;letter-spacing:1px;text-align:left;padding:10px 12px;font-weight:600}
-td{background:#fff;padding:10px 12px;border-top:1px solid #dadce0}
-td b{color:#202124}
-.go{display:block;margin-top:14px;padding:14px;border-radius:12px;background:#1a73e8;color:#fff;text-align:center;text-decoration:none;font-weight:600;font-size:14px;box-shadow:0 1px 3px rgba(26,115,232,.3);cursor:pointer}
-.go:active{background:#1765cc}
-.none{padding:24px;text-align:center;color:#5f6368;font-size:14px;background:#fff;border-radius:16px;box-shadow:0 1px 6px rgba(32,33,36,.1);border:1px solid #dadce0}
-.foot{display:flex;align-items:center;justify-content:center;gap:6px;padding:16px 0 8px;font-size:11px;color:#5f6368}
-`;
-
-function bloqueRespuesta(r) {
-  const lugar = r.lugar ? `<div class="lug">📍 ${esc(r.lugar)}</div>` : "";
-  return `<div class="ans"><small>${esc(r.titulo.toUpperCase())}</small><div class="big" id="big">${esc(r.grande)}</div><div class="det">${esc(r.detalle)}</div>${lugar}</div>`;
-}
-
-function scriptReloj(r) {
-  if (r.tipo !== "hora") return "";
-  return `<script>(function(){var e=document.getElementById("big");if(!e)return;try{var f=new Intl.DateTimeFormat("es-MX",{timeZone:${JSON.stringify(r.zona)},hour:"numeric",minute:"2-digit",second:"2-digit",hour12:true});setInterval(function(){e.textContent=f.format(new Date()).replace(/\\s?([ap])\\.?\\s?m\\.?/i,function(m,l){return " "+l.toLowerCase()+".m."})},1000)}catch(x){}})();</script>`;
-}
-
-function bloqueResultados(resultados, modo) {
-  if (!resultados || !resultados.length) return `<div class="none">No encontré resultados para esa búsqueda.</div>`;
-  let precios = "";
-  if (modo === "precio") {
-    const filas = extraerPrecios(resultados);
-    if (filas.length) {
-      precios =
-        `<div class="sec">TABLA DE PRECIOS</div><table><tr><th>SITIO</th><th>PRECIO</th></tr>` +
-        filas.map((f) => `<tr><td><a style="color:#1a0dab;text-decoration:none;font-weight:600" href="${esc(f.url)}" target="_blank" rel="noopener noreferrer">${esc(f.sitio)}</a></td><td><b>${esc(f.precio)}</b></td></tr>`).join("") +
-        `</table>`;
-    }
+function botonesDe({ consulta, modo, instantanea, wiki, items }) {
+  const lista = [];
+  if (modo === "youtube") {
+    lista.push({ texto: "▶️ Ver en YouTube", url: "https://www.youtube.com/results?search_query=" + encodeURIComponent(consulta) });
+    items.slice(0, 3).forEach((v, i) => lista.push({ texto: `${i + 1}. ${recortar(v.titulo, 24)}`, url: v.url }));
+    return lista;
   }
-  const tarjetas = resultados
-    .map((r) => `<a class="r" href="${esc(r.url)}" target="_blank" rel="noopener noreferrer"><div class="d">${esc(r.dominio)}</div><div class="t">${esc(r.titulo)}</div>${r.texto ? `<div class="x">${esc(r.texto)}</div>` : ""}</a>`)
-    .join("");
-  return `${precios}<div class="sec">FUENTES · ${resultados.length}</div><div class="res">${tarjetas}</div>`;
+  lista.push({ texto: "🔎 Ver en Google", url: urlGoogle(consulta) });
+  if (instantanea) return lista;
+  if (wiki?.url) lista.push({ texto: "📚 Wikipedia", url: wiki.url });
+  items.slice(0, 3).forEach((r) => lista.push({ texto: "🌐 " + recortar(r.dominio, 22), url: r.url }));
+  return lista;
 }
 
-function armarHtml({ consulta, modo, instantanea, resultados, firma }) {
-  const chips = Object.entries(MODOS)
-    .map(([id, m]) => `<span class="chip${id === modo ? " on" : ""}">${m.emoji} ${m.etiqueta}</span>`)
-    .join("");
-  const cuerpo = instantanea ? bloqueRespuesta(instantanea) : "";
-  const lista = resultados ? bloqueResultados(resultados, modo) : "";
-  
-  const urlG = urlGoogle(consulta);
-  
-  return `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"><style>${CSS}</style></head><body>
-  <div class="cab"><div class="logo"><span>B</span><span>u</span><span>s</span><span>c</span><span>a</span><span>d</span><span>o</span><span>r</span></div></div>
-  <div class="q"><span>🔍</span><span>${esc(consulta)}</span></div>
-  <div class="chips">${chips}</div>
-  ${cuerpo}${lista}
-  <a class="go" href="${esc(urlG)}" target="_blank" rel="noopener noreferrer">Ver en Google</a>
-  <div class="foot"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.7"/><path d="M8 7v4.2M8 4.7v.1" stroke-linecap="round"/></svg>Powered by ${esc(firma)}</div>
-  ${instantanea ? scriptReloj(instantanea) : ""}
-  </body></html>`;
-}
-
-function textoRespaldo({ consulta, instantanea, resultados }) {
-  const partes = [`🔎 *GOOGLE*`, `> ${consulta}`];
+function textoRespaldo({ consulta, instantanea, items }) {
+  const partes = ["🔎 *GOOGLE*", `> ${consulta}`];
   if (instantanea) partes.push("", `*${instantanea.titulo}::*`, `> ${instantanea.grande} · ${instantanea.detalle}`);
-  if (resultados && resultados.length) {
-    partes.push("", ...resultados.slice(0, 5).map((r) => `✿ *${r.titulo}*\n> ${r.texto}\n> ${r.url}`));
-  }
+  if (items.length) partes.push("", ...items.slice(0, 5).map((r) => `✿ *${r.titulo}*\n> ${r.url}`));
   partes.push("", `> Ver en Google: ${urlGoogle(consulta)}`);
   return partes.join("\n");
 }
 
-function detectarModo(texto) {
-  const palabras = texto.trim().split(/\s+/);
-  const primera = sinTildes(palabras[0] || "").toLowerCase();
-  if (palabras.length > 1 && MODOS[primera]) return { modo: primera, consulta: palabras.slice(1).join(" ") };
-  if (/^(precio|cuanto cuesta|cuanto vale|costo)\b/.test(limpiar(texto))) return { modo: "precio", consulta: texto };
-  if (/(^|\s)(codigo|script|funcion|como hacer un)(\s|$)/.test(limpiar(texto))) return { modo: "codigo", consulta: texto };
-  return { modo: "info", consulta: texto };
-}
-
-function consultaParaBuscar(modo, consulta) {
-  if (modo === "precio") return /precio|costo|cuesta/i.test(consulta) ? consulta + " comprar" : consulta + " precio comprar";
-  if (modo === "codigo") return consulta + " código ejemplo";
-  return consulta;
-}
-
 export default {
   names: [".google", ".buscar"],
-  desc: "Busca en internet con fuentes. Responde al instante hora, fecha y cálculos. Modos: info, precio, codigo",
+  desc: "Busca en internet o YouTube con fuentes. Responde al instante hora, fecha y cálculos. Modos: info, precio, youtube",
   category: "Tools",
   usage: ".google <búsqueda>",
   handler: async ({ sock, from, sender, msg, cleanText, reply }) => {
@@ -437,8 +510,8 @@ export default {
       return reply({
         text: tarjetaUso({
           comando: ".google <búsqueda>",
-          ejemplo: ".google qué hora es   |   .google precio iphone 15   |   .google codigo for en python",
-          nota: "Modos: info, precio y codigo. También resuelve hora, fecha y operaciones como 25*4+10."
+          ejemplo: ".google qué hora es   |   .google precio iphone 15   |   .google youtube música para estudiar",
+          nota: "Modos: info, precio y youtube. También resuelve hora, fecha y operaciones como 25*4+10."
         })
       });
     }
@@ -453,27 +526,58 @@ export default {
     if (esperas.size > 500) esperas.delete(esperas.keys().next().value);
 
     const { modo, consulta } = detectarModo(texto);
-    const instantanea = respuestaInstantanea(consulta);
+    const instantanea = modo === "info" ? respuestaInstantanea(consulta) : null;
     const firma = config.botNameShort || "MaxiProyec";
 
-    let resultados = null;
-    if (!instantanea) {
-      try {
-        resultados = await buscarWeb(consultaParaBuscar(modo, consulta));
-      } catch (e) {
-        console.log("[GOOGLE] ERROR: " + e.message);
-        esperas.delete(sender);
-        return reply({ text: tarjetaAviso("GOOGLE", "No pude conectar con el buscador ahora mismo. Intenta de nuevo en unos segundos.") });
+    let items = [];
+    let via = "";
+    let wiki = null;
+    let ans = instantanea;
+
+    try {
+      if (modo === "youtube") {
+        items = await buscarVideos(consulta);
+        via = "YouTube";
+      } else if (!instantanea) {
+        const [web, w] = await Promise.all([buscarWeb(consultaParaBuscar(modo, consulta)), modo === "info" ? buscarWikipedia(consulta) : null]);
+        items = web.resultados;
+        via = web.via || (w ? "Wikipedia" : "");
+        wiki = w;
+        ans = w;
       }
+    } catch (e) {
+      console.log("[GOOGLE] ERROR: " + e.message);
     }
+
+    const datos = {
+      q: consulta,
+      modo,
+      via,
+      firma,
+      ans,
+      items,
+      precios: modo === "precio" ? extraerPrecios(items) : []
+    };
 
     try {
       if (typeof sock.sendHtml !== "function") throw new Error("sin sendHtml");
-      const html = armarHtml({ consulta, modo, instantanea, resultados, firma });
-      await sock.sendHtml(from, html, [], undefined, {});
+      await sock.sendHtml(from, htmlGoogle(datos), [], undefined, {});
     } catch (e) {
       console.log("[GOOGLE] HTML falló: " + e.message);
-      await sock.sendMessage(from, { text: textoRespaldo({ consulta, instantanea, resultados }) }, { quoted: msg });
+      return sock.sendMessage(from, { text: textoRespaldo({ consulta, instantanea, items }) }, { quoted: msg });
+    }
+
+    const lista = botonesDe({ consulta, modo, instantanea, wiki, items });
+    const enviado = await enviarConBoton({
+      sock,
+      from,
+      msg,
+      texto: instantanea ? "> 🔎 ¿Quieres ver más?" : `> 🔗 Abre las ${modo === "youtube" ? "videos" : "fuentes"} de *${recortar(consulta, 40)}*`,
+      footer: "Powered by " + firma,
+      lista
+    });
+    if (!enviado) {
+      await sock.sendMessage(from, { text: lista.map((b) => `${b.texto}\n> ${b.url}`).join("\n\n") }, { quoted: msg });
     }
   }
 };
