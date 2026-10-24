@@ -5,7 +5,8 @@ import { metadatos } from "../grupos/nucleo.js";
 import { mencion } from "../economia/estilo.js";
 import { imagenDePerfil, enviarConImagen } from "../grupos/foto.js";
 
-const RUTA_AUDIO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../assets/audios/goodbye.mp3");
+const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+const RUTAS_AUDIO = ["assets/audios/goodbye.mp3", "assets/fonts/goodbye.mp3", "assets/goodbye.mp3"].map((ruta) => path.join(RAIZ, ruta));
 
 const FRASES_DESPEDIDA = [
   "Es una pena terrible... A {usuario} le cayó un meteorito mientras caminaba por la calle.",
@@ -45,12 +46,13 @@ export async function enviarDespedida(sock, grupo, usuario, ids = [usuario]) {
   const [meta, imagen] = await Promise.all([metadatos(sock, grupo), imagenDePerfil(sock, [usuario, ...ids])]);
   await enviarConImagen(sock, grupo, imagen, construirDespedida({ usuario, meta }), [usuario]);
 
-  if (!fs.existsSync(RUTA_AUDIO)) {
-    console.log(`Falta el audio de despedida en ${RUTA_AUDIO}`);
+  const ruta = RUTAS_AUDIO.find((r) => fs.existsSync(r));
+  if (!ruta) {
+    console.log(`Falta el audio de despedida. Búscalo en: ${RUTAS_AUDIO.join(" | ")}`);
     return;
   }
   try {
-    await sock.sendMessage(grupo, { audio: fs.readFileSync(RUTA_AUDIO), mimetype: "audio/mpeg", ptt: false });
+    await sock.sendMessage(grupo, { audio: fs.readFileSync(ruta), mimetype: "audio/mpeg", ptt: false });
   } catch (e) {
     console.log(`No se pudo enviar el audio de despedida: ${e.message}`);
   }
