@@ -402,6 +402,7 @@ export async function guardarCuentasPendientes() {
 }
 
 export function saveAccount(sender) {
+  sender = canonId(sender);
   if (!collection && !modoRespaldo) return Promise.resolve();
   getAccount(sender);
   cuentasPendientes.add(sender);
@@ -431,7 +432,75 @@ export async function saveConfig(intentos = 3) {
   console.log("⚠️ No se pudo guardar la configuracion tras varios intentos. El cambio puede perderse al reiniciar.");
 }
 
+let canonId = (jid) => jid;
+
+export function setCanonId(fn) {
+  canonId = typeof fn === "function" ? fn : (jid) => jid;
+}
+
+export function idCanonico(jid) {
+  return canonId(jid);
+}
+
+function unirPerfiles(a, b) {
+  if (!a) return b;
+  if (!b) return a;
+  const peso = (p) => (p.level || 1) * 1e9 + (p.xp || 0);
+  const [base, otro] = peso(a) >= peso(b) ? [a, b] : [b, a];
+  const unido = { ...base };
+  for (const [clave, valor] of Object.entries(otro)) {
+    if (valor !== undefined && valor !== "" && (unido[clave] === undefined || unido[clave] === "")) unido[clave] = valor;
+  }
+  return unido;
+}
+
+export async function fusionarCuenta(origen, destino) {
+  if (!origen || !destino || origen === destino || !accounts.has(origen)) return false;
+  if (!collection || modoRespaldo) return false;
+  const o = accounts.get(origen);
+  const antesDestino = accounts.has(destino) ? structuredClone(accounts.get(destino)) : null;
+  const antesBase = saldosBase.get(destino);
+  const d = getAccount(destino);
+  d.wallet += o.wallet || 0;
+  d.bank += o.bank || 0;
+  d.cooldowns = { ...(o.cooldowns || {}), ...d.cooldowns };
+  d.rachas = { ...(o.rachas || {}), ...d.rachas };
+  d.negocios = { ...(o.negocios || {}), ...d.negocios };
+  if (!d.afk && o.afk) d.afk = o.afk;
+  if (!d.gachaClaim && o.gachaClaim) d.gachaClaim = o.gachaClaim;
+  if (!d.prestamo && o.prestamo) d.prestamo = o.prestamo;
+  const perfil = unirPerfiles(d.profile, o.profile);
+  if (perfil) d.profile = perfil;
+  const casados = [];
+  for (const [id, acc] of accounts) {
+    if (id !== origen && acc.profile && acc.profile.marriedTo === origen) {
+      acc.profile.marriedTo = destino;
+      casados.push(id);
+    }
+  }
+  saveAccount(destino);
+  casados.forEach((id) => saveAccount(id));
+  await guardarCuentasPendientes();
+  if (cuentasPendientes.has(destino)) {
+    if (antesDestino) accounts.set(destino, antesDestino);
+    else accounts.delete(destino);
+    if (antesBase) saldosBase.set(destino, antesBase);
+    else saldosBase.delete(destino);
+    casados.forEach((id) => {
+      const acc = accounts.get(id);
+      if (acc && acc.profile) acc.profile.marriedTo = origen;
+    });
+    return false;
+  }
+  accounts.delete(origen);
+  saldosBase.delete(origen);
+  cuentasPendientes.delete(origen);
+  await collection.deleteOne({ _id: origen });
+  return true;
+}
+
 export function getAccount(sender) {
+  sender = canonId(sender);
   if (!accounts.has(sender)) {
     accounts.set(sender, { wallet: 0, bank: 0, cooldowns: {}, rachas: {}, negocios: {}, afk: null });
   }
@@ -530,18 +599,36 @@ export async function saveStickerMeta(idSticker, intentos = 3) {
 
 const besos = new Map();
 
-function claveBesos(jidA, jidB) {
-  return [jidA, jidB].sort().join("|");
+function identidadBesos(jid) {
+  const completo = String(canonId(jid) || "");
+  const [usuario, dominio] = completo.split("@");
+  const digitos = String(usuario || "").split(":")[0].replace(/\D/g, "");
+  return dominio === "s.whatsapp.net" && digitos.length >= 10 ? digitos.slice(-10) : completo;
 }
 
-export function getBesos(jidA, jidB) {
-  return besos.get(claveBesos(jidA, jidB)) || 0;
+function parBesos(jidA, jidB) {
+  return [identidadBesos(jidA), identidadBesos(jidB)].sort().join("|");
+}
+
+function claveBesos(jidA, jidB) {
+  const par = parBesos(jidA, jidB);
+  let mejor = null;
+  let mayor = -1;
+  for (const [clave, total] of besos) {
+    const partes = clave.split("|");
+    if (partes.length !== 2 || total <= mayor) continue;
+    if (parBesos(partes[0], partes[1]) === par) {
+      mejor = clave;
+      mayor = total;
+    }
+  }
+  return mejor || [canonId(jidA), canonId(jidB)].sort().join("|");
 }
 
 export function buscarBesos(textos) {
   const claves = textos.filter(Boolean);
   return [...besos]
-    .filter(([clave]) => claves.some((t) => clave.includes(t)))
+    .filter(([clave, total]) => total > 0 && claves.some((t) => clave.includes(t)))
     .map(([clave, total]) => ({ clave, total }))
     .sort((a, b) => b.total - a.total);
 }
@@ -554,7 +641,21 @@ export function unirBesos(claveVieja, jidA, jidB) {
   const nuevoTotal = (besos.get(clave) || 0) + total;
   besos.set(clave, nuevoTotal);
   guardarBesos(clave, nuevoTotal);
+  besos.set(claveVieja, 0);
+  guardarBesos(claveVieja, 0);
   return { total, nuevoTotal, igual: false };
+}
+
+export function fijarBesos(jidA, jidB, total) {
+  const clave = claveBesos(jidA, jidB);
+  const anterior = besos.get(clave) || 0;
+  besos.set(clave, total);
+  guardarBesos(clave, total);
+  return { clave, anterior };
+}
+
+export function getBesos(jidA, jidB) {
+  return besos.get(claveBesos(jidA, jidB)) || 0;
 }
 
 export function registrarBeso(jidA, jidB) {
