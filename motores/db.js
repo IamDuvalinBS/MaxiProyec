@@ -402,7 +402,6 @@ export async function guardarCuentasPendientes() {
 }
 
 export function saveAccount(sender) {
-  sender = canonId(sender);
   if (!collection && !modoRespaldo) return Promise.resolve();
   getAccount(sender);
   cuentasPendientes.add(sender);
@@ -432,75 +431,7 @@ export async function saveConfig(intentos = 3) {
   console.log("⚠️ No se pudo guardar la configuracion tras varios intentos. El cambio puede perderse al reiniciar.");
 }
 
-let canonId = (jid) => jid;
-
-export function setCanonId(fn) {
-  canonId = typeof fn === "function" ? fn : (jid) => jid;
-}
-
-export function idCanonico(jid) {
-  return canonId(jid);
-}
-
-function unirPerfiles(a, b) {
-  if (!a) return b;
-  if (!b) return a;
-  const peso = (p) => (p.level || 1) * 1e9 + (p.xp || 0);
-  const [base, otro] = peso(a) >= peso(b) ? [a, b] : [b, a];
-  const unido = { ...base };
-  for (const [clave, valor] of Object.entries(otro)) {
-    if (valor !== undefined && valor !== "" && (unido[clave] === undefined || unido[clave] === "")) unido[clave] = valor;
-  }
-  return unido;
-}
-
-export async function fusionarCuenta(origen, destino) {
-  if (!origen || !destino || origen === destino || !accounts.has(origen)) return false;
-  if (!collection || modoRespaldo) return false;
-  const o = accounts.get(origen);
-  const antesDestino = accounts.has(destino) ? structuredClone(accounts.get(destino)) : null;
-  const antesBase = saldosBase.get(destino);
-  const d = getAccount(destino);
-  d.wallet += o.wallet || 0;
-  d.bank += o.bank || 0;
-  d.cooldowns = { ...(o.cooldowns || {}), ...d.cooldowns };
-  d.rachas = { ...(o.rachas || {}), ...d.rachas };
-  d.negocios = { ...(o.negocios || {}), ...d.negocios };
-  if (!d.afk && o.afk) d.afk = o.afk;
-  if (!d.gachaClaim && o.gachaClaim) d.gachaClaim = o.gachaClaim;
-  if (!d.prestamo && o.prestamo) d.prestamo = o.prestamo;
-  const perfil = unirPerfiles(d.profile, o.profile);
-  if (perfil) d.profile = perfil;
-  const casados = [];
-  for (const [id, acc] of accounts) {
-    if (id !== origen && acc.profile && acc.profile.marriedTo === origen) {
-      acc.profile.marriedTo = destino;
-      casados.push(id);
-    }
-  }
-  saveAccount(destino);
-  casados.forEach((id) => saveAccount(id));
-  await guardarCuentasPendientes();
-  if (cuentasPendientes.has(destino)) {
-    if (antesDestino) accounts.set(destino, antesDestino);
-    else accounts.delete(destino);
-    if (antesBase) saldosBase.set(destino, antesBase);
-    else saldosBase.delete(destino);
-    casados.forEach((id) => {
-      const acc = accounts.get(id);
-      if (acc && acc.profile) acc.profile.marriedTo = origen;
-    });
-    return false;
-  }
-  accounts.delete(origen);
-  saldosBase.delete(origen);
-  cuentasPendientes.delete(origen);
-  await collection.deleteOne({ _id: origen });
-  return true;
-}
-
 export function getAccount(sender) {
-  sender = canonId(sender);
   if (!accounts.has(sender)) {
     accounts.set(sender, { wallet: 0, bank: 0, cooldowns: {}, rachas: {}, negocios: {}, afk: null });
   }
@@ -550,4 +481,182 @@ export function reiniciarEsperas(claves) {
       afectadas++;
       saveAccount(sender);
     }
-  
+  }
+  return afectadas;
+}
+
+export function getStickerMeta(idSticker) {
+  return stickerMetas.get(idSticker) || null;
+}
+
+export function getAllStickerMetas() {
+  return stickerMetas;
+}
+
+// persiste en MongoDB, igual que saveAccount/saveConfig.
+export function setStickerMeta(idSticker, pack, author) {
+  stickerMetas.set(idSticker, { pack, author });
+  saveStickerMeta(idSticker);
+}
+
+export async function saveStickerMeta(idSticker, intentos = 3) {
+  if (modoRespaldo) {
+    try {
+      await guardarOffline([["stickers", idSticker]]);
+    } catch (e) {
+      console.log("⚠️ No se pudo guardar el sticker en el respaldo: " + e.message);
+    }
+    return;
+  }
+  if (!stickersCollection) return;
+  const meta = stickerMetas.get(idSticker);
+  if (!meta) return;
+
+  for (let i = 1; i <= intentos; i++) {
+    try {
+      await stickersCollection.updateOne(
+        { _id: idSticker },
+        { $set: { pack: meta.pack, author: meta.author } },
+        { upsert: true }
+      );
+      return;
+    } catch (e) {
+      console.log(`Error guardando metadatos de sticker (intento ${i}/${intentos}): ` + e.message);
+      if (i < intentos) await new Promise((r) => setTimeout(r, 2000));
+    }
+  }
+  console.log("⚠️ No se pudo guardar el metadato del sticker " + idSticker + " tras varios intentos.");
+}
+
+const besos = new Map();
+
+function claveBesos(jidA, jidB) {
+  return [jidA, jidB].sort().join("|");
+}
+
+export function getBesos(jidA, jidB) {
+  return besos.get(claveBesos(jidA, jidB)) || 0;
+}
+
+export function buscarBesos(textos) {
+  const claves = textos.filter(Boolean);
+  return [...besos]
+    .filter(([clave]) => claves.some((t) => clave.includes(t)))
+    .map(([clave, total]) => ({ clave, total }))
+    .sort((a, b) => b.total - a.total);
+}
+
+export function unirBesos(claveVieja, jidA, jidB) {
+  const total = besos.get(claveVieja);
+  if (total === undefined) return null;
+  const clave = claveBesos(jidA, jidB);
+  if (clave === claveVieja) return { total, nuevoTotal: total, igual: true };
+  const nuevoTotal = (besos.get(clave) || 0) + total;
+  besos.set(clave, nuevoTotal);
+  guardarBesos(clave, nuevoTotal);
+  return { total, nuevoTotal, igual: false };
+}
+
+export function registrarBeso(jidA, jidB) {
+  const clave = claveBesos(jidA, jidB);
+  const nuevoTotal = (besos.get(clave) || 0) + 1;
+  besos.set(clave, nuevoTotal);
+  guardarBesos(clave, nuevoTotal);
+  return nuevoTotal;
+}
+
+async function guardarBesos(clave, total, intentos = 3) {
+  if (modoRespaldo) {
+    try {
+      await guardarOffline([["besos", clave]]);
+    } catch (e) {
+      console.log("⚠️ No se pudo guardar el contador de besos en el respaldo: " + e.message);
+    }
+    return;
+  }
+  if (!besosCollection) return;
+  for (let i = 1; i <= intentos; i++) {
+    try {
+      await besosCollection.updateOne({ _id: clave }, { $set: { total } }, { upsert: true });
+      return;
+    } catch (e) {
+      if (i < intentos) await new Promise((r) => setTimeout(r, 2000));
+    }
+  }
+  console.log("⚠️ No se pudo guardar el contador de besos de " + clave + " tras varios intentos.");
+}
+
+
+async function guardarBaneos() {
+  if (modoRespaldo) {
+    try {
+      await guardarOffline([["baneos", "global"]]);
+    } catch (e) {
+      console.log("⚠️ No se pudieron guardar los baneos en el respaldo: " + e.message);
+    }
+    return;
+  }
+  if (!baneosCollection) return;
+  try {
+    await baneosCollection.updateOne(
+      { _id: "global" },
+      { $set: { comandos: [...comandosBaneados], categorias: [...categoriasBaneadas] } },
+      { upsert: true }
+    );
+  } catch (e) {
+    console.log("⚠️ No se pudieron guardar los baneos: " + e.message);
+  }
+}
+
+export function banearComando(nombre) {
+  comandosBaneados.add(nombre.toLowerCase());
+  guardarBaneos();
+}
+
+export function desbanearComando(nombre) {
+  comandosBaneados.delete(nombre.toLowerCase());
+  guardarBaneos();
+}
+
+export function banearCategoria(categoria) {
+  categoriasBaneadas.add(categoria.toLowerCase());
+  guardarBaneos();
+}
+
+export function desbanearCategoria(categoria) {
+  categoriasBaneadas.delete(categoria.toLowerCase());
+  guardarBaneos();
+}
+
+export function comandoEstaBaneado(nombre, categoria) {
+  if (comandosBaneados.has(nombre.toLowerCase())) return true;
+  if (categoria && categoriasBaneadas.has(categoria.toLowerCase())) return true;
+  return false;
+}
+
+export function listarBaneos() {
+  return { comandos: [...comandosBaneados], categorias: [...categoriasBaneadas] };
+               }
+
+export function listarCuentas() {
+  return [...accounts.entries()];
+}
+
+export async function sumarAdvertencia(grupo, usuario) {
+  if (!warnsCollection) return null;
+  const campo = `w.${usuario}`;
+  await warnsCollection.updateOne({ _id: grupo }, { $inc: { [campo]: 1 } }, { upsert: true });
+  const doc = await warnsCollection.findOne({ _id: grupo }, { projection: { [campo]: 1 } });
+  return Number(doc?.w?.[usuario]) || 1;
+}
+
+export async function limpiarAdvertencias(grupo, usuario) {
+  if (!warnsCollection) return null;
+  const campo = `w.${usuario}`;
+  const doc = await warnsCollection.findOne({ _id: grupo }, { projection: { [campo]: 1 } });
+  const previas = Number(doc?.w?.[usuario]) || 0;
+  if (!previas) return 0;
+  await warnsCollection.updateOne({ _id: grupo }, { $unset: { [campo]: "" } });
+  await warnsCollection.deleteOne({ _id: grupo, w: {} });
+  return previas;
+}
