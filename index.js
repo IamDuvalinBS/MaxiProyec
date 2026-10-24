@@ -300,7 +300,6 @@ function enlazarEventos(sock, esSub) {
     }
     if (!(await reclamarMensaje(msg, esSub))) return;
     if (m.type === "notify" && !msg.key.fromMe) PAG.msgsHoy++;
-    if (esMensajeDePersona(msg, m.type)) contarMensajeGrupo(msg.key.remoteJid);
 
     const from = msg.key.remoteJid;
     const sender = await normalizarMensaje(
@@ -312,6 +311,7 @@ function enlazarEventos(sock, esSub) {
     );
 
     if (!msg.key.fromMe && m.type === "notify" && msg.pushName) recordarNombre(sender, msg.pushName);
+    if (esMensajeDePersona(msg, m.type)) contarMensajeGrupo(msg.key.remoteJid, sender);
 
     const idBotonPulsado =
       msg.message.buttonsResponseMessage?.selectedButtonId ||
