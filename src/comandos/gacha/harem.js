@@ -5,8 +5,8 @@ export default {
   desc: "Muestra tu colección de waifus",
   category: "Gacha",
   usage: ".harem [página]",
-  handler: async ({ sender, cleanText, reply }) => {
+  handler: async ({ sock, from, msg, sender, cleanText, reply }) => {
     await gachaListo;
-    await mostrarColeccion({ categoria: "waifu", titulo: "Tu harem", sender, cleanText, reply });
+    await mostrarColeccion({ sock, from, msg, categoria: "waifu", titulo: "Tu harem", sender, cleanText, reply });
   }
 };
