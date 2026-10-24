@@ -849,3 +849,31 @@ export function personajeAleatorioMinRareza(categoria, rangoMinimo, { soloLibres
 export function personajesDeCategoria(categoria) {
   return (porCategoria.get(categoria) || []).map((f) => copia(f));
 }
+
+export function fusionarUsuarioGacha(origen, destino) {
+  if (!origen || !destino || origen === destino) return false;
+  return enTransaccion(() => {
+    let cambio = false;
+    const mias = propiedad.get(origen);
+    if (mias) {
+      for (const [id, fila] of [...mias]) {
+        const ya = propiedad.get(destino)?.get(id);
+        const nivel = Math.max(fila.nivel, ya?.nivel || 0);
+        const estrellas = Math.max(fila.estrellas || 0, ya?.estrellas || 0);
+        quitarPropiedad(origen, id);
+        if (ya) quitarPropiedad(destino, id);
+        agregarPropiedad({ usuario: destino, char_id: id, obtenido: ya?.obtenido ?? fila.obtenido, nivel, estrellas });
+        cambio = true;
+      }
+    }
+    const items = inventario.get(origen);
+    if (items) {
+      for (const [item, cantidad] of [...items]) {
+        if (cantidad > 0) sumarItem(destino, item, cantidad);
+        quitarItem(origen, item);
+        cambio = true;
+      }
+    }
+    return cambio;
+  });
+}
