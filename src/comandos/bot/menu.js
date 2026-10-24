@@ -1,4 +1,6 @@
 import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 import { config, formatUptime, commandRegistry, FOTO_PATH } from "../../../core.js";
 import { enviarConBoton } from "../../../motores/botones.js";
 
@@ -185,6 +187,27 @@ function textoGrupo(argumento, categorias) {
   return bloqueGrupo(grupo, comandos);
 }
 
+const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
+const RUTAS_VIDEO = ["assets/videos/menu.mp4", "assets/menu.mp4", "photo/menu.mp4"].map((ruta) => path.join(RAIZ, ruta));
+let videoNota;
+
+function leerVideoNota() {
+  if (videoNota !== undefined) return videoNota;
+  const ruta = RUTAS_VIDEO.find((r) => fs.existsSync(r));
+  videoNota = ruta ? fs.readFileSync(ruta) : null;
+  return videoNota;
+}
+
+async function enviarNotaDeVideo(sock, from) {
+  const video = leerVideoNota();
+  if (!video) return;
+  try {
+    await sock.sendMessage(from, { video, ptv: true, mimetype: "video/mp4" });
+  } catch (e) {
+    console.log(`No se pudo enviar la nota de video del menú: ${e.message}`);
+  }
+}
+
 export default {
   names: [".menu", ".help"],
   desc: "Ver todos los comandos disponibles",
@@ -208,5 +231,7 @@ export default {
     if (!enviado) {
       await sock.sendMessage(from, { text: texto, mentions: [sender] }, { quoted: msg });
     }
+
+    if (!argumento) await enviarNotaDeVideo(sock, from);
   }
 };
