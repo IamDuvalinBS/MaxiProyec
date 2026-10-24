@@ -28,19 +28,39 @@ export const AUTOMATICAS = [
   { id: "afortunado", emoji: "🍀", nombre: "Afortunado", desc: "Consigue un ticket por suerte en una tirada.", ok: (c) => c.ticketsSuerte >= 1 }
 ];
 
+export const TEMPORADA_HALLOWEEN = "Halloween 2026";
+
+export const TEMPORADA = [
+  { id: "hw_telarana", emoji: "🕸️", nombre: "Tejedor de Telarañas", desc: "Atrapó la noche entera en una red de seda." },
+  { id: "hw_arana", emoji: "🕷️", nombre: "Reina Araña", desc: "Todas las patas de la oscuridad responden a su llamado." },
+  { id: "hw_zombie", emoji: "🧟", nombre: "Superviviente Zombi", desc: "Se levantó de la tumba y volvió por más personajes." },
+  { id: "hw_frankenstein", emoji: "⚡", nombre: "Criatura de Frankenstein", desc: "Cosida con rayos, tormenta y mucha obstinación." },
+  { id: "hw_bruja", emoji: "🧙‍♀️", nombre: "Gran Bruja", desc: "Su caldero nunca se enfría y su escoba nunca falla." },
+  { id: "hw_hechizo", emoji: "🔮", nombre: "Maestro de Hechizos", desc: "Dibujó el círculo prohibido y lo cerró sin un rasguño." },
+  { id: "hw_calabaza", emoji: "🎃", nombre: "Rey Calabaza", desc: "La cosecha de la noche de brujas se inclina ante él." },
+  { id: "hw_fantasma", emoji: "👻", nombre: "Espíritu Errante", desc: "Nadie lo vio llegar, nadie lo verá partir." },
+  { id: "hw_supremo", emoji: "💀", nombre: "Señor de Halloween", desc: "La insignia suprema de la temporada. Solo una mano la entrega." }
+].map((i) => ({ ...i, temporada: TEMPORADA_HALLOWEEN }));
+
 const POR_ID = new Map(AUTOMATICAS.map((i) => [i.id, i]));
+const TEMPORADA_POR_ID = new Map(TEMPORADA.map((i) => [i.id, i]));
 
 function exclusivas() {
   return config.gachaInsignias || {};
 }
 
+const deTemporada = (i) => ({ id: i.id, emoji: i.emoji, nombre: i.nombre, desc: i.desc, exclusiva: true, temporada: i.temporada });
+
 export function listaExclusivas() {
-  return Object.entries(exclusivas()).map(([id, d]) => ({ id, emoji: d.emoji, nombre: d.nombre, desc: d.desc, exclusiva: true }));
+  const propias = Object.entries(exclusivas()).map(([id, d]) => ({ id, emoji: d.emoji, nombre: d.nombre, desc: d.desc, exclusiva: true }));
+  return [...TEMPORADA.map(deTemporada), ...propias];
 }
 
 export function definicion(id) {
   const auto = POR_ID.get(id);
   if (auto) return { id: auto.id, emoji: auto.emoji, nombre: auto.nombre, desc: auto.desc, exclusiva: false };
+  const temporada = TEMPORADA_POR_ID.get(id);
+  if (temporada) return deTemporada(temporada);
   const ex = exclusivas()[id];
   return ex ? { id, emoji: ex.emoji, nombre: ex.nombre, desc: ex.desc, exclusiva: true } : null;
 }
@@ -103,7 +123,7 @@ export function revisarInsignias(usuario) {
 
 export async function crearExclusiva({ id, emoji, nombre, desc }) {
   if (!FORMATO_ID.test(id)) return { error: "formato" };
-  if (POR_ID.has(id)) return { error: "reservado" };
+  if (POR_ID.has(id) || TEMPORADA_POR_ID.has(id)) return { error: "reservado" };
   config.gachaInsignias = { ...exclusivas(), [id]: { emoji, nombre, desc } };
   await saveConfig();
   return { ok: true };
