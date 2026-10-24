@@ -15,6 +15,44 @@ const TIEMPO_VINCULACION_MS = 120000;
 const REINTENTO_BASE_MS = 5000;
 const REINTENTO_MAX_MS = 60000;
 
+
+// Normaliza números de teléfono de cualquier país (52 / 521 en México, 54 / 549 en Argentina).
+const PAIS_DEFECTO = String(process.env.CODIGO_PAIS_DEFECTO || "52").replace(/\D/g, "");
+
+// Devuelve solo dígitos; acepta "+52 1 (55) 1234-5678", "0052...", "@s.whatsapp.net", "123:4@s.whatsapp.net".
+export function soloDigitos(texto) {
+  const base = String(texto || "").split("@")[0].split(":")[0];
+  return base.replace(/\D/g, "").replace(/^00/, "");
+}
+
+// Forma canónica: la que WhatsApp usa hoy para vincular (México = 52 + 10 dígitos, Argentina = 54 + 10 dígitos).
+export function canonico(texto) {
+  let n = soloDigitos(texto);
+  if (n.length === 10 && PAIS_DEFECTO) n = PAIS_DEFECTO + n;   // número local sin código de país
+  if (/^521\d{10}$/.test(n)) n = "52" + n.slice(3);
+  if (/^549\d{10,11}$/.test(n)) n = "54" + n.slice(3);
+  return n;
+}
+
+// Todas las formas con las que podría aparecer el mismo número (para comparar o buscar sesiones guardadas).
+export function variantes(texto) {
+  const c = canonico(texto);
+  const lista = new Set([c, soloDigitos(texto)]);
+  if (/^52\d{10}$/.test(c)) lista.add("521" + c.slice(2));
+  if (/^54\d{10}$/.test(c)) lista.add("549" + c.slice(2));
+  return [...lista].filter(Boolean);
+}
+
+export function mismoNumero(a, b) {
+  const ca = canonico(a);
+  return Boolean(ca) && ca === canonico(b);
+}
+
+export function esNumeroValido(texto) {
+  const n = canonico(texto);
+  return n.length >= 8 && n.length <= 15;
+}
+
 const logger = pino({ level: "silent" });
 const subs = new Map();
 let enlazar = null;
@@ -76,8 +114,10 @@ async function conectar(numero) {
   });
   entrada.sock = sock;
 
-  sock.ev.on("creds.update", () => {
-    entrada.guardando = guardarCreds().catch((e) => console.log(`[subbot ${numero}] no se pudo guardar la sesión: ${e.message}`));
+  sock.ev.on("creds.update", () => {   // en fila: evita que una escritura vieja pise a una nueva
+    entrada.guardando = (entrada.guardando || Promise.resolve())
+      .then(() => guardarCreds())
+      .catch((e) => console.log(`[subbot ${numero}] no se pudo guardar la sesión: ${e.message}`));
   });
 
   sock.ev.on("connection.update", async (update) => {
@@ -138,6 +178,9 @@ async function conectar(numero) {
     }, espera);
   });
 
+  if (process.env.DEBUG_SUBS) {
+    sock.ev.on("messages.upsert", (m) => console.log(`[subbot ${numero}] mensajes recibidos: ${(m.messages || []).length} (${m.type})`));
+  }
   if (enlazar) enlazar(sock);
 }
 
@@ -176,9 +219,15 @@ export async function iniciarSubbots(funcionEnlazar) {
   if (subs.size) console.log(`Subbots activos: ${subs.size}`);
 }
 
-export async function solicitarCodigo(numero, dueno) {
+async function existeAlguna(numero) {   // por si quedó guardado como 521... o 52...
+  for (const v of variantes(numero)) if (subs.has(v) || (await existeSub(v))) return true;
+  return false;
+}
+
+export async function solicitarCodigo(numeroCrudo, dueno) {
+  const numero = canonico(numeroCrudo);
   if (!sesionesDisponibles()) throw new Error("sin_mongo");
-  if (subs.has(numero) || (await existeSub(numero))) throw new Error("ya_existe");
+  if (await existeAlguna(numero)) throw new Error("ya_existe");
   if (subs.size >= MAX_SUBS) throw new Error("limite");
 
   const entrada = { sock: null, detenido: false, reintentos: 0, enLinea: false, temporizador: null, guardando: null, vinculando: null, codigoPedido: false };
@@ -210,7 +259,15 @@ export async function solicitarCodigo(numero, dueno) {
   return { codigo, conectado };
 }
 
-export async function quitarSubbot(numero, { cerrarSesion = false } = {}) {
+async function resolverClave(numeroCrudo) {
+  const lista = variantes(numeroCrudo);
+  for (const v of lista) if (subs.has(v)) return v;
+  if (sesionesDisponibles()) for (const v of lista) if (await existeSub(v).catch(() => null)) return v;
+  return canonico(numeroCrudo);
+}
+
+export async function quitarSubbot(numeroCrudo, { cerrarSesion = false } = {}) {
+  const numero = await resolverClave(numeroCrudo);
   const entrada = subs.get(numero);
   const guardado = entrada ? true : sesionesDisponibles() && Boolean(await existeSub(numero).catch(() => null));
   if (entrada) {

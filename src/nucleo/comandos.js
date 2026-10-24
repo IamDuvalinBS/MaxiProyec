@@ -5,7 +5,7 @@ import { connectDB, commandRegistry, simularEscritura, delayAleatorio, comandoEs
 import { soloAdminsActivo, botApagado } from "../grupos/estado.js";
 import { esAdminOOwner, ajustarMenciones } from "../grupos/nucleo.js";
 import { enviarConCache, reenviarCacheado, guardarRelay, registrarMedio, claveDeDescarga } from "../../motores/cache-medios.js";
-import { contarComando } from "../../motores/estadisticas.js";
+import { contarComando, contarComandoGrupo } from "../../motores/estadisticas.js";
 import { antesDeComando, despuesDeComando, COMANDOS_LOGROS } from "../economia/logros.js";
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -131,6 +131,7 @@ export async function manejarComando(sock, from, sender, text, msg) {
   try {
     await handler({ sock, from, sender, cleanText, msg, reply });
     contarComando(principalDeComando.get(comando));
+    if (!msg.paginaChat) contarComandoGrupo(from, principalDeComando.get(comando));
     if (antesLogros) await despuesDeComando({ antes: antesLogros, sender, comando, categoria: categoriaActual, reply });
     if (claveDescarga && capturados.length) guardarRelay(claveDescarga, capturados);
   } catch (e) {

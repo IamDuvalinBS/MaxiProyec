@@ -27,6 +27,7 @@ import { antilinkActivo, botApagado, ajustesDe } from "./src/grupos/estado.js";
 import { eliminarEnlace } from "./src/grupos/enlaces.js";
 import { olvidarMetadatos } from "./src/grupos/nucleo.js";
 import { recordarNombre } from "./motores/profile.js";
+import { esMensajeDePersona, contarMensajeGrupo } from "./motores/estadisticas.js";
 import { normalizarMensaje, aprenderTodosLosGrupos } from "./src/nucleo/identidad.js";
 import { iniciarChatPagina } from "./src/nucleo/chatpagina.js";
 import { pasesParaPagina, pasesReclamados, alReclamarPase } from "./motores/gacha-pases.js";
@@ -231,6 +232,23 @@ async function vincularPagina(sock, from, sender, resto, msg) {
 iniciarPagina();
 // ═════════════════════════════════════════════════════════════════
 
+// Saca el contenido real del mensaje (chats con mensajes temporales, ver una vez, documento con texto, etc.)
+function desenvolverMensaje(contenido) {
+  let c = contenido;
+  for (let i = 0; i < 5 && c; i++) {
+    const interno =
+      c.ephemeralMessage?.message ||
+      c.viewOnceMessage?.message ||
+      c.viewOnceMessageV2?.message ||
+      c.viewOnceMessageV2Extension?.message ||
+      c.documentWithCaptionMessage?.message ||
+      c.deviceSentMessage?.message;
+    if (!interno) break;
+    c = interno;
+  }
+  return c || contenido;
+}
+
 function puedeResponderEnGrupo(sock, grupo) {
   const principal = ajustesDe(grupo).principal;
   if (!principal || !sock.user || !sock.user.id) return true;
@@ -282,6 +300,7 @@ function enlazarEventos(sock, esSub) {
     }
     if (!(await reclamarMensaje(msg, esSub))) return;
     if (m.type === "notify" && !msg.key.fromMe) PAG.msgsHoy++;
+    if (esMensajeDePersona(msg, m.type)) contarMensajeGrupo(msg.key.remoteJid);
 
     const from = msg.key.remoteJid;
     const sender = await normalizarMensaje(
@@ -306,12 +325,13 @@ function enlazarEventos(sock, esSub) {
       return;
     }
 
+    const cont = desenvolverMensaje(msg.message);
     const text = (
-      msg.message.conversation ||
-      (msg.message.extendedTextMessage ? msg.message.extendedTextMessage.text : "") ||
-      (msg.message.imageMessage ? msg.message.imageMessage.caption : "") ||
-      (msg.message.documentMessage ? msg.message.documentMessage.caption : "") ||
-      (msg.message.documentWithCaptionMessage?.message?.documentMessage?.caption || "") ||
+      cont.conversation ||
+      (cont.extendedTextMessage ? cont.extendedTextMessage.text : "") ||
+      (cont.imageMessage ? cont.imageMessage.caption : "") ||
+      (cont.videoMessage ? cont.videoMessage.caption : "") ||
+      (cont.documentMessage ? cont.documentMessage.caption : "") ||
       ""
     ).trim();
 
