@@ -131,7 +131,7 @@ export async function manejarComando(sock, from, sender, text, msg) {
   try {
     await handler({ sock, from, sender, cleanText, msg, reply });
     contarComando(principalDeComando.get(comando));
-    if (!msg.paginaChat) contarComandoGrupo(from, principalDeComando.get(comando));
+    if (!msg.paginaChat) contarComandoGrupo(from, principalDeComando.get(comando), sender);
     if (antesLogros) await despuesDeComando({ antes: antesLogros, sender, comando, categoria: categoriaActual, reply });
     if (claveDescarga && capturados.length) guardarRelay(claveDescarga, capturados);
   } catch (e) {
