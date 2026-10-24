@@ -822,6 +822,31 @@ export function transferirColeccion(de, a, categoria) {
   });
 }
 
+export function fusionarUsuarioGacha(origen, destino) {
+  if (!origen || !destino || origen === destino) return false;
+  const props = propiedad.get(origen);
+  const inv = inventario.get(origen);
+  if (!props?.size && !inv?.size) return false;
+  return enTransaccion(() => {
+    for (const [charId, fila] of [...(props || [])]) {
+      const actual = propiedad.get(destino)?.get(charId);
+      if (actual) {
+        actual.nivel = Math.max(actual.nivel || 1, fila.nivel || 1);
+        actual.estrellas = Math.max(actual.estrellas || 0, fila.estrellas || 0);
+        marcar(COL.propiedad, `${destino}|${charId}`);
+      } else {
+        agregarPropiedad({ usuario: destino, char_id: charId, obtenido: fila.obtenido, nivel: fila.nivel, estrellas: fila.estrellas || 0 });
+      }
+      quitarPropiedad(origen, charId);
+    }
+    for (const [item, cantidad] of [...(inv || [])]) {
+      sumarItem(destino, item, cantidad);
+      quitarItem(origen, item);
+    }
+    return true;
+  });
+}
+
 export function fijarCantidadItem(usuario, item, cantidad) {
   const delta = cantidad - cantidadItem(usuario, item);
   if (delta) sumarItem(usuario, item, delta);

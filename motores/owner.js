@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { config, saveConfig } from "./db.js";
+import { config, saveConfig, idCanonico } from "./db.js";
 
 const OWNERS_INICIALES = [
   "529613345733@s.whatsapp.net",
@@ -32,6 +32,8 @@ for (const jid of OWNERS_INICIALES) {
 export function isOwner(sender) {
   const lista = [...OWNERS_INICIALES, ...(config.owners || [])];
   if (lista.includes(sender)) return true;
+  const canonico = idCanonico(sender);
+  if (lista.some((jid) => idCanonico(jid) === canonico)) return true;
   const n = soloNumero(sender);
   if (!n) return false;
   if (lista.some((jid) => soloNumero(jid) === n)) return true;
