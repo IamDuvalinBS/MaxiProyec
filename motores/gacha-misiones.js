@@ -6,6 +6,7 @@ import { CAT } from "./gacha-categorias.js";
 import { sumarEstadistica, revisarInsignias } from "./gacha-insignias.js";
 import { encabezado } from "../src/economia/estilo.js";
 import { T } from "./gacha-tema.js";
+import { avanzarHalloween } from "./gacha-halloween-misiones.js";
 
 const ZONA = process.env.GACHA_ZONA || "America/Mexico_City";
 const formatoFecha = new Intl.DateTimeFormat("en-CA", { timeZone: ZONA });
@@ -147,13 +148,15 @@ const arroba = (jid) => `@${String(jid).split("@")[0].split(":")[0]}`;
 export async function registrarActividad({ reply, sender, eventos }) {
   try {
     const completadas = [];
+    const halloween = [];
     for (const e of eventos) {
       const cantidad = e.cantidad ?? 1;
       if (ESTADISTICAS[e.tipo] && cantidad > 0) sumarEstadistica(sender, ESTADISTICAS[e.tipo], cantidad);
       completadas.push(...progreso(sender, e.tipo, cantidad, e.categoria).completadas);
+      halloween.push(...avanzarHalloween(sender, e));
     }
     const insignias = revisarInsignias(sender);
-    if (!completadas.length && !insignias.length) return;
+    if (!completadas.length && !insignias.length && !halloween.length) return;
 
     const partes = [];
     if (completadas.length) {
@@ -162,6 +165,14 @@ export async function registrarActividad({ reply, sender, eventos }) {
         "",
         ...completadas.map((m) => `> ${arroba(sender)} completó: *${m.texto}*.`),
         T("> Cobra tu recompensa con *.misiones cobrar*.", "> Cobra tu botín con *.misiones cobrar*.")
+      );
+    }
+    if (halloween.length) {
+      if (partes.length) partes.push("");
+      partes.push(
+        encabezado("🕯️", "MISIÓN DE HALLOWEEN COMPLETADA"),
+        "",
+        ...halloween.map((m) => `> ${arroba(sender)} cumplió *${m.nombre}* (exclusiva de Halloween 2026): +${m.dinero.toLocaleString("en-US")} 🎃${m.fragmentos ? `, +${m.fragmentos} fragmentos` : ""}${m.ticketCat ? `, 1 ticket de ${CAT[m.ticketCat]?.singular || m.ticketCat}` : ""}.`)
       );
     }
     if (insignias.length) {

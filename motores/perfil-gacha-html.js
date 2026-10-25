@@ -59,6 +59,7 @@ body.h .rb{background:rgba(18,4,26,.94)}
 .pg1{width:44px;height:30px;border-radius:11px;border:1.5px solid var(--line);background:var(--panel2);color:var(--tit1);font-size:16px}
 .pg1:disabled{opacity:.25}
 .pg2{min-width:128px;height:30px;border-radius:15px;border:1.5px solid var(--line);background:var(--panel2);font-family:Georgia,serif;font-size:13px;color:var(--tit1);display:flex;align-items:center;justify-content:center}
+.ms{padding:9px 10px;border-radius:14px;border:1.5px solid var(--line);background:var(--panel2);margin-bottom:8px}.ms.ok{border-color:#8dff3f}.mt{font-weight:800;font-size:13px}.md{font-size:11.5px;opacity:.8;margin:2px 0 6px}.mb{height:7px;border-radius:5px;background:rgba(255,255,255,.12);overflow:hidden}.mb i{display:block;height:100%;background:var(--tit1)}.mr{font-size:11px;margin-top:5px;opacity:.9}
 .sec{font-family:Georgia,serif;font-size:14px;color:var(--tit1);margin:2px 0 9px;display:flex;align-items:center;gap:8px}
 .sec:after{content:"";flex:1;height:1px;background:linear-gradient(90deg,var(--line),transparent)}
 .sec small{font-size:11px;color:var(--mut)}
@@ -202,7 +203,8 @@ function emblema(b){
 var c=BP[b.id]||['#444','#111','#ccc'];
 return '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="url(#g_'+b.id+')" stroke="'+c[2]+'" stroke-width="2.4"/><circle cx="32" cy="32" r="27" fill="none" stroke="'+c[2]+'" stroke-opacity=".35" stroke-width=".8"/>'+glifo(b.id)+'</svg>'}
 function vistaInsignias(){
-var I=D.ins,h='',i,b,x,txt;
+var I=D.ins,h='',i,b,x,txt,m;
+if(D.hw&&D.hw.length){h+='<div class="sec">🕯️ Misiones de Halloween <small>exclusivas</small></div>';for(i=0;i<D.hw.length;i++){m=D.hw[i];h+='<div class="ms'+(m.hecha?' ok':'')+'"><div class="mt">'+m.emoji+' '+esc(m.nombre)+(m.hecha?' ✔':'')+'</div><div class="md">'+esc(m.desc)+'</div><div class="mb"><i style="width:'+Math.round(m.avance/m.meta*100)+'%"></i></div><div class="mr">'+m.avance+' / '+m.meta+' · 🎁 '+esc(m.premio)+'</div></div>'}}
 h+='<div class="sec">'+(H?'🎃':'🍂')+' Temporada '+esc(I.temporada.nombre)+' <small>'+I.temporada.tiene+'/'+I.temporada.lista.length+'</small></div><div class="bgs">';
 for(i=0;i<I.temporada.lista.length;i++){b=I.temporada.lista[i];h+='<div class="bg'+(b.tiene?' ok':' lk')+(sel===b.id?' sel':'')+'" data-b="'+b.id+'"><div class="em">'+emblema(b)+'</div><div class="bn">'+esc(b.nombre)+'</div><div class="bd">'+(b.tiene?'✔ Obtenida':'Bloqueada')+'</div></div>'}
 h+='</div>';
