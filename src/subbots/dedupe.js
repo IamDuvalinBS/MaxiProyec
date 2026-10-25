@@ -2,6 +2,12 @@ const reclamados = new Map();
 const VIGENCIA_MS = 120000;
 const LIMITE = 400;
 const ESPERA_SUB_GRUPO_MS = 1500;
+let idsPrincipal = new Set();
+
+// Números/IDs del bot principal: sirven para saber si un subbot está viendo un chat con el principal.
+export function fijarPrincipal(user) {
+  idsPrincipal = new Set([user?.id, user?.lid].filter(Boolean).map((j) => String(j).split("@")[0].split(":")[0]));
+}
 
 function limpiar(ahora) {
   if (reclamados.size < LIMITE) return;
@@ -26,7 +32,9 @@ export async function reclamarMensaje(msg, esSub) {
   if (reclamados.has(clave)) return false;
   // Un subbot ve como "fromMe" lo que su dueño escribe; si el bot principal ya recibió ese mismo mensaje (porque el
   // dueño le escribió al bot), el subbot no debe contestarlo también.
-  const espera = msg.key.fromMe || msg.key.remoteJid.endsWith("@g.us");
+  // En el chat propio o con otras personas el principal no ve el mensaje, así que no hace falta esperar.
+  const conPrincipal = msg.key.fromMe && idsPrincipal.has(msg.key.remoteJid.split("@")[0].split(":")[0]);
+  const espera = conPrincipal || msg.key.remoteJid.endsWith("@g.us");
   if (espera) {
     await new Promise((resolver) => setTimeout(resolver, ESPERA_SUB_GRUPO_MS));
     if (reclamados.has(clave) || (msg.key.fromMe && reclamados.has(claveId))) return false;

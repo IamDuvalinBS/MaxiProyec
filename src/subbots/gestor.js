@@ -8,6 +8,8 @@ import {
   existeSub,
   eliminarSub
 } from "../../motores/sesiones-mongo.js";
+import { config, saveConfig } from "../../motores/db.js";
+import { isOwner } from "../../motores/owner.js";
 
 const MAX_SUBS = Math.max(1, Number(process.env.MAX_SUBBOTS) || 10);
 const PAUSA_ENTRE_SUBS_MS = 4000;
@@ -53,6 +55,79 @@ export function esNumeroValido(texto) {
   return n.length >= 8 && n.length <= 15;
 }
 
+
+// ───────────── Quién puede pedir .code ─────────────
+// 1) Owners del bot  2) Usuarios con permiso (.permitircode)  3) Owners de la página  4) Quien cumpla la misión de la página:
+// jugar MINUTOS_MISION minutos a juegos patrocinadores (cada código nuevo pide la misión otra vez).
+const MINUTOS_MISION = Math.max(1, Number(process.env.CODE_MISION_MIN) || 15);
+const JUEGOS_OFICIALES = new Set(["colorrush", "dino", "snake", "gusanos", "minigolf", "pou", "dodge", "simon", "tap"]);
+let pagina = null;
+
+export function usarPagina(PAG) {   // lo llama index.js cuando Firebase conecta
+  pagina = PAG;
+  try {
+    PAG.fs.collection("bot").doc("codigo").set({ min: MINUTOS_MISION, t: PAG.FV.serverTimestamp() }, { merge: true }).catch(() => {});
+  } catch {}
+}
+
+const mismoId = (a, b) => a === b || (canonico(a) && canonico(a) === canonico(b));
+
+export const permitidosCode = () => [...(config.codePermitidos || [])];
+
+export async function permitirCode(id) {
+  if (!config.codePermitidos) config.codePermitidos = [];
+  if (config.codePermitidos.some((x) => mismoId(x, id))) return false;
+  config.codePermitidos.push(id);
+  await saveConfig();
+  return true;
+}
+
+export async function quitarPermisoCode(id) {
+  const antes = (config.codePermitidos || []).length;
+  config.codePermitidos = (config.codePermitidos || []).filter((x) => !mismoId(x, id));
+  if (config.codePermitidos.length === antes) return false;
+  await saveConfig();
+  return true;
+}
+
+function uidDe(sender) {
+  if (!pagina || !pagina.vinc) return null;
+  for (const [uid, v] of pagina.vinc) if (v.jid && mismoId(v.jid, sender)) return uid;
+  return null;
+}
+
+export async function permisoCode(sender) {
+  if (isOwner(sender)) return { ok: true, via: "owner" };
+  if ((config.codePermitidos || []).some((x) => mismoId(x, sender))) return { ok: true, via: "permiso" };
+  if (!pagina || !pagina.fs) return { ok: false, motivo: "sin_pagina" };
+  const uid = uidDe(sender);
+  if (!uid) return { ok: false, motivo: "sin_vinculo", meta: MINUTOS_MISION };
+  try {
+    const [pf, ow] = await Promise.all([pagina.fs.collection("perfiles").doc(uid).get(), pagina.fs.collection("owners").doc(uid).get()]);
+    if (ow.exists) return { ok: true, via: "owner_web" };
+    const d = pf.data() || {};
+    const juegos = d.juegos || {}, pj = (d.stats && d.stats.pj) || {};
+    let minutos = 0;
+    for (const id of Object.keys(juegos)) {
+      if (JUEGOS_OFICIALES.has(id)) continue;
+      minutos += Math.max(Number(juegos[id] && juegos[id].minutos) || 0, Number(pj[id]) || 0);
+    }
+    const usos = Number(d.codeUsos) || 0;
+    const progreso = minutos - MINUTOS_MISION * usos;
+    if (progreso >= MINUTOS_MISION) return { ok: true, via: "mision", uid };
+    return { ok: false, motivo: "mision", meta: MINUTOS_MISION, falta: Math.ceil(MINUTOS_MISION - Math.max(0, progreso)) };
+  } catch (e) {
+    console.log("Permiso de .code: " + e.message);
+    return { ok: false, motivo: "error" };
+  }
+}
+
+export async function registrarUsoCode(uid) {   // gasta la misión cumplida
+  if (!uid || !pagina || !pagina.fs) return;
+  await pagina.fs.collection("perfiles").doc(uid).set({ codeUsos: pagina.FV.increment(1) }, { merge: true }).catch((e) => console.log("No se pudo registrar el uso de .code: " + e.message));
+}
+
+const CODIGO_VINCULACION = String(process.env.CODIGO_VINCULACION || "MAXIBOTS").toUpperCase();   // 8 letras/números
 const logger = pino({ level: "silent" });
 const subs = new Map();
 let enlazar = null;
@@ -92,7 +167,8 @@ async function conectar(numero) {
   if (!entrada || entrada.detenido) return;
   liberar(entrada);
 
-  const { state, guardarCreds } = await cargarEstadoSub(numero, logger);
+  const { state, guardarCreds, vaciar } = await cargarEstadoSub(numero, logger);
+  entrada.vaciar = vaciar;
   const version = await obtenerVersion();
   if (entrada.detenido) return;
 
@@ -110,9 +186,22 @@ async function conectar(numero) {
     shouldSyncHistoryMessage: () => false,
     generateHighQualityLinkPreview: false,
     getMessage: async () => undefined,
+    cachedGroupMetadata: async (jid) => {   // evita pedir los datos del grupo a WhatsApp en cada mensaje
+      const g = entrada.grupos.get(jid);
+      if (g && g.vence > Date.now()) return g.meta;
+      try {
+        const meta = await entrada.sock.groupMetadata(jid);
+        entrada.grupos.set(jid, { meta, vence: Date.now() + 5 * 60000 });
+        return meta;
+      } catch {
+        return g ? g.meta : undefined;
+      }
+    },
     shouldIgnoreJid: (jid) => typeof jid === "string" && (jid === "status@broadcast" || jid.endsWith("@broadcast") || jid.endsWith("@newsletter"))
   });
   entrada.sock = sock;
+  sock.ev.on("groups.update", (c) => { for (const x of c) if (x.id) entrada.grupos.delete(x.id); });
+  sock.ev.on("group-participants.update", (u) => entrada.grupos.delete(u.id));
 
   sock.ev.on("creds.update", () => {   // en fila: evita que una escritura vieja pise a una nueva
     entrada.guardando = (entrada.guardando || Promise.resolve())
@@ -126,7 +215,7 @@ async function conectar(numero) {
     if (qr && !state.creds.registered && entrada.vinculando && !entrada.codigoPedido) {
       entrada.codigoPedido = true;
       try {
-        const codigo = await sock.requestPairingCode(numero);
+        const codigo = await sock.requestPairingCode(numero, CODIGO_VINCULACION);
         entrada.vinculando.resolverCodigo(codigo);
       } catch (e) {
         terminarVinculacion(entrada, false, e);
@@ -171,6 +260,7 @@ async function conectar(numero) {
     entrada.temporizador = setTimeout(async () => {
       try {
         await entrada.guardando;
+        await entrada.vaciar?.();   // las claves pendientes deben estar guardadas antes de releer la sesión
         await conectar(numero);
       } catch (e) {
         console.log(`[subbot ${numero}] no se pudo reconectar: ${e.message}`);
@@ -208,7 +298,7 @@ export async function iniciarSubbots(funcionEnlazar) {
       continue;
     }
     if (subs.has(sub.numero)) continue;
-    subs.set(sub.numero, { sock: null, detenido: false, reintentos: 0, enLinea: false, temporizador: null, guardando: null, vinculando: null, codigoPedido: false });
+    subs.set(sub.numero, { sock: null, detenido: false, reintentos: 0, enLinea: false, temporizador: null, guardando: null, vinculando: null, codigoPedido: false, grupos: new Map() });
     try {
       await conectar(sub.numero);
     } catch (e) {
@@ -230,7 +320,7 @@ export async function solicitarCodigo(numeroCrudo, dueno) {
   if (await existeAlguna(numero)) throw new Error("ya_existe");
   if (subs.size >= MAX_SUBS) throw new Error("limite");
 
-  const entrada = { sock: null, detenido: false, reintentos: 0, enLinea: false, temporizador: null, guardando: null, vinculando: null, codigoPedido: false };
+  const entrada = { sock: null, detenido: false, reintentos: 0, enLinea: false, temporizador: null, guardando: null, vinculando: null, codigoPedido: false, grupos: new Map() };
   const vinculando = {};
   const codigo = new Promise((resolver, rechazar) => {
     vinculando.resolverCodigo = resolver;
@@ -279,6 +369,7 @@ export async function quitarSubbot(numeroCrudo, { cerrarSesion = false } = {}) {
       } catch {}
     }
     liberar(entrada);
+    await entrada.vaciar?.().catch(() => {});   // que no queden claves a medio guardar al borrar la sesión
     subs.delete(numero);
   }
   if (sesionesDisponibles()) await eliminarSub(numero).catch((e) => console.log(`[subbot ${numero}] no se pudo borrar la sesión: ${e.message}`));

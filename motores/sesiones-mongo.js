@@ -3,8 +3,9 @@ import { obtenerBase } from "./db.js";
 
 const COLECCION_SUBS = "subbots";
 const COLECCION_CLAVES = "subbots_keys";
-const CACHE_MAX = 150;
-const CACHE_TTL_MS = 120000;
+const CACHE_MAX = 1500;
+const CACHE_TTL_MS = 30 * 60000;
+const ESCRITURA_DIFERIDA_MS = 400;
 
 function serializar(valor) {
   return JSON.parse(JSON.stringify(valor, baileys.BufferJSON.replacer));
@@ -55,13 +56,45 @@ export async function cargarEstadoSub(numero, logger) {
   const creds = doc && doc.creds ? restaurar(doc.creds) : baileys.initAuthCreds();
   const prefijo = `${numero}|`;
 
+  // Las claves se guardan en segundo plano (agrupadas) y se leen primero de memoria: enviar un mensaje ya no espera a MongoDB.
+  const pendientes = new Map();
+  let temporizador = null;
+  let volcando = Promise.resolve();
+
+  const volcar = () => {
+    temporizador = null;
+    if (!pendientes.size) return volcando;
+    const lote = [...pendientes];
+    pendientes.clear();
+    const operaciones = lote.map(([_id, v]) =>
+      v === null ? { deleteOne: { filter: { _id } } } : { updateOne: { filter: { _id }, update: { $set: { v: serializar(v) } }, upsert: true } }
+    );
+    volcando = volcando
+      .then(() => claves.bulkWrite(operaciones, { ordered: false }))
+      .catch((e) => {
+        console.log(`[subbot ${numero}] no se pudieron guardar las claves: ${e.message}`);
+        for (const [_id, v] of lote) if (!pendientes.has(_id)) pendientes.set(_id, v);   // se reintenta
+        if (!temporizador) temporizador = setTimeout(volcar, 5000);
+      });
+    return volcando;
+  };
+
   const almacen = {
     get: async (tipo, ids) => {
       const salida = {};
       if (!ids.length) return salida;
-      const docs = await claves.find({ _id: { $in: ids.map((id) => `${prefijo}${tipo}-${id}`) } }).toArray();
-      const porId = new Map(docs.map((d) => [d._id, d.v]));
+      const faltan = [];
       for (const id of ids) {
+        const clave = `${prefijo}${tipo}-${id}`;
+        if (pendientes.has(clave)) {
+          const v = pendientes.get(clave);
+          if (v !== null) salida[id] = v;
+        } else faltan.push(id);
+      }
+      if (!faltan.length) return salida;
+      const docs = await claves.find({ _id: { $in: faltan.map((id) => `${prefijo}${tipo}-${id}`) } }).toArray();
+      const porId = new Map(docs.map((d) => [d._id, d.v]));
+      for (const id of faltan) {
         const guardado = porId.get(`${prefijo}${tipo}-${id}`);
         if (guardado === undefined) continue;
         let valor = restaurar(guardado);
@@ -72,16 +105,10 @@ export async function cargarEstadoSub(numero, logger) {
       return salida;
     },
     set: async (datos) => {
-      const operaciones = [];
       for (const tipo of Object.keys(datos)) {
-        for (const id of Object.keys(datos[tipo])) {
-          const _id = `${prefijo}${tipo}-${id}`;
-          const valor = datos[tipo][id];
-          if (valor) operaciones.push({ updateOne: { filter: { _id }, update: { $set: { v: serializar(valor) } }, upsert: true } });
-          else operaciones.push({ deleteOne: { filter: { _id } } });
-        }
+        for (const id of Object.keys(datos[tipo])) pendientes.set(`${prefijo}${tipo}-${id}`, datos[tipo][id] || null);
       }
-      if (operaciones.length) await claves.bulkWrite(operaciones, { ordered: false });
+      if (!temporizador) temporizador = setTimeout(volcar, ESCRITURA_DIFERIDA_MS);
     }
   };
 
@@ -96,7 +123,8 @@ export async function cargarEstadoSub(numero, logger) {
     );
   };
 
-  return { state: { creds, keys }, guardarCreds };
+  const vaciar = async () => { clearTimeout(temporizador); await volcar(); await volcando; };
+  return { state: { creds, keys }, guardarCreds, vaciar };
 }
 
 export async function guardarMetaSub(numero, meta) {
