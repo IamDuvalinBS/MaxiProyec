@@ -1,7 +1,7 @@
-import { crearComandoTienda } from "../../../motores/gacha-tienda.js";
-
-export default crearComandoTienda({
-  categoria: "waifu",
+export default {
   names: [".waifushop", ".waifutienda"],
-  desc: "Muestra la tienda de regalos para tus waifus con sus precios y los niveles que da cada artículo"
-});
+  desc: "Las waifus ahora son solo coleccionables (sin niveles ni combates)",
+  category: "Gacha",
+  usage: ".waifushop",
+  handler: async ({ reply }) => reply({ text: "🌸 Las waifus ahora son *solo coleccionables*: ya no tienen niveles, tienda ni combates. Consíguelas con *.rw* y revisa tu colección con *.harem*." })
+};

@@ -83,6 +83,12 @@ small{color:var(--mu);font-size:10.5px;letter-spacing:1.6px;font-weight:800}
 .rr p{font-size:14px;line-height:1.55;color:#fff;margin:7px 0 4px;overflow-wrap:anywhere}
 .rr i{display:block;font-style:normal;font-size:11px;color:var(--a2);font-weight:800;margin-bottom:6px}
 .hint{font-size:11.5px;color:var(--mu);line-height:1.5;margin-bottom:9px}
+.sc{height:470px;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:2px 2px 14px;margin:0 -2px}
+.sc::-webkit-scrollbar{width:0}
+.hi{color:var(--a2);background:rgba(255,255,255,.1);padding:0 4px;border-radius:5px;font-weight:900}
+.th video{position:absolute;left:0;top:0;width:100%;height:100%;background:#000;object-fit:contain}
+.nf{border-style:dashed;cursor:default}
+.nf p{font-size:13px;line-height:1.5;color:var(--mu);margin-top:6px}
 .wk a{display:inline-block;margin-top:8px;font-size:12px;font-weight:800;color:var(--a2)}
 .inf{cursor:default}
 .inf .top2{display:flex;gap:13px;align-items:flex-start;margin-bottom:6px}
@@ -139,9 +145,12 @@ function ex(i,u,h){return '<div class="ex">'+(h?'<div class="hint">'+h+'</div>':
 function cuerpo(arr){if(!arr||!arr.length)return '';return '<div class="rd">'+arr.map(function(t){return t.indexOf('## ')===0?'<h4>'+esc(t.slice(3))+'</h4>':'<p>'+esc(t)+'</p>'}).join('')+'</div>'}
 function cWeb(it,n,abierto){var i=reg(it);return '<div class="cd wb'+(abierto?' on':'')+'" style="--i:'+n+';--c:'+hue(it.dominio)+'"><div class="hd"><div class="av">'+esc((it.dominio||'?').charAt(0).toUpperCase())+'</div><div class="mt"><b>'+esc(it.dominio)+'</b><i>'+esc(ruta(it.url))+'</i></div></div><div class="tt">'+esc(it.titulo)+'</div>'+(it.texto&&!(abierto&&it.cuerpo)?'<div class="sn">'+esc(it.texto)+'</div>':'')+cuerpo(it.cuerpo)+ex(i,it.url)+'</div>'}
 function cNot(it,n){var i=reg(it);return '<div class="cd nw" style="--i:'+n+';--c:'+hue(it.dominio)+'">'+(it.img?'<div class="ni"><img src="'+it.img+'" alt=""></div>':'')+'<div class="hd"><span class="src">'+esc(it.dominio)+'</span><span class="tm">'+(it.nuevo?'<u></u>':'')+esc(it.hace)+'</span></div><div class="tt">'+esc(it.titulo)+'</div>'+(it.texto?'<div class="sn">'+esc(it.texto)+'</div>':'')+cuerpo(it.cuerpo)+ex(i,it.url)+'</div>'}
-function thumb(it,i,play){return '<div class="th"'+(play?' data-play="'+i+'"':'')+'>'+(it.img?'<img src="'+it.img+'" alt="">':'')+'<div class="pl">▶</div><div class="du">'+esc(it.duracion)+'</div>'+(it.nuevo?'<div class="nu">NUEVO</div>':'')+'</div>'}
-function cVid(it,n){var i=reg(it);return '<div class="cd vd" style="--i:'+n+'">'+thumb(it,i,true)+'<div class="in"><div class="tt">'+esc(it.titulo)+'</div><div class="sn">'+esc(it.canal)+' · '+esc(it.fecha)+'</div>'+ex(i,it.url,'¿Pantalla negra? Tu visor no deja reproducir aquí: copia el enlace o usa los botones del chat.')+'</div></div>'}
-function mini(it){return '<div class="mv" data-go="vid">'+thumb(it,0,false)+'<div class="mi"><div class="tt">'+esc(it.titulo)+'</div><div class="sn">'+esc(it.canal)+' · '+esc(it.fecha)+'</div></div></div>'}
+function thumb(it){return '<div class="th">'+(it.img?'<img src="'+it.img+'" alt="">':'')+'<div class="pl">▶</div><div class="du">'+esc(it.duracion)+'</div>'+(it.nuevo?'<div class="nu">NUEVO</div>':'')+'</div>'}
+function esClip(it){return !!(D.clip&&D.clip.b64&&it.id===D.clip.id)}
+function cVid(it,n){var i=reg(it),clip=esClip(it),h=clip?'¿No reproduce? Copia el enlace o usa los botones del chat.':'Para verlo aquí escribe .google video '+esc(D.q)+' · o usa .play con el enlace y los botones del chat.';
+var cabeza=clip?'<div class="th"><video id="vclip" controls playsinline preload="metadata"'+(it.img?' poster="'+it.img+'"':'')+'></video><div class="nu">▶ VISTA PREVIA '+(D.clip.seg||45)+' s</div></div>':thumb(it);
+return '<div class="cd vd'+(clip?' on':'')+'" style="--i:'+n+'">'+cabeza+'<div class="in"><div class="tt">'+esc(it.titulo)+'</div><div class="sn">'+esc(it.canal)+' · '+esc(it.fecha)+'</div>'+ex(i,it.url,h)+'</div></div>'}
+function mini(it){return '<div class="mv" data-go="vid">'+thumb(it)+'<div class="mi"><div class="tt">'+esc(it.titulo)+'</div><div class="sn">'+esc(it.canal)+' · '+esc(it.fecha)+'</div></div></div>'}
 function foto(f,k){return '<div class="ph" data-lb="'+k+'"><img src="'+f.img+'" alt=""><span>'+esc(f.titulo)+'</span></div>'}
 function lista(arr,fn,max){var h='';arr.slice(0,max||999).forEach(function(it,n){h+=fn(it,n)});return h}
 function sec(t,go){return '<div class="sec"><small>'+t+'</small>'+(go?'<a data-go="'+go+'">Ver todo ›</a>':'')+'</div>'}
@@ -150,7 +159,9 @@ if(A.tipo==='hora'){var t='';for(var i=0;i<12;i++)t+='<line x1="60" y1="8" x2="6
 return '<div class="ans"><svg class="ck" viewBox="0 0 120 120"><circle cx="60" cy="60" r="56" fill="rgba(255,255,255,.07)" stroke="rgba(255,255,255,.4)" stroke-width="3"/>'+t+'<line id="hh" x1="60" y1="60" x2="60" y2="33" stroke="#fff" stroke-width="5" stroke-linecap="round"/><line id="mm" x1="60" y1="60" x2="60" y2="21" stroke="'+P[2]+'" stroke-width="3.6" stroke-linecap="round"/><line id="ss" x1="60" y1="69" x2="60" y2="17" stroke="'+P[3]+'" stroke-width="1.8" stroke-linecap="round"/><circle cx="60" cy="60" r="4.5" fill="'+P[3]+'"/></svg><div class="cu"><small>HORA ACTUAL</small><div class="gr" id="dg">'+esc(A.grande)+'</div><div class="dt">'+esc(A.detalle)+'</div><span class="lg">📍 '+esc(A.lugar)+'</span><span class="lg">'+(A.noche?'🌙 Noche':'☀️ Día')+'</span></div></div>'}
 if(WIKI)return '<div class="ans wk"'+(CLARGO?' data-go="inf"':'')+'>'+(WIKI.img?'<img src="'+WIKI.img+'" alt="">':'')+'<div class="cu"><small>📚 WIKIPEDIA</small><b class="wt">'+esc(WIKI.titulo)+'</b><p>'+esc(WIKI.texto)+'</p>'+(CLARGO?'<a>Leer información completa ›</a>':'')+'</div></div>';
 return '<div class="ans"><div class="cu"><small>'+esc(String(A.titulo).toUpperCase())+'</small><div class="gr">'+esc(A.grande)+'</div><div class="dt">'+esc(A.detalle)+'</div>'+(A.lugar?'<span class="lg">📍 '+esc(A.lugar)+'</span>':'')+'</div></div>'}
-function rapida(){var R=D.respuesta;if(!R||!R.length)return '';return '<div class="ans rr"><small>💡 RESPUESTA RÁPIDA</small>'+R.map(function(r){return '<p>'+esc(r.texto)+'</p><i>— '+esc(r.fuente)+'</i>'}).join('')+'</div>'}
+function resaltar(t){return esc(t).replace(/(principios de 20\d\d|finales de 20\d\d|mediados de 20\d\d|\b\d{1,2} de (?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)(?: de 20\d\d)?|\b(?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre) de 20\d\d|\b20\d\d\b)/gi,'<b class="hi">$1</b>')}
+function rapida(){var R=D.respuesta;if(R&&R.length)return '<div class="ans rr"><small>💡 RESPUESTA RÁPIDA</small>'+R.map(function(r){return '<p>'+resaltar(r.texto)+'</p><i>— '+esc(r.fuente)+'</i>'}).join('')+'</div>';
+if(D.sinFecha)return '<div class="ans rr nf"><small>💡 RESPUESTA RÁPIDA</small><p>No encontré una fecha confirmada en las fuentes. Revisa las noticias y la información de abajo, o usa el botón Ver en Google del chat.</p></div>';return ''}
 function resumenWeb(){if(WIKI||!FUENTES.length)return '';var f=FUENTES[0],t=f.cuerpo.filter(function(x){return x.indexOf('## ')!==0}).slice(0,2).join(' ');if(t.length>430)t=t.slice(0,429)+'…';
 return '<div class="ans wk" data-go="inf"><div class="cu"><small>📖 RESUMEN · '+esc(f.dominio.toUpperCase())+'</small><b class="wt">'+esc(f.titulo)+'</b><p>'+esc(t)+'</p><a>Leer información completa ›</a></div></div>'}
 function reloj(){var f=new Intl.DateTimeFormat('es-MX',{timeZone:A.zona,hour:'numeric',minute:'2-digit',second:'2-digit',hour12:true});
@@ -171,7 +182,7 @@ if(FOT.length)TABS.push(['fot','🖼️ Fotos',FOT.length]);
 if(V.length)TABS.push(['vid','▶️ Videos',V.length]);
 function existe(k){return TABS.some(function(t){return t[0]===k})}
 var ini=D.modo==='youtube'&&existe('vid')?'vid':D.modo==='noticias'&&existe('not')?'not':D.modo==='precio'&&existe('web')?'web':D.modo==='fotos'&&existe('fot')?'fot':'todo';
-var RR=rapida(),pTodo=respuesta()+(RR||resumenWeb())+precios();
+var RR=rapida(),pTodo=RR+respuesta()+(RR&&!D.sinFecha?'':resumenWeb())+precios();
 if(FOT.length)pTodo+=sec('🖼️ FOTOS',FOT.length>3?'fot':'')+'<div class="car">'+lista(FOT,foto,8)+'</div>';
 if(W.length)pTodo+=sec('🌐 WEB',W.length>3?'web':'')+lista(W,cWeb,3);
 if(N.length)pTodo+=sec('📰 ÚLTIMAS NOTICIAS',N.length>3?'not':'')+lista(N,cNot,3);
@@ -183,15 +194,20 @@ if(FUENTES.length)pInf+=sec('📑 DE LAS FUENTES')+lista(FUENTES,function(it,n){
 var pWeb=precios()+lista(W,cWeb);
 var pNot=lista(N,cNot);
 var pFot='<div class="gal">'+lista(FOT,foto)+'</div>';
-var pVid=(RE.length?sec('🆕 MÁS RECIENTES'):'')+lista(RE,cVid)+(PO.length?sec('🔥 POPULARES'):'')+lista(PO,cVid);
+var CLIPV=D.clip&&D.clip.b64?V.filter(esClip)[0]:null;
+var RE2=RE.filter(function(v){return v!==CLIPV}),PO2=PO.filter(function(v){return v!==CLIPV});
+var pVid=(CLIPV?sec('▶ REPRODUCIR AQUÍ')+cVid(CLIPV,0):'')+(RE2.length?sec('🆕 MÁS RECIENTES'):'')+lista(RE2,cVid)+(PO2.length?sec('🔥 POPULARES'):'')+lista(PO2,cVid);
 var tabs='<div class="tabs">'+TABS.map(function(t){return '<div class="tb'+(t[0]===ini?' on':'')+'" id="t-'+t[0]+'" data-go="'+t[0]+'">'+t[1]+(t[2]!==''?'<b>'+t[2]+'</b>':'')+'</div>'}).join('')+'</div>';
 function pn(k,h){return '<div class="pn'+(k===ini?' on':'')+'" id="p-'+k+'">'+h+'</div>'}
-$('main').innerHTML=(TABS.length>1?tabs:'')+pn('todo',pTodo)+(existe('inf')?pn('inf',pInf):'')+(W.length?pn('web',pWeb):'')+(N.length?pn('not',pNot):'')+(FOT.length?pn('fot',pFot):'')+(V.length?pn('vid',pVid):'');
-function abrir(k){TABS.forEach(function(t){var a=$('t-'+t[0]),b=$('p-'+t[0]);if(a)a.className='tb'+(t[0]===k?' on':'');if(b)b.className='pn'+(t[0]===k?' on':'')})}
+var paneles=pn('todo',pTodo)+(existe('inf')?pn('inf',pInf):'')+(W.length?pn('web',pWeb):'')+(N.length?pn('not',pNot):'')+(FOT.length?pn('fot',pFot):'')+(V.length?pn('vid',pVid):'');
+var FIJO=D.fijo&&TABS.length>1;
+$('main').innerHTML=(TABS.length>1?tabs:'')+(FIJO?'<div class="sc" id="sc">'+paneles+'</div>':paneles);
+var vc=$('vclip');if(vc&&D.clip){try{var bin=atob(D.clip.b64),nb=bin.length,u8=new Uint8Array(nb);for(var q=0;q<nb;q++)u8[q]=bin.charCodeAt(q);vc.src=URL.createObjectURL(new Blob([u8],{type:'video/mp4'}))}catch(x){try{vc.src='data:video/mp4;base64,'+D.clip.b64}catch(y){}}}
+function abrir(k){var sc=$('sc');if(sc)sc.scrollTop=0;TABS.forEach(function(t){var a=$('t-'+t[0]),b=$('p-'+t[0]);if(a)a.className='tb'+(t[0]===k?' on':'');if(b)b.className='pn'+(t[0]===k?' on':'')})}
 $('main').addEventListener('click',function(e){
+if(e.target.closest('video'))return;
 var go=e.target.closest('[data-go]');if(go){abrir(go.getAttribute('data-go'));return}
 var lb=e.target.closest('[data-lb]');if(lb){var f=FOT[+lb.getAttribute('data-lb')];$('lbi').src=f.img;$('lbt').textContent=f.titulo+' · '+f.fuente;$('lb').className='lb on';return}
-var pl=e.target.closest('[data-play]');if(pl){var v=ALL[+pl.getAttribute('data-play')];if(v&&v.id){pl.removeAttribute('data-play');pl.innerHTML='<iframe src="https://www.youtube.com/embed/'+v.id+'?autoplay=1&mute=1&playsinline=1&rel=0&modestbranding=1" referrerpolicy="strict-origin-when-cross-origin" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>';var cv=pl.closest?pl.closest('.cd'):null;if(cv&&cv.className.indexOf(' on')<0)cv.className+=' on';setTimeout(function(){toast('¿No carga? Ábrelo con los botones del chat')},6000)}return}
 var cp=e.target.closest('[data-cp]');if(cp){e.stopPropagation();copiar(ALL[+cp.getAttribute('data-cp')].url);return}
 var c=e.target.closest('.cd');if(c&&c.className.indexOf('inf')<0)tog(c)});
 $('lb').addEventListener('click',function(){$('lb').className='lb'});

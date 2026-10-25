@@ -11,7 +11,9 @@ import {
 import { tarjeta, fmt } from "../src/economia/formato.js";
 import { moneda, esHalloween } from "../src/economia/temas.js";
 import { createCanvas, loadImage } from "@napi-rs/canvas";
-import { htmlColeccion } from "./gacha-coleccion-html.js";
+import { htmlColeccionGeneral } from "./coleccion-html.js";
+import { TEMAS_COLECCION } from "./gacha-temas-coleccion.js";
+import { tipoEs } from "./gacha-pokemon.js";
 import { encabezado } from "../src/economia/estilo.js";
 import { formatTime } from "./ui.js";
 import { renderSnake } from "./gacha-snake.js";
@@ -516,7 +518,7 @@ export function crearComandoClaim({ categoria, names, desc }) {
       cerrarPendiente(r.id);
       const { texto, mentions } = mensajeReclamo({ categoria, sender, personaje: p });
       await enviarReclamo({ sock, from, msg, texto, mentions, reply });
-      await registrarActividad({ reply, sender, eventos: [{ tipo: "reclamar", categoria }] });
+      await registrarActividad({ reply, sender, eventos: [{ tipo: "reclamar", categoria, rareza: p.rareza }] });
     }
   };
 }
@@ -531,14 +533,18 @@ async function miniaturaDe(c) {
     const img = await prepararImagen([c.img, ...(c.meta?.alt || [])]);
     try {
       const origen = await loadImage(fs.readFileSync(img.ruta));
-      const lado = 96;
+      const lado = 128;
       const lienzo = createCanvas(lado, lado);
       const ctx = lienzo.getContext("2d");
       const k = Math.min(lado / origen.width, lado / origen.height);
       const w = Math.round(origen.width * k);
       const h = Math.round(origen.height * k);
       ctx.drawImage(origen, Math.round((lado - w) / 2), Math.round((lado - h) / 2), w, h);
-      uri = "data:image/png;base64," + lienzo.toBuffer("image/png").toString("base64");
+      try {
+        uri = "data:image/webp;base64," + lienzo.toBuffer("image/webp", 80).toString("base64");
+      } catch {
+        uri = "data:image/png;base64," + lienzo.toBuffer("image/png").toString("base64");
+      }
     } finally {
       img.limpiar();
     }
@@ -546,18 +552,27 @@ async function miniaturaDe(c) {
     console.log(`[gacha] Miniatura omitida (${c.nombre}): ${e.message}`);
   }
   if (uri) {
-    if (miniaturas.size > 800) miniaturas.delete(miniaturas.keys().next().value);
+    if (miniaturas.size > 900) miniaturas.delete(miniaturas.keys().next().value);
     miniaturas.set(clave, uri);
   }
   return uri;
 }
 
-async function enviarColeccionHtml({ sock, from, msg, categoria, sender, pagina, todos, n, total }) {
+const POR_PARTE_HTML = 36;
+
+function claseDe(c, categoria, series) {
+  if (categoria === "brawler") return String(c.serie || "").split("·")[1]?.trim() || "Brawler";
+  if (categoria === "pokemon") return c.stats?.tipos?.[0] ? tipoEs(c.stats.tipos[0]) : "Pokémon";
+  if (categoria === "waifu") return series.get(c.serie || "Desconocida") >= 2 ? (c.serie || "Desconocida") : "Otras";
+  if (["cod", "dragon", "clash"].includes(categoria)) return c.meta?.tipo || c.rareza;
+  return c.rareza;
+}
+
+async function enviarColeccionHtml({ sock, from, msg, categoria, sender, pagina, todos, n }) {
   const cat = CAT[categoria];
-  const POR_PARTE = 12;
-  const paginas = Math.ceil(n / POR_PARTE);
-  const p = Math.min(pagina, paginas);
-  const trozo = todos.slice((p - 1) * POR_PARTE, p * POR_PARTE);
+  const partes = Math.ceil(n / POR_PARTE_HTML);
+  const parte = Math.min(Math.max(1, pagina), partes);
+  const trozo = todos.slice((parte - 1) * POR_PARTE_HTML, parte * POR_PARTE_HTML);
 
   const imagenes = [];
   for (let i = 0; i < trozo.length; i += 6) {
@@ -565,32 +580,40 @@ async function enviarColeccionHtml({ sock, from, msg, categoria, sender, pagina,
   }
 
   const conteo = new Map();
-  for (const c of todos) conteo.set(c.rareza, (conteo.get(c.rareza) || 0) + 1);
+  const series = new Map();
+  for (const c of todos) {
+    conteo.set(c.rareza, (conteo.get(c.rareza) || 0) + 1);
+    if (categoria === "waifu") series.set(c.serie || "Desconocida", (series.get(c.serie || "Desconocida") || 0) + 1);
+  }
   const conNivel = TIENE_NIVELES(categoria);
+  const tema = TEMAS_COLECCION[categoria] || TEMAS_COLECCION.brawler;
 
   const datos = {
     halloween: esHalloween(),
-    clave: categoria,
+    cfg: { ...tema, sinNivel: !conNivel },
     nombre: msg?.pushName || arroba(sender),
     n,
-    totalCat: Math.max(n, contarPersonajes(categoria)),
-    valorTxt: monto(total),
+    total: Math.max(n, contarPersonajes(categoria)),
+    valorTxt: monto(todos.reduce((a, c) => a + c.valor, 0)),
     rarezas: [...conteo].map(([nombre, c]) => ({ n: nombre, c })),
-    pagina: p,
-    paginas,
-    comando: cat.coleccionCmd,
+    parte,
+    partes,
+    porParte: POR_PARTE_HTML,
     firma: "Powered By ItsDuva",
     items: trozo.map((c, i) => {
-      const item = { id: c.id, nombre: c.nombre, rareza: c.rareza, valorTxt: monto(c.valor), img: imagenes[i], fuente: fuenteDe(c) };
+      const clase = claseDe(c, categoria, series);
+      const item = { id: c.id, nombre: c.nombre, clase, claseN: clase, serie: fuenteDe(c), rareza: c.rareza, valorTxt: monto(c.valor), img: imagenes[i] };
       if (conNivel) {
         const st = statsEfectivas(c, c.nivel);
         Object.assign(item, { nivel: c.nivel, max: nivelMaxDe(categoria, c.estrellas), estrellas: c.estrellas || 0, st: { hp: st.hp, atk: st.atk, def: st.def, spe: st.spe } });
+      } else {
+        Object.assign(item, { nivel: 0, max: 0, estrellas: 0, st: null });
       }
       return item;
     })
   };
 
-  await sock.sendHtml(from, htmlColeccion(datos), [], msg, {});
+  await sock.sendHtml(from, htmlColeccionGeneral(datos), [], msg, {});
 }
 
 export async function mostrarColeccion({ sock, from, msg, categoria, sender, cleanText, reply }) {
@@ -604,7 +627,7 @@ export async function mostrarColeccion({ sock, from, msg, categoria, sender, cle
   if (n && sock && from && typeof sock.sendHtml === "function") {
     try {
       const todos = coleccionDe(sender, categoria, 100000, 0);
-      await enviarColeccionHtml({ sock, from, msg, categoria, sender, pagina, todos, n, total });
+      await enviarColeccionHtml({ sock, from, msg, categoria, sender, pagina, todos, n });
       return;
     } catch (e) {
       console.log(`[gacha] La colección en HTML falló (${categoria}), se envía en texto: ${e.stack || e.message}`);

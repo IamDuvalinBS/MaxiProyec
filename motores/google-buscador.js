@@ -487,29 +487,64 @@ export function ordenarPorRelevancia(items, consulta, max = 8) {
   return base.slice(0, max).map((m) => m.it);
 }
 
-const FECHA_RE = /\b(20\d\d|enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre|estren\w*|lanz\w*|disponible)\b/i;
+const FECHA_RE = /\b(20\d\d|enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre|estren\w*|lanz\w*|disponible|llegar[aá]|principios|finales|mediados)\b/i;
+
+const ORDINALES = { 2: "segunda|dos|ii", 3: "tercera|tres|iii", 4: "cuarta|cuatro|iv", 5: "quinta|cinco|v" };
+
+const PIDEN_FECHA = /(^|\s)(cuando|fecha|estreno|estrena|sale|salida|lanzamiento)(\s|$)/;
+
+export function pideFecha(consulta) {
+  return PIDEN_FECHA.test(limpiar(consulta));
+}
+
+function pistaNumero(consulta) {
+  const n = /(^|\s)(\d)(\s|$)/.exec(limpiar(consulta))?.[2];
+  return n ? new RegExp("\\b(" + n + "|" + (ORDINALES[n] || "zzzz") + "|temporada " + n + ")\\b", "i") : null;
+}
+
+function frases(texto) {
+  return String(texto || "")
+    .split(/(?<=[.!?])\s+(?=[A-ZÁÉÍÓÚÑ¿¡"“0-9])/)
+    .map((f) => f.trim())
+    .filter((f) => f.length >= 25);
+}
 
 export function mejorRespuesta(consulta, { noticias = [], web = [], wiki = null } = {}) {
   const tokens = tokensClave(consulta);
   if (!tokens.length) return null;
-  const piden = /(^|\s)(cuando|fecha|estreno|sale|salida|lanzamiento)(\s|$)/.test(limpiar(consulta));
+  const piden = pideFecha(consulta);
+  const numero = pistaNumero(consulta);
   const minimo = tokens.length <= 2 ? 1 : 0.6;
   const candidatos = [];
-  const agregar = (bloques, fuente, url, base) => {
+
+  const agregar = (titulo, bloques, fuente, url, base) => {
+    const fuenteOk = cobertura(tokens, titulo || "") >= minimo;
     for (const b of bloques) {
-      if (!b || b.startsWith("## ") || b.length < 60) continue;
-      const cov = cobertura(tokens, b);
-      if (cov < minimo) continue;
-      candidatos.push({ texto: recortar(b, 520), fuente, url, score: cov * 3 + base + (piden && FECHA_RE.test(b) ? 1.5 : 0) });
+      if (!b || b.startsWith("## ") || b.length < 50) continue;
+      const covP = cobertura(tokens, b);
+      if (!fuenteOk && covP < minimo) continue;
+      if (piden) {
+        for (const f of frases(b)) {
+          if (!FECHA_RE.test(f)) continue;
+          if (numero && !numero.test(f) && !numero.test(titulo || "") && !numero.test(b)) continue;
+          const score = 2 + base + cobertura(tokens, f) + (numero ? (numero.test(f) ? 1.5 : numero.test(b) ? 1 : 0) : 0) + (/estren|lanz|disponible|llegar|llegará/i.test(f) ? 2 : 0) + (/se espera|prev[eé]|a principios|a finales|a mediados|pr[oó]xim/i.test(f) ? 1 : 0) + (/20(2[6-9]|3\d)/.test(f) ? 0.8 : 0) + (/20\d\d/.test(f) ? 0.4 : 0);
+          candidatos.push({ texto: recortar(f, 340), fuente, url, score });
+        }
+      } else {
+        candidatos.push({ texto: recortar(b, 520), fuente, url, score: covP * 3 + base + (fuenteOk ? 0.5 : 0) });
+      }
     }
   };
-  noticias.slice(0, 6).forEach((n, i) => agregar([n.texto, ...(n.cuerpo || [])], n.dominio, n.url, 0.6 - i * 0.05));
-  web.slice(0, 5).forEach((w, i) => agregar([w.texto, ...(w.cuerpo || [])], w.dominio, w.url, 0.3 - i * 0.03));
-  if (wiki) agregar([wiki.texto, ...(wiki.largo || [])], "Wikipedia", wiki.url, 0.4);
+
+  noticias.slice(0, 6).forEach((n, i) => agregar(n.titulo, [n.texto, ...(n.cuerpo || [])], n.dominio + (n.hace ? " · " + n.hace : ""), n.url, 0.6 - i * 0.05));
+  web.slice(0, 5).forEach((w, i) => agregar(w.titulo, [w.texto, ...(w.cuerpo || [])], w.dominio, w.url, 0.3 - i * 0.03));
+  if (wiki) agregar(wiki.titulo, [wiki.texto, ...(wiki.largo || [])], "Wikipedia", wiki.url, 0.4);
+
   candidatos.sort((a, b) => b.score - a.score);
+  const umbral = piden ? 2.4 : 1.8;
   const mejor = candidatos[0];
-  if (!mejor || mejor.score < 1.8) return null;
-  const otra = candidatos.find((c) => c.fuente !== mejor.fuente && c.score >= 1.8);
+  if (!mejor || mejor.score < umbral) return null;
+  const otra = candidatos.find((c) => c.fuente.split(" · ")[0] !== mejor.fuente.split(" · ")[0] && c.score >= umbral && c.texto !== mejor.texto);
   return [mejor, otra].filter(Boolean).map(({ texto, fuente, url }) => ({ texto, fuente, url }));
 }
 
@@ -517,22 +552,45 @@ const CABECERA_WIKI = { "User-Agent": "MaxiProyec/1.0 (bot de WhatsApp)", "Api-U
 
 const SECCIONES_FINALES = /^(véase también|referencias|enlaces externos|notas|bibliografía|notas y referencias|fuentes|galería|further reading|references|external links|see also)$/i;
 
-export function formatearWiki(texto, maxChars = 4200) {
-  const bloques = [];
-  let total = 0;
+export function formatearWiki(texto, maxChars = 4200, consulta = "") {
+  const secciones = [{ titulo: "", parrafos: [] }];
   for (const linea of String(texto || "").split("\n")) {
     const t = linea.trim();
     if (!t) continue;
     const h = /^=+\s*(.+?)\s*=+$/.exec(t);
     if (h) {
       if (SECCIONES_FINALES.test(h[1])) break;
-      bloques.push("## " + h[1]);
+      secciones.push({ titulo: h[1], parrafos: [] });
       continue;
     }
     if (t.length < 40) continue;
-    const corto = recortar(t, 900);
-    bloques.push(corto);
-    total += corto.length;
+    secciones[secciones.length - 1].parrafos.push(recortar(t, 900));
+  }
+  const utiles = secciones.filter((x) => x.parrafos.length);
+  let orden = utiles;
+  if (consulta && utiles.length > 2) {
+    const numero = pistaNumero(consulta);
+    const fecha = pideFecha(consulta);
+    const puntuar = (x) => {
+      const cuerpo = x.parrafos.join(" ");
+      let sc = 0;
+      if (numero && (numero.test(x.titulo) || numero.test(cuerpo))) sc += 2;
+      if (fecha && FECHA_RE.test(cuerpo)) sc += 1.5;
+      if (fecha && /temporada|estreno|lanzamiento|renovaci|producci|segunda|continuaci/i.test(x.titulo)) sc += 2;
+      return sc;
+    };
+    const [intro, ...resto] = utiles;
+    orden = [intro, ...resto.map((x, i) => ({ x, i, sc: puntuar(x) })).sort((a, b) => b.sc - a.sc || a.i - b.i).map((m) => m.x)];
+  }
+  const bloques = [];
+  let total = 0;
+  for (const sec of orden) {
+    if (sec.titulo) bloques.push("## " + sec.titulo);
+    for (const par of sec.parrafos) {
+      bloques.push(par);
+      total += par.length;
+      if (total >= maxChars) break;
+    }
     if (total >= maxChars) break;
   }
   while (bloques.length && bloques[bloques.length - 1].startsWith("## ")) bloques.pop();
@@ -609,7 +667,7 @@ async function buscarWikipedia(consulta, { maxFotos = 8 } = {}) {
             tipo: "wiki",
             titulo: d.title,
             texto: recortar(d.extract, 360),
-            largo: formatearWiki(pagina?.extract || d.extract),
+            largo: formatearWiki(pagina?.extract || d.extract, 4200, consulta),
             url: d.content_urls?.desktop?.page || "",
             img: d.thumbnail?.source ? await imagenDatos(d.thumbnail.source) : ""
           };
@@ -707,6 +765,7 @@ export async function buscarTodo(consulta, modo) {
   const respuesta = mejorRespuesta(consulta, { noticias: noticias.items, web: web.items, wiki: enciclopedia.wiki });
   const datos = {
     respuesta,
+    sinFecha: !respuesta && pideFecha(consulta) && modo === "info",
     web: web.items,
     noticias: noticias.items,
     populares: videos.populares,

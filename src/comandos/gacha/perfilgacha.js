@@ -30,7 +30,7 @@ export default {
     if (typeof sock.sendHtml === "function") {
       try {
         const nombre = (propio && msg?.pushName) || getProfile(objetivo).name || objetivo.split("@")[0];
-        await sock.sendHtml(from, await htmlPerfilDe(objetivo, { nombre }), [], undefined, {});
+        await sock.sendHtml(from, await htmlPerfilDe(objetivo, { nombre }), [], msg, {});
         return;
       } catch (e) {
         console.log("[perfilgacha] ERROR: " + e.stack);

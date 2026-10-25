@@ -4,6 +4,7 @@ import { AUTOMATICAS, TEMPORADA, TEMPORADA_HALLOWEEN, listaExclusivas, tieneInsi
 import { imagenesCompactas } from "./gacha-imagen-html.js";
 import { htmlPerfilGacha } from "./perfil-gacha-html.js";
 import { esHalloween } from "../src/economia/temas.js";
+import { misionesHalloween } from "./gacha-halloween-misiones.js";
 
 const POR_CATEGORIA = 6;
 const FIRMA = "Powered By ItsDuva";
@@ -77,6 +78,7 @@ export async function construirDatosPerfil(usuario, { nombre, tabInicial = "todo
     },
     cats,
     items,
+    hw: misionesHalloween(usuario),
     ins: {
       total: insigniasDe(usuario).length,
       temporada: { nombre: TEMPORADA_HALLOWEEN, lista: temporada, tiene: temporada.filter((t) => t.tiene).length },

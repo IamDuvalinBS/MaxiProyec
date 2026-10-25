@@ -60,17 +60,17 @@ export function bloqueCuriosidades(p) {
   const lineas = [
     encabezado("🔍", estilo(ESTILOS).tituloCuriosidades),
     "",
-    `🆔 *ID* :: #${p.id}`,
-    `✍🏻 *Nombre* ›› ${p.nombre}`,
-    `🌐 *Fuente* ›› ${fuenteDe(p)}`
+    `❖ *ID* ›› #${p.id}`,
+    `❀ *Nombre* ›› ${p.nombre}`,
+    `✧ *Fuente* ›› ${fuenteDe(p)}`
   ];
   if (p.categoria === "waifu" && p.genero) lineas.push(`⚥ *Género* ›› ${p.genero}`);
-  if (p.categoria === "pokemon" && p.stats?.tipos?.length) lineas.push(`🌲 *Tipo* ›› ${p.stats.tipos.map(tipoEs).join(" / ")}`);
-  if (p.categoria === "brawler" && String(p.serie || "").includes("·")) lineas.push(`🎯 *Clase* ›› ${p.serie.split("·")[1].trim()}`);
-  if (["cod", "dragon", "clash"].includes(p.categoria) && p.meta?.tipo) lineas.push(`🎯 *Tipo* ›› ${p.meta.tipo}`);
-  if (p.categoria === "clash" && p.meta?.elixir != null) lineas.push(`💧 *Elixir* ›› ${p.meta.elixir}`);
-  lineas.push(`✨ *Rareza* ›› ${p.rareza}`);
-  lineas.push(`${estilo(ESTILOS).valor} ›› ${monto(p.valor)}`);
+  if (p.categoria === "pokemon" && p.stats?.tipos?.length) lineas.push(`✿ *Tipo* ›› ${p.stats.tipos.map(tipoEs).join(" / ")}`);
+  if (p.categoria === "brawler" && String(p.serie || "").includes("·")) lineas.push(`✪ *Clase* ›› ${p.serie.split("·")[1].trim()}`);
+  if (["cod", "dragon", "clash"].includes(p.categoria) && p.meta?.tipo) lineas.push(`✿ *Tipo* ›› ${p.meta.tipo}`);
+  if (p.categoria === "clash" && p.meta?.elixir != null) lineas.push(`◈ *Elixir* ›› ${p.meta.elixir}`);
+  lineas.push(`✦ *Rareza* ›› ${p.rareza}`);
+  lineas.push(`☆ *Valor* ›› ${monto(p.valor)}`);
   return lineas.join("\n");
 }
 
@@ -84,11 +84,12 @@ export function bloqueEstadisticas(p, nivel = 1) {
     "",
     `> Estadísticas de *${p.nombre}* *(${p.rareza})*`,
     "",
-    `📊 *Nivel* ›› ${nivel}/${NIVEL_MAX[p.categoria]}  • ${E.salud} ›› ${s.hp}`,
-    "",
-    `${E.dano} ›› ${s.atk}  • ${E.defensa} ›› ${s.def}`,
-    "",
-    `${E.velocidad} ›› ${s.spe}  • 📚 *Calidad* ›› ${fmt(calidad)}`
+    `✚ *Nivel* ›› ${nivel}/${NIVEL_MAX[p.categoria]}`,
+    `♡ *Salud* ›› ${s.hp}`,
+    `✠ *Daño* ›› ${s.atk}`,
+    `◈ *Defensa* ›› ${s.def}`,
+    `➳ *Velocidad* ›› ${s.spe}`,
+    `❂ *Calidad* ›› ${fmt(calidad)}`
   ].join("\n");
 }
 
