@@ -583,8 +583,8 @@ export function leTiene(usuario, charId) {
 
 export function reclamar(usuario, personaje, nivel = 1) {
   return enTransaccion(() => {
-    if (personaje.categoria === "waifu" && propietarios(personaje.id).length) return "ocupado";
     if (leTiene(usuario, personaje.id)) return "repetido";
+    if (propietarios(personaje.id).length) return "ocupado";
     agregarPropiedad({ usuario, char_id: Number(personaje.id), obtenido: ahora(), nivel: Math.max(1, Number(nivel) || 1), estrellas: 0 });
     return "ok";
   });
@@ -875,5 +875,33 @@ export function fusionarUsuarioGacha(origen, destino) {
       }
     }
     return cambio;
+  });
+}
+
+export function duplicadosGacha() {
+  const lista = [];
+  for (const [charId, mapa] of duenos) {
+    if (mapa.size < 2) continue;
+    const p = personajes.get(charId);
+    if (!p) continue;
+    const filas = [...mapa.values()].sort((a, b) =>
+      b.nivel - a.nivel || (b.estrellas || 0) - (a.estrellas || 0) || a.obtenido - b.obtenido);
+    lista.push({ personaje: p, se_queda: filas[0], quitar: filas.slice(1) });
+  }
+  return lista;
+}
+
+export function limpiarDuplicadosGacha() {
+  return enTransaccion(() => {
+    const reembolsos = new Map();
+    let quitados = 0;
+    for (const d of duplicadosGacha()) {
+      for (const f of d.quitar) {
+        quitarPropiedad(f.usuario, f.char_id);
+        reembolsos.set(f.usuario, (reembolsos.get(f.usuario) || 0) + d.personaje.valor);
+        quitados++;
+      }
+    }
+    return { quitados, reembolsos };
   });
 }

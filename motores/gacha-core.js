@@ -399,7 +399,7 @@ function tomarPrecarga(clave, categoria) {
   if (!guardado) return null;
   const vigente = personajePorId(guardado.id);
   if (!vigente) return null;
-  if (categoria === "waifu" && propietarios(vigente.id).length) return null;
+  if (propietarios(vigente.id).length) return null;
   return vigente;
 }
 
@@ -436,19 +436,19 @@ export async function hacerRoll({ categoria, obtener, reply, sender, from, coold
       if (!base) return reply({ text: textoVacio });
       const personaje = { ...base, nivelInicial: 1 };
 
-      const duenos = categoria === "waifu" ? propietarios(personaje.id) : [];
+      const duenos = propietarios(personaje.id);
       const mentions = [sender];
       const extra = [];
       if (duenos.length) {
-        extra.push(T(`Este personaje ya fue reclamado por *${arroba(duenos[0])}*.`, `Este personaje ya fue capturado por *${arroba(duenos[0])}*.`));
+        extra.push(T(`Ya lo reclamó *${arroba(duenos[0])}*.`, `Ya lo capturó *${arroba(duenos[0])}*.`));
         mentions.push(duenos[0]);
       } else {
-        extra.push(T(`Personaje disponible para *${arroba(sender)}*. Tienes *${EXCLUSIVO_MS / 1000}s* para reclamarlo *tú* con *${cat.claimCmd}*`, `Un personaje salió de la niebla para *${arroba(sender)}*. Tienes *${EXCLUSIVO_MS / 1000}s* para reclamarlo *tú* con *${cat.claimCmd}*`));
+        extra.push(T(`Disponible para *${arroba(sender)}*. Solo tú puedes reclamarlo con *${cat.claimCmd}* en *${EXCLUSIVO_MS / 1000}s*.`, `Salió de la niebla para *${arroba(sender)}*. Solo tú puedes reclamarlo con *${cat.claimCmd}* en *${EXCLUSIVO_MS / 1000}s*.`));
       }
 
-      if (via === "banner") extra.unshift(T("⭐ *Personaje destacado de la semana.*", "🎃 *Personaje destacado de la semana, bendecido por la luna.*"));
-      if (via === "pity") extra.unshift(T(`🍀 *Garantía activada:* tirada asegurada de rareza ${RAREZA_NOMBRES[PITY_RANGO_MINIMO]} o superior.`, `🍀 *Garantía activada:* los espíritus aseguraron una tirada de rareza ${RAREZA_NOMBRES[PITY_RANGO_MINIMO]} o superior.`));
-      extra.push(T(`Garantía ›› *${pityDespuesDe(sender, categoria, personaje)}/${PITY_TIRADAS}* tiradas.`, `Garantía de la noche ›› *${pityDespuesDe(sender, categoria, personaje)}/${PITY_TIRADAS}* tiradas.`));
+      if (via === "banner") extra.unshift(T("⭐ *Destacado de la semana.*", "🎃 *Destacado de la semana, bendecido por la luna.*"));
+      if (via === "pity") extra.unshift(T(`🍀 *Garantía activada:* rareza ${RAREZA_NOMBRES[PITY_RANGO_MINIMO]} o superior.`, `🍀 *Garantía activada:* los espíritus aseguran rareza ${RAREZA_NOMBRES[PITY_RANGO_MINIMO]} o superior.`));
+      extra.push(T(`Garantía ›› *${pityDespuesDe(sender, categoria, personaje)}/${PITY_TIRADAS}*`, `Garantía de la noche ›› *${pityDespuesDe(sender, categoria, personaje)}/${PITY_TIRADAS}*`));
 
       try {
         const enviado = await enviarPersonaje({
@@ -541,7 +541,7 @@ async function miniaturaDe(c) {
       const h = Math.round(origen.height * k);
       ctx.drawImage(origen, Math.round((lado - w) / 2), Math.round((lado - h) / 2), w, h);
       try {
-        uri = "data:image/webp;base64," + lienzo.toBuffer("image/webp", 80).toString("base64");
+        uri = "data:image/webp;base64," + lienzo.toBuffer("image/webp", 70).toString("base64");
       } catch {
         uri = "data:image/png;base64," + lienzo.toBuffer("image/png").toString("base64");
       }

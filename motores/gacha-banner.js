@@ -48,7 +48,7 @@ export function registrarTirada(usuario, categoria, personaje) {
 
 function elegibleParaUsuario(personaje, usuario, categoria) {
   if (!personaje || leTiene(usuario, personaje.id)) return false;
-  if (categoria === "waifu" && propietarios(personaje.id).length) return false;
+  if (propietarios(personaje.id).length) return false;
   return true;
 }
 
