@@ -120,7 +120,7 @@ h=vacios(h,n)}
 else{
 var vis=L.slice(pag*PER,pag*PER+PER);
 vis.forEach(function(it){
-h+='<div class="t'+(it.id===sel?' sel':'')+'" data-id="'+it.id+'" style="--r:'+rcol(it.rareza)+'"><div class="ti" style="background:'+col(prim(it))+'33">'+img(it,'sp')+'</div><div class="tn">'+esc(it.nombre)+'</div><div class="tl">Nv. '+it.nivel+(it.estrellas?' ★'+it.estrellas:'')+'</div></div>'});
+h+='<div class="t'+(it.id===sel?' sel':'')+'" data-id="'+it.id+'" style="--r:'+rcol(it.rareza)+'"><div class="ti" style="background:'+col(prim(it))+'33">'+img(it,'sp')+'</div><div class="tn">'+esc(it.nombre)+'</div><div class="tl">Nv. '+it.nivel+'/'+it.max+(it.estrellas?' ★'+it.estrellas:'')+'</div></div>'});
 h=vacios(h,vis.length)}
 $('grid').innerHTML=h;
 $('pg').textContent=libro?'Elegir página':'Pág. '+(fil?pag+1:gpag(pag))+' / '+(fil?n:Math.max(1,Math.ceil(D.n/PER)));

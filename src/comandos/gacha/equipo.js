@@ -1,7 +1,7 @@
 import { gachaListo, CAT } from "../../../motores/gacha-core.js";
 import { categoriaPorAlias } from "../../../motores/gacha-categorias.js";
 import { mejorDe } from "../../../motores/gacha-db.js";
-import { NIVEL_MAX, estrellasTexto } from "../../../motores/gacha-niveles.js";
+import { nivelTopeDe, nivelMaxDe, estrellasTexto } from "../../../motores/gacha-niveles.js";
 import { poderesActivos } from "../../../motores/gacha-poderes.js";
 import { TAMANO_EQUIPO, equipoDe, guardarEquipo } from "../../../motores/gacha-equipos.js";
 import { encabezado } from "../../../src/economia/estilo.js";
@@ -34,8 +34,8 @@ function tarjeta(categoria, personajes, automatico) {
   lineas.push(automatico ? "> Equipo automático: tus personajes de mayor nivel." : "> Equipo guardado.", "");
   personajes.forEach((p, i) => {
     const estrellas = estrellasTexto(p.estrellas);
-    lineas.push(`${i + 1}. *${p.nombre}* (#${p.id}) ›› Nv. ${p.nivel}/${NIVEL_MAX[categoria]}${estrellas ? ` ${estrellas}` : ""}`);
-    const poderes = Object.values(poderesActivos(p, p.nivel, NIVEL_MAX[categoria], p.estrellas || 0)).map((x) => x.nombre);
+    lineas.push(`${i + 1}. *${p.nombre}* (#${p.id}) ›› Nv. ${p.nivel}/${nivelMaxDe(categoria, p.estrellas, p)}${estrellas ? ` ${estrellas}` : ""}`);
+    const poderes = Object.values(poderesActivos(p, p.nivel, nivelTopeDe(categoria, p), p.estrellas || 0)).map((x) => x.nombre);
     lineas.push(`> ✦ ${poderes.length ? poderes.join(" · ") : "Sin poderes desbloqueados todavía"}`);
   });
   lineas.push("", T("> Pelea ordenado de arriba hacia abajo: cuando un personaje cae entra el siguiente.", "> Pelea ordenado de arriba hacia abajo: cuando un personaje cae, entra el siguiente desde la oscuridad."));

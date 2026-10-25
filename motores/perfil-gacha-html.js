@@ -177,7 +177,7 @@ if(!L.length){$('cuerpo').innerHTML='<div class="inf">Todavía no tienes persona
 for(i=0;i<vis.length;i++)h+=carta(vis[i]);
 for(;i<PER;i++)h+=vacia();
 it=null;for(i=0;i<L.length;i++)if(L[i].id===sel)it=L[i];
-txt=it?'<b>'+esc(it.nombre)+'</b> · '+esc(it.cat)+' · '+TIER[it.t]+' ('+esc(it.rareza)+')<br>Nivel '+it.nivel+' · ID #'+it.id:(H?'Toca una carta para ver su alma. 🕯️':'Toca una carta para ver sus datos.');
+txt=it?'<b>'+esc(it.nombre)+'</b> · '+esc(it.cat)+' · '+TIER[it.t]+' ('+esc(it.rareza)+')<br>Nivel '+it.nivel+'/'+it.max+' · ID #'+it.id:(H?'Toca una carta para ver su alma. 🕯️':'Toca una carta para ver sus datos.');
 $('cuerpo').innerHTML='<div class="grid">'+h+'</div><div class="inf" id="inf">'+txt+'</div><div class="pag"><button class="pg1" id="ant"'+(pag<=0?' disabled':'')+'>‹</button><div class="pg2">'+(H?'🦇 ':'')+'Pág. '+(pag+1)+' / '+n+'</div><button class="pg1" id="sig"'+(pag>=n-1?' disabled':'')+'>›</button></div>'}
 var BP={hw_telarana:['#5a4aa8','#120d2e','#cfc6ff'],hw_arana:['#9a46b8','#240a30','#ff4d6d'],hw_zombie:['#4a9a50','#0a1d0e','#8dff3f'],hw_frankenstein:['#34a09a','#07191c','#6ee7d0'],hw_bruja:['#8a46d8','#170626','#c58bff'],hw_hechizo:['#2070b0','#061426','#5ad1ff'],hw_calabaza:['#c45a0a','#2a0f00','#ffb020'],hw_fantasma:['#5472cc','#0c1230','#dcebff'],hw_supremo:['#b02020','#2a0404','#ffd34d']};
 function defs(){

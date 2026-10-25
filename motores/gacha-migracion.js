@@ -125,7 +125,7 @@ export function resolverMigracion(sender, opcion) {
       const mias = coleccionDe(sender, p.categoria, 100000, 0).sort(() => Math.random() - 0.5);
       for (const c of mias) {
         if (restantes <= 0) break;
-        const cupo = nivelMaxDe(p.categoria, c.estrellas) - c.nivel;
+        const cupo = nivelMaxDe(p.categoria, c.estrellas, c) - c.nivel;
         if (cupo <= 0) continue;
         const suma = Math.min(restantes, cupo);
         setNivel(sender, c.id, c.nivel + suma);

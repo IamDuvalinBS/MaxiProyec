@@ -51,7 +51,7 @@ export default {
         text: [
           encabezado("🌟", T("ASCENDER", "ASCENSIÓN OSCURA")),
           "",
-          `> Tu personaje de mayor nivel es *${p.nombre}* (#${p.id}), nivel ${p.nivel}/${nivelMaxDe(categoria, estrellas)} ${estrellasTexto(estrellas)}.`,
+          `> Tu personaje de mayor nivel es *${p.nombre}* (#${p.id}), nivel ${p.nivel}/${nivelMaxDe(categoria, estrellas, p)} ${estrellasTexto(estrellas)}.`,
           "",
           `🧩 *Fragmentos* ›› tienes ${fragmentosDe(sender)} y necesitas ${costo.fragmentos}`,
           T(`💴 *Dinero en mano* ›› tienes ${monto(getAccount(sender).wallet)} y necesitas ${monto(costo.dinero)}`, `🧙‍♀️ *Caldero* ›› tienes ${monto(getAccount(sender).wallet)} y necesitas ${monto(costo.dinero)}`),
@@ -81,7 +81,7 @@ export default {
         "",
         `✍🏻 *Nombre* ›› ${r.p.nombre} (#${r.p.id})`,
         `⭐ *Estrellas* ›› ${r.antes} → *${r.despues}* ${estrellasTexto(r.despues)}`,
-        `📊 *Nivel máximo* ›› ${nivelMaxDe(categoria, r.antes)} → *${r.nuevoMax}*`,
+        `📊 *Nivel máximo* ›› ${nivelMaxDe(categoria, r.antes, r.p)} → *${r.nuevoMax}*`,
         textoStats(r.stats),
         `🧩 *Gastaste* ›› ${r.costo.fragmentos} fragmentos y ${monto(r.costo.dinero)}`,
         `🧩 *Te quedan* ›› ${r.restantes} fragmentos`,

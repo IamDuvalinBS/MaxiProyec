@@ -2,7 +2,7 @@ import { encabezado } from "../src/economia/estilo.js";
 import { fmt } from "../src/economia/formato.js";
 import { estilo, moneda } from "../src/economia/temas.js";
 import { CAT } from "./gacha-categorias.js";
-import { statsEfectivas, NIVEL_MAX, TIENE_NIVELES } from "./gacha-niveles.js";
+import { statsEfectivas, nivelMaxDe, TIENE_NIVELES } from "./gacha-niveles.js";
 import { tipoEs } from "./gacha-pokemon.js";
 
 export const LIMITE_CAPTION = 1000;
@@ -80,32 +80,26 @@ export function bloqueCuriosidades(p, { conValor = true } = {}) {
 
 const SEPARADOR_COLUMNAS = "  •  ";
 
-export function bloqueEstadisticas(p, nivel = 0, { descripcion = false } = {}) {
+export function bloqueEstadisticas(p, nivel = 0) {
   if (!TIENE_NIVELES(p.categoria)) return "";
   const s = statsEfectivas(p, nivel);
   const E = estilo(ESTILOS);
   const calidad = s.hp + s.atk + s.def + s.spe;
+  const tope = nivelMaxDe(p.categoria, p.estrellas || 0, { id: p.id, nivel });
   const par = (a, b) => `${a}${SEPARADOR_COLUMNAS}${b}`;
-  const lineas = [
+  return [
     encabezado("🛡️", E.tituloEstadisticas),
     "",
-    descripcion ? `> ${E.descEstadisticas(CAT[p.categoria])}` : `> Estadísticas de *${p.nombre}* *(${p.rareza})*`,
+    `> Estadísticas de *${p.nombre}* *(${p.rareza})*`,
     "",
-    par(`${E.nivel} ${nivel}/${NIVEL_MAX[p.categoria]}`, `${E.salud} ${s.hp}`),
+    par(`${E.nivel} ${nivel}/${tope}`, `${E.salud} ${s.hp}`),
     par(`${E.dano} ${s.atk}`, `${E.defensa} ${s.def}`),
-    par(`${E.velocidad} ${s.spe}`, `${E.calidad} ${fmt(calidad)}`)
-  ];
-  if (descripcion) lineas.push("", "> La velocidad define quién ataca primero en un combate PVP.");
-  return lineas.join("\n");
-}
-
-export function bloqueValor(p) {
-  const E = estilo(ESTILOS);
-  return [encabezado("💎", E.tituloValor), "", `${E.valor} ›› ${monto(p.valor)}`].join("\n");
+    `${E.velocidad} ${s.spe}`,
+    `${E.calidad} ${fmt(calidad)}`
+  ].join("\n");
 }
 
 export function bloquesDePersonaje(p, nivel = 0) {
-  if (p.categoria === "waifu") return [bloqueCuriosidades(p, { conValor: false }), bloqueEstadisticas(p, nivel, { descripcion: true }), bloqueValor(p)].filter(Boolean);
   return [bloqueCuriosidades(p), bloqueEstadisticas(p, nivel)].filter(Boolean);
 }
 
@@ -129,7 +123,7 @@ export function lineasPersonaje(p, nivel = null) {
   const lineas = [`🆔 *ID* ›› #${p.id}`, `✍🏻 *Nombre* ›› ${p.nombre}`, `🌐 *Fuente* ›› ${fuenteDe(p)}`, `✨ *Rareza* ›› ${p.rareza}`];
   if (TIENE_NIVELES(p.categoria)) {
     const n = nivel ?? 0;
-    lineas.push(`📊 *Nivel* ›› ${n}/${NIVEL_MAX[p.categoria]}`, textoStats(statsEfectivas(p, n)));
+    lineas.push(`📊 *Nivel* ›› ${n}/${nivelMaxDe(p.categoria, p.estrellas || 0, { id: p.id, nivel: n })}`, textoStats(statsEfectivas(p, n)));
   }
   lineas.push(`${estilo(ESTILOS).valor} ›› ${monto(p.valor)}`);
   return lineas;

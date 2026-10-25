@@ -1,6 +1,6 @@
 import { config, saveConfig } from "./db.js";
 import { cantidadItem, sumarItem, quitarItem, filasUsuario } from "./gacha-db.js";
-import { NIVEL_MAX } from "./gacha-niveles.js";
+import { nivelMaxDe } from "./gacha-niveles.js";
 import { CAT } from "./gacha-categorias.js";
 
 export const estadistica = (usuario, nombre) => cantidadItem(usuario, `stat:${nombre}`);
@@ -101,7 +101,7 @@ export function contextoDe(usuario) {
     porCategoria[f.categoria] = (porCategoria[f.categoria] || 0) + 1;
     ctx.valor += f.valor;
     if (f.estrellas > ctx.estrellasMax) ctx.estrellasMax = f.estrellas;
-    if (f.nivel >= NIVEL_MAX[f.categoria]) ctx.cumbre = true;
+    if (f.nivel >= nivelMaxDe(f.categoria, f.estrellas, f)) ctx.cumbre = true;
     if (/legendaria/i.test(f.rareza)) ctx.legendario = true;
   }
   ctx.porCategoria = porCategoria;
