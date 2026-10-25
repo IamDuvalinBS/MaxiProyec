@@ -1,4 +1,4 @@
-import { nivelAleatorio } from "./gacha-niveles.js";
+import { NIVEL_INICIAL } from "./gacha-niveles.js";
 import { cantidadItem, sumarItem, personajePorId, reclamar, leTiene, propietarios } from "./gacha-db.js";
 
 export const PROBABILIDAD_TICKET = 0.01;
@@ -24,7 +24,7 @@ export function usarTicket({ sender, categoria, charId }) {
   if (!personaje || personaje.categoria !== categoria) return { error: "noexiste" };
   if (leTiene(sender, personaje.id)) return { error: "repetido", personaje };
 
-  const nivel = 1;
+  const nivel = NIVEL_INICIAL;
   const resultado = reclamar(sender, personaje, nivel);
   if (resultado === "ocupado") return { error: "ocupado", personaje, duenos: propietarios(personaje.id) };
   if (resultado === "repetido") return { error: "repetido", personaje };

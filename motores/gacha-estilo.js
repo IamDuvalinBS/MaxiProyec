@@ -15,6 +15,8 @@ const ESTILOS = {
     tituloCuriosidades: "CURIOSIDADES",
     tituloEstadisticas: "ESTADÍSTICAS",
     descEstadisticas: (cat) => `Estadísticas ${cat.de} ${cat.singular} según su nivel y su rareza.`,
+    nivel: "📊 *Nivel*",
+    calidad: "💠 *Calidad*",
     salud: "❤️ *Salud*",
     dano: "⚔️ *Daño*",
     defensa: "🛡️ *Defensa*",
@@ -26,6 +28,8 @@ const ESTILOS = {
     tituloCuriosidades: "SECRETOS OCULTOS",
     tituloEstadisticas: "ESTADÍSTICAS MACABRAS",
     descEstadisticas: (cat) => `Estadísticas ${cat.de} ${cat.singular} según su nivel y su rareza, bajo la luz de la luna.`,
+    nivel: "🕯️ *Nivel*",
+    calidad: "☠️ *Calidad*",
     salud: "🩸 *Salud*",
     dano: "🗡️ *Daño*",
     defensa: "🛡️ *Defensa*",
@@ -56,41 +60,43 @@ export function bloqueCabecera(categoria, titulo, lineas = []) {
   return partes.join("\n");
 }
 
-export function bloqueCuriosidades(p) {
+export function bloqueCuriosidades(p, { conValor = true } = {}) {
   const lineas = [
     encabezado("🔍", estilo(ESTILOS).tituloCuriosidades),
     "",
-    `❖ *ID* ›› #${p.id}`,
-    `❀ *Nombre* ›› ${p.nombre}`,
-    `✧ *Fuente* ›› ${fuenteDe(p)}`
+    `🆔 *ID* ›› #${p.id}`,
+    `✍🏻 *Nombre* ›› ${p.nombre}`,
+    `🌐 *Fuente* ›› ${fuenteDe(p)}`
   ];
-  if (p.categoria === "waifu" && p.genero) lineas.push(`⚥ *Género* ›› ${p.genero}`);
-  if (p.categoria === "pokemon" && p.stats?.tipos?.length) lineas.push(`✿ *Tipo* ›› ${p.stats.tipos.map(tipoEs).join(" / ")}`);
-  if (p.categoria === "brawler" && String(p.serie || "").includes("·")) lineas.push(`✪ *Clase* ›› ${p.serie.split("·")[1].trim()}`);
-  if (["cod", "dragon", "clash"].includes(p.categoria) && p.meta?.tipo) lineas.push(`✿ *Tipo* ›› ${p.meta.tipo}`);
-  if (p.categoria === "clash" && p.meta?.elixir != null) lineas.push(`◈ *Elixir* ›› ${p.meta.elixir}`);
-  lineas.push(`✦ *Rareza* ›› ${p.rareza}`);
-  lineas.push(`☆ *Valor* ›› ${monto(p.valor)}`);
+  if (p.categoria === "waifu" && p.genero) lineas.push(`🚻 *Género* ›› ${p.genero}`);
+  if (p.categoria === "pokemon" && p.stats?.tipos?.length) lineas.push(`🌲 *Tipo* ›› ${p.stats.tipos.map(tipoEs).join(" / ")}`);
+  if (p.categoria === "brawler" && String(p.serie || "").includes("·")) lineas.push(`🎯 *Clase* ›› ${p.serie.split("·")[1].trim()}`);
+  if (["cod", "dragon", "clash"].includes(p.categoria) && p.meta?.tipo) lineas.push(`🎯 *Tipo* ›› ${p.meta.tipo}`);
+  if (p.categoria === "clash" && p.meta?.elixir != null) lineas.push(`💧 *Elixir* ›› ${p.meta.elixir}`);
+  lineas.push(`✨ *Rareza* ›› ${p.rareza}`);
+  if (conValor) lineas.push(`${estilo(ESTILOS).valor} ›› ${monto(p.valor)}`);
   return lineas.join("\n");
 }
 
-export function bloqueEstadisticas(p, nivel = 1) {
+const SEPARADOR_COLUMNAS = "  •  ";
+
+export function bloqueEstadisticas(p, nivel = 0, { descripcion = false } = {}) {
   if (!TIENE_NIVELES(p.categoria)) return "";
   const s = statsEfectivas(p, nivel);
   const E = estilo(ESTILOS);
   const calidad = s.hp + s.atk + s.def + s.spe;
-  return [
+  const par = (a, b) => `${a}${SEPARADOR_COLUMNAS}${b}`;
+  const lineas = [
     encabezado("🛡️", E.tituloEstadisticas),
     "",
-    `> Estadísticas de *${p.nombre}* *(${p.rareza})*`,
+    descripcion ? `> ${E.descEstadisticas(CAT[p.categoria])}` : `> Estadísticas de *${p.nombre}* *(${p.rareza})*`,
     "",
-    `✚ *Nivel* ›› ${nivel}/${NIVEL_MAX[p.categoria]}`,
-    `♡ *Salud* ›› ${s.hp}`,
-    `✠ *Daño* ›› ${s.atk}`,
-    `◈ *Defensa* ›› ${s.def}`,
-    `➳ *Velocidad* ›› ${s.spe}`,
-    `❂ *Calidad* ›› ${fmt(calidad)}`
-  ].join("\n");
+    par(`${E.nivel} ${nivel}/${NIVEL_MAX[p.categoria]}`, `${E.salud} ${s.hp}`),
+    par(`${E.dano} ${s.atk}`, `${E.defensa} ${s.def}`),
+    par(`${E.velocidad} ${s.spe}`, `${E.calidad} ${fmt(calidad)}`)
+  ];
+  if (descripcion) lineas.push("", "> La velocidad define quién ataca primero en un combate PVP.");
+  return lineas.join("\n");
 }
 
 export function bloqueValor(p) {
@@ -98,53 +104,8 @@ export function bloqueValor(p) {
   return [encabezado("💎", E.tituloValor), "", `${E.valor} ›› ${monto(p.valor)}`].join("\n");
 }
 
-function bloqueCuriosidadesClasico(p) {
-  const lineas = [
-    encabezado("🔍", estilo(ESTILOS).tituloCuriosidades),
-    "",
-    `🆔 *ID* :: #${p.id}`,
-    `✍🏻 *Nombre* ›› ${p.nombre}`,
-    `🌐 *Fuente* ›› ${fuenteDe(p)}`
-  ];
-  if (p.categoria === "waifu" && p.genero) lineas.push(`⚥ *Género* ›› ${p.genero}`);
-  if (p.categoria === "pokemon" && p.stats?.tipos?.length) lineas.push(`🌲 *Tipo* ›› ${p.stats.tipos.map(tipoEs).join(" / ")}`);
-  if (p.categoria === "brawler" && String(p.serie || "").includes("·")) lineas.push(`🎯 *Clase* ›› ${p.serie.split("·")[1].trim()}`);
-  if (["cod", "dragon", "clash"].includes(p.categoria) && p.meta?.tipo) lineas.push(`🎯 *Tipo* ›› ${p.meta.tipo}`);
-  if (p.categoria === "clash" && p.meta?.elixir != null) lineas.push(`💧 *Elixir* ›› ${p.meta.elixir}`);
-  lineas.push(`✨ *Rareza* ›› ${p.rareza}`);
-  return lineas.join("\n");
-}
-
-function bloqueEstadisticasClasico(p, nivel = 1) {
-  if (!TIENE_NIVELES(p.categoria)) return "";
-  const cat = CAT[p.categoria];
-  const s = statsEfectivas(p, nivel);
-  const E = estilo(ESTILOS);
-  return [
-    encabezado("🛡️", E.tituloEstadisticas),
-    "",
-    `> ${E.descEstadisticas(cat)}`,
-    "",
-    `📊 *Nivel* ›› ${nivel}/${NIVEL_MAX[p.categoria]}`,
-    "",
-    `${E.salud} ›› ${dos(s.hp)}`,
-    "> La vida de tu personaje.",
-    `${E.dano} ›› ${dos(s.atk)}`,
-    "> El daño que inflige al atacar.",
-    `${E.defensa} ›› ${dos(s.def)}`,
-    "> Reduce el daño que recibe del rival.",
-    `${E.velocidad} ›› ${dos(s.spe)}`,
-    "> Define quién ataca primero en un combate PVP: ataca primero quien tenga la velocidad más alta."
-  ].join("\n");
-}
-
-function bloqueValorClasico(p) {
-  const E = estilo(ESTILOS);
-  return [encabezado("💎", E.tituloValor), "", `${E.valor} ›› ${monto(p.valor)}`].join("\n");
-}
-
-export function bloquesDePersonaje(p, nivel = 1) {
-  if (p.categoria === "waifu") return [bloqueCuriosidadesClasico(p), bloqueEstadisticasClasico(p, nivel), bloqueValorClasico(p)].filter(Boolean);
+export function bloquesDePersonaje(p, nivel = 0) {
+  if (p.categoria === "waifu") return [bloqueCuriosidades(p, { conValor: false }), bloqueEstadisticas(p, nivel, { descripcion: true }), bloqueValor(p)].filter(Boolean);
   return [bloqueCuriosidades(p), bloqueEstadisticas(p, nivel)].filter(Boolean);
 }
 
@@ -167,7 +128,7 @@ export function repartirBloques(bloques, limite = LIMITE_CAPTION) {
 export function lineasPersonaje(p, nivel = null) {
   const lineas = [`🆔 *ID* ›› #${p.id}`, `✍🏻 *Nombre* ›› ${p.nombre}`, `🌐 *Fuente* ›› ${fuenteDe(p)}`, `✨ *Rareza* ›› ${p.rareza}`];
   if (TIENE_NIVELES(p.categoria)) {
-    const n = nivel ?? 1;
+    const n = nivel ?? 0;
     lineas.push(`📊 *Nivel* ›› ${n}/${NIVEL_MAX[p.categoria]}`, textoStats(statsEfectivas(p, n)));
   }
   lineas.push(`${estilo(ESTILOS).valor} ›› ${monto(p.valor)}`);

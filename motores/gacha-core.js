@@ -17,7 +17,7 @@ import { tipoEs } from "./gacha-pokemon.js";
 import { encabezado } from "../src/economia/estilo.js";
 import { formatTime } from "./ui.js";
 import { renderSnake } from "./gacha-snake.js";
-import { TIENE_NIVELES, estrellasTexto, darFragmentos, FRAGMENTOS_POR_RAREZA, nivelAleatorio, statsEfectivas, nivelMaxDe } from "./gacha-niveles.js";
+import { TIENE_NIVELES, estrellasTexto, darFragmentos, FRAGMENTOS_POR_RAREZA, NIVEL_INICIAL, statsEfectivas, nivelMaxDe } from "./gacha-niveles.js";
 import { registrarActividad } from "./gacha-misiones.js";
 import { sumarEstadistica } from "./gacha-insignias.js";
 import { elegirConGarantia, registrarTirada, pityDespuesDe } from "./gacha-banner.js";
@@ -29,7 +29,7 @@ import {
   bloqueCabecera, bloquesDePersonaje, repartirBloques, lineasPersonaje, textoStats, fuenteDe
 } from "./gacha-estilo.js";
 
-export const bloquesDePersonajeParaTicket = (personaje, nivel = 1) => bloquesDePersonaje(personaje, nivel);
+export const bloquesDePersonajeParaTicket = (personaje, nivel = NIVEL_INICIAL) => bloquesDePersonaje(personaje, nivel);
 import { mensajeReclamo, enviarReclamo } from "./gacha-claim.js";
 import { rutaImagenCacheada, guardarImagenCacheada, hayRelay } from "./cache-medios.js";
 import { T } from "./gacha-tema.js";
@@ -343,7 +343,7 @@ class ErrorDeImagen extends Error {}
 
 export async function enviarPersonaje({ reply, personaje, titulo, lineasExtra = [], mentions = [], permitirSinImagen = true }) {
   const cabecera = bloqueCabecera(personaje.categoria, titulo, lineasExtra);
-  const { principal, resto } = repartirBloques([cabecera, ...bloquesDePersonaje(personaje, personaje.nivelInicial ?? 1)]);
+  const { principal, resto } = repartirBloques([cabecera, ...bloquesDePersonaje(personaje, personaje.nivelInicial ?? NIVEL_INICIAL)]);
   const cacheKey = `gacha:${personaje.categoria}:${personaje.img}`;
 
   const enviarResto = async () => {
@@ -434,7 +434,7 @@ export async function hacerRoll({ categoria, obtener, reply, sender, from, coold
       const previo = intento === 0 ? tomarPrecarga(clave, categoria) : null;
       const { personaje: base, via } = await elegirConGarantia({ categoria, sender, obtener, previo });
       if (!base) return reply({ text: textoVacio });
-      const personaje = { ...base, nivelInicial: 1 };
+      const personaje = { ...base, nivelInicial: NIVEL_INICIAL };
 
       const duenos = propietarios(personaje.id);
       const mentions = [sender];
@@ -501,7 +501,7 @@ export function crearComandoClaim({ categoria, names, desc }) {
 
       const { pendiente } = r;
       const p = pendiente.personaje;
-      const resultado = reclamar(sender, p, p.nivelInicial ?? 1);
+      const resultado = reclamar(sender, p, p.nivelInicial ?? NIVEL_INICIAL);
       if (resultado === "ocupado") {
         cerrarPendiente(r.id);
         return reply({ text: T("💨 Otra persona lo reclamó primero.", "💨 Otra alma se lo llevó primero.") });

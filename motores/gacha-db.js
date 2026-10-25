@@ -37,6 +37,11 @@ let vigilante = null;
 const pendienteOffline = new Map();
 
 const ahora = () => Math.floor(Date.now() / 1000);
+const nivelGuardado = (valor, porDefecto = 1) => {
+  if (valor === null || valor === undefined || valor === "") return porDefecto;
+  const n = Number(valor);
+  return Number.isFinite(n) ? Math.max(0, Math.floor(n)) : porDefecto;
+};
 const pausa = (ms) => new Promise((r) => setTimeout(r, ms));
 const clon = (v) => (v == null ? null : structuredClone(v));
 const analizar = (v) => {
@@ -339,7 +344,7 @@ async function cargarDesde(leer) {
   for (const d of props) {
     const f = {
       usuario: d.usuario, char_id: Number(d.char_id), obtenido: Number(d.obtenido) || 0,
-      nivel: Number(d.nivel) || 1, estrellas: Number(d.estrellas) || 0
+      nivel: nivelGuardado(d.nivel), estrellas: Number(d.estrellas) || 0
     };
     let m = propiedad.get(f.usuario);
     if (!m) propiedad.set(f.usuario, (m = new Map()));
@@ -395,7 +400,7 @@ function aplicarTablas(t) {
     if (!usuario || !personajes.has(charId) || propiedad.get(usuario)?.has(charId)) continue;
     agregarPropiedad({
       usuario, char_id: charId, obtenido: Number(r.obtenido) || ahora(),
-      nivel: Number(r.nivel) || 1, estrellas: Number(r.estrellas) || 0
+      nivel: nivelGuardado(r.nivel), estrellas: Number(r.estrellas) || 0
     });
     n++;
   }
@@ -581,11 +586,11 @@ export function leTiene(usuario, charId) {
   return !!propiedad.get(usuario)?.has(Number(charId));
 }
 
-export function reclamar(usuario, personaje, nivel = 1) {
+export function reclamar(usuario, personaje, nivel = 0) {
   return enTransaccion(() => {
     if (leTiene(usuario, personaje.id)) return "repetido";
     if (propietarios(personaje.id).length) return "ocupado";
-    agregarPropiedad({ usuario, char_id: Number(personaje.id), obtenido: ahora(), nivel: Math.max(1, Number(nivel) || 1), estrellas: 0 });
+    agregarPropiedad({ usuario, char_id: Number(personaje.id), obtenido: ahora(), nivel: nivelGuardado(nivel, 0), estrellas: 0 });
     return "ok";
   });
 }
