@@ -3,7 +3,7 @@ import { mejorDe, setNivel, setEstrellas, cantidadItem, sumarItem } from "./gach
 import { estadisticasDeRango } from "./gacha-catalogos.js";
 import { esHalloween } from "../src/economia/temas.js";
 
-export const NIVEL_MAX = { pokemon: 100, brawler: 30, snake: 50, cod: 50, dragon: 50, clash: 15 };
+export const NIVEL_MAX = { waifu: 50, pokemon: 100, brawler: 30, snake: 50, cod: 50, dragon: 50, clash: 15 };
 export const TIENE_NIVELES = (categoria) => categoria in NIVEL_MAX;
 export const nivelAleatorio = (categoria) => (categoria in NIVEL_MAX ? 1 + Math.floor(Math.random() * NIVEL_MAX[categoria]) : 1);
 

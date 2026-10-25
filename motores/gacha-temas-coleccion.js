@@ -43,7 +43,6 @@ export const TEMAS_COLECCION = {
   },
   waifu: {
     ...COMUN,
-    sinNivel: true,
     logo: "🌸", logoH: "🧙‍♀️",
     sub: "Tu harem", subH: "Harem de la bruja",
     regl: "Registradas", reglH: "Almas hechizadas",
@@ -54,7 +53,7 @@ export const TEMAS_COLECCION = {
     em: ["💖", "🌸", "✨"],
     frH: ["¡Hechizo listo! 🔮", "Mi escoba te espera 🧹", "Un beso embrujado 💋", "¡Luna llena! 🌕", "¡Eres mi aprendiz! 🧙‍♀️"],
     emH: ["🔮", "🧙‍♀️", "🕯️"], invH: "🔮 Lanzar un hechizo",
-    cmdTxt: "Las waifus son coleccionables: se consiguen con <b>.rw</b> y se reclaman con <b>.c</b><br>Mira tu perfil con <b>.perfilgacha</b>",
+    cmdTxt: "Súbela de nivel de verdad: <b>.waifushop</b> y <b>.waifudar # ID</b><br>Arma tu equipo: <b>.equipo waifu</b> · <b>.poderes waifu</b>",
     varsN: normal("#ff7eb6", "#a8227a", "#ffd0e6", "#ff5aa5"),
     varsH: marco("#1a0b2e", "#08020f", "#2a1245", "#f472b6", "#f9a8d4", "#c084fc", "#3b1a5c")
   },

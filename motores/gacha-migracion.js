@@ -2,7 +2,7 @@ import { addToWallet } from "./db.js";
 import {
   filasUsuario, setNivel, cantidadItem, fijarCantidadItem, itemsDe, coleccionDe
 } from "./gacha-db.js";
-import { nivelMaxDe, cubitosParaSubir, PRECIO_CUBITO, TIENE_NIVELES, nivelAleatorio } from "./gacha-niveles.js";
+import { nivelMaxDe, cubitosParaSubir, PRECIO_CUBITO } from "./gacha-niveles.js";
 import { CAT } from "./gacha-categorias.js";
 import { encabezado } from "../src/economia/estilo.js";
 import { fmt } from "../src/economia/formato.js";
@@ -15,12 +15,11 @@ export const FACTOR_NIVEL = 35 / 65;
 export const BONO_REEMBOLSO = 0.05;
 
 const MARCA = "migra:v1";
-const MARCA_AZAR = "migra:azar:v1";
 const PREFIJO_NIVELES = "migra:niv:";
 const PREFIJO_ORO = "migra:oro:";
 const ESPERA_MS = 5 * 60 * 1000;
 
-const PRECIO_NIVEL = { pokemon: 1500, cod: 1200, dragon: 1200, clash: 1200, snake: 1000 };
+const PRECIO_NIVEL = { waifu: 1200, pokemon: 1500, cod: 1200, dragon: 1200, clash: 1200, snake: 1000 };
 
 function costoDeNiveles(categoria, desde, hasta) {
   if (categoria !== "brawler") return (PRECIO_NIVEL[categoria] || 1200) * Math.max(0, hasta - desde);
@@ -36,10 +35,6 @@ function aplicarReduccion(sender) {
   const oro = {};
   for (const f of filasUsuario(sender)) {
     if (!(f.categoria in PRECIO_NIVEL) && f.categoria !== "brawler") continue;
-    if (f.nivel <= 1) {
-      setNivel(sender, f.id, nivelAleatorio(f.categoria));
-      continue;
-    }
     const nuevo = nivelNuevo(f.nivel);
     if (nuevo >= f.nivel) continue;
     setNivel(sender, f.id, nuevo);
@@ -47,19 +42,10 @@ function aplicarReduccion(sender) {
     oro[f.categoria] = (oro[f.categoria] || 0) + costoDeNiveles(f.categoria, nuevo, f.nivel);
   }
   fijarCantidadItem(sender, MARCA, 1);
-  fijarCantidadItem(sender, MARCA_AZAR, 1);
   for (const c of Object.keys(perdidos)) {
     fijarCantidadItem(sender, PREFIJO_NIVELES + c, perdidos[c]);
     fijarCantidadItem(sender, PREFIJO_ORO + c, Math.round(oro[c]));
   }
-}
-
-function repartirNivelesAlAzar(sender) {
-  for (const f of filasUsuario(sender)) {
-    if (!TIENE_NIVELES(f.categoria) || f.nivel > 1 || (f.estrellas || 0) > 0) continue;
-    setNivel(sender, f.id, nivelAleatorio(f.categoria));
-  }
-  fijarCantidadItem(sender, MARCA_AZAR, 1);
 }
 
 export function pendientesDe(sender) {
@@ -119,7 +105,6 @@ const ultimoAviso = new Map();
 export async function revisarMigracion({ sender, from, reply, forzar = false }) {
   if (!MIGRACION_ACTIVA) return false;
   if (!cantidadItem(sender, MARCA)) aplicarReduccion(sender);
-  else if (!cantidadItem(sender, MARCA_AZAR)) repartirNivelesAlAzar(sender);
   if (!forzar && Date.now() - (ultimoAviso.get(sender) || 0) < 10 * 60 * 1000) return false;
   const avisado = await avisarMigracion({ sender, from, reply });
   if (avisado) ultimoAviso.set(sender, Date.now());

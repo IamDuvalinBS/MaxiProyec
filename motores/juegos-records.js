@@ -27,6 +27,25 @@ export const JUEGOS = {
     nombre: "Mini Golf",
     menor: true,
     valida: (p, s) => p >= 18 && p <= 180 && s >= 60
+  },
+  bolos10: {
+    nombre: "Bolos (10 cuadros)",
+    menor: false,
+    valida: (p, s) => p >= 1 && p <= 300 && s >= 15
+  },
+  bolos5: {
+    nombre: "Bolos (5 cuadros)",
+    menor: false,
+    valida: (p, s) => p >= 1 && p <= 150 && s >= 8
+  },
+  snake0: { nombre: "Snake Fruits · Clásico", menor: false, valida: (p, s) => p >= 10 && p <= 100 + 250 * s },
+  snake1: { nombre: "Snake Fruits · Festival", menor: false, valida: (p, s) => p >= 10 && p <= 100 + 250 * s },
+  snake2: { nombre: "Snake Fruits · Caos", menor: false, valida: (p, s) => p >= 10 && p <= 100 + 250 * s },
+  snake3: { nombre: "Snake Fruits · Supervivencia", menor: false, valida: (p, s) => p >= 10 && p <= 100 + 250 * s },
+  uno: {
+    nombre: "UNO (mejor victoria)",
+    menor: false,
+    valida: (p, s) => p >= 1 && p <= 1000 && s >= 8
   }
 };
 

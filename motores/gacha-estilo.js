@@ -98,7 +98,53 @@ export function bloqueValor(p) {
   return [encabezado("💎", E.tituloValor), "", `${E.valor} ›› ${monto(p.valor)}`].join("\n");
 }
 
+function bloqueCuriosidadesClasico(p) {
+  const lineas = [
+    encabezado("🔍", estilo(ESTILOS).tituloCuriosidades),
+    "",
+    `🆔 *ID* :: #${p.id}`,
+    `✍🏻 *Nombre* ›› ${p.nombre}`,
+    `🌐 *Fuente* ›› ${fuenteDe(p)}`
+  ];
+  if (p.categoria === "waifu" && p.genero) lineas.push(`⚥ *Género* ›› ${p.genero}`);
+  if (p.categoria === "pokemon" && p.stats?.tipos?.length) lineas.push(`🌲 *Tipo* ›› ${p.stats.tipos.map(tipoEs).join(" / ")}`);
+  if (p.categoria === "brawler" && String(p.serie || "").includes("·")) lineas.push(`🎯 *Clase* ›› ${p.serie.split("·")[1].trim()}`);
+  if (["cod", "dragon", "clash"].includes(p.categoria) && p.meta?.tipo) lineas.push(`🎯 *Tipo* ›› ${p.meta.tipo}`);
+  if (p.categoria === "clash" && p.meta?.elixir != null) lineas.push(`💧 *Elixir* ›› ${p.meta.elixir}`);
+  lineas.push(`✨ *Rareza* ›› ${p.rareza}`);
+  return lineas.join("\n");
+}
+
+function bloqueEstadisticasClasico(p, nivel = 1) {
+  if (!TIENE_NIVELES(p.categoria)) return "";
+  const cat = CAT[p.categoria];
+  const s = statsEfectivas(p, nivel);
+  const E = estilo(ESTILOS);
+  return [
+    encabezado("🛡️", E.tituloEstadisticas),
+    "",
+    `> ${E.descEstadisticas(cat)}`,
+    "",
+    `📊 *Nivel* ›› ${nivel}/${NIVEL_MAX[p.categoria]}`,
+    "",
+    `${E.salud} ›› ${dos(s.hp)}`,
+    "> La vida de tu personaje.",
+    `${E.dano} ›› ${dos(s.atk)}`,
+    "> El daño que inflige al atacar.",
+    `${E.defensa} ›› ${dos(s.def)}`,
+    "> Reduce el daño que recibe del rival.",
+    `${E.velocidad} ›› ${dos(s.spe)}`,
+    "> Define quién ataca primero en un combate PVP: ataca primero quien tenga la velocidad más alta."
+  ].join("\n");
+}
+
+function bloqueValorClasico(p) {
+  const E = estilo(ESTILOS);
+  return [encabezado("💎", E.tituloValor), "", `${E.valor} ›› ${monto(p.valor)}`].join("\n");
+}
+
 export function bloquesDePersonaje(p, nivel = 1) {
+  if (p.categoria === "waifu") return [bloqueCuriosidadesClasico(p), bloqueEstadisticasClasico(p, nivel), bloqueValorClasico(p)].filter(Boolean);
   return [bloqueCuriosidades(p), bloqueEstadisticas(p, nivel)].filter(Boolean);
 }
 
