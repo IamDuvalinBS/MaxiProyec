@@ -251,7 +251,7 @@ $("an").addEventListener("click",function(e){var a=e.target.getAttribute&&e.targ
 function pwAt(e){var r=$("pb").getBoundingClientRect();pw=Math.max(.08,Math.min(1,(e.clientX-r.left)/r.width));setPw()}
 $("pb").addEventListener("pointerdown",function(e){e.preventDefault();pwAt(e)});$("pb").addEventListener("pointermove",function(e){if(e.buttons)pwAt(e)});
 cv.addEventListener("pointerdown",function(e){e.preventDefault();aimAt(e)});cv.addEventListener("pointermove",function(e){e.preventDefault();aimAt(e)});
-deco(HW?[["🌕","fl",64,"top:4%",12,0,46],["🦇","fy",0,"top:5%",9,0,20],["⚰️","bob",38,"bottom:1%",5,2,24],["👻","fl",6,"top:17%",5,1,26],["🎃","bob",6,"bottom:1%",4,0,26],["🦇","fy",0,"top:12%",12,5,15],["🧛","fy",0,"top:20%",20,11,26],["👻","fl",80,"top:40%",6,3,22],["💀","bob",62,"bottom:1%",4,1,22],["🎃","bob",88,"bottom:1%",5,3,28]]
+deco(HW?[["🌕","fl",72,"bottom:14%",12,0,46],["🦇","fy",0,"top:30%",9,0,20],["⚰️","bob",38,"bottom:1%",5,2,24],["👻","fl",90,"top:46%",5,1,26],["🎃","bob",6,"bottom:1%",4,0,26],["🦇","fy",0,"top:52%",12,5,15],["🧛","fy",0,"top:64%",20,11,26],["👻","fl",80,"top:40%",6,3,22],["💀","bob",62,"bottom:1%",4,1,22],["🎃","bob",88,"bottom:1%",5,3,28]]
  :[["☀️","fl",64,"top:4%",9,0,40],["☁️","dr",0,"top:4%",55,0,44],["🌳","bob",4,"bottom:1%",6,0,34],["🐦","fy",0,"top:9%",14,4,18],["⛳","bob",48,"bottom:1%",5,1,30],["☁️","dr",0,"top:16%",70,30,34],["🦋","fl",10,"top:28%",5,1,18],["🌲","bob",86,"bottom:1%",6,2,34]]);
 $("tt").textContent=HW?"🎃 MINI GOLF EMBRUJADO":"⛳ MINI GOLF";
 $("tp").innerHTML=topHtml();
