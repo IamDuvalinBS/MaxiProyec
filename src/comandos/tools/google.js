@@ -1,3 +1,8 @@
+import fs from "fs";
+import os from "os";
+import path from "path";
+import { execFile } from "child_process";
+import { promisify } from "util";
 import { config } from "../../../motores/db.js";
 import { tarjetaUso, tarjetaAviso } from "../../descargas/tarjetas.js";
 import { htmlGoogle } from "../../../motores/google-html.js";
@@ -5,8 +10,15 @@ import { enviarConBoton } from "../../../motores/botones.js";
 import { respuestaInstantanea, limpiar, sinTildes } from "../../../motores/google-rapido.js";
 import { buscarTodo, urlGoogle, recortar } from "../../../motores/google-buscador.js";
 
+const execFileAsync = promisify(execFile);
+
 const ESPERA_MS = 8000;
 const LIMITE_HTML = 1200000;
+const ALTURA_FIJA = true;
+const SEGUNDOS_CLIP = 45;
+const DURACION_MAX_CLIP_SEG = 12 * 60;
+const MAX_CLIP_BYTES = 5 * 1024 * 1024;
+const TIEMPO_MAX_CLIP_MS = 60000;
 
 const esperas = new Map();
 
@@ -65,6 +77,57 @@ function textoRespaldo({ consulta, instantanea, datos }) {
   return partes.join("\n");
 }
 
+function segundosDe(duracion) {
+  const m = /^(?:(\d+):)?(\d{1,2}):(\d{2})$/.exec(String(duracion || "").trim());
+  return m ? Number(m[1] || 0) * 3600 + Number(m[2]) * 60 + Number(m[3]) : 0;
+}
+
+async function clipDe(url) {
+  const { descargarVideoYoutube } = await import("../../descargas/youtube-engine.js");
+  const original = await descargarVideoYoutube(url);
+  if (!Buffer.isBuffer(original)) {
+    try {
+      if (original?.ruta) fs.unlinkSync(original.ruta);
+    } catch {}
+    return null;
+  }
+  const base = path.join(os.tmpdir(), `gclip-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`);
+  const entrada = base + "-in.mp4";
+  const salida = base + "-out.mp4";
+  try {
+    fs.writeFileSync(entrada, original);
+    try {
+      await execFileAsync("ffmpeg", ["-y", "-loglevel", "error", "-i", entrada, "-t", String(SEGUNDOS_CLIP), "-c", "copy", "-movflags", "+faststart", salida], { timeout: 40000 });
+    } catch {
+      await execFileAsync(
+        "ffmpeg",
+        ["-y", "-loglevel", "error", "-i", entrada, "-t", String(SEGUNDOS_CLIP), "-vf", "scale=-2:360", "-c:v", "libx264", "-preset", "veryfast", "-crf", "30", "-c:a", "aac", "-b:a", "64k", "-movflags", "+faststart", salida],
+        { timeout: 60000 }
+      );
+    }
+    const clip = fs.readFileSync(salida);
+    return clip.length <= MAX_CLIP_BYTES ? clip.toString("base64") : null;
+  } finally {
+    for (const f of [entrada, salida]) {
+      try {
+        fs.unlinkSync(f);
+      } catch {}
+    }
+  }
+}
+
+async function prepararClip(datos) {
+  const candidato = [...datos.populares, ...datos.recientes].find((v) => v.id && segundosDe(v.duracion) > 0 && segundosDe(v.duracion) <= DURACION_MAX_CLIP_SEG);
+  if (!candidato) return null;
+  try {
+    const b64 = await Promise.race([clipDe(candidato.url), new Promise((r) => setTimeout(() => r(null), TIEMPO_MAX_CLIP_MS))]);
+    return b64 ? { id: candidato.id, b64, seg: SEGUNDOS_CLIP } : null;
+  } catch (e) {
+    console.log("[GOOGLE] clip falló: " + String(e.message).split("\n")[0]);
+    return null;
+  }
+}
+
 function sinImagenes(paquete) {
   const quitar = (v) => ({ ...v, img: "" });
   return {
@@ -111,7 +174,7 @@ export default {
       await sock.sendMessage(from, { react: { text: "🔎", key: msg.key } });
     } catch {}
 
-    let datos = { web: [], noticias: [], populares: [], recientes: [], wiki: null, fotos: [], via: "", precios: [], ms: 0 };
+    let datos = { web: [], noticias: [], populares: [], recientes: [], wiki: null, fotos: [], via: "", precios: [], ms: 0, sinFecha: false };
     if (!instantanea) {
       try {
         datos = await buscarTodo(consulta, modo);
@@ -121,12 +184,17 @@ export default {
     }
 
     const { wiki, ...resto } = datos;
-    const paquete = { q: consulta, modo, firma, ans: instantanea || wiki, ...resto };
+    const paquete = { q: consulta, modo, firma, fijo: ALTURA_FIJA, ans: instantanea || wiki, ...resto };
+    if (modo === "youtube" && !instantanea) {
+      const clip = await prepararClip(datos);
+      if (clip) paquete.clip = clip;
+    }
+    const limite = LIMITE_HTML + (paquete.clip ? paquete.clip.b64.length : 0);
     let html = "";
     try {
       html = htmlGoogle(paquete);
-      if (Buffer.byteLength(html) > LIMITE_HTML) html = htmlGoogle({ ...paquete, fotos: [] });
-      if (Buffer.byteLength(html) > LIMITE_HTML) html = htmlGoogle(sinImagenes(paquete));
+      if (Buffer.byteLength(html) > limite) html = htmlGoogle({ ...paquete, fotos: [] });
+      if (Buffer.byteLength(html) > limite) html = htmlGoogle(sinImagenes(paquete));
       if (typeof sock.sendHtml !== "function") throw new Error("sin sendHtml");
       await sock.sendHtml(from, html, [], undefined, {});
     } catch (e) {
