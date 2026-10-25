@@ -1,4 +1,4 @@
-import { statsEfectivas, NIVEL_MAX } from "./gacha-niveles.js";
+import { statsEfectivas, nivelTopeDe } from "./gacha-niveles.js";
 import { poderesActivos } from "./gacha-poderes.js";
 import { encabezado } from "../src/economia/estilo.js";
 import { T } from "./gacha-tema.js";
@@ -40,7 +40,7 @@ function efectividad(tipoAtaque, tiposDefensor) {
 export function prepararLuchador(p) {
   const nivel = p.nivel || 1;
   const s = statsEfectivas(p, nivel);
-  const poderes = poderesActivos(p, nivel, NIVEL_MAX[p.categoria], p.estrellas || 0);
+  const poderes = poderesActivos(p, nivel, nivelTopeDe(p.categoria, p), p.estrellas || 0);
   const stats = { hp: s.hp, atk: s.atk, def: s.def, spe: s.spe };
   const mejora = poderes.mejora;
   if (mejora) {

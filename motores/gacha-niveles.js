@@ -12,7 +12,32 @@ export const NIVELES_POR_ESTRELLA = 10;
 export const BONO_POR_ESTRELLA = 0.08;
 export const ITEM_FRAGMENTO = "fragmentos";
 
-export const nivelMaxDe = (categoria, estrellas = 0) => NIVEL_MAX[categoria] + NIVELES_POR_ESTRELLA * Math.min(MAX_ESTRELLAS, estrellas || 0);
+const hashTope = (texto) => {
+  let h = 2166136261;
+  for (const c of String(texto)) {
+    h ^= c.codePointAt(0);
+    h = Math.imul(h, 16777619) >>> 0;
+  }
+  h ^= h >>> 15;
+  h = Math.imul(h, 2246822519) >>> 0;
+  h ^= h >>> 13;
+  return h >>> 0;
+};
+
+export function nivelTopeBase(categoria, id) {
+  const max = NIVEL_MAX[categoria];
+  if (!max) return 1;
+  const min = Math.min(max, Math.max(5, Math.round(max * 0.2)));
+  return min + (hashTope(`${categoria}:${id}`) % (max - min + 1));
+}
+
+export const nivelTopeDe = (categoria, p = null) => {
+  if (!p || p.id === undefined) return NIVEL_MAX[categoria];
+  const sobrante = (Number(p.nivel) || 0) - NIVELES_POR_ESTRELLA * Math.min(MAX_ESTRELLAS, p.estrellas || 0);
+  return Math.max(nivelTopeBase(categoria, p.id), sobrante);
+};
+
+export const nivelMaxDe = (categoria, estrellas = 0, p = null) => nivelTopeDe(categoria, p) + NIVELES_POR_ESTRELLA * Math.min(MAX_ESTRELLAS, estrellas || 0);
 export const RAREZA_NOMBRES = { 1: "Común", 2: "Poco común", 3: "Rara", 4: "Súper rara", 5: "Épica", 6: "Mítica", 7: "Legendaria" };
 export const estrellasTexto = (n) => (n ? "★".repeat(n) : "");
 
@@ -245,7 +270,7 @@ export function darComida({ categoria, sender, nItem, charId, cantidad = 1 }) {
   const p = mejorDe(sender, categoria, charId);
   if (!p) return { error: charId ? "ajeno" : "sinpersonajes" };
 
-  const max = nivelMaxDe(categoria, p.estrellas);
+  const max = nivelMaxDe(categoria, p.estrellas, p);
   if (p.nivel >= max) return { error: "maximo", p, max };
 
   const tiene = comidaDe(sender, categoria, nItem);
@@ -284,7 +309,7 @@ export function comprarCubitos(sender, cantidad) {
 export function subirBrawler({ sender, charId, veces = 1 }) {
   const p = mejorDe(sender, "brawler", charId);
   if (!p) return { error: charId ? "ajeno" : "sinpersonajes" };
-  const max = nivelMaxDe("brawler", p.estrellas);
+  const max = nivelMaxDe("brawler", p.estrellas, p);
   if (p.nivel >= max) return { error: "maximo", p, max };
 
   let nivel = p.nivel, gastados = 0, tiene = cantidadItem(sender, ITEM_CUBITO), subidos = 0;
@@ -322,7 +347,7 @@ export function ascender({ sender, categoria, charId }) {
   const estrellas = p.estrellas || 0;
   if (estrellas >= MAX_ESTRELLAS) return { error: "estrellas", p };
 
-  const max = nivelMaxDe(categoria, estrellas);
+  const max = nivelMaxDe(categoria, estrellas, p);
   if (p.nivel < max) return { error: "nivel", p, max };
 
   const costo = costoAscension(estrellas);
@@ -337,7 +362,7 @@ export function ascender({ sender, categoria, charId }) {
   const mejorada = { ...p, estrellas: estrellas + 1 };
   return {
     ok: true, p: mejorada, antes: estrellas, despues: estrellas + 1, costo,
-    nuevoMax: nivelMaxDe(categoria, estrellas + 1), stats: statsEfectivas(mejorada, p.nivel),
+    nuevoMax: nivelMaxDe(categoria, estrellas + 1, p), stats: statsEfectivas(mejorada, p.nivel),
     restantes: fragmentosDe(sender)
   };
 }

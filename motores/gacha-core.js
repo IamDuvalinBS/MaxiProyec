@@ -605,7 +605,7 @@ async function enviarColeccionHtml({ sock, from, msg, categoria, sender, pagina,
       const item = { id: c.id, nombre: c.nombre, clase, claseN: clase, serie: fuenteDe(c), rareza: c.rareza, valorTxt: monto(c.valor), img: imagenes[i] };
       if (conNivel) {
         const st = statsEfectivas(c, c.nivel);
-        Object.assign(item, { nivel: c.nivel, max: nivelMaxDe(categoria, c.estrellas), estrellas: c.estrellas || 0, st: { hp: st.hp, atk: st.atk, def: st.def, spe: st.spe } });
+        Object.assign(item, { nivel: c.nivel, max: nivelMaxDe(categoria, c.estrellas, c), estrellas: c.estrellas || 0, st: { hp: st.hp, atk: st.atk, def: st.def, spe: st.spe } });
       } else {
         Object.assign(item, { nivel: 0, max: 0, estrellas: 0, st: null });
       }

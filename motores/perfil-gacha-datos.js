@@ -1,6 +1,7 @@
 import { CAT } from "./gacha-categorias.js";
 import { coleccionDe, filasUsuario } from "./gacha-db.js";
 import { AUTOMATICAS, TEMPORADA, TEMPORADA_HALLOWEEN, listaExclusivas, tieneInsignia, insigniasDe } from "./gacha-insignias.js";
+import { nivelMaxDe } from "./gacha-niveles.js";
 import { imagenesCompactas } from "./gacha-imagen-html.js";
 import { htmlPerfilGacha } from "./perfil-gacha-html.js";
 import { esHalloween } from "../src/economia/temas.js";
@@ -52,6 +53,7 @@ export async function construirDatosPerfil(usuario, { nombre, tabInicial = "todo
     rareza: c.rareza,
     t: nivelDeRareza(c.rareza),
     nivel: c.nivel,
+    max: nivelMaxDe(k, c.estrellas, c),
     es: c.estrellas || 0,
     v: c.valor,
     img: imagenes[i]
