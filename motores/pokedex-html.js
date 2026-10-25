@@ -23,7 +23,7 @@ small{color:#62708f;font-size:11px}
 .hero{position:relative;padding:14px 10px 12px;text-align:center}
 .spw{position:relative;display:inline-block}
 .spw.reb{animation:reb .55s ease}
-.big{display:block;width:112px;height:112px;image-rendering:pixelated;object-fit:contain;filter:drop-shadow(0 6px 6px rgba(0,0,0,.25));animation:flot 3s ease-in-out infinite}
+.big{display:block;width:112px;height:112px;image-rendering:pixelated;object-fit:contain;filter:drop-shadow(0 6px 6px rgba(0,0,0,.25));animation:flot 3s ease-in-out infinite;will-change:transform}
 .sin{display:flex;align-items:center;justify-content:center;font-size:36px;color:#fff}
 .fl{position:absolute;bottom:45%;font-size:18px;pointer-events:none;animation:sube 1.2s ease-out forwards}
 .bub{position:absolute;top:8px;right:8px;max-width:62%;background:#fff;color:#1c2540;font-size:12px;font-weight:700;padding:5px 9px;border-radius:12px;opacity:0;transform:scale(.8);transition:all .2s}
@@ -87,12 +87,13 @@ var TC={normal:'#a8a77a',fire:'#ee8130',water:'#6390f0',electric:'#f0b90b',grass
 var RC={'Común':'#9aa0a6','Poco común':'#2fa36b','Rara':'#3b82f6','Épica':'#8b5cf6','Legendaria':'#f59e0b'};
 var FRASES=['¡Ñam! 😋','¡Qué rico!','¡Más, por favor!','Mmm… delicioso','¡Gracias, entrenador!'];
 var PER=9,fil='',pag=0,libro=false,BOC={},tb=0,sel=D.items.length?D.items[0].id:0;
+var MX=null;
 function $(i){return document.getElementById(i)}
 function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
 function col(t){return TC[t]||'#8a8aa0'}
 function rcol(r){return RC[r]||'#ec4899'}
 function prim(it){return it&&it.tipos[0]?it.tipos[0].k:''}
-function img(it,cls){return it.img?'<img class="'+cls+'" src="'+it.img+'" alt="">':'<div class="'+cls+' sin">?</div>'}
+function img(it,cls){return it.img?'<img class="'+cls+'" src="'+it.img+'" alt="" decoding="async">':'<div class="'+cls+' sin">?</div>'}
 function lista(){if(!fil)return D.items;return D.items.filter(function(it){return it.tipos.some(function(t){return t.k===fil})})}
 function buscar(id){for(var i=0;i<D.items.length;i++)if(D.items[i].id===id)return D.items[i];return null}
 function paginas(){return Math.max(1,Math.ceil(lista().length/PER))}
@@ -126,10 +127,10 @@ $('pg').textContent=libro?'Elegir página':'Pág. '+(fil?pag+1:gpag(pag))+' / '+
 $('lib').className='lib'+(libro?' on':'');
 $('ant').disabled=pag<=0;$('sig').disabled=pag>=n-1}
 function corazones(id){var n=Math.min(5,BOC[id]||0),h='',i;for(i=0;i<5;i++)h+=i<n?'❤️':'🤍';return h}
+function maximos(){if(MX)return MX;MX={hp:1,atk:1,def:1,spe:1};D.items.forEach(function(x){if(x.st)for(var k in MX)if(x.st[k]>MX[k])MX[k]=x.st[k]});return MX}
 function detalle(){
 var it=buscar(sel);if(!it){$('det').innerHTML='';return}
-var c1=col(prim(it)),c2=col(it.tipos[1]?it.tipos[1].k:prim(it)),s=it.st,mx={hp:1,atk:1,def:1,spe:1};
-D.items.forEach(function(x){for(var k in mx)if(x.st[k]>mx[k])mx[k]=x.st[k]});
+var c1=col(prim(it)),c2=col(it.tipos[1]?it.tipos[1].k:prim(it)),s=it.st,mx=maximos();
 var filas=[['hp','PS','#34c38f'],['atk','Ataque','#f0765a'],['def','Defensa','#f5b83d'],['spe','Velocidad','#ec6fb5']].map(function(r){
 return '<div class="sr"><span>'+r[1]+'</span><b>'+s[r[0]]+'</b><div class="bar"><i style="width:'+Math.max(4,Math.round(s[r[0]]/mx[r[0]]*100))+'%;background:'+r[2]+'"></i></div></div>'}).join('');
 var tps=it.tipos.map(function(t){return '<span class="tp" style="background:'+col(t.k)+'">'+esc(t.n)+'</span>'}).join('')+'<span class="tp" style="background:'+rcol(it.rareza)+'">'+esc(it.rareza)+'</span>';

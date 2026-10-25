@@ -17,7 +17,7 @@ import { tipoEs } from "./gacha-pokemon.js";
 import { encabezado } from "../src/economia/estilo.js";
 import { formatTime } from "./ui.js";
 import { renderSnake } from "./gacha-snake.js";
-import { TIENE_NIVELES, estrellasTexto, darFragmentos, FRAGMENTOS_POR_RAREZA, nivelAleatorio, statsEfectivas, nivelMaxDe } from "./gacha-niveles.js";
+import { TIENE_NIVELES, estrellasTexto, darFragmentos, FRAGMENTOS_POR_RAREZA, NIVEL_INICIAL, statsEfectivas, nivelMaxDe } from "./gacha-niveles.js";
 import { registrarActividad } from "./gacha-misiones.js";
 import { sumarEstadistica } from "./gacha-insignias.js";
 import { elegirConGarantia, registrarTirada, pityDespuesDe } from "./gacha-banner.js";
@@ -29,7 +29,7 @@ import {
   bloqueCabecera, bloquesDePersonaje, repartirBloques, lineasPersonaje, textoStats, fuenteDe
 } from "./gacha-estilo.js";
 
-export const bloquesDePersonajeParaTicket = (personaje, nivel = 1) => bloquesDePersonaje(personaje, nivel);
+export const bloquesDePersonajeParaTicket = (personaje, nivel = NIVEL_INICIAL) => bloquesDePersonaje(personaje, nivel);
 import { mensajeReclamo, enviarReclamo } from "./gacha-claim.js";
 import { rutaImagenCacheada, guardarImagenCacheada, hayRelay } from "./cache-medios.js";
 import { T } from "./gacha-tema.js";
@@ -343,7 +343,7 @@ class ErrorDeImagen extends Error {}
 
 export async function enviarPersonaje({ reply, personaje, titulo, lineasExtra = [], mentions = [], permitirSinImagen = true }) {
   const cabecera = bloqueCabecera(personaje.categoria, titulo, lineasExtra);
-  const { principal, resto } = repartirBloques([cabecera, ...bloquesDePersonaje(personaje, personaje.nivelInicial ?? 1)]);
+  const { principal, resto } = repartirBloques([cabecera, ...bloquesDePersonaje(personaje, personaje.nivelInicial ?? NIVEL_INICIAL)]);
   const cacheKey = `gacha:${personaje.categoria}:${personaje.img}`;
 
   const enviarResto = async () => {
@@ -399,7 +399,7 @@ function tomarPrecarga(clave, categoria) {
   if (!guardado) return null;
   const vigente = personajePorId(guardado.id);
   if (!vigente) return null;
-  if (categoria === "waifu" && propietarios(vigente.id).length) return null;
+  if (propietarios(vigente.id).length) return null;
   return vigente;
 }
 
@@ -434,21 +434,21 @@ export async function hacerRoll({ categoria, obtener, reply, sender, from, coold
       const previo = intento === 0 ? tomarPrecarga(clave, categoria) : null;
       const { personaje: base, via } = await elegirConGarantia({ categoria, sender, obtener, previo });
       if (!base) return reply({ text: textoVacio });
-      const personaje = { ...base, nivelInicial: 1 };
+      const personaje = { ...base, nivelInicial: NIVEL_INICIAL };
 
-      const duenos = categoria === "waifu" ? propietarios(personaje.id) : [];
+      const duenos = propietarios(personaje.id);
       const mentions = [sender];
       const extra = [];
       if (duenos.length) {
-        extra.push(T(`Este personaje ya fue reclamado por *${arroba(duenos[0])}*.`, `Este personaje ya fue capturado por *${arroba(duenos[0])}*.`));
+        extra.push(T(`Ya lo reclamó *${arroba(duenos[0])}*.`, `Ya lo capturó *${arroba(duenos[0])}*.`));
         mentions.push(duenos[0]);
       } else {
-        extra.push(T(`Personaje disponible para *${arroba(sender)}*. Tienes *${EXCLUSIVO_MS / 1000}s* para reclamarlo *tú* con *${cat.claimCmd}*`, `Un personaje salió de la niebla para *${arroba(sender)}*. Tienes *${EXCLUSIVO_MS / 1000}s* para reclamarlo *tú* con *${cat.claimCmd}*`));
+        extra.push(T(`Disponible para *${arroba(sender)}*. Solo tú puedes reclamarlo con *${cat.claimCmd}* en *${EXCLUSIVO_MS / 1000}s*.`, `Salió de la niebla para *${arroba(sender)}*. Solo tú puedes reclamarlo con *${cat.claimCmd}* en *${EXCLUSIVO_MS / 1000}s*.`));
       }
 
-      if (via === "banner") extra.unshift(T("⭐ *Personaje destacado de la semana.*", "🎃 *Personaje destacado de la semana, bendecido por la luna.*"));
-      if (via === "pity") extra.unshift(T(`🍀 *Garantía activada:* tirada asegurada de rareza ${RAREZA_NOMBRES[PITY_RANGO_MINIMO]} o superior.`, `🍀 *Garantía activada:* los espíritus aseguraron una tirada de rareza ${RAREZA_NOMBRES[PITY_RANGO_MINIMO]} o superior.`));
-      extra.push(T(`Garantía ›› *${pityDespuesDe(sender, categoria, personaje)}/${PITY_TIRADAS}* tiradas.`, `Garantía de la noche ›› *${pityDespuesDe(sender, categoria, personaje)}/${PITY_TIRADAS}* tiradas.`));
+      if (via === "banner") extra.unshift(T("⭐ *Destacado de la semana.*", "🎃 *Destacado de la semana, bendecido por la luna.*"));
+      if (via === "pity") extra.unshift(T(`🍀 *Garantía activada:* rareza ${RAREZA_NOMBRES[PITY_RANGO_MINIMO]} o superior.`, `🍀 *Garantía activada:* los espíritus aseguran rareza ${RAREZA_NOMBRES[PITY_RANGO_MINIMO]} o superior.`));
+      extra.push(T(`Garantía ›› *${pityDespuesDe(sender, categoria, personaje)}/${PITY_TIRADAS}*`, `Garantía de la noche ›› *${pityDespuesDe(sender, categoria, personaje)}/${PITY_TIRADAS}*`));
 
       try {
         const enviado = await enviarPersonaje({
@@ -501,7 +501,7 @@ export function crearComandoClaim({ categoria, names, desc }) {
 
       const { pendiente } = r;
       const p = pendiente.personaje;
-      const resultado = reclamar(sender, p, p.nivelInicial ?? 1);
+      const resultado = reclamar(sender, p, p.nivelInicial ?? NIVEL_INICIAL);
       if (resultado === "ocupado") {
         cerrarPendiente(r.id);
         return reply({ text: T("💨 Otra persona lo reclamó primero.", "💨 Otra alma se lo llevó primero.") });
@@ -541,7 +541,7 @@ async function miniaturaDe(c) {
       const h = Math.round(origen.height * k);
       ctx.drawImage(origen, Math.round((lado - w) / 2), Math.round((lado - h) / 2), w, h);
       try {
-        uri = "data:image/webp;base64," + lienzo.toBuffer("image/webp", 80).toString("base64");
+        uri = "data:image/webp;base64," + lienzo.toBuffer("image/webp", 70).toString("base64");
       } catch {
         uri = "data:image/png;base64," + lienzo.toBuffer("image/png").toString("base64");
       }
