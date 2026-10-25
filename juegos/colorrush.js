@@ -1,44 +1,73 @@
-import { config } from "../motores/db.js";
+import { enviarJuego } from "../motores/juegos-html.js";
 
-const GAME_HTML = String.raw`<!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="UTF-8">
+const GAME_HTML = String.raw`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
-html,body{margin:0;padding:0;background:#16060d;color:#fff;font-family:Arial,sans-serif;touch-action:manipulation;overscroll-behavior:none}
-#root{max-width:520px;margin:0 auto;padding:14px;position:relative}
-.panel{padding:18px;background:linear-gradient(135deg,#2b0a22,#0d0717);border:2px solid #ff4fa3;border-radius:20px;box-shadow:0 0 30px rgba(255,79,163,.2)}
-.brand{font-size:9px;letter-spacing:3px;color:#ff4fa3;text-transform:uppercase}
-.title{font-size:29px;font-weight:900;margin-top:4px}
-.hud{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:5px;margin:12px 0}
-.hud>div{text-align:center;background:rgba(255,255,255,.07);border-radius:9px;padding:7px 2px;font-size:8px;letter-spacing:.5px;color:rgba(255,255,255,.6);text-transform:uppercase;overflow:hidden}
-.hud b{display:block;font-size:16px;color:#ffe66d;margin-top:3px;font-weight:900}
-.bar{height:6px;border-radius:4px;background:rgba(255,255,255,.1);overflow:hidden;margin-bottom:4px}
-.bar>div{height:100%;width:100%;transform-origin:left center;will-change:transform;background:linear-gradient(90deg,#ff4fa3,#ffe66d)}
-.target{text-align:center;font-size:13px;margin:14px 0 6px;color:rgba(255,255,255,.75);letter-spacing:1px}
-.big{font-size:42px;font-weight:900;margin-top:6px;white-space:nowrap;overflow:hidden;text-shadow:0 0 14px currentColor}
+html,body{margin:0}
+button{font-family:inherit;cursor:pointer}
+.fx{position:absolute;left:0;top:0;right:0;bottom:0;overflow:hidden;pointer-events:none;z-index:0}
+.fx i{position:absolute;font-style:normal;line-height:1}
+.in{position:relative;z-index:1}
+@keyframes fy{0%{transform:translate3d(-16vw,0,0)}50%{transform:translate3d(48vw,-14px,0)}100%{transform:translate3d(116vw,6px,0)}}
+@keyframes fl{0%,100%{transform:translate3d(0,0,0) rotate(-5deg)}50%{transform:translate3d(0,-11px,0) rotate(5deg)}}
+@keyframes sw{0%,100%{transform:rotate(-13deg)}50%{transform:rotate(13deg)}}
+@keyframes dr{0%{transform:translate3d(-30vw,0,0)}100%{transform:translate3d(120vw,0,0)}}
+@keyframes tw{0%,100%{opacity:.2}50%{opacity:1}}
+@keyframes bob{0%,100%{transform:translate3d(0,0,0)}50%{transform:translate3d(0,-6px,0)}}
+.fy{animation:fy linear infinite}.fl{animation:fl ease-in-out infinite}.sw{animation:sw ease-in-out infinite;transform-origin:50% -40px}
+.dr{animation:dr linear infinite}.tw{animation:tw ease-in-out infinite}.bob{animation:bob ease-in-out infinite}
+.th::before{content:"";position:absolute;left:50%;bottom:100%;width:1px;height:90px;background:rgba(255,255,255,.5)}
+.lo .fx i:nth-of-type(n+6){display:none}
+@media (prefers-reduced-motion:reduce){.fx i,.fx b,.fx u{animation:none!important}}
+.sr{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px}
+.sd{flex:none;width:38px;height:38px;border-radius:12px;font-size:17px;line-height:1;padding:0}
+.tth{font-size:11px;font-weight:900;letter-spacing:2px;margin:16px 0 6px;color:var(--ac)}
+.top{list-style:none;margin:0;padding:0;display:grid;gap:5px}
+.top li{display:flex;gap:8px;align-items:center;padding:6px 10px;border-radius:10px;background:var(--cd);font-size:12px;font-weight:700}
+.top i{font-style:normal;width:16px;color:var(--ac);font-weight:900}
+.top span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.top b{color:var(--ac)}.top .nd{justify-content:center;color:var(--mu);font-weight:400}
+.rl{display:block;width:100%;text-align:center;padding:12px 8px;margin-top:8px;border-radius:12px;background:var(--ac);color:#111;font-weight:900;font-size:13px;text-decoration:none}
+.rn{display:block;font-size:11px;margin-top:4px;color:var(--mu);font-weight:400}
+.foot{display:flex;align-items:center;justify-content:center;gap:6px;padding:12px 0 0;font-size:11px;color:var(--mu)}
+body{padding:8px;font-family:Roboto,Arial,sans-serif;touch-action:manipulation;overscroll-behavior:none;color:var(--tx);background-color:var(--bg)}
+body.n{--bg:#ffd9ec;--pn:#fffaf0;--ln:#2b1b3d;--sh:#2b1b3d;--tx:#2b1b3d;--mu:#7d5d92;--ac:#ff4fa3;--cd:#ffe9f5;--bc:#2b1b3d;background-image:radial-gradient(#ffb3d6 2px,transparent 2.6px);background-size:22px 22px}
+body.h{--bg:#140a22;--pn:#241040;--ln:#ff7a1a;--sh:#ff7a1a;--tx:#ffe9d2;--mu:#c9a0dd;--ac:#ff9a1f;--cd:#341857;--bc:#0d0516;background-image:radial-gradient(#2c1450 2px,transparent 2.6px);background-size:22px 22px}
+#root{position:relative;width:100%}
+.panel{position:relative;overflow:hidden;padding:16px;background:var(--pn);border:4px solid var(--ln);border-radius:22px;box-shadow:6px 6px 0 var(--sh)}
+.brand{font-size:10px;font-weight:900;letter-spacing:3px;color:var(--ac)}
+.sd{border:3px solid var(--ln);background:var(--cd);color:var(--tx);box-shadow:2px 2px 0 var(--sh)}
+.title{font-size:30px;font-weight:900;margin-top:4px;letter-spacing:-.5px;text-shadow:3px 3px 0 var(--ac)}
+.hud{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;margin:12px 0}
+.hud>div{text-align:center;border:3px solid var(--ln);border-radius:12px;padding:6px 2px;font-size:8px;font-weight:900;letter-spacing:.5px;text-transform:uppercase;overflow:hidden;color:var(--ln)}
+body.n .hud>div:nth-child(1){background:#ffd633}body.n .hud>div:nth-child(2){background:#8be0ff}body.n .hud>div:nth-child(3){background:#9dffb0}body.n .hud>div:nth-child(4){background:#ffb3d6}body.n .hud>div:nth-child(5){background:#d1b3ff}
+body.h .hud>div{background:var(--cd);color:var(--mu)}
+.hud b{display:block;font-size:17px;margin-top:2px;font-weight:900;color:var(--ln)}body.h .hud b{color:var(--ac)}
+.bar{height:16px;border:3px solid var(--ln);border-radius:10px;background:var(--cd);overflow:hidden;margin-bottom:4px}
+.bar>div{height:100%;width:100%;transform-origin:left center;will-change:transform}
+body.n .bar>div{background:repeating-linear-gradient(45deg,#ff4fa3 0 10px,#ff86bf 10px 20px)}
+body.h .bar>div{background:repeating-linear-gradient(45deg,#ff7a1a 0 10px,#ffb04a 10px 20px)}
+.target{text-align:center;font-size:13px;font-weight:800;margin:14px 0 4px;color:var(--mu);letter-spacing:1px}
+.big{font-size:42px;font-weight:900;margin-top:6px;white-space:nowrap;overflow:hidden;-webkit-text-stroke:1.5px var(--bc);text-shadow:3px 3px 0 var(--bc)}
 .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:8px}
-.c{height:88px;border:0;border-radius:15px;font-size:14px;font-weight:900;color:#fff;cursor:pointer;touch-action:manipulation;padding:0;font-family:inherit}
-.c:active{transform:scale(.94)}
-.msg{text-align:center;margin-top:12px;color:#ffb9da;font-size:11px;min-height:14px}
-.foot{display:flex;align-items:center;justify-content:center;gap:6px;padding:12px 0 2px;font-size:11px;color:#b98aa6}
-.overlay{position:absolute;inset:0;display:none;align-items:center;justify-content:center;padding:25px;background:rgba(22,6,13,.94);z-index:50}
+.c{height:88px;border:4px solid var(--bc);border-radius:16px;font-size:15px;font-weight:900;color:#fff;touch-action:manipulation;padding:0;box-shadow:0 5px 0 rgba(0,0,0,.4);text-shadow:0 2px 0 rgba(0,0,0,.45)}
+.c:active{transform:translateY(4px);box-shadow:0 1px 0 rgba(0,0,0,.4)}
+.msg{text-align:center;margin-top:12px;color:var(--mu);font-size:12px;font-weight:700;min-height:16px}
+.overlay{position:absolute;left:0;top:0;right:0;bottom:0;display:none;align-items:center;justify-content:center;padding:22px;background:rgba(20,10,34,.55);z-index:50}
+body.n .overlay{background:rgba(255,217,236,.6)}
 .overlay.show{display:flex}
-.modal{width:100%;max-width:320px;text-align:center;background:#2b0a22;border:2px solid #ff4fa3;border-radius:18px;padding:22px;box-shadow:0 0 35px rgba(255,79,163,.3)}
-.modalTitle{font-size:24px;font-weight:900;color:#ff4fa3}
-.modalText{font-size:12px;color:rgba(255,255,255,.7);margin:8px 0 16px;line-height:1.6}
-.modalBtn{width:100%;padding:12px;margin-top:7px;border-radius:11px;border:1px solid #ff4fa3;background:rgba(255,79,163,.1);color:#ff4fa3;font-weight:900;font-size:12px;cursor:pointer;font-family:inherit}
-.modalBtn:active{background:rgba(255,79,163,.2)}
-.sr{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px}.sr small,.sr .brand{margin:0;min-width:0}.sd{flex:none;width:36px;height:36px;margin:0;border-radius:11px;border:2px solid #ff4fa3;background:#2b0a22;font-size:16px;line-height:1;padding:0;color:#fff}
-</style>
-</head>
-<body>
+.modal{width:100%;max-width:340px;text-align:center;background:var(--pn);border:4px solid var(--ln);border-radius:20px;padding:20px;box-shadow:6px 6px 0 var(--sh)}
+.modalTitle{font-size:24px;font-weight:900;color:var(--ac)}
+.modalText{font-size:13px;font-weight:700;margin:8px 0 14px;line-height:1.6}
+.modalBtn{width:100%;padding:13px;margin-top:7px;border-radius:12px;border:3px solid var(--bc);background:var(--ac);color:#fff;font-weight:900;font-size:14px;box-shadow:0 4px 0 rgba(0,0,0,.4);text-shadow:0 2px 0 rgba(0,0,0,.35)}
+.modalBtn:active{transform:translateY(3px);box-shadow:0 1px 0 rgba(0,0,0,.4)}
+.th{transform-origin:50% -40px}.foot{padding-bottom:32px}
+</style></head><body class="n">
 <div id="root">
-<div class="panel">
+<div class="panel"><div class="fx" id="fx"></div><div class="in">
 <div class="sr"><div class="brand">MAXIPROYEC · REFLEX LAB</div><button class="sd" id="sd">🔊</button></div>
-<div class="title">🎨 COLOR RUSH</div>
+<div class="title" id="tt">🎨 COLOR RUSH</div>
 <div class="hud">
 <div>Puntos<b id="s">0</b></div>
 <div>Racha<b id="r">0</b></div>
@@ -50,19 +79,29 @@ html,body{margin:0;padding:0;background:#16060d;color:#fff;font-family:Arial,san
 <div class="target">Toca el color:<div id="target" class="big">ROJO</div></div>
 <div id="grid" class="grid"></div>
 <div id="m" class="msg">Cada 5 aciertos subes de nivel y el tiempo corre más rápido.</div>
-</div>
+<div class="tth">🏆 TOP DEL BOT</div><ol class="top" id="tp"></ol>
 <div class="foot"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.7"/><path d="M8 7v4.2M8 4.7v.1" stroke-linecap="round"/></svg>Powered by __FIRMA__</div>
+</div>
 <div id="overlay" class="overlay">
 <div class="modal">
 <div id="modalTitle" class="modalTitle">🏁 FIN</div>
 <div id="modalText" class="modalText">Puntos: 0</div>
+<div id="rk"></div>
 <button id="playAgain" class="modalBtn">▶ JUGAR DE NUEVO</button>
 </div>
-</div>
-</div>
+</div></div></div>
 <script>
+
 (function(){
 "use strict";
+var GD=__DATA__,HW=!!GD.hw,LO=!!((navigator.deviceMemory&&navigator.deviceMemory<=2)||(navigator.hardwareConcurrency&&navigator.hardwareConcurrency<=2));
+document.body.className=(HW?"h":"n")+(LO?" lo":"");
+function esc(s){return String(s).replace(/[&<>]/g,function(c){return c==="&"?"&amp;":c==="<"?"&lt;":"&gt;"})}
+function topHtml(){var a=GD.top||[],h="",i;for(i=0;i<a.length;i++)h+="<li><i>"+(i+1)+"</i><span>"+esc(a[i][0])+"</span><b>"+a[i][1]+"</b></li>";return h||"<li class=nd>Sé el primero del ranking</li>"}
+function recUi(score,secs,box){var rs=GD.rec||0;box.innerHTML="";if(!score||!GD.bot)return;if(rs&&(GD.menor?score>=rs:score<=rs))return;
+ box.innerHTML="<a class=rl href=\""+"https://wa.me/"+GD.bot+"?text="+encodeURIComponent(GD.cmd+" "+GD.j+" "+score+" "+secs+" "+GD.t+" "+GD.f)+"\">📨 ¡Récord! Toca para guardarlo en el bot<span class=rn>Se abre el chat: solo envía el mensaje</span></a>"}
+function deco(list){var f=document.getElementById("fx"),h="",i,a;for(i=0;i<list.length;i++){a=list[i];h+="<i class=\""+a[1]+"\" style=\"left:"+a[2]+"%;"+a[3]+";font-size:"+a[6]+"px;animation-duration:"+a[4]+"s;animation-delay:-"+a[5]+"s\">"+a[0]+"</i>"}f.insertAdjacentHTML("beforeend",h)}
+
 var snd=2,AC=null,MG=null,MB=null,NB=null,TL={},vc=0,mid=0,mpat=null,mNext=0,mStep=0,MSP=.25,MCUR=null,ACUR=null,ANS=null;
 try{var sv0=localStorage.getItem("mp_snd2");if(sv0!==null)snd=Math.max(0,Math.min(2,parseInt(sv0)||0))}catch(e){}
 function au(){if(!AC){try{var C=window.AudioContext||window.webkitAudioContext;AC=new C();MG=AC.createGain();MG.gain.value=1;var cp=AC.createDynamicsCompressor();cp.threshold.value=-16;cp.ratio.value=8;cp.attack.value=.003;cp.release.value=.15;MG.connect(cp);cp.connect(AC.destination);MB=AC.createGain();MB.gain.value=.55;MB.connect(MG);
@@ -103,10 +142,10 @@ function maxTime(){return Math.max(3.5,6.5-(level-1)*0.35);}
 function bonus(){return Math.max(0.3,0.9-(level-1)*0.08);}
 function penalty(){return Math.min(3.5,2+(level-1)*0.25);}
 function drain(){return Math.min(2,1+(level-1)*0.1);}
-var KEY="mp_colorrush_best",mem=0;
+var KEY="mp_colorrush_best",mem=0,T0=Date.now();
 function ld(){try{return parseInt(localStorage.getItem(KEY))||0}catch(e){return mem}}
 function sv(v){mem=v;try{localStorage.setItem(KEY,String(v))}catch(e){}}
-var best=ld(),score=0,streak=0,correct=0,level=1,time=START_TIME,answer='ROJO',running=true,timer=null,gen=0,lastT=Date.now(),lastS="",fitC={},btns=[];
+var best=Math.max(ld(),GD.rec||0),score=0,streak=0,correct=0,level=1,time=START_TIME,answer='ROJO',running=true,timer=null,gen=0,lastT=Date.now(),lastS="",fitC={},btns=[];
 var $=function(i){return document.getElementById(i)};
 var sEl=$('s'),rEl=$('r'),lEl=$('l'),tEl=$('t'),bEl=$('b'),barEl=$('bar'),targetEl=$('target'),grid=$('grid'),mEl=$('m'),overlay=$('overlay');
 for(var i=0;i<4;i++){var bt=document.createElement('button');bt.className='c';grid.appendChild(bt);btns.push(bt)}
@@ -161,7 +200,7 @@ function tick(g){
 function endGame(){
   mend();setTimeout(function(){fx("e",0,300,.5,"sawtooth",.1,50,1)},200);running=false;gen++;
   if(timer){clearTimeout(timer);timer=null;}
-  if(score>best){best=score;sv(best);bEl.textContent=best;}
+  if(score>best){best=score;sv(best);bEl.textContent=best;}recUi(score,Math.round((Date.now()-T0)/1000),$('rk'));
   
   renderTime();
   $('modalTitle').textContent='🏁 FIN';
@@ -170,7 +209,7 @@ function endGame(){
 }
 function reset(){
   if(timer){clearTimeout(timer);timer=null;}
-  fx("s",0,520,.1,"sine",.08,780);mus(mCR,.17);gen++;score=0;streak=0;correct=0;level=1;time=START_TIME;running=true;lastT=Date.now();
+  fx("s",0,520,.1,"sine",.08,780);mus(mCR,.17);gen++;T0=Date.now();score=0;streak=0;correct=0;level=1;time=START_TIME;running=true;lastT=Date.now();
   sEl.textContent='0';rEl.textContent='0';lEl.textContent='1';
   mEl.textContent='Cada 5 aciertos subes de nivel y el tiempo corre más rápido.';
   overlay.classList.remove('show');
@@ -180,23 +219,25 @@ function reset(){
 grid.addEventListener('pointerdown',function(e){e.preventDefault();var t=e.target;if(t&&t._n)pick(t._n);});
 $('playAgain').addEventListener('click',function(e){e.preventDefault();e.stopPropagation();reset();});
 bEl.textContent=best;
-mus(mCR,.17);
-renderTime();round();tick(gen);
+deco(HW?[["🕷️","sw th",10,"top:42px",3.2,0,22],["🕷️","sw th",76,"top:70px",4,1.5,18],["🦇","fy",0,"top:6%",10,0,20],["🎃","fl",5,"bottom:3%",4,1,28],["👻","fl",84,"top:22%",5,0,26],["🦇","fy",0,"top:20%",13,6,16],["🎃","fl",88,"bottom:2%",5,2,24],["🧙","fy",0,"top:42%",18,9,26],["🕸️","",0,"top:0",1,0,44],["🕸️","",88,"top:0",1,0,44]]
+ :[["⭐","fl",56,"top:10%",5,0,16],["🍭","fl",86,"top:5%",6,1,22],["🎈","fl",90,"top:30%",7,2,24],["✨","tw",12,"top:30%",3,0,14],["💎","fl",4,"top:55%",6,3,16],["🔶","fl",92,"top:60%",5,1,14],["🍬","fl",8,"bottom:5%",6,2,20],["🎉","fl",84,"bottom:4%",5,4,20]]);
+$("tt").textContent=HW?"🎃 COLOR RUSH":"🎨 COLOR RUSH";
+$("tp").innerHTML=topHtml();
+running=false;renderTime();round();
+$('modalTitle').textContent=HW?'🎃 COLOR RUSH':'🎨 COLOR RUSH';
+$('modalText').innerHTML='Toca el color que dice la palabra.<br>Cada 5 aciertos subes de nivel.';
+$('playAgain').textContent='▶ JUGAR';overlay.classList.add('show');
 })();
-</script>
-</body>
-</html>`;
+</script></body></html>`;
 
 export default {
   names: [".colorrush", ".colores"],
-  desc: "Color Rush: reflejos por colores; guarda tu mejor puntaje",
+  desc: "Color Rush: reflejos por colores; tu mejor puntaje se guarda en el bot",
   category: "Juegos",
   usage: ".colorrush",
-  handler: async ({ sock, from, msg }) => {
+  handler: async ({ sock, from, msg, sender }) => {
     try {
-      if (typeof sock.sendHtml !== "function") throw new Error("este Baileys no tiene sendHtml");
-      const html = GAME_HTML.replaceAll("__FIRMA__", config.botNameShort || "MaxiProyec");
-      await sock.sendHtml(from, html, [], undefined, {});
+      await enviarJuego({ sock, from, msg, sender, juego: "colorrush", html: GAME_HTML });
     } catch (e) {
       console.log("[COLORRUSH] ERROR: " + e.stack);
       await sock.sendMessage(from, { text: "❌ No se pudo enviar el juego: " + e.message }, { quoted: msg });
