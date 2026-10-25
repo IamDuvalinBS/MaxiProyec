@@ -5,7 +5,7 @@ import { PREGUNTAS, PREGUNTAS_HALLOWEEN } from "../../economia/preguntas.js";
 import { setPendingTrivia } from "../../economia/trivia.js";
 
 const LETRAS = ["A", "B", "C", "D"];
-const ESPERA_MS = 60 * 1000;
+const ESPERA_MS = 15 * 60;
 const TIEMPO_RESPUESTA_MS = 60 * 1000;
 const PREMIO_MIN = 4000;
 const PREMIO_MAX = 12000;
