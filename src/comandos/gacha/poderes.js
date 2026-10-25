@@ -1,7 +1,7 @@
 import { gachaListo, CAT } from "../../../motores/gacha-core.js";
 import { categoriaPorAlias } from "../../../motores/gacha-categorias.js";
 import { mejorDe, personajePorId } from "../../../motores/gacha-db.js";
-import { NIVEL_MAX, estrellasTexto } from "../../../motores/gacha-niveles.js";
+import { nivelTopeDe, nivelMaxDe, estrellasTexto } from "../../../motores/gacha-niveles.js";
 import { poderesDe } from "../../../motores/gacha-poderes.js";
 import { encabezado } from "../../../src/economia/estilo.js";
 import { T } from "../../../motores/gacha-tema.js";
@@ -40,19 +40,19 @@ export default {
     if (!personaje && charId) {
       const base = personajePorId(charId);
       if (!base || base.categoria !== categoria) return reply({ text: `❌ No existe ${CAT[categoria].indef} con el ID #${charId}.` });
-      personaje = { ...base, nivel: 1, estrellas: 0 };
+      personaje = { ...base, nivel: 0, estrellas: 0 };
     }
     if (!personaje) return reply({ text: `❌ Todavía no tienes ${CAT[categoria].indef}. Consíguelo con *${CAT[categoria].rollCmd}*.` });
 
-    const nivel = personaje.nivel || 1;
+    const nivel = personaje.nivel ?? 1;
     const estrellas = personaje.estrellas || 0;
-    const lista = poderesDe(personaje, nivel, NIVEL_MAX[categoria], estrellas);
+    const lista = poderesDe(personaje, nivel, nivelTopeDe(categoria, personaje), estrellas);
 
     const lineas = [
       encabezado("⚡", T("PODERES", "PODERES OSCUROS")),
       "",
       `> Poderes de *${personaje.nombre}* (#${personaje.id}).`,
-      `📊 *Nivel* ›› ${nivel}/${NIVEL_MAX[categoria]}${estrellas ? ` ${estrellasTexto(estrellas)}` : ""}`,
+      `📊 *Nivel* ›› ${nivel}/${nivelMaxDe(categoria, estrellas, personaje)}${estrellas ? ` ${estrellasTexto(estrellas)}` : ""}`,
       ""
     ];
     for (const poder of lista) {

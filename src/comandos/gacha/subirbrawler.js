@@ -43,7 +43,7 @@ export default {
         encabezado("⭐", "BRAWLER MEJORADO"),
         "",
         `✍🏻 *Nombre* ›› ${r.p.nombre} (#${r.p.id})`,
-        `📊 *Nivel* ›› ${r.antes} → *${r.despues}* / ${nivelMaxDe("brawler", r.p.estrellas)}`,
+        `📊 *Nivel* ›› ${r.antes} → *${r.despues}* / ${nivelMaxDe("brawler", r.p.estrellas, r.p)}`,
         textoStats(r.stats),
         `🟪 *Gastaste* ›› ${r.gastados} cubitos (te quedan ${r.restantes})`
       ].join("\n")

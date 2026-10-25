@@ -120,7 +120,7 @@ export default {
             dex: Number(c.clave),
             nombre: c.nombre,
             nivel: c.nivel,
-            max: nivelMaxDe("pokemon", c.estrellas),
+            max: nivelMaxDe("pokemon", c.estrellas, c),
             estrellas: c.estrellas || 0,
             rareza: c.rareza,
             tipos: (c.stats?.tipos || []).map((k) => ({ k, n: tipoEs(k) })),
