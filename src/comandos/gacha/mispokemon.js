@@ -6,6 +6,7 @@ import { tipoEs } from "../../../motores/gacha-pokemon.js";
 import { getProfile } from "../../../motores/profile.js";
 import { htmlPokedex } from "../../../motores/pokedex-html.js";
 import { esHalloween } from "../../economia/temas.js";
+import { revisarMigracion } from "../../../motores/gacha-migracion.js";
 
 const TOTAL_DEX = 1025;
 const POR_PARTE = 36;
@@ -86,6 +87,7 @@ export default {
   handler: async ({ sock, from, sender, msg, cleanText, reply }) => {
     await gachaListo;
     const usuario = await buscarUsuario(candidatosDeUsuario(sock, msg, sender));
+    await revisarMigracion({ sender: usuario, from, reply }).catch(() => {});
     if (esHalloween()) return mostrarColeccion({ sock, from, msg, categoria: "pokemon", sender: usuario, cleanText, reply });
     const todos = coleccionDe(usuario, "pokemon", 100000, 0);
     if (!todos.length || typeof sock.sendHtml !== "function") {

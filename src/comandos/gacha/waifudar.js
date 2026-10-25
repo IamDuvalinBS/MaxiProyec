@@ -1,7 +1,7 @@
-import { crearComandoDar } from "../../../motores/gacha-tienda.js";
-
-export default crearComandoDar({
-  categoria: "waifu",
+export default {
   names: [".waifudar", ".darregalo"],
-  desc: "Da un regalo a una de tus waifus para subirla de nivel: .waifudar <número> [ID]"
-});
+  desc: "Las waifus ahora son solo coleccionables (sin niveles ni combates)",
+  category: "Gacha",
+  usage: ".waifudar",
+  handler: async ({ reply }) => reply({ text: "🌸 Las waifus ahora son *solo coleccionables*: ya no tienen niveles, tienda ni combates. Consíguelas con *.rw* y revisa tu colección con *.harem*." })
+};
