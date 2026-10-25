@@ -434,7 +434,7 @@ export async function hacerRoll({ categoria, obtener, reply, sender, from, coold
       const previo = intento === 0 ? tomarPrecarga(clave, categoria) : null;
       const { personaje: base, via } = await elegirConGarantia({ categoria, sender, obtener, previo });
       if (!base) return reply({ text: textoVacio });
-      const personaje = { ...base, nivelInicial: nivelAleatorio(categoria) };
+      const personaje = { ...base, nivelInicial: 1 };
 
       const duenos = categoria === "waifu" ? propietarios(personaje.id) : [];
       const mentions = [sender];
@@ -624,7 +624,7 @@ export async function mostrarColeccion({ sock, from, msg, categoria, sender, cle
   const { n, total } = contarColeccion(sender, categoria);
   const tickets = ticketsDe(sender, categoria);
 
-  if (n && sock && from && typeof sock.sendHtml === "function") {
+  if (n && categoria !== "waifu" && sock && from && typeof sock.sendHtml === "function") {
     try {
       const todos = coleccionDe(sender, categoria, 100000, 0);
       await enviarColeccionHtml({ sock, from, msg, categoria, sender, pagina, todos, n });

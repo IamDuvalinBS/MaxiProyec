@@ -1,4 +1,4 @@
-import { config } from "../motores/db.js";
+import { enviarJuego } from "../motores/juegos-html.js";
 
 const GAME_HTML = String.raw`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
@@ -30,7 +30,37 @@ h3{margin:14px 0 8px;font-size:12px;letter-spacing:2px;color:#ffb36b}
 .hint{text-align:center;font-size:12px;color:#c9a27a;margin:10px 0 0}
 .foot{display:flex;align-items:center;justify-content:center;gap:6px;padding:12px 0 0;font-size:11px;color:#a9825c}
 .sr{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px}.sr small{margin:0;min-width:0}.sd{flex:none;width:36px;height:36px;margin:0;border-radius:11px;border:2px solid #ff9a3d;background:#2a170c;font-size:16px;line-height:1;padding:0;color:#fff}
-</style></head><body><div class="m"><div class="sr"><small>MAXIPROYEC · ARCADE</small><button class="sd" id="sd">🔊</button></div><h1>🎳 BOLOS</h1>
+body{--ac:#ffb36b;--cd:#150c08;--mu:#c9a27a}
+body.hwon{--ac:#ff9a1f;--cd:#2a0f3d;--mu:#d2a8e8;background:#0a0414}
+.m{position:relative;overflow:hidden}.m>*:not(.hwfx){position:relative;z-index:1}
+body.hwon .m{border-color:#ff7a1a;background:radial-gradient(circle at 50% 0,#4a1a5e,#0a0414 70%);box-shadow:0 0 30px #ff7a1a55}
+body.hwon h1{color:#ff9a1f;text-shadow:3px 3px 0 #5b1f8a,0 0 14px #ff7a1a88}
+body.hwon small,body.hwon h3{color:#ff9a1f}
+body.hwon .ch{border-color:#4a2670;background:#1a0b2c}
+body.hwon .ch.on{border-color:#ff9a1f;box-shadow:0 0 12px #ff9a1f66;background:#2e1250}
+body.hwon .go{background:linear-gradient(90deg,#ff7a1a,#ffb04a)}
+body.hwon .bt{border-color:#ff7a1a;background:#2a1046;color:#ffb04a}
+body.hwon #ov,body.hwon #sbv{background:#0a0414f2}
+
+.hwfx{position:absolute;left:0;top:0;right:0;bottom:0;overflow:hidden;pointer-events:none;z-index:0;display:none}
+body.hwon .hwfx{display:block}
+.hwfx i{position:absolute;font-style:normal;line-height:1}
+@keyframes hfy{0%{transform:translate3d(-16vw,0,0)}50%{transform:translate3d(48vw,-14px,0)}100%{transform:translate3d(116vw,6px,0)}}
+@keyframes hfl{0%,100%{transform:translate3d(0,0,0) rotate(-5deg)}50%{transform:translate3d(0,-11px,0) rotate(5deg)}}
+@keyframes hsw{0%,100%{transform:rotate(-13deg)}50%{transform:rotate(13deg)}}
+.hfy{animation:hfy linear infinite}.hfl{animation:hfl ease-in-out infinite}.hsw{animation:hsw ease-in-out infinite;transform-origin:50% -40px}
+.hth::before{content:"";position:absolute;left:50%;bottom:100%;width:1px;height:90px;background:rgba(255,255,255,.5)}
+body.hwlo .hwfx i:nth-of-type(n+6){display:none}
+@media (prefers-reduced-motion:reduce){.hwfx i{animation:none!important}}
+.hwt{font-size:11px;font-weight:900;letter-spacing:2px;margin:16px 0 6px;color:var(--ac)}
+.hwl{list-style:none;margin:0;padding:0;display:grid;gap:5px}
+.hwl li{display:flex;gap:8px;align-items:center;padding:6px 10px;border-radius:10px;background:var(--cd);font-size:12px;font-weight:700;color:inherit}
+.hwl i{font-style:normal;width:16px;color:var(--ac);font-weight:900}
+.hwl span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hwl b{color:var(--ac)}.hwl .hwn{justify-content:center;color:var(--mu);font-weight:400}
+.hwr{display:block;width:100%;text-align:center;padding:12px 8px;margin-top:8px;border-radius:12px;background:var(--ac);color:#111;font-weight:900;font-size:13px;text-decoration:none;font-family:inherit}
+.hwr em{display:block;font-style:normal;font-size:11px;margin-top:4px;font-weight:400}
+</style></head><body><div class="m"><div class="hwfx" id="hwfx"></div><div class="sr"><small>MAXIPROYEC · ARCADE</small><button class="sd" id="sd">🔊</button></div><h1 id="tt">🎳 BOLOS</h1>
 <div id="cfg"><div class="d">Configura tu partida</div><div class="sub">Tú tiras en primera persona; los bots juegan y tú los ves</div>
 <h3>👥 JUGADORES</h3><div class="o c3" id="o1"></div>
 <h3>🔢 CUADROS</h3><div class="o c2" id="o2"></div>
@@ -38,9 +68,9 @@ h3{margin:14px 0 8px;font-size:12px;letter-spacing:2px;color:#ffb36b}
 <h3>🏟️ PISTA</h3><div class="o c2" id="o0"></div>
 <h3>🎳 COLOR DE BOLA</h3><div class="o c3" id="o4"></div>
 <h3>⚖️ PESO DE LA BOLA</h3><div class="o c3" id="o5"></div>
-<button class="go" id="go">▶ INICIAR PARTIDA</button></div>
+<button class="go" id="go">▶ INICIAR PARTIDA</button><div class="hwt" id="tth"></div><ol class="hwl" id="tp"></ol></div>
 <div id="gm" style="display:none">
-<div class="w"><canvas id="c" width="450" height="600"></canvas><div id="sbv"></div><div id="ov"><b>🏁 FIN</b><span id="ot"></span><button class="go" id="ag">↻ JUGAR DE NUEVO</button><button class="bt" id="ch">⚙ AJUSTES</button></div></div>
+<div class="w"><canvas id="c" width="450" height="600"></canvas><div id="sbv"></div><div id="ov"><b>🏁 FIN</b><span id="ot"></span><div id="rk"></div><button class="go" id="ag">↻ JUGAR DE NUEVO</button><button class="bt" id="ch">⚙ AJUSTES</button></div></div>
 <button class="bt" id="sbb" style="height:40px;margin-top:8px;font-size:13px">📋 VER PUNTUACIÓN COMPLETA</button>
 <div class="pp"><div><span>FUERZA</span><div class="pb" id="pw"><div id="pwf"></div></div></div><div><span>EFECTO ↶ ↷</span><div class="pb ef" id="ef"><div id="efk"></div></div></div></div>
 <div class="lb">POSICIÓN DE LA BOLA</div><div class="an" id="an1"><button class="bt" data-a="-12">◀◀</button><button class="bt" data-a="-3">◀</button><button class="bt" data-a="c">🎯</button><button class="bt" data-a="3">▶</button><button class="bt" data-a="12">▶▶</button></div>
@@ -52,6 +82,14 @@ h3{margin:14px 0 8px;font-size:12px;letter-spacing:2px;color:#ffb36b}
 </div>
 <script>
 (function(){"use strict";
+var GD=__DATA__,HW=!!GD.hw,LO=!!((navigator.deviceMemory&&navigator.deviceMemory<=2)||(navigator.hardwareConcurrency&&navigator.hardwareConcurrency<=2)),T0=Date.now();
+document.body.className=(HW?"hwon":"hwoff")+(LO?" hwlo":"");
+function hEsc(s){return String(s).replace(/[&<>]/g,function(c){return c==="&"?"&amp;":c==="<"?"&lt;":"&gt;"})}
+function hV(id){return (GD.v&&GD.v[id])||GD}
+function hTop(id){var a=hV(id).top||[],h="",i;for(i=0;i<a.length;i++)h+="<li><i>"+(i+1)+"</i><span>"+hEsc(a[i][0])+"</span><b>"+a[i][1]+"</b></li>";return h||"<li class=hwn>Sé el primero del ranking</li>"}
+function hRec(id,score,secs,box){var V=hV(id),rs=V.rec||0;box.innerHTML="";if(!score||!GD.bot||!V.f)return;if(rs&&score<=rs)return;
+ box.innerHTML='<a class=hwr href="https://wa.me/'+GD.bot+'?text='+encodeURIComponent(GD.cmd+" "+id+" "+score+" "+secs+" "+GD.t+" "+V.f)+'">📨 ¡Récord! Toca para guardarlo en el bot<em>Se abre el chat: solo envía el mensaje</em></a>'}
+function hDeco(list){var f=document.getElementById("hwfx"),h="",i,a;if(!f)return;for(i=0;i<list.length;i++){a=list[i];h+='<i class="'+a[1]+'" style="left:'+a[2]+'%;'+a[3]+';font-size:'+a[6]+'px;animation-duration:'+a[4]+'s;animation-delay:-'+a[5]+'s">'+a[0]+'</i>'}f.insertAdjacentHTML("beforeend",h)}
 var snd=2,AC=null,MG=null,MB=null,NB=null,TL={},vc=0,mid=0,mpat=null,mNext=0,mStep=0,MSP=.25,MCUR=null,ACUR=null,ANS=null;
 try{var sv0=localStorage.getItem("mp_snd2");if(sv0!==null)snd=Math.max(0,Math.min(2,parseInt(sv0)||0))}catch(e){}
 function au(){if(!AC){try{var C=window.AudioContext||window.webkitAudioContext;AC=new C();MG=AC.createGain();MG.gain.value=1;var cp=AC.createDynamicsCompressor();cp.threshold.value=-16;cp.ratio.value=8;cp.attack.value=.003;cp.release.value=.15;MG.connect(cp);cp.connect(AC.destination);MB=AC.createGain();MB.gain.value=.55;MB.connect(MG);
@@ -87,6 +125,8 @@ try{var c0=(localStorage.getItem(CK)||"").split(",").map(Number);if(c0.length===
 function chips(k){var el=$("o"+k),L=LS[k];for(var i=0;i<L.length;i++){var b=document.createElement("button");b.className="ch"+(S[k]===i?" on":"");b.textContent=L[i][0]+" "+L[i][1];b._i=i;el.appendChild(b)}
  el.addEventListener("click",function(e){var t=e.target;if(t._i===undefined)return;S[k]=t._i;for(var j=0;j<el.children.length;j++)el.children[j].className="ch"+(j===t._i?" on":"")})}
 for(var k0=0;k0<6;k0++)chips(k0);
+function hTopUp(){var n=FRC[S[2]][2];$("tth").textContent="🏆 TOP DEL BOT · "+n+" CUADROS";$("tp").innerHTML=hTop(n===5?"bolos5":"bolos10")}
+hTopUp();$("o2").addEventListener("click",hTopUp);
 var cv=$("c"),x=cv.getContext("2d");x.scale(K,K);
 var F=700,HY=150,CH=60,ZH=900,LW=50,PR=5.75,BR=10.2,Z0=-60,CZ0=-260,PJ=[0,0,0];
 var AVE=["🙂","🤖","👾","🐱","🦊","🐸"],AVN=["Tú","Rex","Zed","Kira","Neo","Luna"],AVC=["#2d7bff","#e0364a","#e0364a","#e0364a","#e0364a","#e0364a"];
@@ -94,7 +134,7 @@ var THC=[{wall:"#2a1a10",lane:"#d9a95f",far:"#8f6c38",ln:"rgba(90,50,10,.30)",gu
 {wall:"#080a2a",lane:"#0d1238",far:"#05071c",ln:"rgba(34,245,255,.35)",gut:"#05061a",arr:"#ff3df2",app:"#141a4a",bg:"#03040f",gold:"#0b1040",gold2:"rgba(34,245,255,.4)",tri:"#2a0f6a",rail:"#22f5ff"},
 {wall:"#1a0636",lane:"#3a2580",far:"#1c1040",ln:"rgba(255,207,77,.3)",gut:"#0a0414",arr:"#ffcf4d",app:"#2b1b5e",bg:"#0a0414",gold:"#2a0a4a",gold2:"rgba(255,207,77,.4)",tri:"#ff3d7a",rail:"#ffcf4d"},
 {wall:"#050c26",lane:"#142a6a",far:"#0a1640",ln:"rgba(160,200,255,.28)",gut:"#02040e",arr:"#9fd0ff",app:"#0e1c4a",bg:"#02040c",gold:"#0a1a50",gold2:"rgba(159,208,255,.35)",tri:"#2a4a9a",rail:"#9fd0ff"}];
-var st=0,TC,NP=2,NF=5,PL=[],cur=0,fi=0,pins=[],ball=null,left=10,wasFull=true,sx=0,ang=0,pw=.7,hk=0,BM=12,tmr=0,settle=0,gutS=0,toast="",tt=0,tts=1,last=0,gid=0,cz=CZ0,tcz=CZ0,bt=0,bpl=null,bxx=0,msg="",best5=ld(KEY+"5"),best10=ld(KEY+"10"),tm=0,BG=null,LG=null,PSP=null,BSP=null,AV=[],sw=null,sbOpen=false,BDv=.017;
+var st=0,TC,NP=2,NF=5,PL=[],cur=0,fi=0,pins=[],ball=null,left=10,wasFull=true,sx=0,ang=0,pw=.7,hk=0,BM=12,tmr=0,settle=0,gutS=0,toast="",tt=0,tts=1,last=0,gid=0,cz=CZ0,tcz=CZ0,bt=0,bpl=null,bxx=0,msg="",best5=Math.max(ld(KEY+"5"),hV("bolos5").rec||0),best10=Math.max(ld(KEY+"10"),hV("bolos10").rec||0),tm=0,BG=null,LG=null,PSP=null,BSP=null,AV=[],sw=null,sbOpen=false,BDv=.017;
 function mkPins(){var a=[],R=[[0],[-14.5,14.5],[-29,0,29],[-43.5,-14.5,14.5,43.5]],r,i;for(r=0;r<4;r++)for(i=0;i<R[r].length;i++)a.push({x:R[r][i],z:ZH+r*25,vx:0,vz:0,r:PR,d:0,o:0,a:rn(0,6.28)});return a}
 function calc(Fr){var fl=[],sa=[],i,j,tot=[],run=0,k,s,n;
  for(i=0;i<Fr.length;i++){sa.push(fl.length);for(j=0;j<Fr[i].length;j++)fl.push(Fr[i][j])}
@@ -138,7 +178,7 @@ function refresh(){for(var i=0;i<NP;i++)PL[i].t=lastTot(PL[i].F);var fr=PL[cur]&
 function setPw(){$("pwf").style.transform="scaleX("+pw+")"}
 function setEf(){$("efk").style.left=((hk+1)/2*90)+"%"}
 function newTurn(){left=10;pins=mkPins();wasFull=true;ball=null;ang=0;sx=0;toast="";if(PL[cur].h){st=1;msg="Tu turno"}else{st=4;bt=0;bpl=botPlan();bxx=0;msg="Turno de "+PL[cur].n}tcz=CZ0;refresh()}
-function start(){gid++;TC=THC[S[0]];NP=PLC[S[1]][2];NF=FRC[S[2]][2];BDv=BDF[S[3]][2];BM=WGT[S[5]][2];sv(CK,S.join(","));BG=bakeBG(S[0]);LG=x.createLinearGradient(0,HY,0,330);LG.addColorStop(0,TC.far);LG.addColorStop(1,TC.lane);BSP=ballSpr(BCL[S[4]][2]);PSP=pinSpr();VIG=VIG||mkVig();BT=[];for(var bi=0;bi<13;bi++){var al=.03+((bi*7)%5)*.025;BT.push(bi%2?"rgba(255,235,190,"+al+")":"rgba(30,15,0,"+al+")")}FD=[];CF2=[];shk=0;AV=[];PL=[];
+function start(){T0=Date.now();gid++;TC=THC[S[0]];NP=PLC[S[1]][2];NF=FRC[S[2]][2];BDv=BDF[S[3]][2];BM=WGT[S[5]][2];sv(CK,S.join(","));BG=bakeBG(S[0]);LG=x.createLinearGradient(0,HY,0,330);LG.addColorStop(0,TC.far);LG.addColorStop(1,TC.lane);BSP=ballSpr(BCL[S[4]][2]);PSP=pinSpr();VIG=VIG||mkVig();BT=[];for(var bi=0;bi<13;bi++){var al=.03+((bi*7)%5)*.025;BT.push(bi%2?"rgba(255,235,190,"+al+")":"rgba(30,15,0,"+al+")")}FD=[];CF2=[];shk=0;AV=[];PL=[];
  for(var i=0;i<NP;i++){AV.push(avSpr(i));PL.push({n:AVN[i],e:AVE[i],h:i===0,F:[],t:0})}
  cur=0;fi=0;cz=CZ0;tcz=CZ0;pw=.7;hk=0;tt=0;sbOpen=false;$("sbv").style.display="none";
  $("ov").style.display="none";$("cfg").style.display="none";$("gm").style.display="block";setPw();setEf();fx("s",0,520,.1,"sine",.08,780);mus(mBol,.3);newTurn()}
@@ -147,6 +187,7 @@ function endGame(){st=5;mend();ane();var r=[],i,b=NF===5?best5:best10;for(i=0;i<
  var me=r.filter(function(o){return o.p.h})[0],win=r[0].t===me.t,pos=r.indexOf(me)+1,med=["🥇","🥈","🥉"],txt="";
  for(i=0;i<r.length;i++)txt+=(med[i]||(i+1)+".")+" "+r[i].p.e+" "+r[i].p.n+" — "+r[i].t+"\n";
  if(me.t>b){if(NF===5){best5=me.t;sv(KEY+"5",me.t)}else{best10=me.t;sv(KEY+"10",me.t)}}
+ hRec(NF===5?"bolos5":"bolos10",me.t,Math.round((Date.now()-T0)/1000),$("rk"));
  $("ot").textContent=(win?"🏆 ¡Ganaste!":"Terminaste en el lugar "+pos)+"\n"+txt+"Tu récord ("+NF+" cuadros): "+(NF===5?best5:best10);$("ov").style.display="flex";
  arp(win?[523,659,784,1047]:[392,349,311],.2,win?"triangle":"sawtooth",.1);sbRefresh()}
 function shout(m,s){toast=m;tt=s||1.5;tts=1}
@@ -269,6 +310,7 @@ $("sbb").addEventListener("click",function(){sbOpen=!sbOpen;$("sbv").style.displ
 $("kb").addEventListener("click",launch);$("go").addEventListener("click",start);$("ag").addEventListener("click",start);$("ch").addEventListener("click",toCfg);$("mb").addEventListener("click",toCfg);
 LG=null;
 (function(){var g=x.createLinearGradient(0,HY,0,H);g.addColorStop(0,"rgba(0,0,0,0)");LG="#888"})();
+hDeco(HW?[["🕷️","hsw hth",46,"top:30px",3.4,0,22],["🕷️","hsw hth",72,"top:56px",4,1.5,18],["🦇","hfy",0,"top:38%",11,0,20],["🎃","hfl",3,"bottom:2%",4,1,28],["👻","hfl",88,"top:52%",5,0,26],["🦇","hfy",0,"top:72%",14,6,16],["🎃","hfl",90,"bottom:2%",5,2,24],["🕸️","",0,"top:0",1,0,44],["🕸️","",88,"top:0",1,0,44],["🌕","hfl",78,"bottom:9%",12,0,34]]:[]);if(HW)$("tt").textContent="🎃 BOLOS EMBRUJADOS";
 requestAnimationFrame(loop);
 })();
 </script></body></html>`;
@@ -278,11 +320,9 @@ export default {
   desc: "Bolos en primera persona: 2, 4 o 6 jugadores con bots, strikes, spares y puntuación",
   category: "Juegos",
   usage: ".bolos",
-  handler: async ({ sock, from, msg }) => {
+  handler: async ({ sock, from, msg, sender }) => {
     try {
-      if (typeof sock.sendHtml !== "function") throw new Error("este Baileys no tiene sendHtml");
-      const html = GAME_HTML.replaceAll("__FIRMA__", config.botNameShort || "MaxiProyec");
-      await sock.sendHtml(from, html, [], undefined, {});
+      await enviarJuego({ sock, from, msg, sender, juego: "bolos10", variantes: ["bolos10","bolos5"], html: GAME_HTML });
     } catch (e) {
       console.log("[BOLOS] ERROR: " + e.stack);
       await sock.sendMessage(from, { text: "❌ No se pudo enviar el juego: " + e.message }, { quoted: msg });

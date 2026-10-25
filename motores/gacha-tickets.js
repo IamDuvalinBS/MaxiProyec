@@ -24,7 +24,7 @@ export function usarTicket({ sender, categoria, charId }) {
   if (!personaje || personaje.categoria !== categoria) return { error: "noexiste" };
   if (leTiene(sender, personaje.id)) return { error: "repetido", personaje };
 
-  const nivel = nivelAleatorio(personaje.categoria);
+  const nivel = 1;
   const resultado = reclamar(sender, personaje, nivel);
   if (resultado === "ocupado") return { error: "ocupado", personaje, duenos: propietarios(personaje.id) };
   if (resultado === "repetido") return { error: "repetido", personaje };

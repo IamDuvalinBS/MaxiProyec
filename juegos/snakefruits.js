@@ -1,4 +1,4 @@
-import { config } from "../motores/db.js";
+import { enviarJuego } from "../motores/juegos-html.js";
 
 const GAME_HTML = String.raw`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
@@ -26,23 +26,67 @@ h3{margin:14px 0 8px;font-size:12px;letter-spacing:2px;color:#22e5ff}
 .dp{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.dp button{height:58px;border-radius:14px;border:2px solid #0e6e8c;background:#07162b;color:#22e5ff;font-size:22px;padding:0}
 .dp i{display:block}
 .foot{display:flex;align-items:center;justify-content:center;gap:6px;padding:10px 0 14px;font-size:11px;color:#7d8197;letter-spacing:.3px}
-</style></head><body><div class="m">
-<div class="hd"><div><small>RETRO ARCADE · MAXIPROYEC</small><h1>🐍 SNAKE<br>FRUITS</h1></div><div class="ib" id="ib"><button id="sd">🔊</button><button id="ps">⏸</button></div></div>
+body{--ac:#22e5ff;--cd:#07162b;--mu:#6f9bb0}
+body.hwon{--ac:#ff9a1f;--cd:#1a0a2e;--mu:#c9a0dd;background:#07030f}
+.m{position:relative;overflow:hidden}.m>*:not(.hwfx){position:relative;z-index:1}
+body.hwon .m{border-color:#7a3ff0;background:#0a0516;box-shadow:0 0 24px #7a3ff066}
+body.hwon .hd{border-bottom-color:#7a3ff0}
+body.hwon h1{color:#ff9a1f;text-shadow:0 0 12px #ff7a1a}
+body.hwon small{color:#a07cc8}body.hwon h3{color:#ff9a1f}
+body.hwon .ch{border-color:#3a2266;background:#12071f;color:#e6d4f5}
+body.hwon .ch.on{border-color:#ff9a1f;box-shadow:0 0 10px #ff9a1f66}
+body.hwon .go{background:linear-gradient(90deg,#ff7a1a,#a03cff,#ff2fd2)}
+body.hwon #ch{background:#14082a!important;border-color:#ff9a1f!important}
+body.hwon .h div,body.hwon canvas,body.hwon .dp button,body.hwon .ib button{border-color:#7a3ff0}
+body.hwon .h div{color:#c9a0dd}body.hwon .h b{color:#ff9a1f}
+body.hwon canvas{background:#0b0516}
+body.hwon .dp button{background:#14082a;color:#ff9a1f}
+body.hwon .ib button{background:#14082a}
+body.hwon #ov{background:#0b0516e6}body.hwon .tip{color:#a07cc8}
+
+.hwfx{position:absolute;left:0;top:0;right:0;bottom:0;overflow:hidden;pointer-events:none;z-index:0;display:none}
+body.hwon .hwfx{display:block}
+.hwfx i{position:absolute;font-style:normal;line-height:1}
+@keyframes hfy{0%{transform:translate3d(-16vw,0,0)}50%{transform:translate3d(48vw,-14px,0)}100%{transform:translate3d(116vw,6px,0)}}
+@keyframes hfl{0%,100%{transform:translate3d(0,0,0) rotate(-5deg)}50%{transform:translate3d(0,-11px,0) rotate(5deg)}}
+@keyframes hsw{0%,100%{transform:rotate(-13deg)}50%{transform:rotate(13deg)}}
+.hfy{animation:hfy linear infinite}.hfl{animation:hfl ease-in-out infinite}.hsw{animation:hsw ease-in-out infinite;transform-origin:50% -40px}
+.hth::before{content:"";position:absolute;left:50%;bottom:100%;width:1px;height:90px;background:rgba(255,255,255,.5)}
+body.hwlo .hwfx i:nth-of-type(n+6){display:none}
+@media (prefers-reduced-motion:reduce){.hwfx i{animation:none!important}}
+.hwt{font-size:11px;font-weight:900;letter-spacing:2px;margin:16px 0 6px;color:var(--ac)}
+.hwl{list-style:none;margin:0;padding:0;display:grid;gap:5px}
+.hwl li{display:flex;gap:8px;align-items:center;padding:6px 10px;border-radius:10px;background:var(--cd);font-size:12px;font-weight:700;color:inherit}
+.hwl i{font-style:normal;width:16px;color:var(--ac);font-weight:900}
+.hwl span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hwl b{color:var(--ac)}.hwl .hwn{justify-content:center;color:var(--mu);font-weight:400}
+.hwr{display:block;width:100%;text-align:center;padding:12px 8px;margin-top:8px;border-radius:12px;background:var(--ac);color:#111;font-weight:900;font-size:13px;text-decoration:none;font-family:inherit}
+.hwr em{display:block;font-style:normal;font-size:11px;margin-top:4px;font-weight:400}
+</style></head><body><div class="m"><div class="hwfx" id="hwfx"></div>
+<div class="hd"><div><small>RETRO ARCADE · MAXIPROYEC</small><h1 id="tt">🐍 SNAKE<br>FRUITS</h1></div><div class="ib" id="ib"><button id="sd">🔊</button><button id="ps">⏸</button></div></div>
 <div id="cfg"><h2>Configura tu partida</h2><div class="sub">Elige cómo quieres jugar</div>
 <h3>🎮 ¿CÓMO VAS A JUGAR?</h3><div class="o c2" id="o0"></div>
 <h3>🔥 DIFICULTAD</h3><div class="o c2" id="o1"></div>
 <h3>🐍 COLOR DE SERPIENTE</h3><div class="o c4" id="o2"></div>
 <h3>🍎 FRUTAS SIMULTÁNEAS</h3><div class="o c4" id="o3"></div>
 <h3>🍉 TIPO DE FRUTAS</h3><div class="o c2" id="o4"></div>
-<button class="go" id="go">▶ INICIAR PARTIDA</button></div>
+<button class="go" id="go">▶ INICIAR PARTIDA</button><div class="hwt" id="tth"></div><ol class="hwl" id="tp"></ol></div>
 <div id="gm"><div class="h"><div>PUNTOS<b id="s">0</b></div><div>RÉCORD<b id="r">0</b></div><div id="xb">NIVEL<b id="l">1</b></div></div>
-<div class="w"><canvas id="c" width="324" height="324"></canvas><div id="ov"><b>💥 GAME OVER</b><span id="ot"></span><button class="go" id="ag">↻ JUGAR DE NUEVO</button><button class="go" id="ch" style="background:#07162b;border:2px solid #22e5ff">⚙ AJUSTES</button></div></div>
+<div class="w"><canvas id="c" width="324" height="324"></canvas><div id="ov"><b>💥 GAME OVER</b><span id="ot"></span><div id="rk"></div><button class="go" id="ag">↻ JUGAR DE NUEVO</button><button class="go" id="ch" style="background:#07162b;border:2px solid #22e5ff">⚙ AJUSTES</button></div></div>
 <div class="tip">COME FRUTAS · CRECE · NO CHOQUES</div>
 <div class="dp" id="dp"><i></i><button data-d="u">▲</button><i></i><button data-d="l">◀</button><button data-d="d">▼</button><button data-d="r">▶</button></div></div>
 <div class="foot"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.7"/><path d="M8 7v4.2M8 4.7v.1" stroke-linecap="round"/></svg>Powered by __FIRMA__</div>
 </div>
 <script>
 (function(){"use strict";
+var GD=__DATA__,HW=!!GD.hw,LO=!!((navigator.deviceMemory&&navigator.deviceMemory<=2)||(navigator.hardwareConcurrency&&navigator.hardwareConcurrency<=2)),T0=Date.now();
+document.body.className=(HW?"hwon":"hwoff")+(LO?" hwlo":"");
+function hEsc(s){return String(s).replace(/[&<>]/g,function(c){return c==="&"?"&amp;":c==="<"?"&lt;":"&gt;"})}
+function hV(id){return (GD.v&&GD.v[id])||GD}
+function hTop(id){var a=hV(id).top||[],h="",i;for(i=0;i<a.length;i++)h+="<li><i>"+(i+1)+"</i><span>"+hEsc(a[i][0])+"</span><b>"+a[i][1]+"</b></li>";return h||"<li class=hwn>Sé el primero del ranking</li>"}
+function hRec(id,score,secs,box){var V=hV(id),rs=V.rec||0;box.innerHTML="";if(!score||!GD.bot||!V.f)return;if(rs&&score<=rs)return;
+ box.innerHTML='<a class=hwr href="https://wa.me/'+GD.bot+'?text='+encodeURIComponent(GD.cmd+" "+id+" "+score+" "+secs+" "+GD.t+" "+V.f)+'">📨 ¡Récord! Toca para guardarlo en el bot<em>Se abre el chat: solo envía el mensaje</em></a>'}
+function hDeco(list){var f=document.getElementById("hwfx"),h="",i,a;if(!f)return;for(i=0;i<list.length;i++){a=list[i];h+='<i class="'+a[1]+'" style="left:'+a[2]+'%;'+a[3]+';font-size:'+a[6]+'px;animation-duration:'+a[4]+'s;animation-delay:-'+a[5]+'s">'+a[0]+'</i>'}f.insertAdjacentHTML("beforeend",h)}
 var snd=2,AC=null,MG=null,MB=null,NB=null,TL={},vc=0,mid=0,mpat=null,mNext=0,mStep=0,MSP=.25,MCUR=null,ACUR=null,ANS=null;
 try{var sv0=localStorage.getItem("mp_snd2");if(sv0!==null)snd=Math.max(0,Math.min(2,parseInt(sv0)||0))}catch(e){}
 function au(){if(!AC){try{var C=window.AudioContext||window.webkitAudioContext;AC=new C();MG=AC.createGain();MG.gain.value=1;var cp=AC.createDynamicsCompressor();cp.threshold.value=-16;cp.ratio.value=8;cp.attack.value=.003;cp.release.value=.15;MG.connect(cp);cp.connect(AC.destination);MB=AC.createGain();MB.gain.value=.55;MB.connect(MG);
@@ -79,6 +123,7 @@ function mSnk(i,t){var s=[60,62,64,67,64,62,67,69][i%8];nt(hz(s),t,.12,"square",
 
 var $=function(i){return document.getElementById(i)},N=12,C=27,KEY="mp_snake_best_";
 function ld(m){try{return parseInt(localStorage.getItem(KEY+m))||0}catch(e){return 0}}
+function lb(m){return Math.max(ld(m),hV("snake"+m).rec||0)}
 function sv(m,v){try{localStorage.setItem(KEY+m,String(v))}catch(e){}}
 var LISTS=[[["🐍","Clásico"],["🍓","Festival"],["💀","Caos"],["⚡","Supervivencia"]],[["🟢","Fácil",320],["🔵","Normal",250],["🟣","Difícil",190],["🔴","Extremo",140]],
 [["🟢","Verde","#39ff7a"],["🔵","Azul","#3da5ff"],["🟣","Morado","#a66cff"],["🔴","Rojo","#ff4d5e"],["🟡","Amarillo","#ffe14d"],["💗","Rosa","#ff7ac8"],["🌈","Arcoíris",""],["⚪","Blanco","#f2f2f8"]],
@@ -87,11 +132,14 @@ var NS=[1,2,3,5],S=[0,0,0,0,0];
 function chips(k){var el=$("o"+k),L=LISTS[k];for(var i=0;i<L.length;i++){var b=document.createElement("button");b.className="ch"+(S[k]===i?" on":"");b.textContent=L[i][0]+" "+L[i][1];b._i=i;el.appendChild(b)}
  el.addEventListener("click",function(e){var t=e.target;if(t._i===undefined)return;S[k]=t._i;for(var j=0;j<el.children.length;j++)el.children[j].className="ch"+(j===t._i?" on":"")})}
 for(var q0=0;q0<5;q0++)chips(q0);
+function hTopUp(){$("tth").textContent="🏆 TOP DEL BOT · "+LISTS[0][S[0]][1].toUpperCase();$("tp").innerHTML=hTop("snake"+S[0])}
+hTopUp();$("o0").addEventListener("click",hTopUp);
 var cv=$("c"),x=cv.getContext("2d"),NN=N*N;
 function emo(e){var c=document.createElement("canvas");c.width=c.height=C;var q=c.getContext("2d");q.font=(C*.8|0)+"px serif";q.textAlign="center";q.textBaseline="middle";q.fillText(e,C/2,C/2+1);return c}
 var SPR={};function spr(e){return SPR[e]||(SPR[e]=emo(e))}
 var CL=[["🍎",10],["🍊",10],["🍓",10],["🍉",10]],ES=[["💎",50],["⭐",30],["🍒",25]],AL=["🍇","🍌","🥝","🍑","🍍","🥭","🍋","🫐"];
-var BG=document.createElement("canvas");BG.width=BG.height=N*C;(function(){var q=BG.getContext("2d");q.fillStyle="#030814";q.fillRect(0,0,N*C,N*C);q.strokeStyle="#0e6e8c33";q.lineWidth=1;
+if(HW){CL=[["🎃",10],["🍬",10],["🍭",10],["🍫",10]];ES=[["💀",50],["👻",30],["🦇",25]];AL=["🍇","🍪","🍩","🧁","🍮","🍡","🌰","🍯"]}
+var BG=document.createElement("canvas");BG.width=BG.height=N*C;(function(){var q=BG.getContext("2d");q.fillStyle=HW?"#0b0516":"#030814";q.fillRect(0,0,N*C,N*C);q.strokeStyle=HW?"#ff7a1a2e":"#0e6e8c33";q.lineWidth=1;
  for(var i=0;i<=N;i++){q.beginPath();q.moveTo(i*C+.5,0);q.lineTo(i*C+.5,N*C);q.moveTo(0,i*C+.5);q.lineTo(N*C,i*C+.5);q.stroke()}})();
 var RB=[];for(var h0=0;h0<60;h0++)RB.push("hsl("+h0*6+",95%,60%)");
 var sn=[],g=new Uint8Array(NN),fr=[],ob=[],q=[],head=0,dx=1,dy=0,score=0,eaten=0,lv=1,left=12,run=false,paused=false,acc=0,last=0,MODE=0,NF=1,cc=["","","",""],off=0;
@@ -104,11 +152,11 @@ function fruitAt(i){for(var k=0;k<fr.length;k++)if(fr[k].i===i)return k;return -
 function freeCell(far){for(var t=0;t<150;t++){var i=Math.random()*NN|0;if(g[i]||fruitAt(i)>=0)continue;if(far&&Math.abs(i%N-head%N)+Math.abs((i/N|0)-(head/N|0))<5)continue;return i}return -1}
 function topUp(){while(fr.length<NF){var c=freeCell(false);if(c<0)break;var f=pickFruit();fr.push({i:c,e:f.e,p:f.p})}}
 function show(cfg){$("cfg").style.display=cfg?"block":"none";$("gm").style.display=cfg?"none":"block";$("ib").style.display=cfg?"none":"flex"}
-function start(){g.fill(0);sn=[];var m=N/2|0;for(var i=0;i<3;i++){sn.push(m*N+m-2+i);g[m*N+m-2+i]=1}head=sn[2];dx=1;dy=0;q=[];fr=[];ob=[];score=0;eaten=0;lv=1;left=12;
+function start(){T0=Date.now();$("rk").innerHTML="";g.fill(0);sn=[];var m=N/2|0;for(var i=0;i<3;i++){sn.push(m*N+m-2+i);g[m*N+m-2+i]=1}head=sn[2];dx=1;dy=0;q=[];fr=[];ob=[];score=0;eaten=0;lv=1;left=12;
  MODE=S[0];NF=NS[S[3]];acc=0;paused=false;run=true;cc=["","","",""];$("ps").textContent="⏸";$("ov").style.display="none";
  if(MODE===3)$("xb").innerHTML='TIEMPO<b id="l">12</b>';else $("xb").innerHTML='NIVEL<b id="l">1</b>';E[2]=$("l");
- topUp();put(0,"0");put(1,String(ld(MODE)));put(2,MODE===3?"12":"1");show(false);draw();fx("s",0,520,.1,"square",.08,780);mus(mSnk,.2)}
-function die(){run=false;var b=ld(MODE);if(score>b){b=score;sv(MODE,b)}put(1,String(b));$("ot").textContent=score+" puntos · récord "+b;$("ov").style.display="flex";mend();hurt();setTimeout(function(){fx("o",0,260,.5,"sawtooth",.09,45,1)},200)}
+ topUp();put(0,"0");put(1,String(lb(MODE)));put(2,MODE===3?"12":"1");show(false);draw();fx("s",0,520,.1,"square",.08,780);mus(mSnk,.2)}
+function die(){if(!run)return;run=false;var b=lb(MODE);if(score>b){b=score;sv(MODE,b)}hRec("snake"+MODE,score,Math.round((Date.now()-T0)/1000),$("rk"));put(1,String(b));$("ot").textContent=score+" puntos · récord "+b;$("ov").style.display="flex";mend();hurt();setTimeout(function(){fx("o",0,260,.5,"sawtooth",.09,45,1)},200)}
 function step(){
  if(q.length){var d=q.shift();dx=d[0];dy=d[1]}
  var hx=head%N,hy=head/N|0,nx=hx+dx,ny=hy+dy;
@@ -146,6 +194,7 @@ document.addEventListener("keydown",function(e){var c=e.code;if(c==="ArrowUp"||c
 $("go").addEventListener("click",start);$("ag").addEventListener("click",start);
 $("ch").addEventListener("click",function(){run=false;mend();show(true)});
 $("ps").addEventListener("click",function(){if(!run)return;paused=!paused;this.textContent=paused?"▶":"⏸";if(paused)mhalt();else mrun();draw()});
+hDeco(HW?[["🕷️","hsw hth",40,"top:30px",3.4,0,22],["🕷️","hsw hth",66,"top:56px",4,1.5,18],["🦇","hfy",0,"top:38%",11,0,20],["🎃","hfl",3,"bottom:2%",4,1,28],["👻","hfl",88,"top:52%",5,0,26],["🦇","hfy",0,"top:72%",14,6,16],["🎃","hfl",90,"bottom:2%",5,2,24],["🕸️","",0,"top:0",1,0,44],["🕸️","",88,"top:0",1,0,44],["🌕","hfl",78,"bottom:9%",12,0,34]]:[]);if(HW)$("tt").innerHTML="🎃 SNAKE<br>FRUITS";
 requestAnimationFrame(loop);
 })();
 </script></body></html>`;
@@ -155,11 +204,9 @@ export default {
   desc: "Snake Fruits: modos, dificultades, colores y frutas; guarda tu récord por modo",
   category: "Juegos",
   usage: ".snakefruits",
-  handler: async ({ sock, from, msg }) => {
+  handler: async ({ sock, from, msg, sender }) => {
     try {
-      if (typeof sock.sendHtml !== "function") throw new Error("este Baileys no tiene sendHtml");
-      const html = GAME_HTML.replaceAll("__FIRMA__", config.botNameShort || "MaxiProyec");
-      await sock.sendHtml(from, html, [], undefined, {});
+      await enviarJuego({ sock, from, msg, sender, juego: "snake0", variantes: ["snake0","snake1","snake2","snake3"], html: GAME_HTML });
     } catch (e) {
       console.log("[SNAKEFRUITS] ERROR: " + e.stack);
       await sock.sendMessage(from, { text: "❌ No se pudo enviar el juego: " + e.message }, { quoted: msg });

@@ -1,7 +1,15 @@
+import { gachaListo } from "../../../motores/gacha-core.js";
+import { crearHandlerPvp } from "../../../motores/gacha-pvp.js";
+
+const pvp = crearHandlerPvp({ categoria: "waifu", comando: "waifupvp", nombreLuchador: "waifu" });
+
 export default {
   names: [".waifupvp"],
-  desc: "Las waifus ahora son solo coleccionables (sin niveles ni combates)",
+  desc: "Desafía a otro usuario con tu waifu: .waifupvp <@usuario> <apuesta> <ID> (también por equipos)",
   category: "Gacha",
-  usage: ".waifupvp",
-  handler: async ({ reply }) => reply({ text: "🌸 Las waifus ahora son *solo coleccionables*: ya no tienen niveles, tienda ni combates. Consíguelas con *.rw* y revisa tu colección con *.harem*." })
+  usage: ".waifupvp <@usuario> <apuesta> <ID>",
+  handler: async (ctx) => {
+    await gachaListo;
+    return pvp(ctx);
+  }
 };
