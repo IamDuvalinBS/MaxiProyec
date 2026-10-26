@@ -18,6 +18,8 @@ body.hwon .opt.on{border-color:#ff9a1f;background:rgba(255,154,31,.16);box-shado
 body.hwon .tog.on .sw{background:#ff7a1a}
 body.hwon .go{background:linear-gradient(90deg,#ff7a1a,#a03cff)}
 body.hwon .stat{color:#ffb04a}
+body.hwon .c-r{--c:#e8431a}body.hwon .c-y{--c:#f2b705}body.hwon .c-g{--c:#5fbf2a}body.hwon .c-b{--c:#6a3fd1}
+body.hwon .c-k{background:conic-gradient(#e8431a 0 25%,#f2b705 0 50%,#5fbf2a 0 75%,#6a3fd1 0)}
 
 .hwfx{position:absolute;left:0;top:0;right:0;bottom:0;overflow:hidden;pointer-events:none;z-index:0;display:none}
 body.hwon .hwfx{display:block}
@@ -29,14 +31,29 @@ body.hwon .hwfx{display:block}
 .hth::before{content:"";position:absolute;left:50%;bottom:100%;width:1px;height:90px;background:rgba(255,255,255,.5)}
 body.hwlo .hwfx i:nth-of-type(n+6){display:none}
 @media (prefers-reduced-motion:reduce){.hwfx i{animation:none!important}}
-.hwt{font-size:11px;font-weight:900;letter-spacing:2px;margin:16px 0 6px;color:var(--ac)}
-.hwl{list-style:none;margin:0;padding:0;display:grid;gap:5px}
-.hwl li{display:flex;gap:8px;align-items:center;padding:6px 10px;border-radius:10px;background:var(--cd);font-size:12px;font-weight:700;color:inherit}
-.hwl i{font-style:normal;width:16px;color:var(--ac);font-weight:900}
-.hwl span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.hwl b{color:var(--ac)}.hwl .hwn{justify-content:center;color:var(--mu);font-weight:400}
-.hwr{display:block;width:100%;text-align:center;padding:12px 8px;margin-top:8px;border-radius:12px;background:var(--ac);color:#111;font-weight:900;font-size:13px;text-decoration:none;font-family:inherit}
-.hwr em{display:block;font-style:normal;font-size:11px;margin-top:4px;font-weight:400}
+
+.mptabs{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:16px 0 6px}
+.mptabs button{height:34px;border-radius:10px;border:2px solid var(--ac);background:var(--cd);color:var(--ac);font:900 11px Roboto,Arial,sans-serif;letter-spacing:.4px;padding:0 2px}
+.mptabs button.on{background:var(--ac);color:#111}
+.mpt{font-size:11px;font-weight:900;letter-spacing:2px;margin:8px 0 6px;color:var(--ac)}
+.mpl{list-style:none;margin:0;padding:0;display:grid;gap:5px}
+.mpl li{display:flex;gap:8px;align-items:center;padding:6px 10px;border-radius:10px;background:var(--cd);font-size:12px;font-weight:700}
+.mpl li>i{font-style:normal;width:22px;color:var(--ac);font-weight:900;flex:none;text-align:center}
+.mpl li>span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mpl li>b{color:var(--ac)}
+.mpl .mpn,.mpn2{justify-content:center;color:var(--mu);font-weight:400;text-align:center;font-size:12px;padding:8px 0}
+.mpkl li{align-items:flex-start}.mpkl li>div{flex:1;min-width:0}
+.mpkl span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mpkl p{margin:3px 0 0;font-size:10px;font-weight:400;color:var(--mu);display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.mpkl u{text-decoration:none;background:rgba(127,127,127,.22);border-radius:6px;padding:1px 6px}
+.mpkl u b{color:var(--ac)}.mpkl em{font-style:normal;opacity:.75}
+.mpkl li.me{outline:2px solid var(--ac)}
+.mpr{display:block;width:100%;text-align:center;padding:12px 8px;margin-top:8px;border-radius:12px;background:var(--ac);color:#111;font-weight:900;font-size:13px;text-decoration:none;font-family:inherit}
+.mpr em{display:block;font-style:normal;font-size:11px;margin-top:4px;font-weight:400}
+.mpok,.mpwait{text-align:center;padding:10px 8px;margin-top:8px;border-radius:12px;background:var(--cd);color:var(--ac);font-weight:800;font-size:13px}
+.mpwait{color:var(--mu);font-weight:600;font-size:12px}
+.mpcmd{margin-top:6px;font-size:10px;color:var(--mu);text-align:center}
+.mpcmd code{display:block;margin-top:3px;padding:6px;border-radius:8px;background:rgba(0,0,0,.35);color:#fff;word-break:break-all;-webkit-user-select:text;user-select:text;font-family:monospace}
 </style>
 </head>
 <body>
@@ -55,7 +72,7 @@ body.hwlo .hwfx i:nth-of-type(n+6){display:none}
 <div class="tog on" id="tStack"><div>Acumular +2 y +4<small>Si te lanzan un +2, puedes responder con otro +2 y el castigo se suma y pasa al siguiente jugador (igual con +4). Quien no pueda, roba todo lo acumulado. Si lo apagas, robas y pierdes el turno.</small></div><div class="sw"></div></div>
 <div class="how"><b>Cómo jugar:</b> lanza una carta del mismo color, número o símbolo. Si no tienes, toca el mazo para robar. Antes de lanzar tu penúltima carta pulsa <b>¡UNO!</b> o robarás 2.</div>
 <button id="bGo" class="go">▶ JUGAR</button>
-<div id="stat" class="stat"></div><div class="hwt">🏆 TOP DEL BOT · MEJOR PUNTAJE</div><ol class="hwl" id="tp"></ol>
+<div id="stat" class="stat"></div><div id="mpr"></div>
 </div>
 <div id="scGame" class="hide">
 <div id="opps" class="opps"></div>
@@ -167,14 +184,56 @@ return{play:play,on:function(){return on},set:function(v){on=!!v;try{localStorag
 "use strict";
 var GD=__DATA__,HW=!!GD.hw,LO=!!((navigator.deviceMemory&&navigator.deviceMemory<=2)||(navigator.hardwareConcurrency&&navigator.hardwareConcurrency<=2)),T0=Date.now();
 document.body.className=(HW?"hwon":"hwoff")+(LO?" hwlo":"");
-function hEsc(s){return String(s).replace(/[&<>]/g,function(c){return c==="&"?"&amp;":c==="<"?"&lt;":"&gt;"})}
-function hV(id){return (GD.v&&GD.v[id])||GD}
-function hTop(id){var a=hV(id).top||[],h="",i;for(i=0;i<a.length;i++)h+="<li><i>"+(i+1)+"</i><span>"+hEsc(a[i][0])+"</span><b>"+a[i][1]+"</b></li>";return h||"<li class=hwn>Sé el primero del ranking</li>"}
-function hRec(id,score,secs,box){var V=hV(id),rs=V.rec||0;box.innerHTML="";if(!score||!GD.bot||!V.f)return;if(rs&&score<=rs)return;
- box.innerHTML='<a class=hwr href="https://wa.me/'+GD.bot+'?text='+encodeURIComponent(GD.cmd+" "+id+" "+score+" "+secs+" "+GD.t+" "+V.f)+'">📨 ¡Récord! Toca para guardarlo en el bot<em>Se abre el chat: solo envía el mensaje</em></a>'}
+var MP=(function(){
+var G={};
+function esc(s){return String(s).replace(/[&<>]/g,function(c){return c==="&"?"&amp;":c==="<"?"&lt;":"&gt;"})}
+function V(id){return (G.v&&G.v[id])||G}
+function top(id){var a=V(id).top||[],h="",i;for(i=0;i<a.length;i++)h+="<li><i>"+(i+1)+"</i><span>"+esc(a[i][0])+"</span><b>"+a[i][1]+"</b></li>";return h||"<li class=mpn>Sé el primero del ranking</li>"}
+function better(id,s){var v=V(id),r=v.rec||0;return !r||(v.menor?s<r:s>r)}
+function viaFetch(b){return new Promise(function(res,rej){try{
+ var ac=window.AbortController?new AbortController():null,tm=setTimeout(function(){try{if(ac)ac.abort()}catch(e){}rej(0)},7000);
+ fetch(G.api+"/juegos/record",{method:"POST",body:JSON.stringify(b),mode:"cors",signal:ac?ac.signal:undefined}).then(function(r){clearTimeout(tm);return r.json().then(res,function(){res({ok:r.ok})})},function(){clearTimeout(tm);rej(0)})
+}catch(e){rej(0)}})}
+function viaImg(b){return new Promise(function(res,rej){try{
+ var im=new Image(),tm=setTimeout(function(){rej(0)},7000);
+ im.onload=function(){clearTimeout(tm);res(1)};im.onerror=function(){clearTimeout(tm);rej(0)};
+ im.src=G.api+"/juegos/r?j="+encodeURIComponent(b.j)+"&p="+b.p+"&s="+b.s+"&f="+encodeURIComponent(b.f)+"&n="+encodeURIComponent(b.n)
+}catch(e){rej(0)}})}
+function save(id,score,secs,box){
+ var v=V(id),b,cmd;box.innerHTML="";
+ if(!score||!v||!v.f||!better(id,score))return;
+ b={j:id,p:score,s:secs,f:v.f,n:G.n||""};
+ cmd=G.cmd+" "+id+" "+score+" "+secs+" "+v.f;
+ function manual(msg){box.innerHTML=(msg?"<div class=mpwait>"+esc(msg)+"</div>":"")+'<a class=mpr href="https://wa.me/'+G.bot+'?text='+encodeURIComponent(cmd)+'">📨 ¡Récord! Toca para guardarlo en el bot<em>Se abre el chat: solo envía el mensaje</em></a><div class=mpcmd>O copia y envía este mensaje al bot:<code>'+esc(cmd)+'</code></div>'}
+ function done(j){v.rec=score;box.innerHTML='<div class=mpok>✅ '+(j&&j.nuevo===false?"Ya tenías un récord mejor en el bot":"¡Récord guardado en el bot!")+'</div>'}
+ if(!G.api||!G.bot){manual();return}
+ box.innerHTML="<div class=mpwait>💾 Guardando récord…</div>";
+ viaFetch(b).then(function(j){if(j&&j.ok)done(j);else manual(j&&j.texto?String(j.texto).replace(/[*_]/g,""):"")},function(){viaImg(b).then(function(){done()},function(){manual()})})
+}
+function rankHtml(o){var R=G.rk||[],h="",i,k,r,c,ids=o.ids||[G.j],med=["🥇","🥈","🥉"];
+ if(!R.length)return "<div class=mpn2>Aún no hay jugadores en el ranking. ¡Sé el primero!</div>";
+ for(i=0;i<R.length;i++){r=R[i];c="";
+  for(k=0;k<ids.length;k++)if(r.s[ids[k]]!==undefined)c+="<u>"+(o.lab&&o.lab[ids[k]]?esc(o.lab[ids[k]])+" ":"")+"<b>"+r.s[ids[k]]+"</b></u>";
+  h+='<li class="'+(r.m?"me":"")+'"><i>'+(med[i]||(i+1))+'</i><div><span>'+esc(r.n)+(r.m?" (tú)":"")+'</span><p>'+c+'<em>récord '+(r.d?"hace "+r.d+" d":"de hoy")+'</em></p></div></li>'}
+ return '<ol class="mpl mpkl">'+h+'</ol>'}
+function panel(o){
+ var host=document.getElementById("mpr");if(!host)return;
+ host.innerHTML='<div class=mptabs><button type=button class=on>🏆 TOP 5</button><button type=button>👑 MEJORES JUGADORES</button></div><div class=mpt id=tth>'+(o.title||"🏆 TOP DEL BOT")+'</div><ol class=mpl id=tp></ol><div id=mpk style="display:none"></div>';
+ var bs=host.getElementsByTagName("button"),tt=document.getElementById("tth"),tp=document.getElementById("tp"),pk=document.getElementById("mpk");
+ function show(n){bs[0].className=n?"":"on";bs[1].className=n?"on":"";tt.style.display=tp.style.display=n?"none":"";pk.style.display=n?"block":"none";if(n)pk.innerHTML=rankHtml(o)}
+ bs[0].addEventListener("click",function(){show(0)});bs[1].addEventListener("click",function(){show(1)});
+}
+return{init:function(g){G=g},V:V,top:top,save:save,panel:panel,esc:esc}
+})();
+MP.init(GD);
+function hV(id){return MP.V(id)}
+function hTop(id){return MP.top(id)}
+function hRec(id,score,secs,box){MP.save(id,score,secs,box)}
 function hDeco(list){var f=document.getElementById("hwfx"),h="",i,a;if(!f)return;for(i=0;i<list.length;i++){a=list[i];h+='<i class="'+a[1]+'" style="left:'+a[2]+'%;'+a[3]+';font-size:'+a[6]+'px;animation-duration:'+a[4]+'s;animation-delay:-'+a[5]+'s">'+a[0]+'</i>'}f.insertAdjacentHTML("beforeend",h)}
+MP.panel({ids:["uno"],lab:{},title:"🏆 TOP DEL BOT · MEJOR PUNTAJE"});
 var U=UnoCore(),S=null,$=function(i){return document.getElementById(i)};
 var NAMES=['Luna','Zorro','Panda'],AVS=['🌙','🦊','🐼'],CN={r:'rojo',y:'amarillo',g:'verde',b:'azul'},CE={r:'🟥',y:'🟨',g:'🟩',b:'🟦'},CH={r:'#e53935',y:'#f6b800',g:'#2e9e4a',b:'#1e7be0'};
+if(HW){NAMES=['Drácula','Momia','Bruja'];AVS=['🧛','🧟','🧙'];CN={r:'naranja',y:'amarillo',g:'verde',b:'morado'};CE={r:'🟧',y:'🟨',g:'🟩',b:'🟪'};CH={r:'#e8431a',y:'#f2b705',g:'#5fbf2a',b:'#6a3fd1'}}
 var KEY='mp_uno_stats',mem=null,nOpp=2,stack=true,uno=false,busy=false,gen=0,pendIdx=-1,oppKey='';
 function ldS(){try{var s=JSON.parse(localStorage.getItem(KEY));if(s&&typeof s.w==='number')return s}catch(e){}return mem||{w:0,l:0,p:0}}
 function svS(s){mem=s;try{localStorage.setItem(KEY,JSON.stringify(s))}catch(e){}}
@@ -182,7 +241,7 @@ var bs=$('bSnd');function sl(){bs.textContent=SND.on()?'🔊':'🔇'}sl();
 bs.addEventListener('click',function(){SND.set(!SND.on());sl();SND.play('tick')});
 document.addEventListener('contextmenu',function(e){e.preventDefault()});
 var lastCur=0;
-function sym(c){var v=c.v;return v==='S'?'⊘':v==='R'?'⇄':v==='D'?'+2':v==='F'?'+4':v==='W'?'★':v}
+function sym(c){var v=c.v;return HW?(v==='S'?'💀':v==='R'?'🦇':v==='D'?'+2':v==='F'?'+4':v==='W'?'🎃':v):(v==='S'?'⊘':v==='R'?'⇄':v==='D'?'+2':v==='F'?'+4':v==='W'?'★':v)}
 function txt(c){return(c.c==='k'?'🎨 ':CE[c.c]+' ')+(c.v==='W'?'Comodín':c.v==='F'?'+4':sym(c))}
 function cardH(c,i,cls,st){var s=sym(c);return'<div class="cd c-'+c.c+(cls?' '+cls:'')+'" data-i="'+i+'"'+(st?' style="'+st+'"':'')+'><i class="tl">'+s+'</i><b>'+s+'</b><i class="br">'+s+'</i></div>'}
 function stats(){var s=ldS();$('stat').textContent='🏆 '+s.w+' victorias  💀 '+s.l+' derrotas  ⭐ '+s.p+' puntos'+(hV('uno').rec?'  🥇 récord: '+hV('uno').rec:'')}
@@ -250,13 +309,13 @@ var r=U.drawTurn(0);SND.play('draw1');
 if(r.forced){say('Robaste '+r.forced+' cartas.');return loop()}
 if(!r.cards.length){say('No quedan cartas en el mazo.');U.pass();return loop()}
 if(r.playable){say('Robaste '+txt(r.cards[0])+'. ¿La juegas o pasas?');render()}else{say('Robaste '+txt(r.cards[0])+' y no se puede jugar. Pasas turno.');loop()}});
-$('bPass').addEventListener('click',function(){if(!S||S.cur!==0||busy||S.drawn<0)return;U.pass();say('Pasaste turno.');loop()});
-$('bUno').addEventListener('click',function(){uno=!uno;if(uno){say('¡UNO! activado: juega tu penúltima carta.');SND.play('uno')}render()});
+$('bPass').addEventListener('click',function(){if(!S||S.cur!==0||busy||S.drawn<0)return;U.pass();say(HW?'Pasaste turno 👻.':'Pasaste turno.');loop()});
+$('bUno').addEventListener('click',function(){uno=!uno;if(uno){say(HW?'🎃 ¡UNO! activado: juega tu penúltima carta.':'¡UNO! activado: juega tu penúltima carta.');SND.play('uno')}render()});
 function endGame(){busy=true;render();var s=ldS(),w=S.winner,pts=U.score(w),t,x;
 if(w===0){s.w++;s.p+=pts;hRec('uno',pts,Math.round((Date.now()-T0)/1000),$('rk'));t='🏆 ¡GANASTE!';x='Te quedaste sin cartas y sumas '+pts+' puntos.'}
 else{s.l++;$('rk').innerHTML='';t='😵 GANÓ '+NAMES[w-1].toUpperCase();x=NAMES[w-1]+' se quedó sin cartas. Te quedaron '+S.hands[0].length+' en la mano.'}
 setTimeout(function(){SND.play(w===0?'win':'lose')},400);svS(s);$('mT').textContent=t;$('mX').textContent=x;var g=gen;setTimeout(function(){if(g===gen)$('ovEnd').className='ov show'},700)}
-hDeco(HW?[["🕷️","hsw hth",40,"top:30px",3.4,0,22],["🕷️","hsw hth",66,"top:56px",4,1.5,18],["🦇","hfy",0,"top:38%",11,0,20],["🎃","hfl",3,"bottom:2%",4,1,28],["👻","hfl",88,"top:52%",5,0,26],["🦇","hfy",0,"top:72%",14,6,16],["🎃","hfl",90,"bottom:2%",5,2,24],["🕸️","",0,"top:0",1,0,44],["🕸️","",88,"top:0",1,0,44],["🌕","hfl",78,"bottom:9%",12,0,34]]:[]);if(HW)$("tt").textContent="🎃 UNO";
+hDeco(HW?[["🕷️","hsw hth",40,"top:30px",3.4,0,22],["🕷️","hsw hth",66,"top:56px",4,1.5,18],["🦇","hfy",0,"top:38%",11,0,20],["🎃","hfl",3,"bottom:2%",4,1,28],["👻","hfl",88,"top:52%",5,0,26],["🦇","hfy",0,"top:72%",14,6,16],["🎃","hfl",90,"bottom:2%",5,2,24],["🕸️","",0,"top:0",1,0,44],["🕸️","",88,"top:0",1,0,44],["🌕","hfl",78,"bottom:9%",12,0,34]]:[]);if(HW){$("tt").textContent="🎃 UNO";$("dCard").innerHTML="<b>🎃</b>"}
 menu();
 })();
 </script>
