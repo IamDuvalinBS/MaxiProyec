@@ -6,10 +6,11 @@ import {
 } from "@fer2809fl/baileys";
 import pino from "pino";
 import http from "http";
+import { manejarApiJuegos } from "./motores/juegos-api.js";
 import { manejarComando } from "./src/nucleo/comandos.js";
 import { checkTriviaAnswer } from "./src/economia/trivia.js";
-import { iniciarSubbots, usarPagina } from "./src/subbots/gestor.js";
-import { reclamarMensaje, fijarPrincipal } from "./src/subbots/dedupe.js";
+import { iniciarSubbots } from "./src/subbots/gestor.js";
+import { reclamarMensaje } from "./src/subbots/dedupe.js";
 import { iniciarCobranzaPrestamos } from "./src/economia/prestamos.js";
 import { procesarEspera } from "./src/nucleo/espera.js";
 import { config, manejarCambioParticipantes, getAllAccounts, commandRegistry, startTime, CURRENCY } from "./core.js";
@@ -68,6 +69,7 @@ let pairingRequested = false;
 const PORT = process.env.PORT || 3000;
 http
   .createServer((req, res) => {
+    if (manejarApiJuegos(req, res)) return;
     res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
     const segundos = codeTime ? Math.floor((Date.now() - codeTime) / 1000) : null;
     res.end(`
@@ -117,7 +119,6 @@ async function iniciarPagina() {
       for (const u of PAG.vinc.keys()) sincronizarCuenta(u);
     }, logPag);
     console.log(chalk.greenBright("✔ Conectado a la página (Firebase)"));
-    usarPagina(PAG);   // el permiso de .code revisa las misiones de la página
     subirEstado();
     setInterval(subirEstado, 60000);
     setTimeout(subirComandos, 20000);
@@ -301,7 +302,6 @@ function enlazarEventos(sock, esSub) {
     }
     if (!(await reclamarMensaje(msg, esSub))) return;
     if (m.type === "notify" && !msg.key.fromMe) PAG.msgsHoy++;
-    if (esMensajeDePersona(msg, m.type)) contarMensajeGrupo(msg.key.remoteJid);
 
     const from = msg.key.remoteJid;
     const sender = await normalizarMensaje(
@@ -313,6 +313,7 @@ function enlazarEventos(sock, esSub) {
     );
 
     if (!msg.key.fromMe && m.type === "notify" && msg.pushName) recordarNombre(sender, msg.pushName);
+    if (esMensajeDePersona(msg, m.type)) contarMensajeGrupo(msg.key.remoteJid, sender);
 
     const idBotonPulsado =
       msg.message.buttonsResponseMessage?.selectedButtonId ||
@@ -481,7 +482,6 @@ async function startBot() {
       }
     } else if (connection === "open") {
       currentCode = "CONECTADO";
-      fijarPrincipal(sock.user);
       isConnecting = false;
       console.log(chalk.greenBright.bold("✔ Bot conectado a WhatsApp"));
       iniciarAvisosRacha(sock);
