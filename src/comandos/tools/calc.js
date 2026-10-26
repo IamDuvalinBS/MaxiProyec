@@ -1,3 +1,6 @@
+import { config } from "../../../motores/db.js";
+import { tarjetaUso, tarjetaAviso } from "../../descargas/tarjetas.js";
+
 function makeEngine() {
   const state = { deg: true, ans: 0n };
   const has = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
@@ -797,32 +800,41 @@ if (INI) { expr = INI; equals(); } else render();
 </script></body></html>`;
 }
 
-let handler = async (m, { sock, conn, text }) => {
-  const bot = sock || conn;
-  const responder = (t) => (m.reply ? m.reply(t) : bot.sendMessage(m.chat, { text: t }, { quoted: m }));
-  const entrada = (text || '').trim();
-  const firma = 'ⓘ Powered by MaxiProyec';
-  let caption = '🧮 *CALCULADORA*\n\nEscribe `.calc 25*4+10`, `.calc raíz de 144` o `.calc x^2-5x+6=0` y la calculo.\nTambién puedes usar los botones de abajo.\n\n' + firma;
-  if (entrada) {
-    const r = makeEngine().calc(entrada, true);
-    if (!r.ok) {
-      return responder(
-        '❌ ' + r.error + '\n\n*Ejemplos:*\n• .calc 397 por 5\n• .calc 20% de 350\n• .calc sin(30) + 2^10\n• .calc 100!\n• .calc 2x + 3 = 11\n• .calc x^2 - 5x + 6 = 0\n\n' + firma
-      );
+export default {
+  names: [".calc", ".calculadora", ".calcular"],
+  desc: "Calculadora digital como la de Google pero mejor: operaciones, porcentajes, funciones, factoriales gigantes y ecuaciones con x",
+  category: "Tools",
+  usage: ".calc <operación>",
+  handler: async ({ sock, from, msg, cleanText, reply }) => {
+    const entrada = cleanText.split(/\s+/).slice(1).join(" ").trim();
+    const firma = config.botNameShort || "MaxiProyec";
+    let texto = "";
+    if (entrada) {
+      const r = makeEngine().calc(entrada, true);
+      if (!r.ok) {
+        return reply({
+          text: tarjetaAviso("CALCULADORA", r.error + "\n\nEjemplos: .calc 397 por 5  |  .calc 20% de 350  |  .calc sin(30)+2^10  |  .calc 100!  |  .calc x^2-5x+6=0")
+        });
+      }
+      const cuerpo = r.kind === "num" ? "*" + r.result + "*" + (r.fraction ? "\n≈ fracción " + r.fraction : "") : r.lines.join("\n");
+      texto = "🧮 *CALCULADORA*\n\n" + r.show + " =\n" + cuerpo + "\n\n> ⓘ Powered by " + firma;
     }
-    const cuerpo = r.kind === 'num' ? '*' + r.result + '*' + (r.fraction ? '\n≈ fracción ' + r.fraction : '') : r.lines.join('\n');
-    caption = '🧮 *CALCULADORA*\n\n' + r.show + ' =\n' + cuerpo + '\n\n' + firma;
-  }
-  try {
-    await bot.sendHtml(m.chat, construirHtml(entrada), m, { caption, fileName: 'calculadora.html' });
-  } catch (e) {
-    await responder(caption);
+    try {
+      if (typeof sock.sendHtml !== "function") throw new Error("sin sendHtml");
+      await sock.sendHtml(from, construirHtml(entrada), [], msg, {});
+      if (texto) await sock.sendMessage(from, { text: texto }, { quoted: msg });
+    } catch (e) {
+      console.log("[CALC] HTML falló: " + e.message);
+      if (!texto) {
+        return reply({
+          text: tarjetaUso({
+            comando: ".calc <operación>",
+            ejemplo: ".calc 397 por 5   |   .calc 20% de 350   |   .calc x^2-5x+6=0",
+            nota: "Resuelve operaciones, porcentajes, funciones, factoriales y ecuaciones con x."
+          })
+        });
+      }
+      await sock.sendMessage(from, { text: texto }, { quoted: msg });
+    }
   }
 };
-
-handler.help = ['calc <operación>'];
-handler.tags = ['tools'];
-handler.command = ['calc', 'calculadora', 'calcular'];
-
-export default handler;
-export { makeEngine, construirHtml };
