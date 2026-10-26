@@ -34,6 +34,7 @@ import { mensajeReclamo, enviarReclamo } from "./gacha-claim.js";
 import { rutaImagenCacheada, guardarImagenCacheada, hayRelay } from "./cache-medios.js";
 import { T } from "./gacha-tema.js";
 import { revisarMigracion } from "./gacha-migracion.js";
+import { leerMiniatura, guardarMiniatura } from "./gacha-miniaturas.js";
 
 export { tarjeta, fmt, personajePorId, CAT, lineasPersonaje, textoStats };
 
@@ -528,7 +529,12 @@ const miniaturas = new Map();
 async function miniaturaDe(c) {
   const clave = `${c.categoria}:${c.id}`;
   if (miniaturas.has(clave)) return miniaturas.get(clave);
-  let uri = "";
+  const claveDisco = `miniatura:${clave}:${c.img}`;
+  let uri = await leerMiniatura(claveDisco);
+  if (uri) {
+    miniaturas.set(clave, uri);
+    return uri;
+  }
   try {
     const img = await prepararImagen([c.img, ...(c.meta?.alt || [])]);
     try {
@@ -552,13 +558,15 @@ async function miniaturaDe(c) {
     console.log(`[gacha] Miniatura omitida (${c.nombre}): ${e.message}`);
   }
   if (uri) {
-    if (miniaturas.size > 900) miniaturas.delete(miniaturas.keys().next().value);
+    if (miniaturas.size > 1500) miniaturas.delete(miniaturas.keys().next().value);
     miniaturas.set(clave, uri);
+    guardarMiniatura(claveDisco, uri);
   }
   return uri;
 }
 
 const POR_PARTE_HTML = 36;
+const PRESUPUESTO_MINIATURAS_MS = Number(process.env.GACHA_T_MINIATURAS_MS) || 20000;
 
 function claseDe(c, categoria, series) {
   if (categoria === "brawler") return String(c.serie || "").split("·")[1]?.trim() || "Brawler";
@@ -574,10 +582,14 @@ async function enviarColeccionHtml({ sock, from, msg, categoria, sender, pagina,
   const parte = Math.min(Math.max(1, pagina), partes);
   const trozo = todos.slice((parte - 1) * POR_PARTE_HTML, parte * POR_PARTE_HTML);
 
-  const imagenes = [];
-  for (let i = 0; i < trozo.length; i += 6) {
-    imagenes.push(...await Promise.all(trozo.slice(i, i + 6).map(miniaturaDe)));
-  }
+  const imagenes = new Array(trozo.length).fill("");
+  const trabajos = trozo.map((c, i) => miniaturaDe(c).then((uri) => { imagenes[i] = uri; }, () => {}));
+  let temporizador;
+  await Promise.race([
+    Promise.all(trabajos),
+    new Promise((resolver) => { temporizador = setTimeout(resolver, PRESUPUESTO_MINIATURAS_MS); })
+  ]);
+  clearTimeout(temporizador);
 
   const conteo = new Map();
   const series = new Map();
@@ -624,7 +636,7 @@ export async function mostrarColeccion({ sock, from, msg, categoria, sender, cle
   const { n, total } = contarColeccion(sender, categoria);
   const tickets = ticketsDe(sender, categoria);
 
-  if (n && categoria !== "waifu" && sock && from && typeof sock.sendHtml === "function") {
+  if (n && sock && from && typeof sock.sendHtml === "function") {
     try {
       const todos = coleccionDe(sender, categoria, 100000, 0);
       await enviarColeccionHtml({ sock, from, msg, categoria, sender, pagina, todos, n });

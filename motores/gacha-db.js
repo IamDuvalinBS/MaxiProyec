@@ -662,6 +662,23 @@ export function setNivel(usuario, charId, nivel) {
   });
 }
 
+export function reiniciarNiveles({ usuario = null, categoria = null, soloContar = false } = {}) {
+  let n = 0;
+  const origen = usuario ? [[usuario, propiedad.get(usuario)]] : [...propiedad];
+  for (const [dueno, m] of origen) {
+    if (!m) continue;
+    for (const [charId, f] of m) {
+      if (categoria && personajes.get(charId)?.categoria !== categoria) continue;
+      if (!f.nivel) continue;
+      n++;
+      if (soloContar) continue;
+      f.nivel = 0;
+      marcar(COL.propiedad, `${dueno}|${f.char_id}`);
+    }
+  }
+  return n;
+}
+
 export function cantidadItem(usuario, item) {
   return inventario.get(usuario)?.get(item) || 0;
 }
