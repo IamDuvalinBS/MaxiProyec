@@ -38,7 +38,9 @@ export const config = {
   ownerName: "Sin definir",
   prefix: ".",
   prefixes: [".", "!", "#"],
-  channelLink: "https://whatsapp.com/channel/0029Vb92LdaCnA7rdqUbdw38"
+  channelLink: "https://whatsapp.com/channel/0029Vb92LdaCnA7rdqUbdw38",
+  groupLink: "https://chat.whatsapp.com/DJO1MLxgRqpFx8N81bSbEF?s=cl&p=a&mlu=4&ilr=4",
+  webLink: "https://mamboweb.iamduvalin-43c.workers.dev?v=5"
 };
 
 const saldosBase = new Map();

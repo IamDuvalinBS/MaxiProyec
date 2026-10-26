@@ -224,7 +224,11 @@ export default {
       texto,
       footer: config.botNameShort,
       foto: leerFoto(),
-      boton: config.channelLink ? { texto: "📢 Canal", url: config.channelLink } : null,
+      lista: [
+      config.channelLink && { texto: "📢 Canal", url: config.channelLink },
+      config.groupLink && { texto: "👥 GRUPO OFICIAL", url: config.groupLink },
+      config.webLink && { texto: "🌐 Página oficial", url: config.webLink }
+      ].filter(Boolean),
       mentions: [sender]
     });
 
