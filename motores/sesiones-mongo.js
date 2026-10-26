@@ -3,8 +3,8 @@ import { obtenerBase } from "./db.js";
 
 const COLECCION_SUBS = "subbots";
 const COLECCION_CLAVES = "subbots_keys";
-const CACHE_MAX = 1500;
-const CACHE_TTL_MS = 30 * 60000;
+const CACHE_MAX = 300;
+const CACHE_TTL_MS = 10 * 60000;
 const ESCRITURA_DIFERIDA_MS = 400;
 
 function serializar(valor) {
@@ -149,4 +149,11 @@ export async function eliminarSub(numero) {
   const digitos = String(numero).replace(/\D/g, "");
   await claves.deleteMany({ _id: { $regex: `^${digitos}\\|` } });
   await subs.deleteOne({ _id: numero });
+}
+
+// Borra solo las sesiones de cifrado (conversaciones). Conserva credenciales, pre-claves y claves de sincronización.
+export async function limpiarSesionesSignal(numero) {
+  const { claves } = colecciones();
+  const digitos = String(numero).replace(/\D/g, "");
+  await claves.deleteMany({ _id: { $regex: `^${digitos}\\|(session|sender-key|sender-key-memory)-` } });
 }
