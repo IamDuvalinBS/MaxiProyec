@@ -12,25 +12,37 @@ const ERRORES = {
 };
 
 function textoBloqueo(permiso) {
-  const meta = permiso.meta || 15;
   const lineas = [encabezado("🔒", "CODE - MISIÓN"), ""];
   if (permiso.motivo === "sin_vinculo") {
     lineas.push(
-      `> Para pedir un código debes completar una misión en la página: *juega ${meta} minutos a un juego de nuestro patrocinador.*`,
+      "> Para pedir un código debes completar una misión en la página de nuestro patrocinador.",
       "",
       "// Entra a la página e inicia sesión.",
       "",
       "// Ve a *Mi perfil* › *Mi WhatsApp*, genera tu código y envíame *.vincular CÓDIGO*.",
       "",
-      "// Entra a *Misiones*, juega y cuando se complete vuelve a usar *.code*."
+      "// Entra a *Misiones*, completa tu misión y vuelve a usar *.code*."
+    );
+  } else if (permiso.motivo === "sin_mision") {
+    lineas.push(
+      "> Todavía no tienes una misión asignada.",
+      "",
+      "// Entra a *Misiones* en la página: ahí te sale tu misión del día. Complétala y vuelve a usar *.code*."
     );
   } else if (permiso.motivo === "mision") {
     lineas.push(
-      `> Aún no completas la misión: *juega ${meta} minutos a un juego de nuestro patrocinador* en la página.`,
+      `> Misión *${permiso.mi.nivel}*: ${permiso.mi.txt}`,
       "",
-      `// Te faltan aproximadamente *${permiso.falta} min*.`,
+      `// Llevas *${Math.min(permiso.prog, permiso.mi.meta)}/${permiso.mi.meta}*.`,
       "",
-      "// Entra a *Misiones* en la página para ver tu progreso y vuelve a usar *.code* cuando termines."
+      "// Completa la misión en la página y vuelve a usar *.code*."
+    );
+  } else if (permiso.motivo === "cooldown") {
+    const h = Math.floor(permiso.resta / 3600000), m = Math.ceil((permiso.resta % 3600000) / 60000);
+    lineas.push(
+      "> Ya pediste un código hace poco.",
+      "",
+      `// Podrás pedir otro en *${h > 0 ? h + " h " : ""}${m} min*, con una misión distinta.`
     );
   } else if (permiso.motivo === "sin_pagina") {
     lineas.push("> La conexión con la página no está activa ahora mismo, así que no puedo revisar tu misión. Intenta más tarde.");
@@ -112,7 +124,7 @@ export default {
       return reply({ text: "❌ No se pudo generar el código. Intenta nuevamente." });
     }
 
-    if (permiso.via === "mision") registrarUsoCode(permiso.uid);   // la misión se gasta al entregar el código
+    if (permiso.via === "mision") registrarUsoCode(permiso.uid, permiso.mision);   // la misión se gasta al entregar el código
 
     const privado = from.endsWith("@g.us") ? sender : from;
     const texto = textoCodigo(codigo);
