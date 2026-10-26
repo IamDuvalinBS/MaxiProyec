@@ -7,7 +7,8 @@ import {
   listarSubsGuardados,
   existeSub,
   eliminarSub,
-  limpiarSesionesSignal
+  limpiarSesionesSignal,
+  vigilarDescifrado
 } from "../../motores/sesiones-mongo.js";
 import { config, saveConfig } from "../../motores/db.js";
 import { isOwner } from "../../motores/owner.js";
@@ -130,6 +131,15 @@ export async function registrarUsoCode(uid) {   // gasta la misión cumplida
 
 const CODIGO_VINCULACION = String(process.env.CODIGO_VINCULACION || "MAXIBOTS").toUpperCase();   // 8 letras/números
 const logger = pino({ level: "silent" });
+// Las listas de dispositivos de cada contacto son iguales para todos los subbots: una sola caché compartida
+// ahorra memoria y evita consultar lo mismo varias veces a WhatsApp.
+const dispositivos = new Map();
+const cacheDispositivos = {
+  get: (k) => { const e = dispositivos.get(k); if (!e) return undefined; if (e.vence < Date.now()) { dispositivos.delete(k); return undefined; } return e.v; },
+  set: (k, v) => { if (dispositivos.size >= 1500) dispositivos.delete(dispositivos.keys().next().value); dispositivos.set(k, { v, vence: Date.now() + 5 * 60000 }); },
+  del: (k) => { dispositivos.delete(k); },
+  flushAll: () => dispositivos.clear()
+};
 const subs = new Map();
 let enlazar = null;
 let versionWA = null;
@@ -202,32 +212,6 @@ function programar(numero, espera) {
 
 // Si los mensajes llegan pero no se pueden descifrar (sesión dañada), borra SOLO las sesiones de cifrado y reconecta.
 // Las credenciales se conservan: no hace falta volver a vincular.
-const FALLAS_PARA_REPARAR = 8;
-const VENTANA_FALLAS_MS = 10 * 60000;
-const ESPERA_ENTRE_REPARACIONES_MS = 6 * 3600000;
-
-function vigilarDescifrado(numero, entrada, sock) {
-  const CIFRADO = baileys.proto?.WebMessageInfo?.StubType?.CIPHERTEXT ?? 2;
-  sock.ev.on("messages.upsert", (m) => {
-    const ahora = Date.now();
-    for (const msg of m.messages || []) {
-      if (msg.key?.fromMe) continue;
-      if (msg.messageStubType === CIFRADO && !msg.message) {
-        entrada.fallas = (entrada.fallas || []).filter((t) => ahora - t < VENTANA_FALLAS_MS);
-        entrada.fallas.push(ahora);
-      } else if (msg.message) {
-        entrada.ultimoOk = ahora;
-        entrada.fallas = [];
-      }
-    }
-    if ((entrada.fallas || []).length < FALLAS_PARA_REPARAR) return;
-    if (ahora - (entrada.ultimaReparacion || 0) < ESPERA_ENTRE_REPARACIONES_MS) return;
-    entrada.ultimaReparacion = ahora;
-    entrada.fallas = [];
-    reparar(numero, entrada).catch((e) => console.log(`[subbot ${numero}] no se pudo reparar la sesión: ${e.message}`));
-  });
-}
-
 async function reparar(numero, entrada) {
   console.log(`🛠 Subbot ${numero}: demasiados mensajes sin descifrar, se limpian las sesiones de cifrado (sin desvincular).`);
   liberar(entrada);
@@ -261,6 +245,7 @@ async function abrir(numero, entrada) {
     shouldSyncHistoryMessage: () => false,
     generateHighQualityLinkPreview: false,
     getMessage: async () => undefined,
+    userDevicesCache: cacheDispositivos,
     cachedGroupMetadata: async (jid) => {   // evita pedir los datos del grupo a WhatsApp en cada mensaje
       const g = entrada.grupos.get(jid);
       if (g && g.vence > Date.now()) return g.meta;
@@ -285,7 +270,7 @@ async function abrir(numero, entrada) {
       .catch((e) => console.log(`[subbot ${numero}] no se pudo guardar la sesión: ${e.message}`));
   });
 
-  vigilarDescifrado(numero, entrada, sock);
+  vigilarDescifrado(sock, `subbot ${numero}`, () => reparar(numero, entrada));
 
   sock.ev.on("connection.update", async (update) => {
     if (entrada.sock !== sock) return;   // eventos de un socket viejo
@@ -365,7 +350,7 @@ export async function iniciarSubbots(funcionEnlazar) {
       continue;
     }
     if (subs.has(sub.numero)) continue;
-    subs.set(sub.numero, { sock: null, detenido: false, reintentos: 0, enLinea: false, temporizador: null, guardando: null, vinculando: null, codigoPedido: false, grupos: new Map(), conectando: false, fallas: [], ultimoOk: 0, ultimaReparacion: 0 });
+    subs.set(sub.numero, { sock: null, detenido: false, reintentos: 0, enLinea: false, temporizador: null, guardando: null, vinculando: null, codigoPedido: false, grupos: new Map(), conectando: false });
     try {
       await conectar(sub.numero);
     } catch (e) {
@@ -387,7 +372,7 @@ export async function solicitarCodigo(numeroCrudo, dueno) {
   if (await existeAlguna(numero)) throw new Error("ya_existe");
   if (subs.size >= MAX_SUBS) throw new Error("limite");
 
-  const entrada = { sock: null, detenido: false, reintentos: 0, enLinea: false, temporizador: null, guardando: null, vinculando: null, codigoPedido: false, grupos: new Map(), conectando: false, fallas: [], ultimoOk: 0, ultimaReparacion: 0 };
+  const entrada = { sock: null, detenido: false, reintentos: 0, enLinea: false, temporizador: null, guardando: null, vinculando: null, codigoPedido: false, grupos: new Map(), conectando: false };
   const vinculando = {};
   const codigo = new Promise((resolver, rechazar) => {
     vinculando.resolverCodigo = resolver;
