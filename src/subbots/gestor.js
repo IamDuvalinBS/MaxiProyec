@@ -6,7 +6,8 @@ import {
   guardarMetaSub,
   listarSubsGuardados,
   existeSub,
-  eliminarSub
+  eliminarSub,
+  limpiarSesionesSignal
 } from "../../motores/sesiones-mongo.js";
 import { config, saveConfig } from "../../motores/db.js";
 import { isOwner } from "../../motores/owner.js";
@@ -138,7 +139,13 @@ function dormir(ms) {
 }
 
 async function obtenerVersion() {
-  if (!versionWA) versionWA = (await baileys.fetchLatestBaileysVersion()).version;
+  if (!versionWA) {
+    try {
+      versionWA = (await baileys.fetchLatestBaileysVersion()).version;
+    } catch {
+      return undefined;   // sin internet un momento: Baileys usa su versión integrada y no se queda sin reconectar
+    }
+  }
   return versionWA;
 }
 
@@ -162,9 +169,77 @@ function terminarVinculacion(entrada, conectado, error) {
   v.resolverConectado(conectado);
 }
 
+const ESPERA_REINTENTO = (entrada) => Math.min(REINTENTO_MAX_MS, REINTENTO_BASE_MS * 2 ** Math.min(entrada.reintentos++, 4));
+
+// Una sola conexión a la vez por subbot: dos sockets con la misma sesión se pelean y la dañan.
 async function conectar(numero) {
   const entrada = subs.get(numero);
+  if (!entrada || entrada.detenido || entrada.conectando) return;
+  entrada.conectando = true;
+  try {
+    await abrir(numero, entrada);
+  } finally {
+    entrada.conectando = false;
+  }
+}
+
+// Reconexión que no se rinde: si falla (MongoDB o internet un momento), vuelve a intentar con espera creciente.
+function programar(numero, espera) {
+  const entrada = subs.get(numero);
   if (!entrada || entrada.detenido) return;
+  clearTimeout(entrada.temporizador);
+  entrada.temporizador = setTimeout(async () => {
+    try {
+      await entrada.guardando;
+      await entrada.vaciar?.();   // las claves pendientes deben estar guardadas antes de releer la sesión
+      await conectar(numero);
+    } catch (e) {
+      console.log(`[subbot ${numero}] no se pudo reconectar: ${e.message}`);
+      programar(numero, ESPERA_REINTENTO(entrada));
+    }
+  }, espera);
+}
+
+// Si los mensajes llegan pero no se pueden descifrar (sesión dañada), borra SOLO las sesiones de cifrado y reconecta.
+// Las credenciales se conservan: no hace falta volver a vincular.
+const FALLAS_PARA_REPARAR = 8;
+const VENTANA_FALLAS_MS = 10 * 60000;
+const ESPERA_ENTRE_REPARACIONES_MS = 6 * 3600000;
+
+function vigilarDescifrado(numero, entrada, sock) {
+  const CIFRADO = baileys.proto?.WebMessageInfo?.StubType?.CIPHERTEXT ?? 2;
+  sock.ev.on("messages.upsert", (m) => {
+    const ahora = Date.now();
+    for (const msg of m.messages || []) {
+      if (msg.key?.fromMe) continue;
+      if (msg.messageStubType === CIFRADO && !msg.message) {
+        entrada.fallas = (entrada.fallas || []).filter((t) => ahora - t < VENTANA_FALLAS_MS);
+        entrada.fallas.push(ahora);
+      } else if (msg.message) {
+        entrada.ultimoOk = ahora;
+        entrada.fallas = [];
+      }
+    }
+    if ((entrada.fallas || []).length < FALLAS_PARA_REPARAR) return;
+    if (ahora - (entrada.ultimaReparacion || 0) < ESPERA_ENTRE_REPARACIONES_MS) return;
+    entrada.ultimaReparacion = ahora;
+    entrada.fallas = [];
+    reparar(numero, entrada).catch((e) => console.log(`[subbot ${numero}] no se pudo reparar la sesión: ${e.message}`));
+  });
+}
+
+async function reparar(numero, entrada) {
+  console.log(`🛠 Subbot ${numero}: demasiados mensajes sin descifrar, se limpian las sesiones de cifrado (sin desvincular).`);
+  liberar(entrada);
+  entrada.enLinea = false;
+  await entrada.guardando;
+  await entrada.vaciar?.();
+  await limpiarSesionesSignal(numero);
+  entrada.reintentos = 0;
+  programar(numero, 1500);
+}
+
+async function abrir(numero, entrada) {
   liberar(entrada);
 
   const { state, guardarCreds, vaciar } = await cargarEstadoSub(numero, logger);
@@ -191,6 +266,7 @@ async function conectar(numero) {
       if (g && g.vence > Date.now()) return g.meta;
       try {
         const meta = await entrada.sock.groupMetadata(jid);
+        if (entrada.grupos.size >= 25) entrada.grupos.delete(entrada.grupos.keys().next().value);   // poca memoria
         entrada.grupos.set(jid, { meta, vence: Date.now() + 5 * 60000 });
         return meta;
       } catch {
@@ -209,7 +285,10 @@ async function conectar(numero) {
       .catch((e) => console.log(`[subbot ${numero}] no se pudo guardar la sesión: ${e.message}`));
   });
 
+  vigilarDescifrado(numero, entrada, sock);
+
   sock.ev.on("connection.update", async (update) => {
+    if (entrada.sock !== sock) return;   // eventos de un socket viejo
     const { connection, lastDisconnect, qr } = update;
 
     if (qr && !state.creds.registered && entrada.vinculando && !entrada.codigoPedido) {
@@ -253,19 +332,7 @@ async function conectar(numero) {
       return;
     }
 
-    const espera =
-      codigo === baileys.DisconnectReason.restartRequired
-        ? 500
-        : Math.min(REINTENTO_MAX_MS, REINTENTO_BASE_MS * 2 ** Math.min(entrada.reintentos++, 4));
-    entrada.temporizador = setTimeout(async () => {
-      try {
-        await entrada.guardando;
-        await entrada.vaciar?.();   // las claves pendientes deben estar guardadas antes de releer la sesión
-        await conectar(numero);
-      } catch (e) {
-        console.log(`[subbot ${numero}] no se pudo reconectar: ${e.message}`);
-      }
-    }, espera);
+    programar(numero, codigo === baileys.DisconnectReason.restartRequired ? 500 : ESPERA_REINTENTO(entrada));
   });
 
   if (process.env.DEBUG_SUBS) {
@@ -298,7 +365,7 @@ export async function iniciarSubbots(funcionEnlazar) {
       continue;
     }
     if (subs.has(sub.numero)) continue;
-    subs.set(sub.numero, { sock: null, detenido: false, reintentos: 0, enLinea: false, temporizador: null, guardando: null, vinculando: null, codigoPedido: false, grupos: new Map() });
+    subs.set(sub.numero, { sock: null, detenido: false, reintentos: 0, enLinea: false, temporizador: null, guardando: null, vinculando: null, codigoPedido: false, grupos: new Map(), conectando: false, fallas: [], ultimoOk: 0, ultimaReparacion: 0 });
     try {
       await conectar(sub.numero);
     } catch (e) {
@@ -320,7 +387,7 @@ export async function solicitarCodigo(numeroCrudo, dueno) {
   if (await existeAlguna(numero)) throw new Error("ya_existe");
   if (subs.size >= MAX_SUBS) throw new Error("limite");
 
-  const entrada = { sock: null, detenido: false, reintentos: 0, enLinea: false, temporizador: null, guardando: null, vinculando: null, codigoPedido: false, grupos: new Map() };
+  const entrada = { sock: null, detenido: false, reintentos: 0, enLinea: false, temporizador: null, guardando: null, vinculando: null, codigoPedido: false, grupos: new Map(), conectando: false, fallas: [], ultimoOk: 0, ultimaReparacion: 0 };
   const vinculando = {};
   const codigo = new Promise((resolver, rechazar) => {
     vinculando.resolverCodigo = resolver;

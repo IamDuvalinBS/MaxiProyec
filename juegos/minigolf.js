@@ -58,12 +58,35 @@ body.h h1{color:#ffb04a;-webkit-text-stroke:2px #3a1200;text-shadow:0 4px 0 #3a1
 .fg{display:none;position:absolute;left:-40%;width:180%;height:90px;background:radial-gradient(ellipse at center,rgba(205,180,255,.22),transparent 70%);animation:fgm 16s ease-in-out infinite alternate}
 @keyframes fgm{to{transform:translate3d(22%,0,0)}}
 body.h .fg{display:block}
+
+.mptabs{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:16px 0 6px}
+.mptabs button{height:34px;border-radius:10px;border:2px solid var(--ac);background:var(--cd);color:var(--ac);font:900 11px Roboto,Arial,sans-serif;letter-spacing:.4px;padding:0 2px}
+.mptabs button.on{background:var(--ac);color:#111}
+.mpt{font-size:11px;font-weight:900;letter-spacing:2px;margin:8px 0 6px;color:var(--ac)}
+.mpl{list-style:none;margin:0;padding:0;display:grid;gap:5px}
+.mpl li{display:flex;gap:8px;align-items:center;padding:6px 10px;border-radius:10px;background:var(--cd);font-size:12px;font-weight:700}
+.mpl li>i{font-style:normal;width:22px;color:var(--ac);font-weight:900;flex:none;text-align:center}
+.mpl li>span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mpl li>b{color:var(--ac)}
+.mpl .mpn,.mpn2{justify-content:center;color:var(--mu);font-weight:400;text-align:center;font-size:12px;padding:8px 0}
+.mpkl li{align-items:flex-start}.mpkl li>div{flex:1;min-width:0}
+.mpkl span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mpkl p{margin:3px 0 0;font-size:10px;font-weight:400;color:var(--mu);display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.mpkl u{text-decoration:none;background:rgba(127,127,127,.22);border-radius:6px;padding:1px 6px}
+.mpkl u b{color:var(--ac)}.mpkl em{font-style:normal;opacity:.75}
+.mpkl li.me{outline:2px solid var(--ac)}
+.mpr{display:block;width:100%;text-align:center;padding:12px 8px;margin-top:8px;border-radius:12px;background:var(--ac);color:#111;font-weight:900;font-size:13px;text-decoration:none;font-family:inherit}
+.mpr em{display:block;font-style:normal;font-size:11px;margin-top:4px;font-weight:400}
+.mpok,.mpwait{text-align:center;padding:10px 8px;margin-top:8px;border-radius:12px;background:var(--cd);color:var(--ac);font-weight:800;font-size:13px}
+.mpwait{color:var(--mu);font-weight:600;font-size:12px}
+.mpcmd{margin-top:6px;font-size:10px;color:var(--mu);text-align:center}
+.mpcmd code{display:block;margin-top:3px;padding:6px;border-radius:8px;background:rgba(0,0,0,.35);color:#fff;word-break:break-all;-webkit-user-select:text;user-select:text;font-family:monospace}
 </style></head><body class="n">
 <div class="m"><div class="fx" id="fx"><b class="fg" style="bottom:6%"></b><b class="fg" style="bottom:30%;animation-delay:-8s"></b></div>
 <div class="in"><div class="sr"><small>MAXIPROYEC · GREEN COURSE</small><button class="sd" id="sd">🔊</button></div><h1 id="tt">⛳ MINI GOLF</h1>
 <div id="mn"><div class="d">Elige cómo quieres jugar los 18 hoyos.</div>
 <button class="bt p" id="m1">🎯 ELEGIR HOYO</button><button class="bt" id="m2">🎲 HOYO ALEATORIO</button><button class="bt" id="m3">🏆 CIRCUITO COMPLETO</button><div class="hint" id="bs"></div>
-<div class="tth">🏆 TOP DEL BOT · MENOS GOLPES</div><ol class="top" id="tp"></ol></div>
+<div id="mpr"></div></div>
 <div id="sl" style="display:none"><div class="d" style="font-weight:900;letter-spacing:2px;font-size:16px">SELECCIONA UN HOYO</div><div class="g4" id="gh"></div><button class="bt" id="vb">↩ VOLVER</button></div>
 <div id="gm" style="display:none"><div class="hud"><div>HOYO<b id="h0">1/18</b></div><div>PAR<b id="h1">2</b></div><div>GOLPES<b id="h2">0</b></div><div>TOTAL<b id="h3">0</b></div></div>
 <div class="hn" id="hn"></div>
@@ -82,9 +105,51 @@ body.h .fg{display:block}
 var GD=__DATA__,HW=!!GD.hw,LO=!!((navigator.deviceMemory&&navigator.deviceMemory<=2)||(navigator.hardwareConcurrency&&navigator.hardwareConcurrency<=2));
 document.body.className=(HW?"h":"n")+(LO?" lo":"");
 function esc(s){return String(s).replace(/[&<>]/g,function(c){return c==="&"?"&amp;":c==="<"?"&lt;":"&gt;"})}
-function topHtml(){var a=GD.top||[],h="",i;for(i=0;i<a.length;i++)h+="<li><i>"+(i+1)+"</i><span>"+esc(a[i][0])+"</span><b>"+a[i][1]+"</b></li>";return h||"<li class=nd>Sé el primero del ranking</li>"}
-function recUi(score,secs,box){var rs=GD.rec||0;box.innerHTML="";if(!score||!GD.bot)return;if(rs&&(GD.menor?score>=rs:score<=rs))return;
- box.innerHTML="<a class=rl href=\""+"https://wa.me/"+GD.bot+"?text="+encodeURIComponent(GD.cmd+" "+GD.j+" "+score+" "+secs+" "+GD.t+" "+GD.f)+"\">📨 ¡Récord! Toca para guardarlo en el bot<span class=rn>Se abre el chat: solo envía el mensaje</span></a>"}
+var MP=(function(){
+var G={};
+function esc(s){return String(s).replace(/[&<>]/g,function(c){return c==="&"?"&amp;":c==="<"?"&lt;":"&gt;"})}
+function V(id){return (G.v&&G.v[id])||G}
+function top(id){var a=V(id).top||[],h="",i;for(i=0;i<a.length;i++)h+="<li><i>"+(i+1)+"</i><span>"+esc(a[i][0])+"</span><b>"+a[i][1]+"</b></li>";return h||"<li class=mpn>Sé el primero del ranking</li>"}
+function better(id,s){var v=V(id),r=v.rec||0;return !r||(v.menor?s<r:s>r)}
+function viaFetch(b){return new Promise(function(res,rej){try{
+ var ac=window.AbortController?new AbortController():null,tm=setTimeout(function(){try{if(ac)ac.abort()}catch(e){}rej(0)},7000);
+ fetch(G.api+"/juegos/record",{method:"POST",body:JSON.stringify(b),mode:"cors",signal:ac?ac.signal:undefined}).then(function(r){clearTimeout(tm);return r.json().then(res,function(){res({ok:r.ok})})},function(){clearTimeout(tm);rej(0)})
+}catch(e){rej(0)}})}
+function viaImg(b){return new Promise(function(res,rej){try{
+ var im=new Image(),tm=setTimeout(function(){rej(0)},7000);
+ im.onload=function(){clearTimeout(tm);res(1)};im.onerror=function(){clearTimeout(tm);rej(0)};
+ im.src=G.api+"/juegos/r?j="+encodeURIComponent(b.j)+"&p="+b.p+"&s="+b.s+"&f="+encodeURIComponent(b.f)+"&n="+encodeURIComponent(b.n)
+}catch(e){rej(0)}})}
+function save(id,score,secs,box){
+ var v=V(id),b,cmd;box.innerHTML="";
+ if(!score||!v||!v.f||!better(id,score))return;
+ b={j:id,p:score,s:secs,f:v.f,n:G.n||""};
+ cmd=G.cmd+" "+id+" "+score+" "+secs+" "+v.f;
+ function manual(msg){box.innerHTML=(msg?"<div class=mpwait>"+esc(msg)+"</div>":"")+'<a class=mpr href="https://wa.me/'+G.bot+'?text='+encodeURIComponent(cmd)+'">📨 ¡Récord! Toca para guardarlo en el bot<em>Se abre el chat: solo envía el mensaje</em></a><div class=mpcmd>O copia y envía este mensaje al bot:<code>'+esc(cmd)+'</code></div>'}
+ function done(j){v.rec=score;box.innerHTML='<div class=mpok>✅ '+(j&&j.nuevo===false?"Ya tenías un récord mejor en el bot":"¡Récord guardado en el bot!")+'</div>'}
+ if(!G.api||!G.bot){manual();return}
+ box.innerHTML="<div class=mpwait>💾 Guardando récord…</div>";
+ viaFetch(b).then(function(j){if(j&&j.ok)done(j);else manual(j&&j.texto?String(j.texto).replace(/[*_]/g,""):"")},function(){viaImg(b).then(function(){done()},function(){manual()})})
+}
+function rankHtml(o){var R=G.rk||[],h="",i,k,r,c,ids=o.ids||[G.j],med=["🥇","🥈","🥉"];
+ if(!R.length)return "<div class=mpn2>Aún no hay jugadores en el ranking. ¡Sé el primero!</div>";
+ for(i=0;i<R.length;i++){r=R[i];c="";
+  for(k=0;k<ids.length;k++)if(r.s[ids[k]]!==undefined)c+="<u>"+(o.lab&&o.lab[ids[k]]?esc(o.lab[ids[k]])+" ":"")+"<b>"+r.s[ids[k]]+"</b></u>";
+  h+='<li class="'+(r.m?"me":"")+'"><i>'+(med[i]||(i+1))+'</i><div><span>'+esc(r.n)+(r.m?" (tú)":"")+'</span><p>'+c+'<em>récord '+(r.d?"hace "+r.d+" d":"de hoy")+'</em></p></div></li>'}
+ return '<ol class="mpl mpkl">'+h+'</ol>'}
+function panel(o){
+ var host=document.getElementById("mpr");if(!host)return;
+ host.innerHTML='<div class=mptabs><button type=button class=on>🏆 TOP 5</button><button type=button>👑 MEJORES JUGADORES</button></div><div class=mpt id=tth>'+(o.title||"🏆 TOP DEL BOT")+'</div><ol class=mpl id=tp></ol><div id=mpk style="display:none"></div>';
+ var bs=host.getElementsByTagName("button"),tt=document.getElementById("tth"),tp=document.getElementById("tp"),pk=document.getElementById("mpk");
+ function show(n){bs[0].className=n?"":"on";bs[1].className=n?"on":"";tt.style.display=tp.style.display=n?"none":"";pk.style.display=n?"block":"none";if(n)pk.innerHTML=rankHtml(o)}
+ bs[0].addEventListener("click",function(){show(0)});bs[1].addEventListener("click",function(){show(1)});
+}
+return{init:function(g){G=g},V:V,top:top,save:save,panel:panel,esc:esc}
+})();
+MP.init(GD);
+function topHtml(){return MP.top(GD.j)}
+function recUi(score,secs,box){MP.save(GD.j,score,secs,box)}
+MP.panel({ids:["minigolf"],lab:{},title:"🏆 TOP DEL BOT · MENOS GOLPES"});
 function deco(list){var f=document.getElementById("fx"),h="",i,a;for(i=0;i<list.length;i++){a=list[i];h+="<i class=\""+a[1]+"\" style=\"left:"+a[2]+"%;"+a[3]+";font-size:"+a[6]+"px;animation-duration:"+a[4]+"s;animation-delay:-"+a[5]+"s\">"+a[0]+"</i>"}f.insertAdjacentHTML("beforeend",h)}
 
 var snd=2,AC=null,MG=null,MB=null,NB=null,TL={},vc=0,mid=0,mpat=null,mNext=0,mStep=0,MSP=.25,MCUR=null,ACUR=null,ANS=null;
