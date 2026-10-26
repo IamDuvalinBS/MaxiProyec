@@ -662,21 +662,26 @@ export function setNivel(usuario, charId, nivel) {
   });
 }
 
-export function reiniciarNiveles({ usuario = null, categoria = null, soloContar = false } = {}) {
-  let n = 0;
-  const origen = usuario ? [[usuario, propiedad.get(usuario)]] : [...propiedad];
-  for (const [dueno, m] of origen) {
-    if (!m) continue;
-    for (const [charId, f] of m) {
-      if (categoria && personajes.get(charId)?.categoria !== categoria) continue;
-      if (!f.nivel) continue;
-      n++;
-      if (soloContar) continue;
-      f.nivel = 0;
-      marcar(COL.propiedad, `${dueno}|${f.char_id}`);
+export function reiniciarNivelesExcepto(usuario, idsConservar = [], { categorias = [], soloContar = false } = {}) {
+  const m = propiedad.get(usuario);
+  const conservar = new Set(idsConservar.map(Number));
+  const salida = { reiniciados: 0, niveles: 0, conservados: [], ajenos: [...conservar].filter((id) => !m?.has(id)) };
+  if (!m) return salida;
+  for (const [charId, f] of m) {
+    const p = personajes.get(charId);
+    if (categorias.length && !categorias.includes(p?.categoria)) continue;
+    if (conservar.has(charId)) {
+      salida.conservados.push({ id: charId, nombre: p?.nombre || `#${charId}`, nivel: f.nivel });
+      continue;
     }
+    if (!f.nivel) continue;
+    salida.reiniciados++;
+    salida.niveles += f.nivel;
+    if (soloContar) continue;
+    f.nivel = 0;
+    marcar(COL.propiedad, `${usuario}|${f.char_id}`);
   }
-  return n;
+  return salida;
 }
 
 export function cantidadItem(usuario, item) {
