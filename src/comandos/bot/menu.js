@@ -64,6 +64,13 @@ const GRUPOS = [
     categorias: ["Tools"],
     alias: ["tools", "tool", "herramientas", "herramienta"]
   },
+    {
+    titulo: "SUBBOTS",
+    icono: "🤖",
+    descripcion: "Opción para tener tu socket activo.",
+    categorias: ["Subbots"],
+    alias: ["Subbots"]
+  },
   {
     titulo: "JUEGOS",
     icono: "🎮",
