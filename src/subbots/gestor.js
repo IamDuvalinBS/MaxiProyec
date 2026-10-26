@@ -59,16 +59,31 @@ export function esNumeroValido(texto) {
 
 
 // ───────────── Quién puede pedir .code ─────────────
-// 1) Owners del bot  2) Usuarios con permiso (.permitircode)  3) Owners de la página  4) Quien cumpla la misión de la página:
-// jugar MINUTOS_MISION minutos a juegos patrocinadores (cada código nuevo pide la misión otra vez).
-const MINUTOS_MISION = Math.max(1, Number(process.env.CODE_MISION_MIN) || 15);
+// 1) Owners del bot  2) Usuarios con permiso (.permitircode)  3) Owners de la página  4) Quien cumpla la misión de la página.
+// Cada código gasta la misión y activa un cooldown de 1 día; pasado ese día la página asigna OTRA misión distinta al azar.
+const COOLDOWN_CODE_MS = 24 * 60 * 60 * 1000;
 const JUEGOS_OFICIALES = new Set(["colorrush", "dino", "snake", "gusanos", "minigolf", "pou", "dodge", "simon", "tap"]);
+// Misma lista que la página (modulos/bot.js). tipo: min = minutos en juegos del patrocinador, uno = minutos en un solo juego,
+// dist = juegos distintos (3+ min en cada uno), par = partidas, ads = anuncios vistos.
+export const MISIONES = {
+  f1: { nivel: "fácil", tipo: "par", meta: 3, txt: "Completa *3 partidas* en juegos de nuestro patrocinador." },
+  f2: { nivel: "fácil", tipo: "min", meta: 5, txt: "Juega *5 minutos* a juegos de nuestro patrocinador." },
+  f3: { nivel: "fácil", tipo: "ads", meta: 3, txt: "Mira *3 anuncios* de nuestro patrocinador." },
+  m1: { nivel: "media", tipo: "min", meta: 15, txt: "Juega *15 minutos* a juegos de nuestro patrocinador." },
+  m2: { nivel: "media", tipo: "dist", meta: 2, txt: "Prueba *2 juegos distintos* del patrocinador (mínimo 3 min en cada uno)." },
+  m3: { nivel: "media", tipo: "ads", meta: 8, txt: "Mira *8 anuncios* de nuestro patrocinador." },
+  m4: { nivel: "media", tipo: "uno", meta: 10, txt: "Juega *10 minutos en un mismo juego* del patrocinador." },
+  d1: { nivel: "difícil", tipo: "min", meta: 30, txt: "Juega *30 minutos* a juegos de nuestro patrocinador." },
+  d2: { nivel: "difícil", tipo: "dist", meta: 4, txt: "Prueba *4 juegos distintos* del patrocinador (mínimo 3 min en cada uno)." },
+  d3: { nivel: "difícil", tipo: "ads", meta: 15, txt: "Mira *15 anuncios* de nuestro patrocinador." },
+  d4: { nivel: "difícil", tipo: "uno", meta: 20, txt: "Juega *20 minutos* en un mismo juego del patrocinador." }
+};
 let pagina = null;
 
 export function usarPagina(PAG) {   // lo llama index.js cuando Firebase conecta
   pagina = PAG;
   try {
-    PAG.fs.collection("bot").doc("codigo").set({ min: MINUTOS_MISION, t: PAG.FV.serverTimestamp() }, { merge: true }).catch(() => {});
+    PAG.fs.collection("bot").doc("codigo").set({ cd: COOLDOWN_CODE_MS, t: PAG.FV.serverTimestamp() }, { merge: true }).catch(() => {});
   } catch {}
 }
 
@@ -98,35 +113,50 @@ function uidDe(sender) {
   return null;
 }
 
+// Progreso de una misión = lo que subió desde que se asignó (la página guarda la "base" al asignarla).
+function progresoMision(d, mi) {
+  const st = d.stats || {}, base = (d.codeMision && d.codeMision.base) || {};
+  const pj = st.pj || {}, pp = st.pp || {}, bpj = base.pj || {}, bpp = base.pp || {};
+  const juegos = Object.keys(pj).filter((id) => !JUEGOS_OFICIALES.has(id));
+  const delta = (id) => Math.max(0, (Number(pj[id]) || 0) - (Number(bpj[id]) || 0));
+  switch (mi.tipo) {
+    case "min": return juegos.reduce((a, id) => a + delta(id), 0);
+    case "uno": return juegos.reduce((a, id) => Math.max(a, delta(id)), 0);
+    case "dist": return juegos.filter((id) => delta(id) >= 3).length;
+    case "par": return Object.keys(pp).filter((id) => !JUEGOS_OFICIALES.has(id)).reduce((a, id) => a + Math.max(0, (Number(pp[id]) || 0) - (Number(bpp[id]) || 0)), 0);
+    case "ads": return Math.max(0, (Number(st.ads) || 0) - (Number(base.ads) || 0));
+    default: return 0;
+  }
+}
+
 export async function permisoCode(sender) {
   if (isOwner(sender)) return { ok: true, via: "owner" };
   if ((config.codePermitidos || []).some((x) => mismoId(x, sender))) return { ok: true, via: "permiso" };
   if (!pagina || !pagina.fs) return { ok: false, motivo: "sin_pagina" };
   const uid = uidDe(sender);
-  if (!uid) return { ok: false, motivo: "sin_vinculo", meta: MINUTOS_MISION };
+  if (!uid) return { ok: false, motivo: "sin_vinculo" };
   try {
     const [pf, ow] = await Promise.all([pagina.fs.collection("perfiles").doc(uid).get(), pagina.fs.collection("owners").doc(uid).get()]);
     if (ow.exists) return { ok: true, via: "owner_web" };
     const d = pf.data() || {};
-    const juegos = d.juegos || {}, pj = (d.stats && d.stats.pj) || {};
-    let minutos = 0;
-    for (const id of Object.keys(juegos)) {
-      if (JUEGOS_OFICIALES.has(id)) continue;
-      minutos += Math.max(Number(juegos[id] && juegos[id].minutos) || 0, Number(pj[id]) || 0);
-    }
-    const usos = Number(d.codeUsos) || 0;
-    const progreso = minutos - MINUTOS_MISION * usos;
-    if (progreso >= MINUTOS_MISION) return { ok: true, via: "mision", uid };
-    return { ok: false, motivo: "mision", meta: MINUTOS_MISION, falta: Math.ceil(MINUTOS_MISION - Math.max(0, progreso)) };
+    const resta = (Number(d.codeUlt) || 0) + COOLDOWN_CODE_MS - Date.now();
+    if (resta > 0) return { ok: false, motivo: "cooldown", resta };
+    const id = d.codeMision && d.codeMision.id, mi = MISIONES[id];
+    if (!mi) return { ok: false, motivo: "sin_mision" };
+    const prog = progresoMision(d, mi);
+    if (prog >= mi.meta) return { ok: true, via: "mision", uid, mision: id };
+    return { ok: false, motivo: "mision", mi, prog: Math.floor(prog), falta: Math.ceil(mi.meta - prog) };
   } catch (e) {
     console.log("Permiso de .code: " + e.message);
     return { ok: false, motivo: "error" };
   }
 }
 
-export async function registrarUsoCode(uid) {   // gasta la misión cumplida
+export async function registrarUsoCode(uid, mision) {   // gasta la misión cumplida y empieza el cooldown de 1 día
   if (!uid || !pagina || !pagina.fs) return;
-  await pagina.fs.collection("perfiles").doc(uid).set({ codeUsos: pagina.FV.increment(1) }, { merge: true }).catch((e) => console.log("No se pudo registrar el uso de .code: " + e.message));
+  await pagina.fs.collection("perfiles").doc(uid).set({
+    codeUsos: pagina.FV.increment(1), codeUlt: Date.now(), codeUltId: mision || null, codeMision: pagina.FV.delete()
+  }, { merge: true }).catch((e) => console.log("No se pudo registrar el uso de .code: " + e.message));
 }
 
 const CODIGO_VINCULACION = String(process.env.CODIGO_VINCULACION || "MAXIBOTS").toUpperCase();   // 8 letras/números
