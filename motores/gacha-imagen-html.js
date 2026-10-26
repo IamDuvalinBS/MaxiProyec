@@ -1,7 +1,12 @@
 import axios from "axios";
+import fs from "fs";
 import { createCanvas, loadImage } from "@napi-rs/canvas";
+import { rutaImagenCacheada } from "./cache-medios.js";
+import { leerMiniatura, guardarMiniatura } from "./gacha-miniaturas.js";
 
-const LIMITE_CACHE = 400;
+const LIMITE_CACHE = 1500;
+const TIEMPO_DESCARGA_MS = Number(process.env.GACHA_T_PERFIL_IMAGEN_MS) || 6000;
+const PRESUPUESTO_TOTAL_MS = Number(process.env.GACHA_T_PERFIL_TOTAL_MS) || 12000;
 const LIMITE_SIN_COMPACTAR = 120 * 1024;
 const cache = new Map();
 
@@ -38,14 +43,26 @@ function dibujar(imagen, { ancho, alto, modo, fondo, formato, calidad }) {
 export async function imagenCompacta(url, opciones = {}) {
   if (!url || typeof url !== "string") return "";
   const o = { ancho: 180, alto: 240, modo: "cover", fondo: "#120a24", formato: "jpeg", calidad: 72, ...opciones };
-  const clave = `${url}|${o.ancho}x${o.alto}|${o.modo}|${o.formato}`;
+  const clave = `${url}|${o.ancho}x${o.alto}|${o.modo}|${o.formato}|${o.fondo}|${o.calidad}`;
   if (cache.has(clave)) return cache.get(clave);
 
+  const enDisco = await leerMiniatura(clave);
+  if (enDisco) return guardar(clave, enDisco);
+
   try {
-    const { data, headers } = await axios.get(url, { responseType: "arraybuffer", timeout: 9000, headers: { "User-Agent": "MaxiBot/1.0" } });
+    const local = rutaImagenCacheada(url);
+    let data;
+    let headers = {};
+    if (local) {
+      data = await fs.promises.readFile(local);
+    } else {
+      ({ data, headers } = await axios.get(url, { responseType: "arraybuffer", timeout: TIEMPO_DESCARGA_MS, headers: { "User-Agent": "MaxiBot/1.0" } }));
+    }
     try {
       const imagen = await loadImage(Buffer.from(data));
-      return guardar(clave, dibujar(imagen, o));
+      const uri = guardar(clave, dibujar(imagen, o));
+      guardarMiniatura(clave, uri);
+      return uri;
     } catch {
       if (data.byteLength <= LIMITE_SIN_COMPACTAR) {
         return guardar(clave, aDataUri(data, String(headers["content-type"] || "image/png").split(";")[0]));
@@ -57,12 +74,24 @@ export async function imagenCompacta(url, opciones = {}) {
   }
 }
 
-export async function imagenesCompactas(urls, opciones = {}, simultaneas = 8) {
+export async function imagenesCompactas(urls, opciones = {}, simultaneas = 12, presupuestoMs = PRESUPUESTO_TOTAL_MS) {
   const salida = new Array(urls.length).fill("");
-  for (let i = 0; i < urls.length; i += simultaneas) {
-    const lote = urls.slice(i, i + simultaneas);
-    const resultado = await Promise.all(lote.map((u) => imagenCompacta(u, opciones)));
-    resultado.forEach((r, j) => { salida[i + j] = r; });
+  let siguiente = 0;
+  const trabajador = async () => {
+    while (siguiente < urls.length) {
+      const i = siguiente++;
+      salida[i] = await imagenCompacta(urls[i], opciones);
+    }
+  };
+  const trabajadores = Promise.all(Array.from({ length: Math.min(simultaneas, urls.length) }, trabajador));
+  let temporizador;
+  const limite = new Promise((resolver) => {
+    temporizador = setTimeout(resolver, presupuestoMs);
+  });
+  try {
+    await Promise.race([trabajadores, limite]);
+  } finally {
+    clearTimeout(temporizador);
   }
-  return salida;
+  return salida.slice();
 }
