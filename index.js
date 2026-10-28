@@ -1,6 +1,5 @@
 import {
   makeWASocket,
-  useMultiFileAuthState,
   DisconnectReason,
   fetchLatestBaileysVersion
 } from "@fer2809fl/baileys";
@@ -10,8 +9,9 @@ import { manejarApiJuegos } from "./motores/juegos-api.js";
 import { iniciarTunel } from "./motores/juegos-tunel.js";
 import { manejarComando } from "./src/nucleo/comandos.js";
 import { checkTriviaAnswer } from "./src/economia/trivia.js";
-import { iniciarSubbots } from "./src/subbots/gestor.js";
-import { reclamarMensaje } from "./src/subbots/dedupe.js";
+import { iniciarSubbots, usarPagina } from "./src/subbots/gestor.js";
+import { reclamarMensaje, fijarPrincipal } from "./src/subbots/dedupe.js";
+import { sesionPrincipal, limpiarSesionesLocales, vigilarDescifrado } from "./motores/sesiones-mongo.js";
 import { iniciarCobranzaPrestamos } from "./src/economia/prestamos.js";
 import { procesarEspera } from "./src/nucleo/espera.js";
 import { config, manejarCambioParticipantes, getAllAccounts, commandRegistry, startTime, CURRENCY } from "./core.js";
@@ -123,6 +123,7 @@ async function iniciarPagina() {
       for (const u of PAG.vinc.keys()) sincronizarCuenta(u);
     }, logPag);
     console.log(chalk.greenBright("✔ Conectado a la página (Firebase)"));
+    usarPagina(PAG);   // el permiso de .code revisa las misiones de la página
     subirEstado();
     setInterval(subirEstado, 60000);
     setTimeout(subirComandos, 20000);
@@ -417,7 +418,7 @@ async function startBot() {
   }
   isConnecting = true;
 
-  const { state, saveCreds } = await useMultiFileAuthState("auth_info");
+  const { state, saveCreds } = await sesionPrincipal("auth_info", pino({ level: "silent" }));
   const { version } = await fetchLatestBaileysVersion();
 
   const sock = makeWASocket({
@@ -428,7 +429,7 @@ async function startBot() {
     browser: ["Ubuntu", "Chrome", "20.0.04"],
     keepAliveIntervalMs: 30000,
     connectTimeoutMs: 60000,
-    defaultQueryTimeoutMs: 60000,
+    defaultQueryTimeoutMs: 180000, // antes 60000: subir videos grandes a WhatsApp podia dar 408 (Timed Out)
     markOnlineOnConnect: false,
     syncFullHistory: false,
     shouldSyncHistoryMessage: () => false,
@@ -486,6 +487,7 @@ async function startBot() {
       }
     } else if (connection === "open") {
       currentCode = "CONECTADO";
+      fijarPrincipal(sock.user);
       isConnecting = false;
       console.log(chalk.greenBright.bold("✔ Bot conectado a WhatsApp"));
       iniciarAvisosRacha(sock);
@@ -502,6 +504,14 @@ async function startBot() {
   sock.ev.on("creds.update", saveCreds);
 
   enlazarEventos(sock, false);
+
+  // Sesión dañada (mensajes que no se pueden descifrar): se limpian solo las sesiones de cifrado y se reconecta, sin re-vincular.
+  vigilarDescifrado(sock, "principal", async () => {
+    console.log(chalk.yellow("🛠 Muchos mensajes sin descifrar: se limpian las sesiones de cifrado (sin desvincular)."));
+    const borrados = await limpiarSesionesLocales("auth_info");
+    console.log(chalk.yellow(`   ${borrados} sesiones borradas, reconectando...`));
+    sock.end(new Error("Reparación de sesión"));
+  });
 }
 
 startBot();
