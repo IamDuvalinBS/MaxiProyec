@@ -212,3 +212,28 @@ export async function pruebaBase() {
     return { ok: false, motivo: e.message };
   }
 }
+
+// Configuración pequeña del módulo (p. ej. la URL pública del bot) en la colección "juegos_config".
+export async function leerConfig(clave) {
+  try {
+    const base = obtenerBase();
+    if (!base) return null;
+    const d = await base.collection("juegos_config").findOne({ _id: clave });
+    return d && d.valor !== undefined ? d.valor : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function guardarConfig(clave, valor) {
+  try {
+    const base = obtenerBase();
+    if (!base) return false;
+    const c = base.collection("juegos_config");
+    if (valor === null || valor === undefined || valor === "") await c.deleteOne({ _id: clave });
+    else await c.updateOne({ _id: clave }, { $set: { valor } }, { upsert: true });
+    return true;
+  } catch {
+    return false;
+  }
+}

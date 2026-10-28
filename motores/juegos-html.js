@@ -2,7 +2,7 @@ import { config, idCanonico } from "./db.js";
 import { esHalloween } from "../src/economia/temas.js";
 import { getProfile } from "./profile.js";
 import { firmar, recordDe, topDe, rankingDe, limpiarNombre, JUEGOS } from "./juegos-records.js";
-import { urlPublica } from "./juegos-api.js";
+import { urlPublica, cargarUrl } from "./juegos-api.js";
 
 // Envía un juego HTML:
 //  - responde (cita) al mensaje de quien pidió el comando
@@ -10,6 +10,7 @@ import { urlPublica } from "./juegos-api.js";
 //  - "variantes": juegos con varios récords (modos) → un pase, récord y top por cada uno
 export async function enviarJuego({ sock, from, msg, sender, juego, html, variantes }) {
   if (typeof sock.sendHtml !== "function") throw new Error("este Baileys no tiene sendHtml");
+  await cargarUrl();
   const ids = Array.isArray(variantes) && variantes.length ? variantes : [juego];
   const uid = idCanonico(sender);
   const t = Date.now();
