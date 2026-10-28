@@ -1,24 +1,26 @@
 import { baseLista, pruebaBase } from "../motores/juegos-records.js";
-import { urlPublica } from "../motores/juegos-api.js";
+import { cargarUrl, urlPublica, origenUrl } from "../motores/juegos-api.js";
 
 export default {
   names: [".gdiag"],
-  desc: "Diagnóstico del guardado de récords de los juegos",
+  desc: "Diagnóstico del guardado automático de récords de los juegos",
   category: "Juegos",
   usage: ".gdiag",
   handler: async ({ reply }) => {
+    await cargarUrl();
     const prueba = await pruebaBase();
     const url = urlPublica();
-    let host = "no configurada";
-    try { if (url) host = new URL(url).host; } catch { host = "inválida"; }
     const lineas = [
       "🩺 *Diagnóstico de récords*",
       `🗄️ Mongo conectado: ${baseLista() ? "✅" : "❌"}`,
       `✍️ Prueba de escritura: ${prueba.ok ? "✅" : "❌"} (${prueba.motivo})`,
-      `🌐 URL pública (JUEGOS_URL): ${url ? "✅ " + host : "❌ no configurada"}`,
+      `🌐 URL pública: ${url ? "✅ " + url : "❌ ninguna"}  (origen: ${origenUrl()})`,
       `🔑 JUEGOS_SECRET: ${process.env.JUEGOS_SECRET ? "✅" : "⚠️ no definido"}`,
-      url ? "" : "ℹ️ Sin URL pública el juego guarda con el botón 📨 (envía el mensaje al bot)."
-    ].filter(Boolean);
+      "",
+      url
+        ? `📱 Prueba desde tu celular: abre ${url}/juegos/ping → debe decir {"ok":true}. Si no abre, el juego no podrá guardar solo.`
+        : "ℹ️ Sin URL pública los juegos no pueden guardar solos. Pon una con *.gurl https://tu-url* (o instala cloudflared para un túnel automático)."
+    ];
     await reply({ text: lineas.join("\n") });
   }
 };

@@ -331,4 +331,292 @@ export const DATOS = {
     ],
     disenos: ["(^_−)☆", "(¬‿¬)", "(✧ω✧)", "(˘‿˘)", "(^_~)"],
   },
+  angry: {
+    frases: [
+      ["está furioso con", "está de muy mal humor."],
+      ["le lanzó una mirada asesina a", "infló los cachetes de la rabia."],
+      ["explotó de enojo por culpa de", "pateó el piso enojadísimo."],
+      ["no aguanta más y se enojó con", "se enojó con el mundo entero."],
+    ],
+    disenos: ["(╬ Ò﹏Ó)", "(｀へ´)", "(눈_눈)", "ヽ(`Д´)ﾉ", "(¬_¬)"],
+  },
+  bleh: {
+    frases: [
+      ["le sacó la lengua a", "sacó la lengua al aire."],
+      ["le hizo «bleh» a", "se hizo «bleh» frente al espejo."],
+      ["se burló sacándole la lengua a", "sacó la lengua sin motivo."],
+      ["le sacó la lengua con picardía a", "sacó la lengua traviesamente."],
+    ],
+    disenos: ["(๑>ᴗ<๑)", "(＾ｖ＾)", "( ˘͈ ᵕ ˘͈♡)", "(≧◡≦)", "(¬‿¬)"],
+  },
+  bored: {
+    frases: [
+      ["se aburre muchísimo con", "está aburridísimo."],
+      ["bosteza del aburrimiento junto a", "no tiene nada que hacer."],
+      ["se muere de aburrimiento al lado de", "miró el techo sin hacer nada."],
+      ["le dijo «qué aburrido» a", "se aburrió de tanto no hacer nada."],
+    ],
+    disenos: ["(－_－) zzZ", "(￣ω￣;)", "(´-ω-`)", "(._.)", "(ー_ー)!!"],
+  },
+  clap: {
+    frases: [
+      ["está aplaudiendo a", "está aplaudiendo con ganas."],
+      ["le dio un gran aplauso a", "se aplaudió a sí mismo."],
+      ["aplaude orgulloso a", "aplaudió emocionado."],
+      ["se puso de pie para aplaudir a", "aplaudió sin parar."],
+    ],
+    disenos: ["👏(◕‿◕)👏", "(ﾉ◕ヮ◕)ﾉ", "٩(◕‿◕｡)۶", "(*≧ω≦)", "(b^‿^)b"],
+  },
+  coffee: {
+    frases: [
+      ["invitó un cafecito a", "se está tomando un cafecito."],
+      ["tomó café tranquilamente con", "necesitaba su café de la mañana."],
+      ["le preparó un café a", "disfruta su café calentito."],
+      ["brindó con una taza de café junto a", "se tomó el tercer café del día."],
+    ],
+    disenos: ["(っ˘ω˘ς)☕", "(◕‿◕)ｏ旦", "(´▽`ʃ♡ƪ)", "☕(ﾟ∀ﾟ)", "(＾▽＾)☕"],
+  },
+  dramatic: {
+    frases: [
+      ["le hizo un drama enorme a", "está haciendo un drama."],
+      ["se tiró al piso dramáticamente frente a", "se llevó la mano a la frente con dramatismo."],
+      ["armó una telenovela con", "suspiró como en una película."],
+      ["lloró de manera exagerada por", "actuó como el protagonista de un dorama."],
+    ],
+    disenos: ["(ノ_<。)", "(╥﹏╥)", "ヽ(°〇°)ﾉ", "(つд⊂)", "(ﾉдヽ)"],
+  },
+  drunk: {
+    frases: [
+      ["está borracho junto a", "está borracho y no sabe dónde está."],
+      ["se tambalea frente a", "dio vueltas sin rumbo."],
+      ["abrazó a", "habló solo toda la noche."],
+      ["le dijo cosas sin sentido a", "se quedó dormido en el suelo."],
+    ],
+    disenos: ["(⊙﹏⊙)", "(@_@)", "(✧ω✧)ﾉ🍺", "(*´▽`*)", "(＠´ー`)"],
+  },
+  eat: {
+    frases: [
+      ["está comiendo con", "está comiendo algo delicioso."],
+      ["compartió su comida con", "se dio un gran banquete."],
+      ["le robó un bocado a", "comió hasta quedar satisfecho."],
+      ["comió feliz junto a", "devoró todo lo que había en la mesa."],
+    ],
+    disenos: ["(๑´ڡ`๑)", "(っ˘ڡ˘ς)", "( ˘▽˘)っ🍙", "(◕ᴗ◕✿)", "ヽ(>∀<☆)ノ"],
+  },
+  heat: {
+    frases: [
+      ["se derrite de calor junto a", "se está derritiendo de calor."],
+      ["se abanica al lado de", "se abanicó sin parar."],
+      ["pidió algo helado a", "está sudando como nunca."],
+      ["no soporta el calor con", "se tiró frente al ventilador."],
+    ],
+    disenos: ["(；´Д`)", "(´д`;)", "( ˘︹˘ )", "(＃´Д｀)", "(´･_･`)"],
+  },
+  jump: {
+    frases: [
+      ["saltó de alegría junto a", "está saltando de un lado a otro."],
+      ["pegó un brinco al ver a", "saltó como un conejito."],
+      ["dio saltitos alrededor de", "saltó sin parar."],
+      ["saltó sobre", "dio un salto enorme."],
+    ],
+    disenos: ["ヽ(>∀<☆)ノ", "٩(◕‿◕｡)۶", "(ﾉ◕ヮ◕)ﾉ", "ヾ(＾∇＾)", "＼(^o^)／"],
+  },
+  lewd: {
+    frases: [
+      ["le lanzó una mirada pícara a", "puso una cara muy pícara."],
+      ["se puso sospechoso frente a", "pensó cosas indebidas."],
+      ["le sonrió con malicia a", "se rió con picardía."],
+      ["se puso travieso con", "se sonrojó por sus propios pensamientos."],
+    ],
+    disenos: ["(¬‿¬)", "( ͡° ͜ʖ ͡°)", "(◔‿◔)", "(≖ᴗ≖✿)", "(¬ω¬)"],
+  },
+  lick: {
+    frases: [
+      ["lamió a", "lamió el aire."],
+      ["le dio una lamida a", "se lamió la mano."],
+      ["lamió la mejilla de", "lamió su helado."],
+      ["no pudo evitar lamer a", "sacó la lengua y lamió algo."],
+    ],
+    disenos: ["(¬‿¬)", "(◔ᴗ◔)", "(๑>ᴗ<๑)", "(≧◡≦)", "(｡•̀ᴗ-)✧"],
+  },
+  love: {
+    frases: [
+      ["está enamorado de", "se siente muy enamorado."],
+      ["no puede dejar de pensar en", "suspira por amor."],
+      ["le confesó su amor a", "se enamoró del mundo."],
+      ["se derrite de amor por", "tiene el corazón lleno de mariposas."],
+    ],
+    disenos: ["(♡˙︶˙♡)", "(｡♥‿♥｡)", "(´,,•ω•,,)♡", "(*´∀`*)♡", "♡(⃙ ˃͈ ꇴ ˂͈ ⃙)"],
+  },
+  psycho: {
+    frases: [
+      ["miró de forma psicópata a", "se hizo el psicópata."],
+      ["se rió como villano frente a", "puso cara de psicópata."],
+      ["le susurró cosas aterradoras a", "se rió en la oscuridad."],
+      ["observa fijamente a", "puso su mejor cara de villano."],
+    ],
+    disenos: ["(⊙_⊙)", "(¬‿¬)", "(҂◡_◡)", "(눈‸눈)", "ψ(｀∇´)ψ"],
+  },
+  push: {
+    frases: [
+      ["empujó a", "se empujó a sí mismo."],
+      ["le dio un empujón a", "tropezó y se empujó solo."],
+      ["empujó sin piedad a", "empujó el aire."],
+      ["mandó a volar de un empujón a", "se tiró hacia atrás."],
+    ],
+    disenos: ["(ง •̀_•́)ง", "(>_<)", "ヽ(`Д´)ﾉ", "(ノ°益°)ノ", "(•̀ᴗ•́)و"],
+  },
+  run: {
+    frases: [
+      ["salió corriendo de", "salió corriendo."],
+      ["corre junto a", "corrió sin mirar atrás."],
+      ["huyó despavorido de", "corrió como si no hubiera mañana."],
+      ["le ganó una carrera a", "corrió una maratón."],
+    ],
+    disenos: ["ε=ε=ε=┌(;*´Д`)ﾉ", "(ﾉ°ο°)ﾉ", "ε=(ノ≧∇≦)ノ", "(ノ｀Д´)ノ", "ヽ(°〇°)ﾉ"],
+  },
+  sad: {
+    frases: [
+      ["está triste por culpa de", "está muy triste."],
+      ["se siente muy mal con", "se quedó mirando por la ventana."],
+      ["se puso melancólico por", "suspiró con tristeza."],
+      ["necesita un abrazo de", "se siente solito."],
+    ],
+    disenos: ["(╥﹏╥)", "(；д；)", "(｡•́︿•̀｡)", "(´;ω;`)", "(._.)"],
+  },
+  scared: {
+    frases: [
+      ["se asustó muchísimo con", "se asustó."],
+      ["se escondió detrás de", "tiembla de miedo."],
+      ["pegó un grito del susto por", "se quedó paralizado del miedo."],
+      ["se aferró del brazo de", "se tapó los ojos de miedo."],
+    ],
+    disenos: ["(ﾟДﾟ;)", "((((；ﾟДﾟ))))", "(°ロ°)", "Σ(°△°|||)", "(ﾟｰﾟ;"],
+  },
+  scream: {
+    frases: [
+      ["le gritó a", "gritó con todas sus fuerzas."],
+      ["pegó un grito frente a", "soltó un grito al vacío."],
+      ["gritó a todo pulmón por", "se desahogó gritando."],
+      ["se puso a gritar por culpa de", "gritó hasta quedarse sin voz."],
+    ],
+    disenos: ["Σ(°△°|||)", "(ﾟДﾟ)", "(ﾉ°ロ°)ﾉ", "ヽ(°〇°)ﾉ", "(≧Д≦)"],
+  },
+  seduce: {
+    frases: [
+      ["intentó seducir a", "se creyó irresistible."],
+      ["le lanzó una mirada seductora a", "posó frente al espejo."],
+      ["se puso coqueto con", "se echó el pelo hacia atrás."],
+      ["le guiñó el ojo con encanto a", "puso su mejor pose."],
+    ],
+    disenos: ["(๑˃ᴗ˂)ﻭ♡", "(¬‿¬)", "(˘▽˘)ᕗ", "(≖ᴗ≖✿)", "(｡•̀ᴗ-)✧"],
+  },
+  shy: {
+    frases: [
+      ["se puso tímido frente a", "se puso muy tímido."],
+      ["se escondió de la vergüenza ante", "se tapó la cara de pena."],
+      ["miró al suelo avergonzado frente a", "jugó con sus dedos nervioso."],
+      ["no se atrevió a mirar a", "se sonrojó y desvió la mirada."],
+    ],
+    disenos: ["(⁄ ⁄>⁄ ▽ ⁄<⁄ ⁄)", "(〃ω〃)", "(*ﾉωﾉ)", "(｡•́︿•̀｡)", "(>///<)"],
+  },
+  sing: {
+    frases: [
+      ["le cantó una canción a", "está cantando a todo pulmón."],
+      ["cantó en un karaoke con", "cantó bajo la ducha."],
+      ["le dedicó una serenata a", "cantó desafinado pero feliz."],
+      ["hizo dueto con", "se creyó cantante profesional."],
+    ],
+    disenos: ["♪(´▽｀)", "( ˘▽˘)っ♪", "♬(◕‿◕)♬", "(ﾉ◕ヮ◕)ﾉ♪", "ヾ(＾∇＾)♫"],
+  },
+  smoke: {
+    frases: [
+      ["se fumó uno junto a", "se puso a fumar pensativo."],
+      ["salió a tomar aire y fumar con", "soltó una nube de humo."],
+      ["compartió un cigarro con", "fumó mirando el horizonte."],
+      ["observó el humo con", "se quedó pensando entre el humo."],
+    ],
+    disenos: ["(´-ω-`)", "( ˘_˘ )", "(￣ー￣)", "(¬_¬)", "(-_-)"],
+  },
+  step: {
+    frases: [
+      ["pisó a", "se pisó a sí mismo."],
+      ["le dio un pisotón a", "se tropezó y se pisó el pie."],
+      ["aplastó con el pie a", "pisó una cáscara de banana."],
+      ["pisó sin querer a", "pisó fuerte el suelo."],
+    ],
+    disenos: ["(ง •̀_•́)ง", "(ノ°益°)ノ", "(｀へ´)", "(>_<)", "(¬‿¬)"],
+  },
+  tea: {
+    frases: [
+      ["invitó una tacita de té a", "se está tomando un té."],
+      ["tomó el té tranquilamente con", "disfruta su té calentito."],
+      ["le sirvió té a", "sopló su té con cuidado."],
+      ["hizo una pausa para tomar el té con", "tomó té con el meñique levantado."],
+    ],
+    disenos: ["(っ˘ω˘ς)🍵", "(◕‿◕)ｏ旦", "( ˘▽˘)っ♨", "(´▽`ʃ♡ƪ)", "(＾▽＾)🍵"],
+  },
+  cookie: {
+    frases: [
+      ["le dio una galleta a", "se comió una galleta."],
+      ["compartió sus galletas con", "se robó una galleta del frasco."],
+      ["le robó una galleta a", "se atragantó de galletas."],
+      ["horneó galletas para", "mojó su galleta en leche."],
+    ],
+    disenos: ["(๑´ڡ`๑)", "(っ˘ڡ˘ς)", "(◕ᴗ◕✿)", "( ˘▽˘)っ🍪", "ヽ(>∀<☆)ノ"],
+  },
+  killall: {
+    frases: [
+      ["ejecutó killall y desapareció a todos menos a", "ejecutó killall y desapareció a todos."],
+      ["escribió «sudo killall» frente a", "ejecutó killall y se quedó solito."],
+      ["borró del chat a todos menos a", "usó killall y se hizo el silencio."],
+      ["lanzó un killall -9 sobre", "tecleó killall con cara de villano."],
+    ],
+    disenos: ["(¬‿¬)", "ψ(｀∇´)ψ", "(҂◡_◡)", "(⊙_⊙)", "(≖ᴗ≖✿)"],
+  },
+  yawn: {
+    frases: [
+      ["bostezó frente a", "bostezó del sueño."],
+      ["se contagió el bostezo de", "bostezó con la boca bien abierta."],
+      ["no pudo evitar bostezar con", "se estiró y bostezó."],
+      ["bostezó aburrido junto a", "bostezó cinco veces seguidas."],
+    ],
+    disenos: ["(－_－) zzZ", "(´-ω-`)", "(￣ω￣;)", "(ᵕ—ᴗ—)", "(ー_ー)"],
+  },
+  celebrate: {
+    frases: [
+      ["celebró con", "está celebrando."],
+      ["hizo una fiesta con", "tiró confeti de alegría."],
+      ["brindó por", "festejó a lo grande."],
+      ["gritó «¡lo logramos!» junto a", "bailó de felicidad."],
+    ],
+    disenos: ["＼(^o^)／", "ヽ(>∀<☆)ノ", "٩(◕‿◕｡)۶", "(ﾉ◕ヮ◕)ﾉ*:･ﾟ✧", "(b^‿^)b"],
+  },
+  sigh: {
+    frases: [
+      ["suspiró profundamente por", "suspiró con resignación."],
+      ["soltó un suspiro cansado frente a", "suspiró mirando al cielo."],
+      ["suspiró de alivio junto a", "suspiró y siguió adelante."],
+      ["miró con resignación a", "dejó escapar un largo suspiro."],
+    ],
+    disenos: ["(´-ω-`)", "(－ω－;)", "(._.)", "( ˘︹˘ )", "(´。＿。｀)"],
+  },
+  cringe: {
+    frases: [
+      ["sintió cringe por culpa de", "sintió muchísimo cringe."],
+      ["se estremeció de vergüenza ajena por", "puso cara de asco."],
+      ["no soporta el cringe de", "se tapó los ojos del cringe."],
+      ["hizo una mueca al ver a", "sintió escalofríos de vergüenza ajena."],
+    ],
+    disenos: ["(ー_ー;)", "(´･_･`)", "(￣□￣;)", "(；一_一)", "(>_<)"],
+  },
+  surprised: {
+    frases: [
+      ["se sorprendió muchísimo con", "se quedó con la boca abierta."],
+      ["quedó boquiabierto ante", "no se lo esperaba."],
+      ["abrió los ojos como platos al ver a", "pegó un salto de la sorpresa."],
+      ["no puede creer lo que hizo", "se sorprendió de sí mismo."],
+    ],
+    disenos: ["Σ(°ロ°)", "(°o°)", "(⊙_⊙)", "Σ(ﾟдﾟ)", "(ﾟДﾟ;)"],
+  },
 };

@@ -6,10 +6,13 @@ const COL = {
   propiedad: "gacha_propiedad",
   inventario: "gacha_inventario",
   posts: "gacha_yandere_posts",
-  tags: "gacha_yandere_tags"
+  tags: "gacha_yandere_tags",
+  nivelesLog: "gacha_niveles_log"
 };
 
-const RETARDO_GUARDADO_MS = 1500;
+const HISTORIAL_NIVELES = 25;
+
+const RETARDO_GUARDADO_MS = 500;
 const LOTE_MONGO = 500;
 const ESPERA_MONGO_MS = 180000;
 const VIGILANTE_MS = Number(process.env.GACHA_VIGILANTE_MS) || 20000;
@@ -28,6 +31,7 @@ const posts = new Map();
 const postsMd5 = new Set();
 const postsPadre = new Set();
 const tags = new Map();
+const registroNiveles = new Map();
 
 let sucio = new Map();
 let temporizador = null;
@@ -103,6 +107,10 @@ function documento(col, id) {
     case COL.tags: {
       const tipo = tags.get(id);
       return tipo === undefined ? null : { _id: id, tipo };
+    }
+    case COL.nivelesLog: {
+      const r = registroNiveles.get(id);
+      return r ? { _id: id, ...clon(r) } : null;
     }
     default:
       return null;
@@ -245,6 +253,27 @@ function registrarPersonaje(fila) {
   });
 }
 
+function registrarNivel(usuario, charId, antes, despues, via) {
+  const id = `${usuario}|${charId}`;
+  const p = personajes.get(charId);
+  const previo = registroNiveles.get(id);
+  const r = previo
+    ? { ...previo, historial: [...previo.historial] }
+    : { usuario, char_id: charId, categoria: p?.categoria ?? null, nombre: p?.nombre ?? null, nivel: despues, historial: [] };
+  r.nivel = despues;
+  r.actualizado = ahora();
+  r.historial.push({ de: antes, a: despues, via, fecha: ahora() });
+  if (r.historial.length > HISTORIAL_NIVELES) r.historial = r.historial.slice(-HISTORIAL_NIVELES);
+  registroNiveles.set(id, r);
+  marcar(COL.nivelesLog, id);
+}
+
+function olvidarNivel(usuario, charId) {
+  const id = `${usuario}|${charId}`;
+  if (!registroNiveles.delete(id)) return;
+  marcar(COL.nivelesLog, id);
+}
+
 function agregarPropiedad(f) {
   let m = propiedad.get(f.usuario);
   if (!m) propiedad.set(f.usuario, (m = new Map()));
@@ -253,6 +282,8 @@ function agregarPropiedad(f) {
   m.set(f.char_id, f);
   d.set(f.usuario, f);
   marcar(COL.propiedad, `${f.usuario}|${f.char_id}`);
+  if (f.nivel > 0) registrarNivel(f.usuario, f.char_id, 0, f.nivel, "obtenido");
+  else olvidarNivel(f.usuario, f.char_id);
   undo(() => quitarPropiedad(f.usuario, f.char_id));
 }
 
@@ -268,6 +299,7 @@ function quitarPropiedad(usuario, charId) {
     if (!d.size) duenos.delete(charId);
   }
   marcar(COL.propiedad, `${usuario}|${charId}`);
+  olvidarNivel(usuario, charId);
   undo(() => agregarPropiedad(f));
   return f;
 }
@@ -302,6 +334,7 @@ function limpiar() {
   postsMd5.clear();
   postsPadre.clear();
   tags.clear();
+  registroNiveles.clear();
   sucio = new Map();
   ultimoId = 0;
 }
@@ -337,10 +370,17 @@ async function esperarOrigen() {
 }
 
 async function cargarDesde(leer) {
-  limpiar();
-  for (const d of await leer(COL.personajes)) cargarFilaPersonaje(d);
+  const filasPersonajes = await leer(COL.personajes);
+  const filasPropiedad = await leer(COL.propiedad);
+  const filasInventario = await leer(COL.inventario);
+  const filasPosts = await leer(COL.posts);
+  const filasTags = await leer(COL.tags);
+  const filasNiveles = await leer(COL.nivelesLog).catch(() => []);
 
-  const props = (await leer(COL.propiedad)).sort((a, b) => (a.obtenido || 0) - (b.obtenido || 0));
+  limpiar();
+  for (const d of filasPersonajes) cargarFilaPersonaje(d);
+
+  const props = filasPropiedad.sort((a, b) => (a.obtenido || 0) - (b.obtenido || 0));
   for (const d of props) {
     const f = {
       usuario: d.usuario, char_id: Number(d.char_id), obtenido: Number(d.obtenido) || 0,
@@ -354,13 +394,13 @@ async function cargarDesde(leer) {
     o.set(f.usuario, f);
   }
 
-  for (const d of await leer(COL.inventario)) {
+  for (const d of filasInventario) {
     let m = inventario.get(d.usuario);
     if (!m) inventario.set(d.usuario, (m = new Map()));
     m.set(d.item, Number(d.cantidad) || 0);
   }
 
-  for (const d of await leer(COL.posts)) {
+  for (const d of filasPosts) {
     const f = {
       post_id: Number(d._id), md5: d.md5 ?? null, parent_id: Number(d.parent_id) || null,
       char_id: d.char_id ?? null, estado: d.estado, creado: Number(d.creado) || 0
@@ -369,7 +409,12 @@ async function cargarDesde(leer) {
     indexarPost(f);
   }
 
-  for (const d of await leer(COL.tags)) tags.set(String(d._id), Number(d.tipo));
+  for (const d of filasTags) tags.set(String(d._id), Number(d.tipo));
+
+  for (const d of filasNiveles) {
+    const { _id, ...resto } = d;
+    registroNiveles.set(String(_id), { ...resto, historial: Array.isArray(resto.historial) ? resto.historial : [] });
+  }
 }
 
 const cargarDesdeMongo = (base) => cargarDesde((nombre) => leerColeccion(base, nombre));
@@ -489,7 +534,7 @@ export function initGachaDB() {
 export async function recargarGacha() {
   const base = obtenerBase();
   if (!base) return;
-  await vaciar(false);
+  await vaciar(true);
   await cargarDesdeMongo(base);
 }
 
@@ -650,16 +695,39 @@ export function setEstrellas(usuario, charId, estrellas) {
   });
 }
 
-export function setNivel(usuario, charId, nivel) {
+export function setNivel(usuario, charId, nivel, via = "subida") {
   const f = propiedad.get(usuario)?.get(Number(charId));
   if (!f) return;
   const previo = f.nivel;
   f.nivel = nivel;
   marcar(COL.propiedad, `${usuario}|${f.char_id}`);
+  if (nivel !== previo) registrarNivel(usuario, f.char_id, previo, nivel, via);
   undo(() => {
     f.nivel = previo;
     marcar(COL.propiedad, `${usuario}|${f.char_id}`);
+    if (nivel !== previo) registrarNivel(usuario, f.char_id, nivel, previo, "reversion");
   });
+}
+
+export const registroNivelesDe = (usuario) =>
+  [...registroNiveles.values()].filter((r) => r.usuario === usuario).map((r) => clon(r));
+
+export function restaurarNivelesDesdeRegistro({ usuario = null, soloContar = false } = {}) {
+  const salida = { revisados: 0, restaurados: [] };
+  for (const r of registroNiveles.values()) {
+    if (usuario && r.usuario !== usuario) continue;
+    const f = propiedad.get(r.usuario)?.get(Number(r.char_id));
+    if (!f) continue;
+    salida.revisados++;
+    if (!(r.nivel > f.nivel)) continue;
+    salida.restaurados.push({ usuario: r.usuario, id: f.char_id, nombre: r.nombre || `#${f.char_id}`, de: f.nivel, a: r.nivel });
+    if (soloContar) continue;
+    const previo = f.nivel;
+    f.nivel = r.nivel;
+    marcar(COL.propiedad, `${r.usuario}|${f.char_id}`);
+    undo(() => { f.nivel = previo; marcar(COL.propiedad, `${r.usuario}|${f.char_id}`); });
+  }
+  return salida;
 }
 
 export function reiniciarNivelesExcepto(usuario, idsConservar = [], { categorias = [], soloContar = false } = {}) {
@@ -678,6 +746,7 @@ export function reiniciarNivelesExcepto(usuario, idsConservar = [], { categorias
     salida.reiniciados++;
     salida.niveles += f.nivel;
     if (soloContar) continue;
+    registrarNivel(usuario, f.char_id, f.nivel, 0, "reinicio");
     f.nivel = 0;
     marcar(COL.propiedad, `${usuario}|${f.char_id}`);
   }

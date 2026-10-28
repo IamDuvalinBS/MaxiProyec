@@ -43,24 +43,31 @@ async function cargarComandos() {
       const relativa = path.relative(RAIZ, ruta);
       try {
         const modulo = await import(pathToFileURL(ruta).href);
-        const cmd = modulo.default;
-        if (!cmd || !cmd.names || !cmd.handler) {
+        const exportado = modulo.default;
+        const lista = Array.isArray(exportado) ? exportado : [exportado];
+        if (!lista.length) {
           console.log(`⚠️ Comando inválido en ${relativa}, se omitió.`);
           continue;
         }
-        const categoria = cmd.category || "General";
-        for (const nombre of cmd.names) {
-          if (comandos.has(nombre)) console.log(`⚠️ El comando ${nombre} está repetido (${relativa}).`);
-          comandos.set(nombre, cmd.handler);
-          categoriaDeComando.set(nombre, categoria);
-          principalDeComando.set(nombre, cmd.names[0]);
+        for (const cmd of lista) {
+          if (!cmd || !cmd.names || !cmd.handler) {
+            console.log(`⚠️ Comando inválido en ${relativa}, se omitió.`);
+            continue;
+          }
+          const categoria = cmd.category || "General";
+          for (const nombre of cmd.names) {
+            if (comandos.has(nombre)) console.log(`⚠️ El comando ${nombre} está repetido (${relativa}).`);
+            comandos.set(nombre, cmd.handler);
+            categoriaDeComando.set(nombre, categoria);
+            principalDeComando.set(nombre, cmd.names[0]);
+          }
+          commandRegistry.set(cmd.names[0], {
+            names: cmd.names,
+            desc: cmd.desc || "",
+            category: cmd.category || "General",
+            usage: cmd.usage || cmd.names[0]
+          });
         }
-        commandRegistry.set(cmd.names[0], {
-          names: cmd.names,
-          desc: cmd.desc || "",
-          category: cmd.category || "General",
-          usage: cmd.usage || cmd.names[0]
-        });
         total++;
       } catch (e) {
         console.log(`❌ ERROR cargando ${relativa}: ${e.message}`);

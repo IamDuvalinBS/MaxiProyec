@@ -48,12 +48,38 @@ body.hwlo .hwfx i:nth-of-type(n+6){display:none}
 .mpkl u{text-decoration:none;background:rgba(127,127,127,.22);border-radius:6px;padding:1px 6px}
 .mpkl u b{color:var(--ac)}.mpkl em{font-style:normal;opacity:.75}
 .mpkl li.me{outline:2px solid var(--ac)}
-.mpr{display:block;width:100%;text-align:center;padding:12px 8px;margin-top:8px;border-radius:12px;background:var(--ac);color:#111;font-weight:900;font-size:13px;text-decoration:none;font-family:inherit}
-.mpr em{display:block;font-style:normal;font-size:11px;margin-top:4px;font-weight:400}
-.mpok,.mpwait{text-align:center;padding:10px 8px;margin-top:8px;border-radius:12px;background:var(--cd);color:var(--ac);font-weight:800;font-size:13px}
-.mpwait{color:var(--mu);font-weight:600;font-size:12px}
-.mpcmd{margin-top:6px;font-size:10px;color:var(--mu);text-align:center}
-.mpcmd code{display:block;margin-top:3px;padding:6px;border-radius:8px;background:rgba(0,0,0,.35);color:#fff;word-break:break-all;-webkit-user-select:text;user-select:text;font-family:monospace}
+.mpr{display:block;width:100%;text-align:center;padding:9px 6px;margin-top:6px;border-radius:12px;background:var(--ac);color:#111;font-weight:900;font-size:clamp(10px,4vw,13px);text-decoration:none;font-family:inherit;box-sizing:border-box}
+.mpok,.mpwait{text-align:center;padding:7px 6px;margin-top:6px;border-radius:12px;background:var(--cd);color:var(--ac);font-weight:800;font-size:clamp(10px,4vw,13px);box-sizing:border-box;width:100%}
+.mpwait{color:var(--mu);font-weight:600;font-size:clamp(9px,3.4vw,11px);background:none;padding:4px 2px}
+.mpcmd{margin-top:2px;font-size:10px;color:var(--mu);text-align:center;width:100%}
+.mpcmd summary{cursor:pointer;padding:3px}
+.mpcmd code{display:block;margin-top:3px;padding:6px;border-radius:8px;background:rgba(0,0,0,.4);color:#fff;word-break:break-all;-webkit-user-select:text;user-select:text;font-family:monospace;font-size:9px;text-align:left}
+
+html,body{width:100%;max-width:100%;overflow-x:hidden}
+body{padding:0!important}
+.card,.m,.panel{max-width:none!important;width:100%!important;margin:0!important;box-sizing:border-box}
+.card,.m{padding-left:10px!important;padding-right:10px!important}
+h1{font-size:clamp(15px,8.4vw,26px)!important;letter-spacing:0!important;overflow-wrap:anywhere}
+.ttl{font-size:clamp(15px,7vw,22px)!important}
+.brand,small,.sr small{font-size:clamp(7px,2.9vw,10px)!important;letter-spacing:1.2px!important}
+.ch,.opt{font-size:clamp(8.5px,3.6vw,12px)!important;height:auto!important;min-height:38px;padding:3px 1px!important;line-height:1.08!important;white-space:normal!important;overflow:hidden!important;text-overflow:clip!important;overflow-wrap:anywhere;text-align:center}
+.hud{gap:4px!important}
+.hud div,div.h>div,.hud>div{font-size:clamp(6px,2.7vw,9px)!important;letter-spacing:.2px!important;padding:4px 0!important;overflow:hidden;white-space:nowrap;text-overflow:clip;min-width:0}
+.hud b,div.h b,.hud>div b{font-size:clamp(11px,5.6vw,20px)!important;letter-spacing:0!important;white-space:nowrap;overflow:hidden;text-overflow:clip}
+.big{font-size:clamp(20px,11vw,42px)!important}
+.go,.bt{font-size:clamp(11px,4.6vw,15px)!important}
+.mptabs button{font-size:clamp(8px,3.3vw,11px);letter-spacing:0;line-height:1.05;white-space:normal;padding:2px 1px;height:auto;min-height:34px}
+.mpl li{font-size:clamp(10px,3.8vw,12px)}
+
+#gm{position:relative}
+#ov,#rs{z-index:40!important;background:rgba(6,2,14,.86)!important;-webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px);overflow-y:auto;justify-content:flex-start!important;padding:10px 8px!important;border-radius:14px;box-sizing:border-box}
+#ov>:first-child,#rs>:first-child{margin-top:auto}
+#ov>:last-child,#rs>:last-child{margin-bottom:auto}
+#ov b,#rs b{font-size:clamp(16px,8vw,26px)!important;overflow-wrap:anywhere}
+#ov span,#rs span{font-size:clamp(11px,4.2vw,14px)!important}
+.overlay{background:rgba(10,4,22,.86)!important;-webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px)}
+.modal{max-width:100%!important;padding:14px 10px!important}
+.ov{-webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px);overflow-y:auto}
 </style>
 </head>
 <body>
@@ -190,25 +216,30 @@ function esc(s){return String(s).replace(/[&<>]/g,function(c){return c==="&"?"&a
 function V(id){return (G.v&&G.v[id])||G}
 function top(id){var a=V(id).top||[],h="",i;for(i=0;i<a.length;i++)h+="<li><i>"+(i+1)+"</i><span>"+esc(a[i][0])+"</span><b>"+a[i][1]+"</b></li>";return h||"<li class=mpn>Sé el primero del ranking</li>"}
 function better(id,s){var v=V(id),r=v.rec||0;return !r||(v.menor?s<r:s>r)}
-function viaFetch(b){return new Promise(function(res,rej){try{
- var ac=window.AbortController?new AbortController():null,tm=setTimeout(function(){try{if(ac)ac.abort()}catch(e){}rej(0)},7000);
- fetch(G.api+"/juegos/record",{method:"POST",body:JSON.stringify(b),mode:"cors",signal:ac?ac.signal:undefined}).then(function(r){clearTimeout(tm);return r.json().then(res,function(){res({ok:r.ok})})},function(){clearTimeout(tm);rej(0)})
-}catch(e){rej(0)}})}
-function viaImg(b){return new Promise(function(res,rej){try{
- var im=new Image(),tm=setTimeout(function(){rej(0)},7000);
- im.onload=function(){clearTimeout(tm);res(1)};im.onerror=function(){clearTimeout(tm);rej(0)};
- im.src=G.api+"/juegos/r?j="+encodeURIComponent(b.j)+"&p="+b.p+"&s="+b.s+"&f="+encodeURIComponent(b.f)+"&n="+encodeURIComponent(b.n)
-}catch(e){rej(0)}})}
+function qs(b){return "j="+encodeURIComponent(b.j)+"&p="+b.p+"&s="+b.s+"&f="+encodeURIComponent(b.f)+"&n="+encodeURIComponent(b.n)}
+function send(b){return new Promise(function(res){
+ var n=0,done=0,last=null,api=G.api,T=4;
+ function fin(r){if(!done){done=1;res(r)}}
+ function ok(j){fin({ok:1,j:j||{}})}
+ function no(j){n++;if(j&&j.texto)last=j;if(n>=T)fin({ok:0,j:last})}
+ setTimeout(function(){fin({ok:0,j:last})},9000);
+ try{fetch(api+"/juegos/record",{method:"POST",body:JSON.stringify(b),mode:"cors"}).then(function(r){return r.json()}).then(function(j){if(j&&j.ok)ok(j);else no(j)},function(){no()})}catch(e){no()}
+ try{var x=new XMLHttpRequest();x.open("POST",api+"/juegos/record");x.onload=function(){try{var j=JSON.parse(x.responseText);if(j.ok)ok(j);else no(j)}catch(e){no()}};x.onerror=function(){no()};x.send(JSON.stringify(b))}catch(e){no()}
+ try{var im=new Image();im.onload=function(){ok({nuevo:1})};im.onerror=function(){no()};im.src=api+"/juegos/r?"+qs(b)}catch(e){no()}
+ try{var cb="mpcb"+Math.floor(Math.random()*1e9),s=document.createElement("script");window[cb]=function(j){if(j&&j.ok)ok(j);else no(j)};s.onerror=function(){no()};s.src=api+"/juegos/j?cb="+cb+"&"+qs(b);document.head.appendChild(s)}catch(e){no()}
+})}
+function pend(b,add){try{var k="mp_pend",a=JSON.parse(localStorage.getItem(k)||"[]"),i;a=a.filter(function(o){return !(o.j===b.j&&o.f===b.f)});if(add)a.push(b);localStorage.setItem(k,JSON.stringify(a.slice(-6)))}catch(e){}}
+function flush(){if(!G.api)return;try{var a=JSON.parse(localStorage.getItem("mp_pend")||"[]");a.slice(0,3).forEach(function(b){send(b).then(function(r){if(r.ok||(r.j&&r.j.texto&&/venci|pase/i.test(r.j.texto)))pend(b,0)})})}catch(e){}}
 function save(id,score,secs,box){
  var v=V(id),b,cmd;box.innerHTML="";
  if(!score||!v||!v.f||!better(id,score))return;
  b={j:id,p:score,s:secs,f:v.f,n:G.n||""};
  cmd=G.cmd+" "+id+" "+score+" "+secs+" "+v.f;
- function manual(msg){box.innerHTML=(msg?"<div class=mpwait>"+esc(msg)+"</div>":"")+'<a class=mpr href="https://wa.me/'+G.bot+'?text='+encodeURIComponent(cmd)+'">📨 ¡Récord! Toca para guardarlo en el bot<em>Se abre el chat: solo envía el mensaje</em></a><div class=mpcmd>O copia y envía este mensaje al bot:<code>'+esc(cmd)+'</code></div>'}
- function done(j){v.rec=score;box.innerHTML='<div class=mpok>✅ '+(j&&j.nuevo===false?"Ya tenías un récord mejor en el bot":"¡Récord guardado en el bot!")+'</div>'}
- if(!G.api||!G.bot){manual();return}
+ function manual(msg){pend(b,1);box.innerHTML='<a class=mpr href="https://wa.me/'+G.bot+'?text='+encodeURIComponent(cmd)+'">📨 Guardar récord en el bot</a><div class=mpwait>'+esc(msg||"No se pudo guardar solo. Toca el botón y envía el mensaje.")+'</div><details class=mpcmd><summary>Ver comando</summary><code>'+esc(cmd)+'</code></details>'}
+ function done(j){pend(b,0);v.rec=score;box.innerHTML='<div class=mpok>✅ '+(j&&j.nuevo===false?"Ya tenías un récord mejor":"¡Récord guardado!")+'</div>'}
+ if(!G.api){manual();return}
  box.innerHTML="<div class=mpwait>💾 Guardando récord…</div>";
- viaFetch(b).then(function(j){if(j&&j.ok)done(j);else manual(j&&j.texto?String(j.texto).replace(/[*_]/g,""):"")},function(){viaImg(b).then(function(){done()},function(){manual()})})
+ send(b).then(function(r){if(r.ok)done(r.j);else manual(r.j&&r.j.texto?String(r.j.texto).replace(/[*_]/g,""):"")})
 }
 function rankHtml(o){var R=G.rk||[],h="",i,k,r,c,ids=o.ids||[G.j],med=["🥇","🥈","🥉"];
  if(!R.length)return "<div class=mpn2>Aún no hay jugadores en el ranking. ¡Sé el primero!</div>";
@@ -223,7 +254,7 @@ function panel(o){
  function show(n){bs[0].className=n?"":"on";bs[1].className=n?"on":"";tt.style.display=tp.style.display=n?"none":"";pk.style.display=n?"block":"none";if(n)pk.innerHTML=rankHtml(o)}
  bs[0].addEventListener("click",function(){show(0)});bs[1].addEventListener("click",function(){show(1)});
 }
-return{init:function(g){G=g},V:V,top:top,save:save,panel:panel,esc:esc}
+return{init:function(g){G=g;setTimeout(flush,1500)},V:V,top:top,save:save,panel:panel,esc:esc}
 })();
 MP.init(GD);
 function hV(id){return MP.V(id)}
@@ -231,6 +262,7 @@ function hTop(id){return MP.top(id)}
 function hRec(id,score,secs,box){MP.save(id,score,secs,box)}
 function hDeco(list){var f=document.getElementById("hwfx"),h="",i,a;if(!f)return;for(i=0;i<list.length;i++){a=list[i];h+='<i class="'+a[1]+'" style="left:'+a[2]+'%;'+a[3]+';font-size:'+a[6]+'px;animation-duration:'+a[4]+'s;animation-delay:-'+a[5]+'s">'+a[0]+'</i>'}f.insertAdjacentHTML("beforeend",h)}
 MP.panel({ids:["uno"],lab:{},title:"🏆 TOP DEL BOT · MEJOR PUNTAJE"});
+(function(){var o=document.getElementById("ov")||document.getElementById("rs"),g=document.getElementById("gm");if(o&&g&&o.parentNode!==g)g.appendChild(o)})();
 var U=UnoCore(),S=null,$=function(i){return document.getElementById(i)};
 var NAMES=['Luna','Zorro','Panda'],AVS=['🌙','🦊','🐼'],CN={r:'rojo',y:'amarillo',g:'verde',b:'azul'},CE={r:'🟥',y:'🟨',g:'🟩',b:'🟦'},CH={r:'#e53935',y:'#f6b800',g:'#2e9e4a',b:'#1e7be0'};
 if(HW){NAMES=['Drácula','Momia','Bruja'];AVS=['🧛','🧟','🧙'];CN={r:'naranja',y:'amarillo',g:'verde',b:'morado'};CE={r:'🟧',y:'🟨',g:'🟩',b:'🟪'};CH={r:'#e8431a',y:'#f2b705',g:'#5fbf2a',b:'#6a3fd1'}}
