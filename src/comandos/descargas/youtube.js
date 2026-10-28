@@ -6,7 +6,16 @@ import {
   descargarAudioConProveedores,
   descargarVideoConProveedores
 } from "../../descargas/youtube-engine.js";
-import { descargarBuffer } from "../../descargas/core.js";
+import {
+  descargarBuffer,
+  empaquetarEnZip,
+  nombreSeguro,
+  errorAmigable,
+  LIMITE_VIDEO_WHATSAPP_MB,
+  LIMITE_DOCUMENTO_MB
+} from "../../descargas/core.js";
+import { prepararVideoEnDisco } from "../../descargas/video.js";
+import { enviarConReintento } from "../../descargas/envio.js";
 import { registrarEspera } from "../../nucleo/espera.js";
 import { delayAleatorio, simularEscritura } from "../../../motores/antiban.js";
 import { reenviarCacheado, guardarMedioEnviado } from "../../../motores/cache-medios.js";
@@ -25,8 +34,59 @@ import {
 const DURACION_ESPERA_MS = 5 * 60 * 1000;
 const PIE_DE_PAGINA = "Pᴏᴡᴇʀᴇᴅ Bʏ • ItsDuva";
 
+const MB = 1024 * 1024;
+const borrarArchivo = (ruta) => { try { if (ruta && fs.existsSync(ruta)) fs.unlinkSync(ruta); } catch (err) {} };
+
+// Manda un video que está en disco. Primero se revisa/arregla el formato (antes se mandaba tal cual y WhatsApp lo marcaba como
+// "formato inusual... no se puede abrir"). Si cabe como video, va como video; si pasa el límite, va como archivo, sin preguntar.
+async function enviarVideoDeDisco({ video, responder, titulo }) {
+  const preparado = await prepararVideoEnDisco(video.ruta); // se encarga también de borrar el archivo original
+  try {
+    const pesoMB = fs.statSync(preparado.ruta).size / MB;
+    if (pesoMB > LIMITE_DOCUMENTO_MB) {
+      throw new Error(`El video pesa ${pesoMB.toFixed(0)} MB y WhatsApp no admite archivos de más de ${LIMITE_DOCUMENTO_MB} MB. Prueba con un video más corto.`);
+    }
+
+    const nombreMp4 = `${nombreSeguro(titulo, video.nombre.replace(/\.mp4$/i, ""))}.mp4`;
+    const comoVideo = pesoMB <= LIMITE_VIDEO_WHATSAPP_MB && !preparado.sinConvertir;
+
+    if (comoVideo) {
+      try {
+        return await enviarConReintento(responder, { video: { url: preparado.ruta }, mimetype: "video/mp4" });
+      } catch (e) {
+        console.log(`[youtube] El video no subió como video (${String(e.message).split("\n")[0]}); se prueba como archivo`);
+      }
+    }
+
+    // Más grande que el límite de video (o no se pudo convertir): archivo.
+    // Si el video no pudo convertirse a un formato que WhatsApp reproduzca, va en .zip para que WhatsApp no lo bloquee.
+    if (preparado.sinConvertir) {
+      const zip = await empaquetarEnZip(preparado.ruta, nombreMp4);
+      try {
+        return await enviarConReintento(responder, {
+          document: { url: zip.ruta },
+          mimetype: "application/zip",
+          fileName: zip.nombre,
+          caption: `🎬 Video de ${pesoMB.toFixed(1)}MB enviado en .zip (su formato no es reproducible directo en WhatsApp).`
+        });
+      } finally {
+        borrarArchivo(zip.ruta);
+      }
+    }
+    return await enviarConReintento(responder, {
+      document: { url: preparado.ruta },
+      mimetype: "video/mp4",
+      fileName: nombreMp4,
+      caption: `🎬 Video de ${pesoMB.toFixed(1)}MB enviado como archivo por pasar el límite de video de WhatsApp (${LIMITE_VIDEO_WHATSAPP_MB}MB).`
+    });
+  } finally {
+    preparado.limpiar();
+  }
+}
+
 export async function enviarDescarga({ sock, from, msg, link, esAudio }) {
-  const responder = (contenido) => sock.sendMessage(from, contenido, { quoted: msg });
+  // mediaUploadTimeoutMs: da más tiempo a Baileys para subir archivos grandes (evita el 408 "Timed Out" al subir).
+  const responder = (contenido) => sock.sendMessage(from, contenido, { quoted: msg, mediaUploadTimeoutMs: 10 * 60 * 1000 });
   const claveCache = `yt:${esAudio ? "audio" : "video"}:${link}`;
 
   if (await reenviarCacheado(sock, from, claveCache, msg)) return;
@@ -40,36 +100,26 @@ export async function enviarDescarga({ sock, from, msg, link, esAudio }) {
   }).catch(() => {});
 
   try {
+    const info = await obtenerInfoYoutube(link).catch(() => null); // ya viene en caché si se usó .play
+    const titulo = info?.titulo || "";
+
     if (esAudio) {
       const audio = await descargarAudioConProveedores(link);
       await aviso;
-      guardarMedioEnviado(claveCache, await responder({
-        audio,
-        mimetype: "audio/mpeg",
-        ptt: false
-      }));
+      const pesoMB = audio.length / MB;
+      const contenido = pesoMB > LIMITE_VIDEO_WHATSAPP_MB
+        ? { document: audio, mimetype: "audio/mpeg", fileName: `${nombreSeguro(titulo, "audio")}.mp3` } // audio larguísimo: como archivo
+        : { audio, mimetype: "audio/mpeg", ptt: false };
+      guardarMedioEnviado(claveCache, await enviarConReintento(responder, contenido));
     } else {
       const video = await descargarVideoConProveedores(link);
       await aviso;
 
       if (Buffer.isBuffer(video)) {
-        guardarMedioEnviado(claveCache, await responder({
-          video,
-          mimetype: "video/mp4"
-        }));
+        // Motor local (360p): ya viene convertido y pesa poco.
+        guardarMedioEnviado(claveCache, await enviarConReintento(responder, { video, mimetype: "video/mp4" }));
       } else {
-        try {
-          guardarMedioEnviado(claveCache, await responder({
-            document: { url: video.ruta },
-            mimetype: "video/mp4",
-            fileName: video.nombre,
-            caption: `🎬 Video de ${video.pesoMB.toFixed(1)}MB enviado como documento por su tamaño.`
-          }));
-        } finally {
-          try {
-            fs.unlinkSync(video.ruta);
-          } catch (err) {}
-        }
+        guardarMedioEnviado(claveCache, await enviarVideoDeDisco({ video, responder, titulo }));
       }
     }
   } catch (e) {
@@ -77,9 +127,9 @@ export async function enviarDescarga({ sock, from, msg, link, esAudio }) {
     await responder({
       text: tarjetaError(
         `No se pudo descargar el ${esAudio ? "audio" : "video"}.`,
-        e.message
+        errorAmigable(e).message
       )
-    });
+    }).catch(() => {});
   }
 }
 
