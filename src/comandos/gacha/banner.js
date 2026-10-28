@@ -1,3 +1,4 @@
+import { pityMaximoDe } from "../../../motores/gacha-reliquias.js";
 import { gachaListo, CAT } from "../../../motores/gacha-core.js";
 import { destacadoDe, pityDe } from "../../../motores/gacha-banner.js";
 import { leTiene } from "../../../motores/gacha-db.js";
@@ -31,7 +32,7 @@ export default {
         continue;
       }
       lineas.push(`${cat.emoji} *${cat.titulo}* ›› *${destacado.nombre}* (#${destacado.id})`);
-      lineas.push(`> ✨ ${destacado.rareza} · ${leTiene(sender, destacado.id) ? "Ya lo tienes" : "Aún no lo tienes"} · 🍀 ${pityDe(sender, clave)}/${PITY_TIRADAS}`);
+      lineas.push(`> ✨ ${destacado.rareza} · ${leTiene(sender, destacado.id) ? "Ya lo tienes" : "Aún no lo tienes"} · 🍀 ${pityDe(sender, clave)}/${pityMaximoDe(sender)}`);
     }
 
     lineas.push(

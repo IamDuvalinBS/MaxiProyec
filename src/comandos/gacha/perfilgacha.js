@@ -1,3 +1,4 @@
+import { pityMaximoDe } from "../../../motores/gacha-reliquias.js";
 import { gachaListo, arroba, monto, fmt, CAT } from "../../../motores/gacha-core.js";
 import { filasUsuario } from "../../../motores/gacha-db.js";
 import { ticketsDe } from "../../../motores/gacha-tickets.js";
@@ -65,7 +66,7 @@ export default {
       const cat = CAT[clave];
       const n = porCategoria[clave] || 0;
       const tickets = ticketsDe(objetivo, clave);
-      lineas.push(`${cat.emoji} *${cat.titulo}* ›› ${fmt(n)} · 🎟️ ${tickets} · 🍀 ${pityDe(objetivo, clave)}/${PITY_TIRADAS}`);
+      lineas.push(`${cat.emoji} *${cat.titulo}* ›› ${fmt(n)} · 🎟️ ${tickets} · 🍀 ${pityDe(objetivo, clave)}/${pityMaximoDe(objetivo)}`);
     }
 
     lineas.push(

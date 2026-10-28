@@ -6,9 +6,12 @@ import { getProfile } from "../../../motores/profile.js";
 import { htmlPerfilDe } from "../../../motores/perfil-gacha-datos.js";
 import { candidatosDeUsuario, buscarUsuarioConDatos } from "../../../motores/gacha-usuario.js";
 import { filasUsuario } from "../../../motores/gacha-db.js";
+import { revisarInsigniasHalloween } from "../../../motores/gacha-halloween-misiones.js";
+import { construirDatosLogros } from "../../../motores/logros-datos.js";
+import { htmlLogros } from "../../../motores/logros-html.js";
 
-export default {
-  names: [".insignias", ".badges", ".logros"],
+const insignias = {
+  names: [".insignias", ".badges"],
   desc: "Muestra tus insignias del gacha o las de otra persona: .insignias [@usuario]",
   category: "Gacha",
   usage: ".insignias [@usuario]",
@@ -20,7 +23,7 @@ export default {
     const objetivo = propio
       ? await buscarUsuarioConDatos(candidatosDeUsuario(sock, msg, sender), (u) => filasUsuario(u).length, "insignias")
       : mencionado;
-    if (propio) revisarInsignias(objetivo);
+    if (propio) { revisarInsignias(objetivo); revisarInsigniasHalloween(objetivo); }
 
     if (typeof sock.sendHtml === "function") {
       try {
@@ -68,3 +71,34 @@ export default {
     return reply({ text: lineas.join("\n"), mentions: [objetivo] });
   }
 };
+
+const logros = {
+  names: [".logros", ".achievements"],
+  desc: "Tu panel de logros: misiones de Halloween, insignias de temporada y progreso de cada logro: .logros [@usuario]",
+  category: "Gacha",
+  usage: ".logros [@usuario]",
+  handler: async (ctx) => {
+    const { sock, from, sender, msg, reply } = ctx;
+    await gachaListo;
+    const contexto = msg.message?.extendedTextMessage?.contextInfo;
+    const mencionado = contexto?.mentionedJid?.[0] || contexto?.participant || null;
+    const propio = !mencionado || mencionado === sender;
+    const objetivo = propio
+      ? await buscarUsuarioConDatos(candidatosDeUsuario(sock, msg, sender), (u) => filasUsuario(u).length, "logros")
+      : mencionado;
+    if (propio) revisarInsignias(objetivo);
+
+    if (typeof sock.sendHtml === "function") {
+      try {
+        const nombre = (propio && msg?.pushName) || getProfile(objetivo).name || objetivo.split("@")[0];
+        await sock.sendHtml(from, htmlLogros(construirDatosLogros(objetivo, { nombre })), [], undefined, {});
+        return;
+      } catch (e) {
+        console.log("[logros] ERROR: " + e.stack);
+      }
+    }
+    return insignias.handler(ctx);
+  }
+};
+
+export default [insignias, logros];
