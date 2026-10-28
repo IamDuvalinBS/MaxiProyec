@@ -1004,19 +1004,27 @@ function urlDeResultadoPinterest(item) {
 // Devuelve imágenes (hasta cantidad + 3, por si alguna no se puede bajar).
 export async function buscarPinterest(consulta, cantidad) {
   const meta = cantidad + 3;
-  let data;
-  try {
-    ({ data } = await axios.get(API_PINTEREST_BUSQUEDA, {
-      ...AGENTES,
-      params: { text: consulta },
-      headers: HEADERS,
-      timeout: 25000
-    }));
-  } catch (e) {
-    const motivo = String(e.response?.status ? `HTTP ${e.response.status}` : e.message).split("\n")[0];
-    console.log(`[redes] Pinterest · API Delirius falló: ${motivo}`);
-    throw new Error(`No pude sacar imágenes de Pinterest (${motivo}). Prueba de nuevo en un momento o con el enlace del pin: .pin <enlace>.`);
+  // No sé con certeza cómo se llama el parámetro de la API: se prueban los más comunes hasta que uno responda bien.
+  let data = null;
+  let ultimoMotivo = "sin respuesta";
+  for (const parametro of ["text", "query", "q"]) {
+    try {
+      const r = await axios.get(API_PINTEREST_BUSQUEDA, {
+        ...AGENTES,
+        params: { [parametro]: consulta },
+        headers: HEADERS,
+        timeout: 25000
+      });
+      data = r.data;
+      console.log(`[redes] Pinterest · API Delirius respondió con ?${parametro}=`);
+      break;
+    } catch (e) {
+      ultimoMotivo = String(e.response?.status ? `HTTP ${e.response.status}` : e.message).split("\n")[0];
+      const cuerpo = typeof e.response?.data === "string" ? e.response.data : JSON.stringify(e.response?.data || "");
+      console.log(`[redes] Pinterest · API Delirius (?${parametro}=) falló: ${ultimoMotivo} ${cuerpo.slice(0, 200)}`);
+    }
   }
+  if (!data) throw new Error(`No pude sacar imágenes de Pinterest (${ultimoMotivo}). Prueba de nuevo en un momento o con el enlace del pin: .pin <enlace>.`);
   if (data?.status === false) throw new Error(data.message || data.error || "La API de Pinterest no respondió bien.");
 
   const lista = Array.isArray(data) ? data : (data?.results || data?.data || data?.result || []);
