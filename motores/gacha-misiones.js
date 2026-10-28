@@ -155,7 +155,7 @@ export async function registrarActividad({ reply, sender, eventos }) {
       completadas.push(...progreso(sender, e.tipo, cantidad, e.categoria).completadas);
       halloween.push(...avanzarHalloween(sender, e));
     }
-    const insignias = revisarInsignias(sender);
+    const insignias = [...revisarInsignias(sender), ...halloween.flatMap((m) => m.insignias || [])];
     if (!completadas.length && !insignias.length && !halloween.length) return;
 
     const partes = [];
@@ -167,12 +167,12 @@ export async function registrarActividad({ reply, sender, eventos }) {
         T("> Cobra tu recompensa con *.misiones cobrar*.", "> Cobra tu botín con *.misiones cobrar*.")
       );
     }
-    if (halloween.length) {
+    if (halloween.some((m) => !m.soloInsignias)) {
       if (partes.length) partes.push("");
       partes.push(
         encabezado("🕯️", "MISIÓN DE HALLOWEEN COMPLETADA"),
         "",
-        ...halloween.map((m) => `> ${arroba(sender)} cumplió *${m.nombre}* (exclusiva de Halloween 2026): +${m.dinero.toLocaleString("en-US")} 🎃${m.fragmentos ? `, +${m.fragmentos} fragmentos` : ""}${m.ticketCat ? `, 1 ticket de ${CAT[m.ticketCat]?.singular || m.ticketCat}` : ""}.`)
+        ...halloween.filter((m) => !m.soloInsignias).map((m) => `> ${arroba(sender)} cumplió *${m.nombre}* (exclusiva de Halloween 2026): +${m.dinero.toLocaleString("en-US")} 🎃${m.fragmentos ? `, +${m.fragmentos} fragmentos` : ""}${m.ticketCat ? `, 1 ticket de ${CAT[m.ticketCat]?.singular || m.ticketCat}` : ""}.`)
       );
     }
     if (insignias.length) {
@@ -180,7 +180,7 @@ export async function registrarActividad({ reply, sender, eventos }) {
       partes.push(
         encabezado("🏅", T("NUEVA INSIGNIA", "NUEVA INSIGNIA DE LA NOCHE")),
         "",
-        ...insignias.map((i) => `> ${arroba(sender)} desbloqueó ${i.emoji} *${i.nombre}*. ${i.desc}`)
+        ...insignias.map((i) => `> ${arroba(sender)} desbloqueó ${i.emoji} *${i.nombre}*. ${i.desc}${i.premioTxt ? ` 🎁 ${i.premioTxt}` : ""}`)
       );
     }
     await reply({ text: partes.join("\n"), mentions: [sender] });

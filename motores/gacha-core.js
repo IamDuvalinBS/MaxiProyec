@@ -17,6 +17,7 @@ import { tipoEs } from "./gacha-pokemon.js";
 import { encabezado } from "../src/economia/estilo.js";
 import { formatTime } from "./ui.js";
 import { renderSnake } from "./gacha-snake.js";
+import { multFragmentos, pityMaximoDe, factorCooldown } from "./gacha-reliquias.js";
 import { TIENE_NIVELES, estrellasTexto, darFragmentos, FRAGMENTOS_POR_RAREZA, NIVEL_INICIAL, statsEfectivas, nivelMaxDe } from "./gacha-niveles.js";
 import { registrarActividad } from "./gacha-misiones.js";
 import { sumarEstadistica } from "./gacha-insignias.js";
@@ -425,7 +426,7 @@ export async function hacerRoll({ categoria, obtener, reply, sender, from, coold
   await revisarMigracion({ sender, from, reply }).catch((e) => console.log("[gacha] migración: " + e.message));
   const cat = CAT[categoria];
   const clave = `roll:${categoria}:${sender}`;
-  const espera = tomarCooldown(clave, cooldownMs);
+  const espera = tomarCooldown(clave, Math.round(cooldownMs * factorCooldown(sender)));
   if (espera > 0) return reply({ text: textoCooldown(espera) });
 
   let exito = false;
@@ -442,7 +443,7 @@ export async function hacerRoll({ categoria, obtener, reply, sender, from, coold
       const extra = [];
       const esMio = duenos.includes(sender);
       if (esMio) {
-        const fr = FRAGMENTOS_POR_RAREZA[personaje.rareza] || 1;
+        const fr = Math.ceil((FRAGMENTOS_POR_RAREZA[personaje.rareza] || 1) * multFragmentos(sender));
         const txtFr = `*${fr}* ${fr === 1 ? "fragmento" : "fragmentos"} de ascensión`;
         extra.push(T(`Ya lo tienes en tu colección. Reclámalo con *${cat.claimCmd}* en *${EXCLUSIVO_MS / 1000}s* y se convertirá en ${txtFr}.`, `Ya está en tu colección embrujada. Reclámalo con *${cat.claimCmd}* en *${EXCLUSIVO_MS / 1000}s* y se convertirá en ${txtFr}.`));
       } else if (duenos.length) {
@@ -454,7 +455,7 @@ export async function hacerRoll({ categoria, obtener, reply, sender, from, coold
 
       if (via === "banner") extra.unshift(T("⭐ *Destacado de la semana.*", "🎃 *Destacado de la semana, bendecido por la luna.*"));
       if (via === "pity") extra.unshift(T(`🍀 *Garantía activada:* rareza ${RAREZA_NOMBRES[PITY_RANGO_MINIMO]} o superior.`, `🍀 *Garantía activada:* los espíritus aseguran rareza ${RAREZA_NOMBRES[PITY_RANGO_MINIMO]} o superior.`));
-      extra.push(T(`Garantía ›› *${pityDespuesDe(sender, categoria, personaje)}/${PITY_TIRADAS}*`, `Garantía de la noche ›› *${pityDespuesDe(sender, categoria, personaje)}/${PITY_TIRADAS}*`));
+      extra.push(T(`Garantía ›› *${pityDespuesDe(sender, categoria, personaje)}/${pityMaximoDe(sender)}*`, `Garantía de la noche ›› *${pityDespuesDe(sender, categoria, personaje)}/${pityMaximoDe(sender)}*`));
 
       try {
         const enviado = await enviarPersonaje({
@@ -514,7 +515,7 @@ export function crearComandoClaim({ categoria, names, desc }) {
       }
       if (resultado === "repetido") {
         cerrarPendiente(r.id);
-        const fragmentos = FRAGMENTOS_POR_RAREZA[p.rareza] || 1;
+        const fragmentos = Math.ceil((FRAGMENTOS_POR_RAREZA[p.rareza] || 1) * multFragmentos(sender));
         darFragmentos(sender, fragmentos);
         return reply({
           text: T(`📦 Ya tienes a *${p.nombre}* en tu colección. Se convirtió en *${fragmentos}* ${fragmentos === 1 ? "fragmento" : "fragmentos"} de ascensión. Úsalos con *.ascender*.`, `📦 *${p.nombre}* ya está en tu colección embrujada. Se convirtió en *${fragmentos}* ${fragmentos === 1 ? "fragmento" : "fragmentos"} de ascensión. Úsalos con *.ascender*.`)

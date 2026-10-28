@@ -200,6 +200,7 @@ else if(id==='hw_fantasma'){s='<circle cx="32" cy="30" r="22" fill="rgba(220,235
 else if(id==='hw_supremo'){s='<text x="3" y="19" font-size="11">🦇</text><text x="50" y="19" font-size="11">🦇</text><circle cx="32" cy="34" r="15" fill="#f4efe0"/><rect x="24" y="41" width="16" height="12" rx="3.5" fill="#f4efe0"/><ellipse cx="26" cy="34" rx="4.3" ry="5.4" fill="#18080a"/><ellipse cx="38" cy="34" rx="4.3" ry="5.4" fill="#18080a"/><circle cx="26" cy="35" r="1.5" fill="#ff7a1a"/><circle cx="38" cy="35" r="1.5" fill="#ff7a1a"/><path d="M32 39 L29.6 44 L34.4 44Z" fill="#18080a"/><path d="M27.5 47 L27.5 53 M32 47 L32 53 M36.5 47 L36.5 53" stroke="#18080a" stroke-width="1.2"/><path d="M19 22 L21 9 L27 16 L32 6 L37 16 L43 9 L45 22Z" fill="#ffd34d" stroke="#b8860b" stroke-width="1"/><circle cx="32" cy="17" r="2" fill="#e0344f"/><circle cx="24" cy="18" r="1.4" fill="#35e0a1"/><circle cx="40" cy="18" r="1.4" fill="#4aa3ff"/>'}
 return s}
 function emblema(b){
+if(!BP[b.id])return '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#241030" stroke="'+(b.tiene?'#ffb020':'#6b5a7a')+'" stroke-width="2.4"/><text x="32" y="43" font-size="30" text-anchor="middle" opacity="'+(b.tiene?1:.4)+'">'+(b.emoji||'🎃')+'</text></svg>';
 var c=BP[b.id]||['#444','#111','#ccc'];
 return '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="url(#g_'+b.id+')" stroke="'+c[2]+'" stroke-width="2.4"/><circle cx="32" cy="32" r="27" fill="none" stroke="'+c[2]+'" stroke-opacity=".35" stroke-width=".8"/>'+glifo(b.id)+'</svg>'}
 function vistaInsignias(){

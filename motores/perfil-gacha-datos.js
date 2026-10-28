@@ -59,7 +59,7 @@ export async function construirDatosPerfil(usuario, { nombre, tabInicial = "todo
     img: imagenes[i]
   }));
 
-  const temporada = TEMPORADA.map((i) => ({ id: i.id, nombre: i.nombre, desc: i.desc, tiene: tieneInsignia(usuario, i.id) }));
+  const temporada = TEMPORADA.map((i) => ({ id: i.id, emoji: i.emoji, nombre: i.nombre, desc: i.desc, tiene: tieneInsignia(usuario, i.id) }));
   const auto = AUTOMATICAS.map((i) => ({ emoji: i.emoji, nombre: i.nombre, desc: i.desc, tiene: tieneInsignia(usuario, i.id) }));
   const exclusivas = listaExclusivas()
     .filter((i) => !i.temporada && tieneInsignia(usuario, i.id))

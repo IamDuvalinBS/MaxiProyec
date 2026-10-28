@@ -31,15 +31,15 @@ export const AUTOMATICAS = [
 export const TEMPORADA_HALLOWEEN = "Halloween 2026";
 
 export const TEMPORADA = [
-  { id: "hw_telarana", emoji: "🕸️", nombre: "Tejedor de Telarañas", desc: "Atrapó la noche entera en una red de seda." },
-  { id: "hw_arana", emoji: "🕷️", nombre: "Reina Araña", desc: "Todas las patas de la oscuridad responden a su llamado." },
-  { id: "hw_zombie", emoji: "🧟", nombre: "Superviviente Zombi", desc: "Se levantó de la tumba y volvió por más personajes." },
-  { id: "hw_frankenstein", emoji: "⚡", nombre: "Criatura de Frankenstein", desc: "Cosida con rayos, tormenta y mucha obstinación." },
-  { id: "hw_bruja", emoji: "🧙‍♀️", nombre: "Gran Bruja", desc: "Su caldero nunca se enfría y su escoba nunca falla." },
-  { id: "hw_hechizo", emoji: "🔮", nombre: "Maestro de Hechizos", desc: "Dibujó el círculo prohibido y lo cerró sin un rasguño." },
-  { id: "hw_calabaza", emoji: "🎃", nombre: "Rey Calabaza", desc: "La cosecha de la noche de brujas se inclina ante él." },
-  { id: "hw_fantasma", emoji: "👻", nombre: "Espíritu Errante", desc: "Nadie lo vio llegar, nadie lo verá partir." },
-  { id: "hw_supremo", emoji: "💀", nombre: "Señor de Halloween", desc: "La insignia suprema de la temporada. Solo una mano la entrega." }
+  { id: "hwi_vigilante", emoji: "🕯️", nombre: "Vigilante de la Noche", desc: "Juega al gacha en 15 días distintos durante el evento." },
+  { id: "hwi_cazador", emoji: "🪦", nombre: "Cazador de Almas", desc: "Reclama 120 personajes durante el evento." },
+  { id: "hwi_invocador", emoji: "🌙", nombre: "Invocador Eterno", desc: "Haz 400 tiradas durante el evento." },
+  { id: "hwi_verdugo", emoji: "🗡️", nombre: "Verdugo de Medianoche", desc: "Gana 50 combates PvP durante el evento." },
+  { id: "hwi_general", emoji: "⚔️", nombre: "General de la Legión", desc: "Gana 20 batallas por equipos durante el evento." },
+  { id: "hwi_cripta", emoji: "🏺", nombre: "Cripta de Leyendas", desc: "Reclama 5 personajes Legendarios o superiores durante el evento." },
+  { id: "hwi_alquimista", emoji: "⚗️", nombre: "Gran Alquimista", desc: "Sube 300 niveles a tus personajes durante el evento." },
+  { id: "hwi_heraldo", emoji: "📜", nombre: "Heraldo Maldito", desc: "Completa 10 misiones exclusivas de Halloween." },
+  { id: "hwi_supremo", emoji: "💀", nombre: "Señor de Halloween", desc: "Consigue las otras 8 insignias de la temporada." }
 ].map((i) => ({ ...i, temporada: TEMPORADA_HALLOWEEN }));
 
 const POR_ID = new Map(AUTOMATICAS.map((i) => [i.id, i]));

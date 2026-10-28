@@ -7,6 +7,8 @@ import {
   PITY_TIRADAS, PITY_RANGO_MINIMO, PROBABILIDAD_BANNER, rangoDeRareza, semilla, claveSemana
 } from "./gacha-config.js";
 
+import { pityMaximoDe, probBannerDe } from "./gacha-reliquias.js";
+
 const cache = new Map();
 
 export async function destacadoDe(categoria) {
@@ -69,7 +71,7 @@ async function garantizado(categoria, usuario) {
 }
 
 export async function elegirConGarantia({ categoria, sender, obtener, previo = null }) {
-  if (pityDe(sender, categoria) >= PITY_TIRADAS - 1) {
+  if (pityDe(sender, categoria) >= pityMaximoDe(sender) - 1) {
     try {
       const p = await garantizado(categoria, sender);
       if (p) return { personaje: p, via: "pity" };
@@ -78,7 +80,7 @@ export async function elegirConGarantia({ categoria, sender, obtener, previo = n
     }
   }
 
-  if (Math.random() < PROBABILIDAD_BANNER) {
+  if (Math.random() < probBannerDe(sender)) {
     try {
       const destacado = await destacadoDe(categoria);
       if (elegibleParaUsuario(destacado, sender, categoria)) return { personaje: destacado, via: "banner" };
