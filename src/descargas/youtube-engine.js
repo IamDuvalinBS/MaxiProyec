@@ -14,6 +14,10 @@ import {
   asegurarAudioCompatibleWhatsApp,
   combinarVideoAudioWhatsApp,
   unirVideoAudioSinReconvertir,
+  descargarATemporal as descargarATemporalSimple,
+  reintentar,
+  errorAmigable,
+  AGENTES,
   LIMITE_VIDEO_WHATSAPP_MB
 } from "./core.js";
 
@@ -472,7 +476,7 @@ async function descargarSegmentado(url, ruta, total) {
   }
 }
 
-async function descargarATemporal(url, ext) {
+async function descargarATemporalUnaVez(url, ext) {
   const tmpPath = path.join(os.tmpdir(), `yt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`);
   try {
     // Un primer pedido de 1 byte dice si el servidor admite pedazos y cuánto pesa el archivo.
@@ -509,6 +513,15 @@ async function descargarATemporal(url, ext) {
   }
 }
 
+// Con reintentos: si el servidor responde 408/429/5xx o corta la conexión, se espera un poco y se vuelve a pedir.
+async function descargarATemporal(url, ext) {
+  try {
+    return await reintentar(() => descargarATemporalUnaVez(url, ext), { intentos: 3, etiqueta: "descarga de YouTube" });
+  } catch (e) {
+    throw errorAmigable(e);
+  }
+}
+
 const PROVEEDORES_AUDIO = [
   { nombre: "Vreden", obtenerUrl: async (link) => { const d = await (await import("@vreden/youtube_scraper")).ytmp3(link); return d?.status && d?.download?.url ? d.download.url : null; } }
 ];
@@ -524,6 +537,47 @@ const PROVEEDORES_VIDEO = [
     obtenerUrl: async (link) => { const d = await (await import("@vreden/youtube_scraper")).ytmp4(link, calidad); return d?.status && d?.download?.url ? d.download.url : null; }
   }))
 ];
+
+// ---------- APIs de terceros (último recurso) ----------
+// Se usan solo cuando yt-dlp, el motor local y Vreden fallaron. Cada plantilla lleva {url}. Se pueden cambiar o ampliar sin tocar
+// el código con las variables YT_API_AUDIO y YT_API_VIDEO (plantillas separadas por coma).
+// OJO: estas direcciones no se pudieron comprobar al escribir esto; si una no existe o cambia, simplemente falla y se salta.
+const APIS_AUDIO = (process.env.YT_API_AUDIO || "https://api.delirius.store/download/ytmp3?url={url},https://api-faa.my.id/faa/ytmp3?url={url}").split(",").map((x) => x.trim()).filter(Boolean);
+const APIS_VIDEO = (process.env.YT_API_VIDEO || "https://api.delirius.store/download/ytmp4?url={url},https://api-faa.my.id/faa/ytmp4?url={url}").split(",").map((x) => x.trim()).filter(Boolean);
+const PRIORIDAD_CLAVES = ["download", "downloadUrl", "download_url", "dl", "url", "link", "mp3", "mp4", "audio", "video", "media"];
+
+function enlacesDeRespuesta(nodo, salida = [], profundidad = 0) {
+  if (nodo == null || profundidad > 6) return salida;
+  if (typeof nodo === "string") { if (/^https?:\/\//i.test(nodo) && !/\.(jpe?g|png|webp|gif)(\?|$)/i.test(nodo)) salida.push(nodo); return salida; }
+  if (Array.isArray(nodo)) { nodo.forEach((x) => enlacesDeRespuesta(x, salida, profundidad + 1)); return salida; }
+  if (typeof nodo === "object") {
+    const orden = (k) => { const i = PRIORIDAD_CLAVES.indexOf(k); return i === -1 ? PRIORIDAD_CLAVES.length : i; };
+    for (const k of Object.keys(nodo).sort((a, b) => orden(a) - orden(b))) {
+      if (/thumb|cover|image|poster|avatar/i.test(k)) continue;
+      enlacesDeRespuesta(nodo[k], salida, profundidad + 1);
+    }
+  }
+  return salida;
+}
+
+async function descargarPorApisExternas(link, tipo) {
+  const plantillas = tipo === "audio" ? APIS_AUDIO : APIS_VIDEO;
+  for (const plantilla of plantillas) {
+    const nombre = plantilla.replace(/^https?:\/\//, "").split("/")[0];
+    try {
+      const { data } = await axios.get(plantilla.replace("{url}", encodeURIComponent(link)), { ...AGENTES, headers: RED.headers, timeout: 45000 });
+      if (data?.status === false || data?.success === false) throw new Error(data?.message || data?.msg || "la API respondió con error");
+      const enlaces = [...new Set(enlacesDeRespuesta(data))].slice(0, 3);
+      if (!enlaces.length) throw new Error("la API no devolvió enlace de descarga");
+      const ruta = await descargarATemporalSimple(enlaces, tipo === "audio" ? "mp3" : "mp4");
+      console.log(`[youtube] ${tipo === "audio" ? "Audio" : "Video"} descargado con la API ${nombre}`);
+      return ruta;
+    } catch (e) {
+      console.log(`[youtube] API ${nombre} falló: ${String(e.response?.status ? `HTTP ${e.response.status}` : e.message).split("\n")[0]}`);
+    }
+  }
+  return null;
+}
 
 // El motor local de respaldo suele fallar con errores técnicos ("No valid URL to decipher") que no le sirven a nadie;
 // si todo falló se muestra un motivo claro. Los motivos útiles (video muy largo) se dejan tal cual.
@@ -603,9 +657,13 @@ async function ejecutarYtdlp(link, formato, extra, tiempoMs = 180000) {
     await execFileAsync("yt-dlp", [
       "--quiet", "--no-warnings", "--no-playlist",
       "--js-runtimes", "node",
-      "--socket-timeout", "20",
-      "--retries", "3",
+      "--socket-timeout", "30",
+      "--retries", "5",
+      "--fragment-retries", "5",
+      "--http-chunk-size", "10M", // pedir el archivo en trozos evita los cortes y el estrangulamiento de YouTube
       "--throttled-rate", "100K", // si YouTube estrangula la velocidad, vuelve a pedir el enlace
+      // Si YouTube pide "confirma que no eres un robot", exporta las cookies a un cookies.txt y define YTDLP_COOKIES con su ruta.
+      ...(process.env.YTDLP_COOKIES && fs.existsSync(process.env.YTDLP_COOKIES) ? ["--cookies", process.env.YTDLP_COOKIES] : []),
       "-f", formato,
       ...extra,
       "-o", path.join(os.tmpdir(), `${base}.%(ext)s`),
@@ -632,18 +690,16 @@ async function ejecutarYtdlp(link, formato, extra, tiempoMs = 180000) {
 async function videoConYtdlp(link, largo = false, duracionSeg = 0) {
   // El tiempo de espera crece con la duración (mínimo 3 min).
   const tiempoMs = Math.max(180000, duracionSeg * 1000);
-  // H264 hasta 720p + AAC (compatible con WhatsApp, sin reconvertir); si no hay, el mp4 con video y audio juntos.
+  // H264 hasta 720p + AAC (compatible con WhatsApp, sin reconvertir). Si YouTube no los ofrece, se baja lo mejor disponible
+  // (hasta 720p) y el formato se arregla al enviar.
   const ruta = await ejecutarYtdlp(
     link,
-    "bv*[vcodec^=avc1][height<=720]+ba[acodec^=mp4a]/b[vcodec^=avc1][height<=720]/b[ext=mp4]",
+    "bv*[vcodec^=avc1][height<=720]+ba[acodec^=mp4a]/b[vcodec^=avc1][height<=720]/bv*[height<=720]+ba/b[height<=720]/b",
     ["--merge-output-format", "mp4"],
     tiempoMs
   );
   const pesoMB = fs.statSync(ruta).size / (1024 * 1024);
-  if (largo || pesoMB > LIMITE_VIDEO_WHATSAPP_MB) {
-    return { ruta, nombre: `youtube-${extraerIdDeLink(link)}.mp4`, pesoMB };
-  }
-  return asegurarVideoCompatibleWhatsApp(ruta); // core.js trabaja sobre el archivo y lo borra al terminar
+  return { ruta, nombre: `youtube-${extraerIdDeLink(link)}.mp4`, pesoMB };
 }
 
 async function audioConYtdlp(link) {
@@ -689,12 +745,15 @@ export async function descargarAudioConProveedores(link) {
     }
   }
 
+  const viaApi = await descargarPorApisExternas(link, "audio");
+  if (viaApi) return asegurarAudioCompatibleWhatsApp(viaApi);
+
   throw new Error(MENSAJE_SIN_SERVICIO);
 }
 
-// Devuelve un Buffer (video normal, hasta LIMITE_VIDEO_WHATSAPP_MB) o, si pesa más, un objeto
-// { ruta, nombre, pesoMB } con el archivo en disco para mandarlo como DOCUMENTO (WhatsApp admite hasta 2GB).
-// Quien reciba el objeto debe borrar `ruta` después de enviarlo.
+// Devuelve { ruta, nombre, pesoMB } con el video en disco (quien lo reciba debe borrar `ruta`) o, solo en el motor local de 360p
+// (videos de hasta ~35 min), un Buffer ya convertido. No decide cómo se manda: youtube.js revisa el formato, lo arregla si hace falta
+// y lo envía como video si cabe o como archivo si pasa el límite de WhatsApp.
 export async function descargarVideoConProveedores(link) {
   const idVideo = extraerIdDeLink(link);
 
@@ -721,17 +780,8 @@ export async function descargarVideoConProveedores(link) {
   }
 
   try {
-    const resultado = await descargarVideoH264Directo(link, largo);
-    if (typeof resultado === "string") {
-      const pesoArchivoMB = fs.statSync(resultado).size / (1024 * 1024);
-      return { ruta: resultado, nombre: `youtube-${idVideo}.mp4`, pesoMB: pesoArchivoMB };
-    }
-    const buffer = resultado;
-    const pesoMB = buffer.length / (1024 * 1024);
-    if (pesoMB <= LIMITE_VIDEO_WHATSAPP_MB) return buffer;
-    const ruta = path.join(os.tmpdir(), `yt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.mp4`);
-    fs.writeFileSync(ruta, buffer);
-    return { ruta, nombre: `youtube-${idVideo}.mp4`, pesoMB };
+    const ruta = await descargarVideoH264Directo(link, true); // true = el resultado queda en disco, no en RAM
+    return { ruta, nombre: `youtube-${idVideo}.mp4`, pesoMB: fs.statSync(ruta).size / (1024 * 1024) };
   } catch (e) {
     console.log(`[youtube] H264 directo no disponible, se usan los proveedores: ${String(e.message).split("\n")[0]}`);
   }
@@ -751,12 +801,8 @@ export async function descargarVideoConProveedores(link) {
       const pesoMB = fs.statSync(rutaTmp).size / (1024 * 1024);
       if (pesoMB < 0.01) throw new Error("el archivo descargado está vacío o es inválido");
       console.log(`[youtube] Video descargado con ${p.nombre} (${pesoMB.toFixed(1)}MB)`);
-
-      if (largo || pesoMB > LIMITE_VIDEO_WHATSAPP_MB) {
-        return { ruta: rutaTmp, nombre: `youtube-${idVideo}.mp4`, pesoMB };
-      }
-      // Se pasa la ruta (no un Buffer): core.js trabaja sobre el archivo y lo borra al terminar.
-      return await asegurarVideoCompatibleWhatsApp(rutaTmp);
+      // Se devuelve la ruta: youtube.js revisa el formato (a veces estos servicios entregan AV1/WebM con extensión .mp4) y lo arregla.
+      return { ruta: rutaTmp, nombre: `youtube-${idVideo}.mp4`, pesoMB };
     } catch (e) {
       console.log(`[youtube] Proveedor ${p.nombre} falló: ${String(e.message).split("\n")[0]}`);
       if (rutaTmp && fs.existsSync(rutaTmp)) {
@@ -767,6 +813,10 @@ export async function descargarVideoConProveedores(link) {
     }
   }
 
+  // Último recurso: APIs de terceros.
+  const viaApi = await descargarPorApisExternas(link, "video");
+  if (viaApi) return { ruta: viaApi, nombre: `youtube-${idVideo}.mp4`, pesoMB: fs.statSync(viaApi).size / (1024 * 1024) };
+
   throw new Error(MENSAJE_SIN_SERVICIO);
 }
-           
+

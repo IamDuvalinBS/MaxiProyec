@@ -9,7 +9,10 @@ import {
   descargarBuffer,
   asegurarVideoCompatibleWhatsApp,
   asegurarImagenCompatibleWhatsApp,
-  LIMITE_VIDEO_WHATSAPP_MB
+  LIMITE_VIDEO_WHATSAPP_MB,
+  AGENTES,
+  esErrorTransitorio,
+  errorAmigable
 } from "./core.js";
 
 export { descargarBuffer, asegurarVideoCompatibleWhatsApp, asegurarImagenCompatibleWhatsApp, LIMITE_VIDEO_WHATSAPP_MB };
@@ -114,10 +117,12 @@ export async function descargarConYtdlp(link, { playlist = false, maxItems = 10 
     "--quiet", "--no-warnings",
     playlist ? "--yes-playlist" : "--no-playlist",
     "-I", `1:${maxItems}`,
-    "--socket-timeout", "20",
-    "--retries", "3",
+    "--socket-timeout", "30",
+    "--retries", "5",
+    "--fragment-retries", "5",
+    "--http-chunk-size", "10M",
     "-N", "4",
-    "--max-filesize", "80M",
+    "--max-filesize", `${Number(process.env.YTDLP_MAX_MB) || 600}M`,
     "-S", "res:720,vcodec:h264",
     "-f", "bv*+ba/b",
     "--merge-output-format", "mp4"
@@ -128,7 +133,7 @@ export async function descargarConYtdlp(link, { playlist = false, maxItems = 10 
 
   await esperarTurno();
   try {
-    await execFileAsync("yt-dlp", args, { timeout: 150000, killSignal: "SIGKILL", maxBuffer: 1024 * 1024 });
+    await execFileAsync("yt-dlp", args, { timeout: 300000, killSignal: "SIGKILL", maxBuffer: 1024 * 1024 });
   } catch (e) {
     borrarPrefijo(base);
     const crudo = String(e.stderr || e.message || "").trim().split("\n").filter(Boolean).pop() || "error desconocido";
@@ -335,43 +340,95 @@ function camposTikTok(v, enlace) {
   ];
 }
 
+// Pide algo a tikwm. Reintenta si responde 408/429/5xx, se corta la conexión o dice que va muy rápido (1 petición por segundo).
 async function pedirTikwm(ruta, params, metodo = "GET", base = TIKWM) {
+  let ultimo = null;
   for (let intento = 0; intento < 3; intento++) {
-    const { data } = metodo === "POST"
-      ? await axios.post(`${base}${ruta}`, new URLSearchParams(params).toString(), {
-          headers: { ...cabecerasTikwm(base), "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8" },
-          timeout: 20000
-        })
-      : await axios.get(`${base}${ruta}`, { params, headers: cabecerasTikwm(base), timeout: 20000 });
+    try {
+      const { data } = metodo === "POST"
+        ? await axios.post(`${base}${ruta}`, new URLSearchParams(params).toString(), {
+            ...AGENTES,
+            headers: { ...cabecerasTikwm(base), "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8" },
+            timeout: 25000
+          })
+        : await axios.get(`${base}${ruta}`, { ...AGENTES, params, headers: cabecerasTikwm(base), timeout: 25000 });
 
-    if (data?.code === 0 && data.data) return data.data;
-    if (/limit/i.test(String(data?.msg))) { await pausa(1300); continue; } // la API gratuita permite 1 petición por segundo
-    throw new Error(data?.msg || "TikTok no devolvió datos.");
+      if (data?.code === 0 && data.data) return data.data;
+      if (/limit/i.test(String(data?.msg))) { ultimo = new Error("TikTok limitó las peticiones, intenta de nuevo en unos segundos."); await pausa(1400); continue; }
+      throw new Error(data?.msg || "TikTok no devolvió datos."); // video privado, borrado, etc.: no tiene caso reintentar
+    } catch (e) {
+      ultimo = e;
+      if (!esErrorTransitorio(e)) throw e;
+      console.log(`[redes] tikwm ${ruta} (${base.replace("https://", "")}) falló: ${String(e.response?.status ? `HTTP ${e.response.status}` : e.message).split("\n")[0]}; reintento ${intento + 1}/2`);
+      await pausa(1200 * (intento + 1));
+    }
   }
-  throw new Error("TikTok limitó las peticiones, intenta de nuevo en unos segundos.");
+  throw errorAmigable(ultimo || new Error("TikTok no respondió."));
+}
+
+// Enlaces del video (sin marca de agua): "play" (H264) primero y "hdplay" de respaldo. Si el CDN de uno da 408/403, se usa el otro.
+function enlacesVideoTikTok(v) {
+  return [...new Set([v.play, v.hdplay].filter(Boolean).map(absoluta))];
+}
+const tituloTikTok = (v, id) => recortar(v.title, 50) || (v.author?.unique_id ? `tiktok-${v.author.unique_id}` : `tiktok-${id || Date.now()}`);
+function videoTikTok(v, enlace) {
+  const urls = enlacesVideoTikTok(v);
+  return { type: "video", url: urls[0], urls, titulo: tituloTikTok(v, v.id || v.video_id), campos: camposTikTok(v, enlace) };
+}
+
+// Respaldo con btch-downloader (ya está en package.json). Tolera cambios en la forma de la respuesta.
+function enlacesDe(valor, salida = []) {
+  if (!valor) return salida;
+  if (typeof valor === "string") { if (/^https?:\/\//i.test(valor)) salida.push(valor); }
+  else if (Array.isArray(valor)) valor.forEach((x) => enlacesDe(x, salida));
+  else if (typeof valor === "object") Object.values(valor).forEach((x) => enlacesDe(x, salida));
+  return salida;
+}
+async function tiktokConBtch(link) {
+  const modulo = await import("btch-downloader");
+  const ttdl = modulo.ttdl || modulo.default?.ttdl;
+  if (typeof ttdl !== "function") throw new Error("btch-downloader no incluye ttdl");
+  const r = await Promise.race([ttdl(link), pausa(30000).then(() => { throw new Error("btch-downloader no respondió en 30s"); })]);
+  const urls = enlacesDe(r?.video ?? r?.result?.video ?? r?.data?.video).filter((u) => !/\.(jpe?g|png|webp)(\?|$)/i.test(u));
+  if (!urls.length) throw new Error("btch-downloader no devolvió video");
+  return [{ type: "video", url: urls[0], urls: [...new Set(urls)].slice(0, 3), titulo: recortar(r?.title, 50) || "tiktok", campos: [["💭", "Título", recortar(r?.title, 120)], ["🔗", "Link del video", link]] }];
 }
 
 // Acepta videos, fotos (slideshows) e historias. Prefiere "play" (H264, más ligero) antes que "hdplay" (suele ser HEVC y pesa más).
 async function _obtenerMediaTikTok(link) {
   let errorApi = null;
-  try {
-    const info = await pedirTikwm("/api/", { url: link });
-    anotar("tikwm");
-    if (info.images?.length) {
-      return info.images.slice(0, 10).map((u, i) => ({ type: "image", url: absoluta(u), campos: i === 0 ? camposTikTok(info, link) : undefined }));
+
+  // 1) tikwm (dos dominios). Es rápido y devuelve video, fotos e historias.
+  for (const base of [TIKWM, "https://tikwm.com"]) {
+    try {
+      const info = await pedirTikwm("/api/", { url: link, hd: 1 }, "GET", base);
+      anotar(`tikwm${base === TIKWM ? "" : " (dominio alterno)"}`);
+      if (info.images?.length) {
+        return info.images.slice(0, 10).map((u, i) => ({ type: "image", url: absoluta(u), campos: i === 0 ? camposTikTok(info, link) : undefined }));
+      }
+      if (!enlacesVideoTikTok(info).length) throw new Error("No se encontro el video de ese TikTok.");
+      return [videoTikTok(info, link)];
+    } catch (e) {
+      errorApi = errorApi || e;
+      console.log(`[redes] tikwm (${base.replace("https://", "")}) falló para ${link}: ${String(e.message).split("\n")[0]}`);
+      if (/private|privado|not exist|removed|deleted|unavailable/i.test(String(e.message))) break; // no es culpa del servicio
     }
-    const url = absoluta(info.play || info.hdplay);
-    if (!url) throw new Error("No se encontro el video de ese TikTok.");
-    return [{ type: "video", url, campos: camposTikTok(info, link) }];
-  } catch (e) {
-    errorApi = e;
-    console.log(`[redes] tikwm falló para ${link}: ${e.message}`);
   }
 
+  // 2) btch-downloader
+  try {
+    const r = await tiktokConBtch(link);
+    anotar("btch-downloader");
+    return r;
+  } catch (e) {
+    console.log(`[redes] btch-downloader falló: ${String(e.message).split("\n")[0]}`);
+  }
+
+  // 3) yt-dlp
   if (await hayYtdlp()) {
     try { return await ytdlpMedias(link); } catch (e) { /* se informa el error de la API */ }
   }
-  throw errorApi;
+  throw errorApi || new Error("No se pudo obtener ese TikTok.");
 }
 
 // La búsqueda de tikwm a veces responde 403 según el método o el dominio: se prueban las 4 variantes y se recuerda la que sirve.
@@ -415,11 +472,10 @@ export async function buscarCuentaTikTok(entrada, cantidad) {
       const lista = (data.videos || [])
         .filter((v) => v.play || v.hdplay)
         .slice(0, cantidad + 3)
-        .map((v) => ({
-          type: "video",
-          url: absoluta(v.play || v.hdplay),
-          campos: camposTikTok({ ...v, author: v.author || { unique_id: usuario } }, enlaceDeVideoTikTok({ ...v, author: v.author || { unique_id: usuario } }) || `https://www.tiktok.com/@${usuario}`)
-        }));
+        .map((v) => {
+          const completo = { ...v, author: v.author || { unique_id: usuario } };
+          return videoTikTok(completo, enlaceDeVideoTikTok(completo) || `https://www.tiktok.com/@${usuario}`);
+        });
       if (lista.length) return lista;
       fallos.push(`${metodo} ${base.replace("https://", "")}: sin videos`);
       break; // respondió bien pero la cuenta no tiene videos públicos
@@ -486,7 +542,7 @@ export async function buscarTikTok(consulta, cantidad) {
     const lista = (data.videos || [])
       .filter((v) => v.play || v.hdplay)
       .slice(0, cantidad + 3) // unos extra por si alguno pesa demasiado
-      .map((v) => ({ type: "video", url: absoluta(v.play || v.hdplay), campos: camposTikTok(v, enlaceDeVideoTikTok(v)) }));
+      .map((v) => videoTikTok(v, enlaceDeVideoTikTok(v)));
     if (lista.length) return lista;
   } catch (e) {
     errorApi = e;
@@ -754,11 +810,14 @@ export async function buscarInstagram(consulta, cantidad) {
 }
 
 // ───────────────────────── Pinterest ─────────────────────────
+// .pin saca IMÁGENES (y videos de pines que lo sean) con varias fuentes en cascada: si una está bloqueada desde tu conexión
+// (Pinterest suele dar 403 a servidores), pasa a la siguiente. Cada línea de consola dice qué fuente funcionó.
+//
 // Pinterest responde 403 a las peticiones sin la cookie y el encabezado csrftoken: se obtienen visitando la portada.
 let sesionPinterest = null;
 async function obtenerSesionPinterest() {
   if (sesionPinterest && sesionPinterest.expira > Date.now()) return sesionPinterest;
-  const r = await axios.get("https://www.pinterest.com/", { headers: HEADERS, timeout: 15000, validateStatus: () => true });
+  const r = await axios.get("https://www.pinterest.com/", { ...AGENTES, headers: CABECERAS_NAVEGADOR, timeout: 15000, validateStatus: () => true });
   const cookies = (r.headers?.["set-cookie"] || []).map((c) => c.split(";")[0]);
   const csrf = cookies.find((c) => c.startsWith("csrftoken="))?.split("=")[1] || null;
   sesionPinterest = { cookie: cookies.join("; "), csrf, expira: Date.now() + 20 * 60 * 1000 };
@@ -769,10 +828,12 @@ async function pinterestApi(recurso, sourceUrl, datos, reintento = true) {
   const sesion = await obtenerSesionPinterest().catch(() => ({ cookie: "", csrf: null }));
   try {
     const { data } = await axios.get(`https://www.pinterest.com/resource/${recurso}/get/`, {
+      ...AGENTES,
       params: { source_url: sourceUrl, data: JSON.stringify(datos) },
       headers: {
         ...HEADERS,
         Accept: "application/json, text/javascript, */*, q=0.01",
+        "Accept-Language": "es-MX,es;q=0.9,en;q=0.8",
         "X-Requested-With": "XMLHttpRequest",
         "X-Pinterest-AppState": "active",
         "X-Pinterest-Source-Url": sourceUrl,
@@ -782,13 +843,28 @@ async function pinterestApi(recurso, sourceUrl, datos, reintento = true) {
       },
       timeout: 20000
     });
-    return data?.resource_response?.data;
+    const respuesta = data?.resource_response?.data;
+    if (!respuesta) throw new Error("Pinterest respondió sin datos");
+    return respuesta;
   } catch (e) {
     sesionPinterest = null; // la próxima vez se pide una sesión nueva
-    if (reintento && /403|401|429/.test(String(e.message))) return pinterestApi(recurso, sourceUrl, datos, false);
+    if (reintento && esErrorTransitorio(e) || reintento && /403|401/.test(String(e.message))) return pinterestApi(recurso, sourceUrl, datos, false);
     throw e;
   }
 }
+
+// ── Utilidades de imágenes de Pinterest ──
+// Una imagen de pinimg.com existe en varios tamaños con la misma ruta. Se intenta primero la de mayor calidad y se baja de
+// escalón si esa no existe (así nunca se manda una miniatura si hay una grande disponible).
+const TAMANOS_PIN = ["originals", "1200x", "736x", "564x", "474x"];
+function variantesPinimg(url) {
+  const m = String(url).match(/^(https:\/\/i\.pinimg\.com\/)(originals|\d+x\d*(?:_RS)?)(\/.+)$/i);
+  if (!m) return [url];
+  return [...new Set([...TAMANOS_PIN.map((t) => `${m[1]}${t}${m[3]}`), url])];
+}
+const idImagenPin = (url) => String(url).split("/").pop().split(".")[0].split("?")[0];
+const esPinimg = (url) => /^https:\/\/i\.pinimg\.com\//i.test(String(url));
+const imagenPin = (url) => ({ type: "image", url: variantesPinimg(url)[0], urls: variantesPinimg(url) });
 
 function elegirVideoPinterest(videos) {
   const entradas = Object.values(videos?.video_list || {}).filter((v) => v?.url);
@@ -800,43 +876,19 @@ function elegirVideoPinterest(videos) {
   return entradas.find((v) => /\.m3u8/i.test(v.url))?.url || null; // envio.js sabe bajar HLS con ffmpeg
 }
 
-function mediaDePin(pin) {
-  const video = elegirVideoPinterest(pin?.videos);
-  if (video) return { type: "video", url: video };
-  const imagen = pin?.images?.orig?.url || pin?.images?.["736x"]?.url || pin?.images?.["474x"]?.url;
-  return imagen ? { type: "image", url: imagen } : null;
+function urlImagenDePin(pin) {
+  return pin?.images?.orig?.url || pin?.images?.["1200x"]?.url || pin?.images?.["736x"]?.url || pin?.images?.["564x"]?.url || pin?.images?.["474x"]?.url || null;
 }
 
-async function _obtenerMediaPinterest(link) {
-  let destino = link;
-  if (/pin\.it/i.test(link)) {
-    try {
-      const r = await axios.get(link, { headers: HEADERS, timeout: 15000, maxRedirects: 5 });
-      destino = r.request?.res?.responseUrl || link;
-    } catch (e) { /* se intenta con el enlace original */ }
+function mediaDePin(pin, { soloImagen = false } = {}) {
+  if (!soloImagen) {
+    const video = elegirVideoPinterest(pin?.videos || pin?.story_pin_data?.pages?.[0]?.blocks?.[0]?.video?.video_list && { video_list: pin.story_pin_data.pages[0].blocks[0].video.video_list });
+    if (video) return { type: "video", url: video };
   }
-
-  const id = destino.match(/\/pin\/(?:[\w-]+--)?(\d+)/)?.[1];
-  if (id) {
-    try {
-      const pin = await pinterestApi("PinResource", `/pin/${id}/`, { options: { id, field_set_key: "detailed" }, context: {} });
-      const media = mediaDePin(pin);
-      if (media) { anotar("API de Pinterest"); return [media]; }
-    } catch (e) {
-      console.log(`[redes] API de Pinterest falló: ${e.message}`);
-    }
-  }
-
-  // Respaldo: leer las etiquetas og: de la página.
-  const { data: html } = await axios.get(destino, { headers: HEADERS, timeout: 15000 });
-  const video = html.match(/<meta property="og:video" content="([^"]+)"/);
-  const imagen = html.match(/<meta property="og:image" content="([^"]+)"/);
-  if (video) { anotar("og:meta de Pinterest"); return [{ type: "video", url: video[1] }]; }
-  if (imagen) { anotar("og:meta de Pinterest"); return [{ type: "image", url: imagen[1] }]; }
-  throw new Error("No se pudo encontrar imagen ni video en ese pin.");
+  const imagen = urlImagenDePin(pin);
+  return imagen ? imagenPin(imagen) : null;
 }
 
-// Página pública de búsqueda (la misma que ve un navegador sin iniciar sesión): se sacan las imágenes de su contenido.
 const CABECERAS_NAVEGADOR = {
   "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
   Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
@@ -847,34 +899,13 @@ const CABECERAS_NAVEGADOR = {
   "Sec-Fetch-Site": "none"
 };
 
-async function imagenesPinterestHtml(consulta, maximo) {
-  const { data: html } = await axios.get("https://www.pinterest.com/search/pins/", {
-    params: { q: consulta, rs: "typed" },
-    headers: CABECERAS_NAVEGADOR,
-    timeout: 20000,
-    maxContentLength: 8 * 1024 * 1024
-  });
-  const texto = String(html).replace(/\\u002F/g, "/").replace(/\\\//g, "/");
-  const vistos = new Set();
-  const urls = [];
-  // Solo tamaños de pin (los avatares y miniaturas pequeñas se descartan).
-  for (const m of texto.matchAll(/https:\/\/i\.pinimg\.com\/(?:originals|1200x|736x|564x|474x)\/[\w\/]+?\.(?:jpg|jpeg|png|webp)/gi)) {
-    const clave = m[0].split("/").pop().split(".")[0]; // el nombre del archivo identifica al pin aunque cambie el tamaño
-    if (vistos.has(clave)) continue;
-    vistos.add(clave);
-    urls.push(m[0]);
-    if (urls.length >= maximo) break;
-  }
-  return urls;
-}
-
-// gallery-dl (opcional): herramienta local que lee Pinterest por su cuenta. Instalación: pip install -U gallery-dl
+// ── gallery-dl (opcional): herramienta local que lee Pinterest por su cuenta. Instalación: pip install -U gallery-dl ──
 let galleryDlDisponible = null;
-async function enlacesConGalleryDl(consulta, maximo) {
+async function enlacesConGalleryDl(url, maximo) {
   if (galleryDlDisponible === false) return [];
   await esperarTurno(); // comparte la fila con yt-dlp: un proceso pesado a la vez
   try {
-    const args = ["-g", "--range", `1-${maximo}`, `https://www.pinterest.com/search/pins/?q=${encodeURIComponent(consulta)}`];
+    const args = ["-g", "--range", `1-${maximo}`, url];
     if (process.env.YTDLP_COOKIES && fs.existsSync(process.env.YTDLP_COOKIES)) args.unshift("--cookies", process.env.YTDLP_COOKIES);
     const { stdout } = await execFileAsync("gallery-dl", args, { timeout: 60000, killSignal: "SIGKILL", maxBuffer: 1024 * 1024 });
     return stdout.split("\n").map((l) => l.trim().replace(/^\|\s*/, "")).filter((l) => /^https?:\/\//i.test(l));
@@ -891,99 +922,205 @@ async function enlacesConGalleryDl(consulta, maximo) {
   }
 }
 
-// Videos primero; si no alcanzan, se completa con imágenes.
-export async function buscarPinterest(consulta, cantidad) {
-  const errores = [];
-  const buscar = async (scope) => {
-    const r = await pinterestApi(
-      "BaseSearchResource",
-      `/search/${scope}/?q=${encodeURIComponent(consulta)}&rs=typed`,
-      { options: { query: consulta, scope, rs: "typed", bookmarks: [] }, context: {} }
-    ).catch((e) => { console.log(`[redes] Búsqueda de Pinterest (${scope}) falló: ${e.message}`); errores.push(e); return null; });
-    return (r?.results || []).map((pin) => ({ id: pin.id, media: mediaDePin(pin) })).filter((x) => x.media);
-  };
+// ───────────── Un pin por enlace ─────────────
+function sacarDeHtmlPin(html) {
+  const texto = String(html).replace(/\\u002F/g, "/").replace(/\\\//g, "/");
 
-  const medias = [];
-  const vistos = new Set();
-  const agregar = (lista, tipo) => {
-    for (const x of lista) {
-      if (medias.length >= cantidad + 3) break;
-      if (x.media.type !== tipo || vistos.has(x.id)) continue;
-      vistos.add(x.id);
-      medias.push(x.media);
-    }
-  };
-
-  const videos = await buscar("videos");
-  agregar(videos, "video");
-  if (medias.length < cantidad) {
-    const pines = await buscar("pins");
-    agregar(pines, "video");
-    agregar(pines, "image");
+  // Video: la página lista las calidades (V_720P, V_EXP7…) como archivos .mp4 en v1.pinimg.com
+  const mp4 = [...new Set([...texto.matchAll(/https:\/\/v\d*\.pinimg\.com\/videos\/[^"'\\\s<>]+?\.mp4/gi)].map((m) => m[0]))];
+  if (mp4.length) {
+    const altura = (u) => Number(u.match(/\/(\d{3,4})p\//)?.[1] || 0);
+    mp4.sort((a, b) => altura(b) - altura(a));
+    return { type: "video", url: mp4.find((u) => altura(u) <= 720) || mp4[0] };
   }
-  if (!medias.length && errores.length >= 2) {
-    // Respaldo 1: la página pública de búsqueda, leída como lo haría un navegador.
+
+  // Imagen: la del og:image es la del pin (la primera "originals" del HTML también suele serlo).
+  const og =
+    texto.match(/<meta[^>]+(?:property|name)="og:image"[^>]+content="([^"]+)"/i)?.[1] ||
+    texto.match(/<meta[^>]+content="([^"]+)"[^>]+(?:property|name)="og:image"/i)?.[1];
+  const original = texto.match(/https:\/\/i\.pinimg\.com\/originals\/[\w\/]+?\.(?:jpg|jpeg|png|webp|gif)/i)?.[0];
+  const imagen = [og, original].find((u) => u && esPinimg(decodificarEntidades(u)));
+  return imagen ? imagenPin(decodificarEntidades(imagen)) : null;
+}
+
+async function _obtenerMediaPinterest(link) {
+  let destino = link;
+  if (/pin\.it/i.test(link)) {
     try {
-      for (const url of await imagenesPinterestHtml(consulta, cantidad + 3)) medias.push({ type: "image", url });
-      if (medias.length) anotar("página de búsqueda");
-      else console.log("[redes] Página de Pinterest: no se encontraron imágenes en el HTML");
+      const r = await axios.get(link, { ...AGENTES, headers: CABECERAS_NAVEGADOR, timeout: 15000, maxRedirects: 5 });
+      destino = r.request?.res?.responseUrl || r.request?._redirectable?._currentUrl || link;
+    } catch (e) { /* se intenta con el enlace original */ }
+  }
+  const id = destino.match(/\/pin\/(?:[\w-]+--)?(\d+)/)?.[1];
+
+  // 1) API interna de Pinterest (da todos los tamaños y los videos).
+  if (id) {
+    try {
+      const pin = await pinterestApi("PinResource", `/pin/${id}/`, { options: { id, field_set_key: "detailed" }, context: {} });
+      const media = mediaDePin(pin);
+      if (media) { anotar("API de Pinterest"); return [media]; }
     } catch (e) {
-      console.log(`[redes] Página de Pinterest falló: ${String(e.message).replace("Request failed with status code ", "HTTP ")}`);
-    }
-
-    // Respaldo 2: gallery-dl (si está instalado).
-    if (!medias.length) {
-      for (const url of await enlacesConGalleryDl(consulta, cantidad + 3)) {
-        if (medias.length >= cantidad + 3) break;
-        medias.push({ type: /\.(mp4|m3u8)(\?|$)/i.test(url) ? "video" : "image", url });
-      }
-      if (medias.length) anotar("gallery-dl");
-    }
-
-    // Respaldo: APIs de terceros (las mismas del otro bot).
-    const q = encodeURIComponent(consulta);
-    const apis = [
-      ["StellarWA", `https://api.stellarwa.xyz/search/pinterest?query=${q}&key=${KEY_STELLAR}`, (r) => r.data?.data || r.data],
-      ["Api Causas", `https://rest.apicausas.xyz/api/v1/buscadores/pinterest?apikey=${KEY_CAUSAS}&q=${q}`, (r) => r.data]
-    ];
-    for (const [nombre, url, sacar] of apis) {
-      if (medias.length) break; // ya hubo resultados
-      try {
-        const { data } = await axios.get(url, { headers: HEADERS, timeout: 20000 });
-        for (const item of sacar(data) || []) {
-          const img = item.hd || item.image || item.image_small;
-          if (img && medias.length < cantidad + 3) medias.push({ type: "image", url: img });
-        }
-        if (!medias.length) console.log(`[redes] ${nombre} (búsqueda Pinterest): sin resultados`);
-      } catch (e) {
-        console.log(`[redes] ${nombre} (búsqueda Pinterest) falló: ${String(e.message).replace("Request failed with status code ", "HTTP ")}`);
-      }
-    }
-
-    // Último recurso sin clave: Bing Imágenes limitado a pinterest.com (devuelve las imágenes originales de i.pinimg.com).
-    if (!medias.length) {
-      try {
-        const { data: html } = await axios.get("https://www.bing.com/images/search", {
-          params: { q: `site:pinterest.com ${consulta}`, form: "HDRSC2", first: 1 },
-          headers: HEADERS,
-          timeout: 20000
-        });
-        const vistos = new Set();
-        for (const m of String(html).matchAll(/murl&quot;:&quot;(https?:[^&]+?)&quot;/g)) {
-          const url = m[1];
-          if (!/pinimg\.com/i.test(url) || vistos.has(url)) continue;
-          vistos.add(url);
-          if (medias.length < cantidad + 3) medias.push({ type: "image", url });
-        }
-        if (medias.length) anotar("Bing Imágenes");
-        else console.log("[redes] Bing Imágenes (Pinterest): sin resultados de pinimg.com");
-      } catch (e) {
-        console.log(`[redes] Bing Imágenes (Pinterest) falló: ${String(e.message).replace("Request failed with status code ", "HTTP ")}`);
-      }
+      console.log(`[redes] API de Pinterest falló: ${String(e.message).split("\n")[0]}`);
     }
   }
-  if (!medias.length && errores.length >= 2) {
-    throw new Error("Pinterest bloqueó la búsqueda desde esta conexión (HTTP 403). Envía el enlace del pin con .pin <enlace>.");
+
+  // 2) La página del pin, leída como un navegador y, si no, como el robot de Pinterest.
+  const identidades = [CABECERAS_NAVEGADOR, { ...CABECERAS_NAVEGADOR, "User-Agent": "Mozilla/5.0 (compatible; Pinterestbot/1.0; +http://www.pinterest.com/bot.html)" }];
+  for (const cabeceras of identidades) {
+    try {
+      const { data: html } = await axios.get(destino, { ...AGENTES, headers: cabeceras, timeout: 20000, maxRedirects: 5 });
+      const media = sacarDeHtmlPin(html);
+      if (media) { anotar("página del pin"); return [media]; }
+    } catch (e) {
+      console.log(`[redes] Página del pin falló: ${String(e.message).replace("Request failed with status code ", "HTTP ")}`);
+    }
+  }
+
+  // 3) yt-dlp (videos) y gallery-dl (imágenes), si están instalados.
+  if (await hayYtdlp()) {
+    try { return await ytdlpMedias(destino); } catch (e) { /* se prueba lo siguiente */ }
+  }
+  const enlaces = (await enlacesConGalleryDl(destino, 1)).filter((u) => /pinimg\.com/i.test(u));
+  if (enlaces.length) {
+    anotar("gallery-dl");
+    return enlaces.slice(0, 1).map((u) => (/\.(mp4|m3u8)(\?|$)/i.test(u) ? { type: "video", url: u } : esPinimg(u) ? imagenPin(u) : { type: "image", url: u }));
+  }
+  throw new Error("No se pudo encontrar imagen ni video en ese pin (puede ser privado o Pinterest bloqueó esta conexión).");
+}
+
+// ───────────── Búsqueda de imágenes ─────────────
+// Fuente 1: la API interna de Pinterest (la mejor: trae pines reales con todos los tamaños).
+async function imagenesApiPinterest(consulta, maximo) {
+  const r = await pinterestApi(
+    "BaseSearchResource",
+    `/search/pins/?q=${encodeURIComponent(consulta)}&rs=typed`,
+    { options: { query: consulta, scope: "pins", rs: "typed", bookmarks: [] }, context: {} }
+  );
+  return (r?.results || [])
+    .filter((pin) => !pin.videos && !pin.story_pin_data) // los pines de video se quedan fuera: aquí se buscan imágenes
+    .map(urlImagenDePin)
+    .filter(Boolean)
+    .slice(0, maximo);
+}
+
+// Fuente 2: la página pública de búsqueda (lo mismo que ve un navegador sin sesión).
+async function imagenesPinterestHtml(consulta, maximo) {
+  const { data: html } = await axios.get("https://www.pinterest.com/search/pins/", {
+    ...AGENTES,
+    params: { q: consulta, rs: "typed" },
+    headers: CABECERAS_NAVEGADOR,
+    timeout: 20000,
+    maxContentLength: 8 * 1024 * 1024
+  });
+  const texto = String(html).replace(/\\u002F/g, "/").replace(/\\\//g, "/");
+  const urls = [];
+  // Solo tamaños de pin (avatares y miniaturas diminutas como /75x75_RS/ no coinciden).
+  for (const m of texto.matchAll(/https:\/\/i\.pinimg\.com\/(?:originals|1200x|736x|564x|474x|236x)\/[\w\/]+?\.(?:jpg|jpeg|png|webp)/gi)) urls.push(m[0]);
+  return urls.slice(0, maximo * 3);
+}
+
+// Fuente 3: Bing Imágenes limitado a pinterest.com (devuelve las imágenes de i.pinimg.com sin necesidad de claves).
+async function imagenesBing(consulta, maximo) {
+  const { data: html } = await axios.get("https://www.bing.com/images/search", {
+    ...AGENTES,
+    params: { q: `site:pinterest.com ${consulta}`, form: "HDRSC2", first: 1, count: 35, setlang: "es" },
+    headers: { ...CABECERAS_NAVEGADOR, "Sec-Fetch-Dest": "document" },
+    timeout: 20000
+  });
+  const urls = [];
+  for (const m of String(html).matchAll(/murl&quot;:&quot;(https?:[^&]+?)&quot;/g)) urls.push(decodificarEntidades(m[1]));
+  return urls.filter(esPinimg).slice(0, maximo * 3);
+}
+
+// Fuente 4: DuckDuckGo Imágenes (pide primero un código "vqd" y luego la lista).
+async function imagenesDuckDuckGo(consulta, maximo) {
+  const q = `site:pinterest.com ${consulta}`;
+  const { data: portada } = await axios.get("https://duckduckgo.com/", {
+    ...AGENTES,
+    params: { q, iax: "images", ia: "images" },
+    headers: CABECERAS_NAVEGADOR,
+    timeout: 15000
+  });
+  const vqd = String(portada).match(/vqd=["']?([\d-]+)["']?/)?.[1];
+  if (!vqd) throw new Error("DuckDuckGo no entregó el código de búsqueda");
+  const { data } = await axios.get("https://duckduckgo.com/i.js", {
+    ...AGENTES,
+    params: { l: "us-en", o: "json", q, vqd, f: ",,,,,", p: "1" },
+    headers: { ...HEADERS, Referer: "https://duckduckgo.com/", Accept: "application/json, text/javascript, */*; q=0.01", "X-Requested-With": "XMLHttpRequest" },
+    timeout: 15000
+  });
+  return (data?.results || []).map((r) => r.image).filter(esPinimg).slice(0, maximo * 3);
+}
+
+// Fuente 5: gallery-dl (si está instalado).
+async function imagenesGalleryDl(consulta, maximo) {
+  const urls = await enlacesConGalleryDl(`https://www.pinterest.com/search/pins/?q=${encodeURIComponent(consulta)}`, maximo + 3);
+  return urls.filter((u) => /pinimg\.com/i.test(u));
+}
+
+// Fuente 6: APIs de terceros (las mismas del otro bot).
+async function imagenesApisTerceros(consulta, maximo) {
+  const q = encodeURIComponent(consulta);
+  const apis = [
+    ["StellarWA", `https://api.stellarwa.xyz/search/pinterest?query=${q}&key=${KEY_STELLAR}`, (r) => r.data?.data || r.data],
+    ["Api Causas", `https://rest.apicausas.xyz/api/v1/buscadores/pinterest?apikey=${KEY_CAUSAS}&q=${q}`, (r) => r.data]
+  ];
+  for (const [nombre, url, sacar] of apis) {
+    try {
+      const { data } = await axios.get(url, { ...AGENTES, headers: HEADERS, timeout: 20000 });
+      const urls = (sacar(data) || []).map((item) => item.hd || item.image || item.image_small || (typeof item === "string" ? item : null)).filter(Boolean);
+      if (urls.length) return urls.slice(0, maximo * 3);
+      console.log(`[redes] ${nombre} (búsqueda Pinterest): sin resultados`);
+    } catch (e) {
+      console.log(`[redes] ${nombre} (búsqueda Pinterest) falló: ${String(e.message).replace("Request failed with status code ", "HTTP ")}`);
+    }
+  }
+  return [];
+}
+
+const FUENTES_PINTEREST = [
+  ["API de Pinterest", imagenesApiPinterest],
+  ["página de búsqueda", imagenesPinterestHtml],
+  ["Bing Imágenes", imagenesBing],
+  ["DuckDuckGo Imágenes", imagenesDuckDuckGo],
+  ["gallery-dl", imagenesGalleryDl],
+  ["APIs de terceros", imagenesApisTerceros]
+];
+
+// Devuelve imágenes (hasta cantidad + 3, por si alguna no se puede bajar). Se recorren las fuentes en orden hasta juntar suficientes.
+export async function buscarPinterest(consulta, cantidad) {
+  const meta = cantidad + 3;
+  const vistos = new Set();
+  const medias = [];
+  const usadas = [];
+  const fallos = [];
+
+  for (const [nombre, fuente] of FUENTES_PINTEREST) {
+    if (medias.length >= meta) break;
+    try {
+      const urls = await fuente(consulta, meta);
+      let nuevas = 0;
+      for (const url of urls) {
+        const clave = idImagenPin(url);
+        if (!clave || vistos.has(clave) || medias.length >= meta) continue;
+        vistos.add(clave);
+        medias.push(esPinimg(url) ? imagenPin(url) : { type: "image", url });
+        nuevas++;
+      }
+      console.log(`[redes] Pinterest · ${nombre}: ${urls.length} imágenes, ${nuevas} nuevas para "${consulta}"`);
+      if (nuevas) usadas.push(nombre);
+    } catch (e) {
+      const motivo = String(e.response?.status ? `HTTP ${e.response.status}` : e.message).split("\n")[0];
+      fallos.push(`${nombre}: ${motivo}`);
+      console.log(`[redes] Pinterest · ${nombre} falló: ${motivo}`);
+    }
+  }
+
+  if (usadas.length) anotar(usadas.join(" + "));
+  if (!medias.length) {
+    throw new Error(fallos.length
+      ? `No pude sacar imágenes de Pinterest (${fallos.slice(0, 3).join("; ")}). Prueba con otras palabras o con el enlace del pin: .pin <enlace>.`
+      : "No encontré imágenes en Pinterest para esa búsqueda. Prueba con otras palabras.");
   }
   return medias;
 }
@@ -1119,6 +1256,10 @@ export async function diagnosticarRedes() {
     );
     return `${(r?.results || []).length} resultados`;
   });
+
+  for (const [nombre, fuente] of FUENTES_PINTEREST) {
+    await probar(`Pinterest imágenes · ${nombre}`, async () => `${(await fuente("gatos", 5)).length} imágenes`);
+  }
 
   await probar("Búsqueda completa de TikTok (.tt mambo)", async () => {
     const medias = await buscarTikTok("mambo", 2);

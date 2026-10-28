@@ -1,11 +1,10 @@
 import { enviarLote } from "./envio.js";
 import { tarjetaDescarga, tarjetaUso, tarjetaError, tarjetaAviso, campo } from "./tarjetas.js";
-import { LIMITE_VIDEO_WHATSAPP_MB } from "./core.js";
+import { LIMITE_VIDEO_WHATSAPP_MB, LIMITE_DOCUMENTO_MB } from "./core.js";
 import { reenviarCacheado, guardarMedioEnviado } from "../../motores/cache-medios.js";
 
 const CANTIDAD_POR_DEFECTO = 5;
 const CANTIDAD_MAXIMA = 10;
-const LIMITE_VIDEO_BUSQUEDA_MB = 30; // en búsquedas se omiten videos muy pesados para que el lote salga rápido
 
 // Una sola búsqueda a la vez en todo el bot (cuida la RAM, el disco y los datos del teléfono).
 let BUSQUEDA_EN_CURSO = false;
@@ -128,8 +127,8 @@ export function crearComandoRed({
         if (r.enviados === 0) {
           return reply({
             text: r.omitidos > 0
-              ? tarjetaAviso("ARCHIVO MUY PESADO", `El contenido supera el límite de WhatsApp (${LIMITE_VIDEO_WHATSAPP_MB} MB). Se omitió.`)
-              : tarjetaError("No se pudo enviar el contenido.")
+              ? tarjetaAviso("ARCHIVO MUY PESADO", `El contenido pesa más de lo que WhatsApp admite como archivo (${LIMITE_DOCUMENTO_MB} MB). Se omitió.`)
+              : tarjetaError("No se pudo enviar el contenido.", r.ultimoError)
           });
         }
 
@@ -187,17 +186,17 @@ export function crearComandoRed({
           from,
           msg,
           objetivo: cantidad,
-          limiteMB: Math.min(LIMITE_VIDEO_BUSQUEDA_MB, LIMITE_VIDEO_WHATSAPP_MB)
+          limiteMB: LIMITE_VIDEO_WHATSAPP_MB // lo que pase de ahí se manda como .zip
         });
 
         console.log(`[${titulo}] búsqueda "${consulta}": ${r.enviados} enviados, ${r.fallidos} fallidos, ${r.omitidos} omitidos · total ${((Date.now() - inicioBusqueda) / 1000).toFixed(1)}s`);
 
         if (r.enviados === 0) {
-          return reply({ text: tarjetaError("Encontré resultados, pero no se pudo descargar ninguno. Intenta de nuevo en unos minutos.") });
+          return reply({ text: tarjetaError("Encontré resultados, pero no se pudo descargar ninguno. Intenta de nuevo en unos minutos.", r.ultimoError) });
         }
         if (r.enviados < cantidad) {
           await reply({
-            text: tarjetaAviso("RESULTADOS", `Solo se pudieron enviar ${r.enviados} de ${cantidad} (algunos pesaban demasiado o no estaban disponibles).`)
+            text: tarjetaAviso("RESULTADOS", `Solo se pudieron enviar ${r.enviados} de ${cantidad} (algunos no estaban disponibles o fallaron al descargarse).`)
           }).catch(() => {});
         }
       } finally {

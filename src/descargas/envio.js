@@ -3,7 +3,15 @@ import os from "os";
 import path from "path";
 import { execFile } from "child_process";
 import { promisify } from "util";
-import { descargarATemporal, asegurarImagenCompatibleWhatsApp, LIMITE_VIDEO_WHATSAPP_MB } from "./core.js";
+import {
+  descargarATemporal,
+  asegurarImagenCompatibleWhatsApp,
+  empaquetarEnZip,
+  esErrorTransitorio,
+  errorAmigable,
+  LIMITE_VIDEO_WHATSAPP_MB,
+  LIMITE_DOCUMENTO_MB
+} from "./core.js";
 import { prepararVideoEnDisco } from "./video.js";
 import { tarjetaAviso, tarjetaError } from "./tarjetas.js";
 import { delayAleatorio } from "../../motores/antiban.js";
@@ -34,33 +42,55 @@ async function descargarHls(url) {
 
 async function obtenerArchivo(media) {
   if (media.ruta) return media.ruta;
-  if (/\.m3u8(\?|$)/i.test(media.url)) return descargarHls(media.url);
-  return descargarATemporal(media.url, media.type === "video" ? "mp4" : "img");
+  const urls = (media.urls?.length ? media.urls : [media.url]).filter(Boolean);
+  if (!urls.length) throw new Error("El resultado no trae enlace de descarga.");
+  if (/\.m3u8(\?|$)/i.test(urls[0])) return descargarHls(urls[0]);
+  return descargarATemporal(urls, media.type === "video" ? "mp4" : "img");
 }
 
-// Deja el media listo para WhatsApp. Devuelve { omitido } si pesa demasiado.
+const borrar = (ruta) => { try { if (ruta && fs.existsSync(ruta)) fs.unlinkSync(ruta); } catch (e) {} };
+
+// Deja el media listo para WhatsApp.
+//  - Video hasta `limiteMB`: se revisa/arregla el formato y va como video normal.
+//  - Video más grande: va como .zip (documento), sin preguntar. WhatsApp admite documentos de hasta ~2 GB.
+//  - Solo se omite (`omitido`) si ni siquiera como documento cabe.
 async function prepararMedia(media, limiteMB) {
   let ruta = await obtenerArchivo(media);
   try {
     if (media.type === "video") {
       const pesoMB = fs.statSync(ruta).size / (1024 * 1024);
-      if (pesoMB > limiteMB) return { omitido: `pesa ${pesoMB.toFixed(1)} MB` };
+      if (pesoMB > LIMITE_DOCUMENTO_MB) return { omitido: `pesa ${pesoMB.toFixed(0)} MB, más de lo que admite WhatsApp como archivo (${LIMITE_DOCUMENTO_MB} MB)` };
+      if (pesoMB > limiteMB) {
+        console.log(`[envio] Video de ${pesoMB.toFixed(1)} MB (límite de video ${limiteMB} MB): se manda como .zip`);
+        const zip = await empaquetarEnZip(ruta, media.titulo || "video");
+        return {
+          type: "document",
+          ruta: zip.ruta,
+          nombre: zip.nombre,
+          mimetype: "application/zip",
+          limpiar: () => borrar(zip.ruta),
+          caption: media.caption,
+          pesoMB
+        };
+      }
       const preparado = await prepararVideoEnDisco(ruta);
       ruta = null; // prepararVideoEnDisco se encarga del archivo original
-      return { type: "video", ruta: preparado.ruta, limpiar: preparado.limpiar, caption: media.caption };
+      return { type: "video", ruta: preparado.ruta, limpiar: preparado.limpiar, caption: media.caption, titulo: media.titulo };
     }
     const buffer = await asegurarImagenCompatibleWhatsApp(ruta);
     ruta = null;
     return { type: "image", buffer, caption: media.caption };
   } finally {
-    if (ruta && fs.existsSync(ruta)) { try { fs.unlinkSync(ruta); } catch (e) {} }
+    if (ruta) borrar(ruta);
   }
 }
 
 const contenidoMensaje = (p) =>
-  p.type === "video"
-    ? { video: { url: p.ruta }, mimetype: "video/mp4", ...(p.caption ? { caption: p.caption } : {}) }
-    : { image: p.buffer, mimetype: "image/jpeg", ...(p.caption ? { caption: p.caption } : {}) };
+  p.type === "document"
+    ? { document: { url: p.ruta }, mimetype: p.mimetype, fileName: p.nombre, ...(p.caption ? { caption: p.caption } : {}) }
+    : p.type === "video"
+      ? { video: { url: p.ruta }, mimetype: "video/mp4", ...(p.caption ? { caption: p.caption } : {}) }
+      : { image: p.buffer, mimetype: "image/jpeg", ...(p.caption ? { caption: p.caption } : {}) };
 
 const contenidoAlbum = (p) =>
   p.type === "video"
@@ -97,25 +127,61 @@ async function mandarAlbum(sock, from, contenidos, msg) {
   return album;
 }
 
-// Envía ya preparados: todos juntos como álbum si son 2 o más; si el álbum falla, uno por uno con pausas cortas.
-async function enviarPreparados(aEnviar, reply, { sock, from, msg }, res) {
+// Si WhatsApp tarda en confirmar (408 / "Timed Out") o se corta la conexión mientras sube, se espera y se intenta una vez más.
+export async function enviarConReintento(reply, contenido) {
   try {
-    if (aEnviar.length >= 2 && sock && from) {
+    return await reply(contenido);
+  } catch (e) {
+    if (!esErrorTransitorio(e) && !/timed out|time-out|connection closed|rate-overlimit/i.test(String(e?.message))) throw e;
+    console.log(`[envio] Falló el envío (${String(e.message).split("\n")[0]}); se reintenta en 5s`);
+    await delayAleatorio(4500, 6000);
+    return reply(contenido);
+  }
+}
+
+// Envía un archivo. Si un video no sube (típico en archivos grandes), se prueba como .zip antes de rendirse.
+async function enviarUno(p, reply) {
+  try {
+    return await enviarConReintento(reply, contenidoMensaje(p));
+  } catch (e) {
+    if (p.type !== "video") throw e;
+    console.log(`[envio] El video no subió (${String(e.message).split("\n")[0]}); se prueba como .zip`);
+    const zip = await empaquetarEnZip(p.ruta, p.titulo || "video");
+    try {
+      return await enviarConReintento(reply, contenidoMensaje({ type: "document", ruta: zip.ruta, nombre: zip.nombre, mimetype: "application/zip", caption: p.caption }));
+    } catch (e2) {
+      throw e;
+    } finally {
+      borrar(zip.ruta);
+    }
+  }
+}
+
+// Envía ya preparados: fotos/videos juntos como álbum si son 2 o más (si el álbum falla, uno por uno con pausas cortas);
+// los documentos (.zip de videos pesados) no pueden ir en álbum: salen aparte, uno por uno.
+async function enviarPreparados(aEnviar, reply, { sock, from, msg }, res) {
+  const documentos = aEnviar.filter((p) => p.type === "document");
+  const visuales = aEnviar.filter((p) => p.type !== "document");
+  try {
+    let hechosAlbum = false;
+    if (visuales.length >= 2 && sock && from) {
       try {
-        await mandarAlbum(sock, from, aEnviar.map(contenidoAlbum), msg);
-        res.enviados += aEnviar.length;
-        return;
+        await mandarAlbum(sock, from, visuales.map(contenidoAlbum), msg);
+        res.enviados += visuales.length;
+        hechosAlbum = true;
       } catch (e) {
         console.log(`[envio] El álbum falló (${String(e.message).split("\n")[0]}); se envían uno por uno`);
       }
     }
-    for (let i = 0; i < aEnviar.length; i++) {
+    const individuales = [...(hechosAlbum ? [] : visuales), ...documentos];
+    for (let i = 0; i < individuales.length; i++) {
       if (i > 0) await delayAleatorio(500, 1400);
       try {
-        res.ultimo = (await reply(contenidoMensaje(aEnviar[i]))) || true;
+        res.ultimo = (await enviarUno(individuales[i], reply)) || true;
         res.enviados++;
       } catch (e) {
         res.fallidos++;
+        res.ultimoError = errorAmigable(e).message;
         console.log(`[envio] No se pudo enviar un archivo: ${String(e.message).split("\n")[0]}`);
       }
     }
@@ -131,15 +197,12 @@ export async function enviarMedia(media, reply) {
   const p = await prepararMedia(media, LIMITE_VIDEO_WHATSAPP_MB);
   if (p.omitido) {
     await reply({
-      text: tarjetaAviso(
-        "ARCHIVO MUY PESADO",
-        `El video ${p.omitido} y supera el límite de WhatsApp (${LIMITE_VIDEO_WHATSAPP_MB} MB). Se omitió.`
-      )
+      text: tarjetaAviso("ARCHIVO MUY PESADO", `El video ${p.omitido}. Se omitió.`)
     });
     return false;
   }
   try {
-    return (await reply(contenidoMensaje(p))) || true;
+    return (await enviarUno(p, reply)) || true;
   } finally {
     liberar(p);
   }
@@ -163,7 +226,7 @@ export async function enviarMedias(medias, reply) {
 // opciones: { sock, from, msg, objetivo, limiteMB }
 export async function enviarLote(medias, reply, opciones = {}) {
   const { sock, from, msg, objetivo = Infinity, limiteMB = LIMITE_VIDEO_WHATSAPP_MB } = opciones;
-  const res = { enviados: 0, omitidos: 0, fallidos: 0, ultimo: null };
+  const res = { enviados: 0, omitidos: 0, fallidos: 0, ultimo: null, ultimoError: null };
 
   if (medias.some((m) => m.resolver)) {
     await enviarSecuencial(medias, reply, objetivo, limiteMB, res, { sock, from, msg });
