@@ -1,4 +1,5 @@
 import { obtenerBase } from "./db.js";
+import { guardarGachaPendiente } from "./gacha-db.js";
 
 export function contarComando(nombre) {
   const base = obtenerBase();
@@ -109,4 +110,9 @@ export async function estadisticasGrupo(grupo, limite = 10) {
   };
 }
 
-for (const senal of ["SIGINT", "SIGTERM"]) process.once(senal, () => { guardarContadores().finally(() => process.exit(0)); });
+for (const senal of ["SIGINT", "SIGTERM"]) {
+  process.once(senal, () => {
+    const tope = new Promise((r) => setTimeout(r, 6000).unref());
+    Promise.race([Promise.allSettled([guardarContadores(), guardarGachaPendiente()]), tope]).finally(() => process.exit(0));
+  });
+}

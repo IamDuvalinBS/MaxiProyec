@@ -440,7 +440,12 @@ export async function hacerRoll({ categoria, obtener, reply, sender, from, coold
       const duenos = propietarios(personaje.id);
       const mentions = [sender];
       const extra = [];
-      if (duenos.length) {
+      const esMio = duenos.includes(sender);
+      if (esMio) {
+        const fr = FRAGMENTOS_POR_RAREZA[personaje.rareza] || 1;
+        const txtFr = `*${fr}* ${fr === 1 ? "fragmento" : "fragmentos"} de ascensión`;
+        extra.push(T(`Ya lo tienes en tu colección. Reclámalo con *${cat.claimCmd}* en *${EXCLUSIVO_MS / 1000}s* y se convertirá en ${txtFr}.`, `Ya está en tu colección embrujada. Reclámalo con *${cat.claimCmd}* en *${EXCLUSIVO_MS / 1000}s* y se convertirá en ${txtFr}.`));
+      } else if (duenos.length) {
         extra.push(T(`Ya lo reclamó *${arroba(duenos[0])}*.`, `Ya lo capturó *${arroba(duenos[0])}*.`));
         mentions.push(duenos[0]);
       } else {
@@ -456,7 +461,7 @@ export async function hacerRoll({ categoria, obtener, reply, sender, from, coold
           reply, personaje, titulo, lineasExtra: extra, mentions,
           permitirSinImagen: intento === INTENTOS - 1
         });
-        if (!duenos.length && enviado?.key?.id) registrarPendiente(enviado.key.id, from, personaje, sender);
+        if ((!duenos.length || esMio) && enviado?.key?.id) registrarPendiente(enviado.key.id, from, personaje, sender);
         exito = true;
         registrarTirada(sender, categoria, personaje);
         if (sorteoTicket(sender, categoria)) {
