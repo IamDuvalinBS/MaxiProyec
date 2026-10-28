@@ -988,140 +988,52 @@ async function _obtenerMediaPinterest(link) {
   throw new Error("No se pudo encontrar imagen ni video en ese pin (puede ser privado o Pinterest bloqueó esta conexión).");
 }
 
-// ───────────── Búsqueda de imágenes ─────────────
-// Fuente 1: la API interna de Pinterest (la mejor: trae pines reales con todos los tamaños).
-async function imagenesApiPinterest(consulta, maximo) {
-  const r = await pinterestApi(
-    "BaseSearchResource",
-    `/search/pins/?q=${encodeURIComponent(consulta)}&rs=typed`,
-    { options: { query: consulta, scope: "pins", rs: "typed", bookmarks: [] }, context: {} }
-  );
-  return (r?.results || [])
-    .filter((pin) => !pin.videos && !pin.story_pin_data) // los pines de video se quedan fuera: aquí se buscan imágenes
-    .map(urlImagenDePin)
-    .filter(Boolean)
-    .slice(0, maximo);
-}
+// ───────────── Búsqueda de imágenes (API de Delirius) ─────────────
+const API_PINTEREST_BUSQUEDA = "https://api.delirius.online/search/pinterestv2";
 
-// Fuente 2: la página pública de búsqueda (lo mismo que ve un navegador sin sesión).
-async function imagenesPinterestHtml(consulta, maximo) {
-  const { data: html } = await axios.get("https://www.pinterest.com/search/pins/", {
-    ...AGENTES,
-    params: { q: consulta, rs: "typed" },
-    headers: CABECERAS_NAVEGADOR,
-    timeout: 20000,
-    maxContentLength: 8 * 1024 * 1024
-  });
-  const texto = String(html).replace(/\\u002F/g, "/").replace(/\\\//g, "/");
-  const urls = [];
-  // Solo tamaños de pin (avatares y miniaturas diminutas como /75x75_RS/ no coinciden).
-  for (const m of texto.matchAll(/https:\/\/i\.pinimg\.com\/(?:originals|1200x|736x|564x|474x|236x)\/[\w\/]+?\.(?:jpg|jpeg|png|webp)/gi)) urls.push(m[0]);
-  return urls.slice(0, maximo * 3);
-}
-
-// Fuente 3: Bing Imágenes limitado a pinterest.com (devuelve las imágenes de i.pinimg.com sin necesidad de claves).
-async function imagenesBing(consulta, maximo) {
-  const { data: html } = await axios.get("https://www.bing.com/images/search", {
-    ...AGENTES,
-    params: { q: `site:pinterest.com ${consulta}`, form: "HDRSC2", first: 1, count: 35, setlang: "es" },
-    headers: { ...CABECERAS_NAVEGADOR, "Sec-Fetch-Dest": "document" },
-    timeout: 20000
-  });
-  const urls = [];
-  for (const m of String(html).matchAll(/murl&quot;:&quot;(https?:[^&]+?)&quot;/g)) urls.push(decodificarEntidades(m[1]));
-  return urls.filter(esPinimg).slice(0, maximo * 3);
-}
-
-// Fuente 4: DuckDuckGo Imágenes (pide primero un código "vqd" y luego la lista).
-async function imagenesDuckDuckGo(consulta, maximo) {
-  const q = `site:pinterest.com ${consulta}`;
-  const { data: portada } = await axios.get("https://duckduckgo.com/", {
-    ...AGENTES,
-    params: { q, iax: "images", ia: "images" },
-    headers: CABECERAS_NAVEGADOR,
-    timeout: 15000
-  });
-  const vqd = String(portada).match(/vqd=["']?([\d-]+)["']?/)?.[1];
-  if (!vqd) throw new Error("DuckDuckGo no entregó el código de búsqueda");
-  const { data } = await axios.get("https://duckduckgo.com/i.js", {
-    ...AGENTES,
-    params: { l: "us-en", o: "json", q, vqd, f: ",,,,,", p: "1" },
-    headers: { ...HEADERS, Referer: "https://duckduckgo.com/", Accept: "application/json, text/javascript, */*; q=0.01", "X-Requested-With": "XMLHttpRequest" },
-    timeout: 15000
-  });
-  return (data?.results || []).map((r) => r.image).filter(esPinimg).slice(0, maximo * 3);
-}
-
-// Fuente 5: gallery-dl (si está instalado).
-async function imagenesGalleryDl(consulta, maximo) {
-  const urls = await enlacesConGalleryDl(`https://www.pinterest.com/search/pins/?q=${encodeURIComponent(consulta)}`, maximo + 3);
-  return urls.filter((u) => /pinimg\.com/i.test(u));
-}
-
-// Fuente 6: APIs de terceros (las mismas del otro bot).
-async function imagenesApisTerceros(consulta, maximo) {
-  const q = encodeURIComponent(consulta);
-  const apis = [
-    ["StellarWA", `https://api.stellarwa.xyz/search/pinterest?query=${q}&key=${KEY_STELLAR}`, (r) => r.data?.data || r.data],
-    ["Api Causas", `https://rest.apicausas.xyz/api/v1/buscadores/pinterest?apikey=${KEY_CAUSAS}&q=${q}`, (r) => r.data]
+function urlDeResultadoPinterest(item) {
+  if (typeof item === "string") return item;
+  if (!item || typeof item !== "object") return null;
+  const candidatos = [
+    item.hd, item.image, item.imagen, item.img, item.url_image, item.image_url, item.thumbnail,
+    item.images?.orig?.url, item.images?.["736x"]?.url, item.media, item.pin, item.url
   ];
-  for (const [nombre, url, sacar] of apis) {
-    try {
-      const { data } = await axios.get(url, { ...AGENTES, headers: HEADERS, timeout: 20000 });
-      const urls = (sacar(data) || []).map((item) => item.hd || item.image || item.image_small || (typeof item === "string" ? item : null)).filter(Boolean);
-      if (urls.length) return urls.slice(0, maximo * 3);
-      console.log(`[redes] ${nombre} (búsqueda Pinterest): sin resultados`);
-    } catch (e) {
-      console.log(`[redes] ${nombre} (búsqueda Pinterest) falló: ${String(e.message).replace("Request failed with status code ", "HTTP ")}`);
-    }
-  }
-  return [];
+  return candidatos.find((u) => typeof u === "string" && /^https?:\/\//i.test(u)) || null;
 }
 
-const FUENTES_PINTEREST = [
-  ["API de Pinterest", imagenesApiPinterest],
-  ["página de búsqueda", imagenesPinterestHtml],
-  ["Bing Imágenes", imagenesBing],
-  ["DuckDuckGo Imágenes", imagenesDuckDuckGo],
-  ["gallery-dl", imagenesGalleryDl],
-  ["APIs de terceros", imagenesApisTerceros]
-];
-
-// Devuelve imágenes (hasta cantidad + 3, por si alguna no se puede bajar). Se recorren las fuentes en orden hasta juntar suficientes.
+// Devuelve imágenes (hasta cantidad + 3, por si alguna no se puede bajar).
 export async function buscarPinterest(consulta, cantidad) {
   const meta = cantidad + 3;
+  let data;
+  try {
+    ({ data } = await axios.get(API_PINTEREST_BUSQUEDA, {
+      ...AGENTES,
+      params: { text: consulta },
+      headers: HEADERS,
+      timeout: 25000
+    }));
+  } catch (e) {
+    const motivo = String(e.response?.status ? `HTTP ${e.response.status}` : e.message).split("\n")[0];
+    console.log(`[redes] Pinterest · API Delirius falló: ${motivo}`);
+    throw new Error(`No pude sacar imágenes de Pinterest (${motivo}). Prueba de nuevo en un momento o con el enlace del pin: .pin <enlace>.`);
+  }
+  if (data?.status === false) throw new Error(data.message || data.error || "La API de Pinterest no respondió bien.");
+
+  const lista = Array.isArray(data) ? data : (data?.results || data?.data || data?.result || []);
   const vistos = new Set();
   const medias = [];
-  const usadas = [];
-  const fallos = [];
-
-  for (const [nombre, fuente] of FUENTES_PINTEREST) {
+  for (const item of Array.isArray(lista) ? lista : []) {
+    const url = urlDeResultadoPinterest(item);
+    const clave = url && idImagenPin(url);
+    if (!clave || vistos.has(clave)) continue;
+    vistos.add(clave);
+    medias.push(/\.(mp4|m3u8)(\?|$)/i.test(url) ? { type: "video", url } : esPinimg(url) ? imagenPin(url) : { type: "image", url });
     if (medias.length >= meta) break;
-    try {
-      const urls = await fuente(consulta, meta);
-      let nuevas = 0;
-      for (const url of urls) {
-        const clave = idImagenPin(url);
-        if (!clave || vistos.has(clave) || medias.length >= meta) continue;
-        vistos.add(clave);
-        medias.push(esPinimg(url) ? imagenPin(url) : { type: "image", url });
-        nuevas++;
-      }
-      console.log(`[redes] Pinterest · ${nombre}: ${urls.length} imágenes, ${nuevas} nuevas para "${consulta}"`);
-      if (nuevas) usadas.push(nombre);
-    } catch (e) {
-      const motivo = String(e.response?.status ? `HTTP ${e.response.status}` : e.message).split("\n")[0];
-      fallos.push(`${nombre}: ${motivo}`);
-      console.log(`[redes] Pinterest · ${nombre} falló: ${motivo}`);
-    }
   }
 
-  if (usadas.length) anotar(usadas.join(" + "));
-  if (!medias.length) {
-    throw new Error(fallos.length
-      ? `No pude sacar imágenes de Pinterest (${fallos.slice(0, 3).join("; ")}). Prueba con otras palabras o con el enlace del pin: .pin <enlace>.`
-      : "No encontré imágenes en Pinterest para esa búsqueda. Prueba con otras palabras.");
-  }
+  console.log(`[redes] Pinterest · API Delirius: ${medias.length} imágenes para "${consulta}"`);
+  if (!medias.length) throw new Error("No encontré imágenes en Pinterest para esa búsqueda. Prueba con otras palabras.");
+  anotar("API de Delirius");
   return medias;
 }
 
@@ -1248,18 +1160,7 @@ export async function diagnosticarRedes() {
     const ses = await obtenerSesionPinterest();
     return ses.csrf ? "csrftoken obtenido" : "sin csrftoken";
   });
-  await probar("Pinterest búsqueda", async () => {
-    const r = await pinterestApi(
-      "BaseSearchResource",
-      "/search/videos/?q=gatos&rs=typed",
-      { options: { query: "gatos", scope: "videos", rs: "typed", bookmarks: [] }, context: {} }
-    );
-    return `${(r?.results || []).length} resultados`;
-  });
-
-  for (const [nombre, fuente] of FUENTES_PINTEREST) {
-    await probar(`Pinterest imágenes · ${nombre}`, async () => `${(await fuente("gatos", 5)).length} imágenes`);
-  }
+  await probar("Pinterest búsqueda (API Delirius)", async () => `${(await buscarPinterest("gatos", 2)).length} imágenes`);
 
   await probar("Búsqueda completa de TikTok (.tt mambo)", async () => {
     const medias = await buscarTikTok("mambo", 2);
