@@ -12,3 +12,4 @@ database/
 bot.log
 firebase-key.json
 .env
+perfiles/
