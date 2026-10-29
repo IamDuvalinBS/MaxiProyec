@@ -21,7 +21,7 @@ const ALBUMES_A_MOSTRAR = 3;
 // Solo se baja un álbum a la vez: cuida la RAM y el procesador del teléfono.
 let ALBUM_EN_CURSO = false;
 
-async function enviarAlbum({ sock, from, msg, album }) {
+export async function enviarAlbum({ sock, from, msg, album }) {
   const responder = (contenido) => sock.sendMessage(from, contenido, { quoted: msg });
   const claveCache = `yt:album:${album.id}`;
 
@@ -359,3 +359,4 @@ export default {
     });
   }
 };
+    
