@@ -259,7 +259,17 @@ function desenvolverMensaje(contenido) {
 function puedeResponderEnGrupo(sock, grupo) {
   const principal = ajustesDe(grupo).principal;
   if (!principal || !sock.user || !sock.user.id) return true;
-  return sock.user.id.split(":")[0].split("@")[0] === String(principal);
+  const propios = [sock.user.id, sock.user.lid].filter(Boolean).map((j) => String(j).split(":")[0].split("@")[0]);
+  return propios.includes(String(principal));
+}
+
+// ¿El texto es .setprimary / .botprincipal? Acepta cualquier prefijo configurado y espacios tras él (". setprimary").
+// Es lo único que un bot que NO es el principal sigue escuchando en el grupo, para poder cambiarlo o quitarlo.
+function esSetPrimary(texto) {
+  const prefijos = (config.prefixes && config.prefixes.length) ? config.prefixes : [config.prefix || "."];
+  const t = String(texto || "").trim();
+  const prefijo = [...prefijos].sort((a, b) => b.length - a.length).find((p) => t.startsWith(p));
+  return Boolean(prefijo) && /^\s*(?:setprimary|botprincipal)\b/i.test(t.slice(prefijo.length));
 }
 
 function enlazarEventos(sock, esSub) {
@@ -302,8 +312,9 @@ function enlazarEventos(sock, esSub) {
   async function procesarMensaje(m, msg) {
     if (!msg.message) return;
     if (msg.key.remoteJid.endsWith("@g.us") && !puedeResponderEnGrupo(sock, msg.key.remoteJid)) {
-      const crudo = msg.message.conversation || (msg.message.extendedTextMessage && msg.message.extendedTextMessage.text) || "";
-      if (esSub || !/^\s*\S{0,3}setprimary\b/i.test(crudo)) return;
+      const interno = desenvolverMensaje(msg.message);
+      const crudo = interno.conversation || interno.extendedTextMessage?.text || interno.imageMessage?.caption || "";
+      if (!esSetPrimary(crudo)) return;
     }
     if (!(await reclamarMensaje(msg, esSub))) return;
     if (m.type === "notify" && !msg.key.fromMe) PAG.msgsHoy++;
