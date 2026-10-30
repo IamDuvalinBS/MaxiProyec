@@ -37,17 +37,17 @@ export default {
   usage: ".resetesperas [@usuario | responder a su mensaje | número]",
   desc: "Reiniciar las esperas de economía y las tiradas de todos los gachas, de todos o de un usuario (solo owner)",
   category: "Owner",
-  handler: ownerCommand(async ({ reply, msg, cleanText }) => {
+    handler: ownerCommand(async ({ reply, msg, cleanText }) => {
     const E = estilo(ESTILOS);
     let objetivo = jidObjetivo(msg);
-if (!objetivo) {
-  const numero = cleanText.split(/\s+/).slice(1).map((p) => p.replace(/\D/g, "")).find((n) => n.length >= 8);
-  if (numero) objetivo = `${numero}@s.whatsapp.net`;
-}
-const claves = [...new Set([...CLAVES_ECONOMIA, ...trabajosRegistrados.keys()])];
-const cuentas = reiniciarEsperas(claves, objetivo);
-const tiradas = reiniciarCooldownsGacha(objetivo);
-limpiarEnfriamientos(objetivo);
+    if (!objetivo) {
+      const numero = cleanText.split(/\s+/).slice(1).map((p) => p.replace(/\D/g, "")).find((n) => n.length >= 8);
+      if (numero) objetivo = `${numero}@s.whatsapp.net`;
+    }
+    const claves = [...new Set([...CLAVES_ECONOMIA, ...trabajosRegistrados.keys()])];
+    const cuentas = reiniciarEsperas(claves, objetivo);
+    const tiradas = reiniciarCooldownsGacha(objetivo);
+    limpiarEnfriamientos(objetivo);
 
     await reply({
       text: tarjeta({
@@ -59,3 +59,5 @@ limpiarEnfriamientos(objetivo);
       }),
       ...(objetivo ? { mentions: [objetivo] } : {})
     });
+  })
+};
