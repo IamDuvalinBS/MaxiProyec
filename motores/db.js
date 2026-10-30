@@ -543,6 +543,9 @@ export function reiniciarEsperas(claves, jid = null) {
   for (const [sender, acc] of accounts) {
     if (destino && sender !== destino) continue;
     if (!acc.cooldowns) continue;
+    let cambio = false;
+    for (const clave of claves) {
+      if (clave in acc.cooldowns) {
         delete acc.cooldowns[clave];
         cambio = true;
       }
