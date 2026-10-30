@@ -28,6 +28,18 @@ body.h .bats{display:block}
 .bar i{display:block;height:100%;border-radius:5px}
 .rar{display:flex;flex-wrap:wrap;gap:5px;margin:10px 0 12px}
 .rc{font-size:11px;font-weight:900;padding:3px 9px;border-radius:20px;color:#fff;background:var(--c);border:2px solid var(--bd);text-shadow:0 1px 2px rgba(0,0,0,.5)}
+.rc.sl{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;padding:5px 13px;background:linear-gradient(135deg,#ffd43b,#ff8a1f);color:#2a1500;text-shadow:none;border:2.5px solid var(--bd);box-shadow:0 3px 0 var(--bd),0 0 14px #ffb300;cursor:pointer;animation:lat 1.6s ease-in-out infinite}
+.rc.sl.on{background:var(--card);color:var(--ink);animation:none;box-shadow:0 3px 0 var(--bd)}
+.rc.sl:active{transform:translateY(2px)}
+@keyframes lat{0%,100%{transform:scale(1);box-shadow:0 3px 0 var(--bd),0 0 8px #ffb300}50%{transform:scale(1.07);box-shadow:0 3px 0 var(--bd),0 0 20px #ffd43b}}
+.sec{display:none;background:var(--card);border:3px solid var(--bd);border-radius:20px;box-shadow:0 5px 0 var(--bd),0 0 22px var(--glow);padding:16px 14px;margin-bottom:14px;text-align:center}
+.sec.on{display:block}
+.sec .num{font-size:46px;font-weight:900;line-height:1.1;color:var(--acc)}
+.sec h3{font-size:17px;font-weight:900;margin-bottom:2px}
+.sec ul{list-style:none;text-align:left;margin:12px 0;font-size:12px;line-height:1.6;color:var(--mut)}
+.sec li{margin-bottom:6px;padding:7px 10px;border-radius:12px;background:var(--soft)}
+.sec li b{color:var(--ink)}
+.sec .bk{width:100%;height:38px;border-radius:19px;background:var(--btn);color:var(--btnt);font-size:13px;font-weight:900;border:2.5px solid var(--bd);box-shadow:0 3px 0 var(--bd)}
 .det{position:relative;background:var(--card);border:3px solid var(--bd);border-radius:20px;overflow:hidden;box-shadow:0 5px 0 var(--bd),0 0 22px var(--glow);margin-bottom:14px}
 .hero{position:relative;padding:14px 10px 12px;text-align:center;overflow:hidden}
 .hero .wb{opacity:.7;width:80px;height:80px}
@@ -92,10 +104,11 @@ body.h .ara{display:block}
 <div class="res"><div class="v"><small>Valor total</small><b id="val"></b></div><div class="d"><small id="regl">Registrados</small><b id="pt"></b></div></div>
 <div class="bar"><i id="pb"></i></div>
 <div class="rar" id="rar"></div>
+<div class="sec" id="sec"></div>
 <div class="det" id="det"></div>
-<div class="frow"><button class="mv" id="fl">‹</button><div class="fil" id="fil"></div><button class="mv" id="fr">›</button></div>
+<div class="frow" id="frow"><button class="mv" id="fl">‹</button><div class="fil" id="fil"></div><button class="mv" id="fr">›</button></div>
 <div class="grid" id="grid"></div>
-<div class="pag"><button class="fl2" id="ant">‹</button><button class="lib" id="lib"><span id="pg"></span></button><button class="fl2" id="sig">›</button></div>
+<div class="pag" id="pagbar"><button class="fl2" id="ant">‹</button><button class="lib" id="lib"><span id="pg"></span></button><button class="fl2" id="sig">›</button></div>
 <div class="pie" id="pie"></div>
 <script>
 (function(){
@@ -107,7 +120,7 @@ var RC={'Común':'#8d97a8','Rara':'#2fa36b','Súper rara':'#2d8cf0','Épica':'#9
 var FR=H?C.frH:C.fr;
 var EM=H?C.emH:C.em;
 var PER=9,fil='',pag=0,libro=false,BOC={},tb=0,sel=D.items.length?D.items[0].id:0;
-var MX=null,WS='';
+var MX=null,WS='',seccionSellos=false;
 function $(i){return document.getElementById(i)}
 function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
 function hu(c){var h=0,i;c=String(c);for(i=0;i<c.length;i++)h=(h*31+c.charCodeAt(i))%360;return h}
@@ -141,7 +154,7 @@ $('val').textContent=D.valorTxt;
 $('pb').style.width=Math.max(2,Math.round(D.n/D.total*100))+'%';
 $('pb').style.background='linear-gradient(90deg,var(--acc),var(--acc2))';
 $('pt').textContent=D.n+' / '+D.total;
-$('rar').innerHTML=D.rarezas.map(function(r){return '<span class="rc" style="--c:'+rcol(r.n)+'">'+esc(r.n)+' '+r.c+'</span>'}).join('');
+$('rar').innerHTML=(D.sellos?'<button class="rc sl'+(seccionSellos?' on':'')+'" data-sl="1">🔖 Sellos '+D.sellos.n+'</button>':'')+D.rarezas.map(function(r){return '<span class="rc" style="--c:'+rcol(r.n)+'">'+esc(r.n)+' '+r.c+'</span>'}).join('');
 $('pie').innerHTML=(D.partes>1?'Parte '+D.parte+' de '+D.partes+' · usa <b>'+C.cmd+' '+(D.parte%D.partes+1)+'</b> para ver otra<br>':'')+'__FIRMA__'}
 function filtros(){
 var c={},k,h='<button class="ch'+(fil?'':' on')+'" data-f="">Todos '+D.items.length+'</button>';
@@ -188,6 +201,14 @@ if(hr)hr.textContent=marcas(it.id);
 if(b){b.textContent=n>=5?(H?'¡La noche es nuestra! 🌙':'¡Somos imparables! 🏆'):FR[n%FR.length];b.className='bub on';clearTimeout(tb);tb=setTimeout(function(){b.className='bub'},1600)}
 if(sp){sp.className='spw';void sp.offsetWidth;sp.className='spw reb';
 for(i=0;i<3;i++){e=document.createElement('span');e.className='fl';e.textContent=i===1?c:(i?(H?'🕸️':'✨'):(H?'🔮':'💥'));e.style.left=(25+Math.random()*50)+'%';e.style.animationDelay=(i*0.12)+'s';sp.appendChild(e);quitar(e)}}}
+function panelSellos(){var S=D.sellos;if(!S)return;
+$('sec').innerHTML='<h3>🔖 '+esc(S.nombre)+'</h3><small>Para tirar con '+esc(S.cmd)+'</small><div class="num">'+S.n+'<small> / '+S.max+'</small></div><ul><li>Cada <b>'+esc(S.cmd)+'</b> gasta <b>1 sello</b>. El tiempo de espera de la tirada no cambia.</li><li>Ganas <b>1 sello</b> con <b>'+S.prob+'%</b> de probabilidad al hacer una tirada en cualquier gacha.</li><li>Las misiones diarias dan <b>1 a 3 sellos</b> cada una y <b>+3</b> al completar las tres (usa <b>.misiones cobrar</b>).</li><li>Sin sellos no puedes tirar con '+esc(S.cmd)+'.</li></ul><button class="bk" data-bk="1">‹ Volver al harem</button>'}
+function vista(){var on=seccionSellos,k=['det','frow','grid','pagbar'],i;
+$('sec').className='sec'+(on?' on':'');
+for(i=0;i<k.length;i++)$(k[i]).style.display=on?'none':'';
+cabecera();if(on)panelSellos()}
+$('rar').addEventListener('click',function(e){var t=e.target;if(t&&t.getAttribute&&t.getAttribute('data-sl')){seccionSellos=!seccionSellos;vista()}});
+$('sec').addEventListener('click',function(e){var t=e.target;if(t&&t.getAttribute&&t.getAttribute('data-bk')){seccionSellos=false;vista()}});
 function mover(d){var f=$('fil'),x=f.scrollLeft+d*110;try{f.scrollTo({left:x,behavior:'smooth'})}catch(e){f.scrollLeft=x}}
 $('grid').addEventListener('click',function(e){var t=e.target;
 while(t&&t!==this&&!(t.getAttribute&&(t.getAttribute('data-id')||t.getAttribute('data-p')!==null)))t=t.parentNode;

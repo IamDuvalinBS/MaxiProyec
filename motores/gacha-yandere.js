@@ -1,20 +1,36 @@
 import axios from "axios";
 import {
-  personajePorClave, yandereDuplicado, yandereRegistrar,
-  yandereTagTipo, yandereTagGuardar, yandereCrearPersonaje
+  personajesDeCategoria, yandereDuplicado, yandereRegistrar, yandereCrearPersonaje
 } from "./gacha-db.js";
 
-const BASE = "https://yande.re";
-const FUENTES = [BASE, "https://konachan.net"];
-const UA = "Mozilla/5.0 (compatible; MaxiBot/1.0; +whatsapp-gacha)";
-const TIPO = { general: 0, artista: 1, copyright: 3, personaje: 4, circulo: 5, faults: 6 };
+const BASE = "https://danbooru.donmai.us";
+const UA = "MaxiBot/1.0 (+whatsapp-gacha)";
+const OFFSET_ID = 10_000_000_000;
+const TIPO = { general: 0, artista: 1, copyright: 3, personaje: 4 };
 
-const SCORE_MINIMO = 15;
 const ANCHO_MINIMO = 600;
-const MAX_TAGS_DESCONOCIDOS_POR_POST = 30;
-const MAX_LINK = 100;
-const TAGS_EXCLUIDOS = new Set(["comic", "monochrome", "sketch", "3d", "photo", "screenshot", "text", "manga"]);
-const SERIES_IGNORADAS = new Set(["original", "tagme", "copyright_request", "vocaloid"]);
+const MAX_POR_SERIE = 150;
+const MAX_LINK = 200;
+const PAGINAS_ESCANEO = 4;
+const MB = 1024 * 1024;
+
+const RATINGS = new Set((process.env.DANBOORU_RATINGS || "g,s,q").split(",").map((s) => s.trim()).filter(Boolean));
+const AUTH = process.env.DANBOORU_LOGIN && process.env.DANBOORU_API_KEY
+  ? { username: process.env.DANBOORU_LOGIN, password: process.env.DANBOORU_API_KEY }
+  : undefined;
+
+const TAGS_EXCLUIDOS = new Set([
+  "comic", "4koma", "monochrome", "greyscale", "sketch", "lineart", "3d", "photo_(medium)", "ai-generated", "text_focus"
+]);
+const TAGS_DESNUDEZ = [
+  "nude", "completely_nude", "topless", "bottomless", "nipples", "areolae", "pussy", "anus", "penis", "testicles",
+  "pubic_hair", "uncensored", "censored", "mosaic_censoring", "bar_censor", "convenient_censoring", "novelty_censor",
+  "nipple_slip", "sex", "vaginal", "anal", "fellatio", "oral", "cum", "ejaculation", "masturbation", "fingering",
+  "paizuri", "handjob", "rape", "futanari"
+];
+const TAGS_MENORES = ["loli", "shota", "toddler", "toddlercon", "child", "baby", "infant", "aged_down", "underage"];
+const TAGS_BLOQUEADOS = new Set([...TAGS_DESNUDEZ, ...TAGS_MENORES]);
+const SERIES_IGNORADAS = new Set(["original", "tagme", "copyright_request", "vocaloid", "virtual_youtuber"]);
 
 const pausa = (ms) => new Promise((r) => setTimeout(r, ms));
 const azar = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
@@ -26,86 +42,30 @@ const mezclar = (a) => {
   return a;
 };
 const sumar = (obj, clave) => { obj[clave] = (obj[clave] || 0) + 1; };
+const lista = (texto) => String(texto || "").split(/\s+/).filter(Boolean);
 
-async function api(ruta, params, base = BASE) {
-  const { data } = await axios.get(base + ruta, {
-    params,
-    headers: { "User-Agent": UA, Accept: "application/json" },
-    timeout: 20000
-  });
-  return data;
-}
-
-export function idDesdeLink(texto) {
-  if (!texto) return null;
-  const m = String(texto).match(/yande\.re\/post\/show\/(\d+)/i);
-  if (m) return parseInt(m[1], 10);
-  if (/^\d+$/.test(texto.trim())) return parseInt(texto.trim(), 10);
-  return null;
-}
-
-export function parseLink(texto) {
-  const t = String(texto || "").trim();
-  if (/^\d+$/.test(t)) return { tipo: "post", id: parseInt(t, 10), base: BASE };
-  let u;
-  try { u = new URL(t); } catch { return null; }
-  const host = u.hostname.replace(/^www\./, "");
-  const base = FUENTES.find((f) => new URL(f).hostname === host);
-  if (!base) return null;
-  const ruta = u.pathname;
-  let m = ruta.match(/\/post\/show\/(\d+)/i);
-  if (m) return { tipo: "post", id: +m[1], base };
-  let rutaDec = ruta;
-  try { rutaDec = decodeURIComponent(ruta); } catch {}
-  m = rutaDec.match(/(?:yande\.re|konachan\.net)\s(\d+)/i);
-  if (m) return { tipo: "post", id: +m[1], base };
-  m = ruta.match(/\/pool\/show\/(\d+)/i);
-  const idPool = m ? +m[1] : (/\/pool\/show/i.test(ruta) ? parseInt(u.searchParams.get("id"), 10) : null);
-  if (idPool) return { tipo: "pool", id: idPool, base };
-  if (/^\/post(\/index)?\/?$/i.test(ruta)) return { tipo: "busqueda", tags: u.searchParams.get("tags") || "", base };
-  return null;
-}
-
-export async function postPorId(id, base = BASE) {
-  const lista = await api("/post.json", { tags: `id:${id}`, limit: 1 }, base);
-  return Array.isArray(lista) && lista[0] ? lista[0] : null;
-}
-
-export async function postsAleatorios(base = BASE) {
-  const paginas = [azar(1, 400), azar(1, 60), 1];
-  for (const page of paginas) {
-    const lista = await api("/post.json", { tags: "rating:safe", limit: 40, page }, base);
-    if (Array.isArray(lista) && lista.length) return mezclar(lista);
-  }
-  return [];
-}
-
-async function tipoDeTag(nombre, contador, base = BASE) {
-  const guardado = yandereTagTipo(nombre);
-  if (guardado !== null) return guardado;
-  if (contador.n >= MAX_TAGS_DESCONOCIDOS_POR_POST) return null;
-  contador.n++;
+async function api(ruta, params, reintento = true) {
   try {
-    const lista = await api("/tag.json", { name: nombre, limit: 10 }, base);
-    const exacto = Array.isArray(lista) ? lista.find((t) => t.name === nombre) : null;
-    const tipo = exacto ? Number(exacto.type) : TIPO.general;
-    yandereTagGuardar(nombre, tipo);
-    await pausa(200);
-    return tipo;
+    const { data } = await axios.get(BASE + ruta, {
+      params,
+      auth: AUTH,
+      headers: { "User-Agent": UA, Accept: "application/json" },
+      timeout: 20000
+    });
+    return data;
   } catch (e) {
-    return null;
+    if (reintento && e.response?.status === 429) {
+      await pausa(2500);
+      return api(ruta, params, false);
+    }
+    const detalle = e.response?.data?.message || e.response?.data?.error;
+    if (detalle) throw new Error(String(detalle));
+    throw e;
   }
 }
 
-const MB = 1024 * 1024;
-export function elegirImagenes(post) {
-  const lista = [];
-  if (post.file_url && (post.file_size || 0) <= 8 * MB) lista.push(post.file_url);
-  if (post.jpeg_url && post.jpeg_url !== post.file_url && (post.jpeg_file_size || 0) <= 12 * MB) lista.push(post.jpeg_url);
-  if (post.sample_url && !lista.includes(post.sample_url)) lista.push(post.sample_url);
-  if (!lista.length && post.file_url) lista.push(post.file_url);
-  return lista;
-}
+const normalizar = (t) => String(t || "").toLowerCase().replace(/_\([^)]*\)$/, "").replace(/[^a-z0-9]/g, "");
+const claveNombre = (nombre, serie) => `n:${normalizar(nombre)}|${normalizar(serie)}`;
 
 function bonito(tag) {
   return tag
@@ -113,6 +73,43 @@ function bonito(tag) {
     .replace(/_/g, " ")
     .replace(/\b\p{L}/gu, (c) => c.toUpperCase())
     .trim();
+}
+
+function crearIndice() {
+  const claves = new Set();
+  for (const p of personajesDeCategoria("waifu")) {
+    claves.add(`c:${p.clave}`);
+    claves.add(claveNombre(p.nombre, p.serie));
+  }
+  return {
+    tiene(tag, serie) { return claves.has(`c:${tag}`) || claves.has(claveNombre(bonito(tag), serie || "")); },
+    agregar(tag, nombre, serie) { claves.add(`c:${tag}`); claves.add(claveNombre(nombre, serie)); }
+  };
+}
+
+function serieDe(post, preferida) {
+  const series = lista(post.tag_string_copyright).filter((t) => !SERIES_IGNORADAS.has(t));
+  if (preferida && series.includes(preferida)) return preferida;
+  return series.find((t) => !/_\(series\)$/.test(t)) || series[0] || null;
+}
+
+function motivoDeRechazo(post) {
+  if (post.is_deleted || post.is_banned) return "post eliminado";
+  if (!RATINGS.has(post.rating)) return "rating no permitido";
+  const tags = lista(post.tag_string);
+  if (tags.some((t) => TAGS_BLOQUEADOS.has(t))) return "contenido explícito";
+  if (tags.some((t) => TAGS_EXCLUIDOS.has(t))) return "no es ilustración válida";
+  if ((post.image_width ?? 0) < ANCHO_MINIMO) return "imagen muy pequeña";
+  return null;
+}
+
+export function elegirImagenes(post) {
+  const valida = (u) => u && /\.(jpe?g|png|webp)(\?|$)/i.test(u);
+  const salida = [];
+  if (valida(post.large_file_url)) salida.push(post.large_file_url);
+  if (valida(post.file_url) && !salida.includes(post.file_url) && (post.file_size || 0) <= 8 * MB) salida.push(post.file_url);
+  if (!salida.length && valida(post.file_url)) salida.push(post.file_url);
+  return salida;
 }
 
 function rarezaDe(valor) {
@@ -123,152 +120,161 @@ function rarezaDe(valor) {
   return "Común";
 }
 
-export async function procesarPost(post, { base = BASE, scoreMin = SCORE_MINIMO, forzar = false } = {}) {
-  const propio = base === BASE;
-  const host = new URL(base).hostname;
+export async function procesarPost(post, { indice, serie: serieHint = null, objetivo = null, forzar = false } = {}) {
+  indice = indice || crearIndice();
   const info = {
-    post_id: propio ? post.id : -post.id,
+    post_id: OFFSET_ID + post.id,
     md5: post.md5 || null,
-    parent_id: post.parent_id ? (propio ? post.parent_id : -post.parent_id) : null
+    parent_id: post.parent_id ? OFFSET_ID + post.parent_id : null
   };
 
   const dup = yandereDuplicado(info);
   if (dup) return { ok: false, motivo: `duplicado (${dup})` };
 
-  if (post.rating !== "s") {
-    yandereRegistrar({ ...info, estado: "rating" });
-    return { ok: false, motivo: "no es rating safe" };
+  const rechazo = motivoDeRechazo(post);
+  if (rechazo) {
+    yandereRegistrar({ ...info, estado: rechazo === "contenido explícito" || rechazo === "rating no permitido" ? "rating" : "filtrado" });
+    return { ok: false, motivo: rechazo };
   }
-  const tags = String(post.tags || "").split(/\s+/).filter(Boolean);
-  if (!forzar && ((post.score ?? 0) < scoreMin || (post.width ?? 0) < ANCHO_MINIMO || tags.some((t) => TAGS_EXCLUIDOS.has(t)))) {
-    yandereRegistrar({ ...info, estado: "sin_personaje" });
-    return { ok: false, motivo: "no cumple calidad mínima" };
-  }
+
   const imagenes = elegirImagenes(post);
   if (!imagenes.length) return { ok: false, motivo: "sin archivo" };
-  const img = imagenes[0];
 
-  const contador = { n: 0 };
-  const personajes = [];
-  const series = [];
-  for (const tag of tags) {
-    const tipo = await tipoDeTag(tag, contador, base);
-    if (tipo === TIPO.personaje) personajes.push(tag);
-    else if (tipo === TIPO.copyright) series.push(tag);
-  }
-  if (!forzar && personajes.length === 0) {
+  const personajes = lista(post.tag_string_character);
+  if (!personajes.length) {
     yandereRegistrar({ ...info, estado: "sin_personaje" });
     return { ok: false, motivo: "sin personaje identificable" };
   }
-  if (!forzar && personajes.length > 1) {
+  if (personajes.length > 1 && !forzar) {
     yandereRegistrar({ ...info, estado: "varios_personajes" });
     return { ok: false, motivo: "varios personajes en la imagen" };
   }
+  if (objetivo && !personajes.includes(objetivo)) return { ok: false, motivo: "no es el personaje buscado" };
 
-  const libres = personajes.filter((t) => !personajePorClave("waifu", t));
-  if (personajes.length && !libres.length) {
+  const serieTag = serieDe(post, serieHint);
+  const serie = serieTag ? bonito(serieTag) : "Original / Desconocida";
+
+  const tag = objetivo || personajes.find((t) => !indice.tiene(t, serie));
+  if (!tag || indice.tiene(tag, serie)) {
     yandereRegistrar({ ...info, estado: "duplicado" });
     return { ok: false, motivo: "personaje ya registrado" };
   }
-  const tagPersonaje = libres[0] || `${host}_${post.id}`;
-  const nombre = libres[0] ? bonito(libres[0]) : `Waifu ${post.id}`;
-  const serie = series.length ? bonito(series[0]) : "Original / Desconocida";
 
-  const valor = Math.min(30000, Math.max(1000, 1000 + (post.score ?? 0) * 40));
+  const nombre = bonito(tag);
+  const tags = lista(post.tag_string);
   const genero = tags.includes("1boy") || tags.includes("male_focus") ? "Masculino" : "Femenino";
-  const link = `${base}/post/show/${post.id}`;
+  const valor = Math.min(30000, Math.max(1000, 1000 + (post.score ?? 0) * 40));
+  const link = `${BASE}/posts/${post.id}`;
   const creado = yandereCrearPersonaje({
     categoria: "waifu",
-    clave: tagPersonaje,
+    clave: tag,
     nombre,
     serie,
     genero,
     rareza: rarezaDe(valor),
     valor,
-    img,
-    meta: { fuente: host, post: post.id, link, score: post.score ?? 0, alt: imagenes.slice(1) }
+    img: imagenes[0],
+    meta: { fuente: "danbooru", post: post.id, link, score: post.score ?? 0, alt: imagenes.slice(1) }
   }, info);
   if (!creado) return { ok: false, motivo: "personaje ya registrado" };
+  indice.agregar(tag, nombre, serie);
 
   return {
     ok: true,
     personaje: {
-      id: creado.id, categoria: "waifu", clave: tagPersonaje, nombre, serie,
-      genero, rareza: rarezaDe(valor), valor, img,
+      id: creado.id, categoria: "waifu", clave: tag, nombre, serie,
+      genero, rareza: rarezaDe(valor), valor, img: imagenes[0],
       meta: { link, alt: imagenes.slice(1) }
     }
   };
 }
 
-export async function agregarAleatorias(cantidad = 5, { intentosMaximos = 3 } = {}) {
-  const agregadas = [];
-  const rechazos = {};
-  for (let ronda = 0; ronda < intentosMaximos && agregadas.length < cantidad; ronda++) {
-    const posts = await postsAleatorios();
-    for (const post of posts) {
-      if (agregadas.length >= cantidad) break;
-      const r = await procesarPost(post);
-      if (r.ok) agregadas.push(r.personaje);
-      else sumar(rechazos, r.motivo);
-    }
+export function parseLink(texto) {
+  const t = String(texto || "").trim();
+  if (/^\d+$/.test(t)) return { tipo: "post", id: parseInt(t, 10) };
+  let u;
+  try { u = new URL(t); } catch { return null; }
+  if (!/(^|\.)donmai\.us$/i.test(u.hostname)) return null;
+  const ruta = u.pathname;
+  let m = ruta.match(/^\/posts\/(\d+)/i);
+  if (m) return { tipo: "post", id: +m[1] };
+  m = ruta.match(/^\/pools\/(\d+)/i);
+  if (m) return { tipo: "pool", id: +m[1] };
+  if (/^\/posts\/?$/i.test(ruta)) return { tipo: "busqueda", tags: u.searchParams.get("tags") || "" };
+  m = ruta.match(/^\/wiki_pages\/([^/]+)/i);
+  if (m) {
+    let nombre = m[1];
+    try { nombre = decodeURIComponent(nombre); } catch {}
+    return { tipo: "serie", tag: nombre.toLowerCase().replace(/\s+/g, "_") };
   }
-  return { agregadas, rechazos };
+  return null;
 }
 
-export async function animesAleatorios(n, base = BASE) {
-  const lista = await api("/tag.json", { type: TIPO.copyright, order: "count", limit: 100, page: azar(1, 6) }, base);
-  const validas = (Array.isArray(lista) ? lista : []).filter((t) => t.count >= 50 && !SERIES_IGNORADAS.has(t.name));
+async function postsDePersonaje(tag) {
+  const posts = await api("/posts.json", { tags: `${tag} order:score`, limit: 20 });
+  return Array.isArray(posts) ? posts : [];
+}
+
+async function personajesRelacionados(serie) {
+  try {
+    const d = await api("/related_tag.json", {
+      "search[query]": serie, "search[category]": TIPO.personaje, "search[order]": "Frequency", limit: 300
+    });
+    const filas = d?.related_tags || d?.tags || [];
+    return filas.map((x) => x?.tag?.name || (Array.isArray(x) ? x[0] : x?.name)).filter(Boolean);
+  } catch (e) {
+    console.log(`[yanderandom] related ${serie}: ${e.message}`);
+    return [];
+  }
+}
+
+export async function animesAleatorios(n) {
+  const filas = await api("/tags.json", {
+    "search[category]": TIPO.copyright, "search[order]": "count", limit: 100, page: azar(1, 8)
+  });
+  const validas = (Array.isArray(filas) ? filas : []).filter((t) => (t.post_count ?? 0) >= 300 && !SERIES_IGNORADAS.has(t.name) && !/_\(series\)$/.test(t.name));
   return mezclar(validas).slice(0, n).map((t) => t.name);
 }
 
-export async function agregarSerie(serie, { base = BASE, max = 40 } = {}) {
+export async function agregarSerie(serie, { max = MAX_POR_SERIE } = {}) {
+  const indice = crearIndice();
   const agregadas = [];
   const rechazos = {};
+  const candidatos = new Set(await personajesRelacionados(serie));
 
-  let tagsPj = [];
-  try {
-    const rel = await api("/tag/related.json", { tags: serie, type: "character" }, base);
-    const lista = rel?.[serie] || Object.values(rel || {})[0] || [];
-    tagsPj = lista.map(([n]) => n);
-  } catch (e) {
-    console.log(`[yanderandom] related ${serie}: ${e.message}`);
-  }
-  console.log(`[yanderandom] ${serie}: ${tagsPj.length} personajes relacionados`);
-
-  for (const tag of tagsPj) {
-    if (agregadas.length >= max) break;
-    if (personajePorClave("waifu", tag)) { sumar(rechazos, "personaje ya registrado"); continue; }
+  for (let page = 1; page <= PAGINAS_ESCANEO; page++) {
     let posts;
     try {
-      posts = await api("/post.json", { tags: `${tag} rating:safe order:score`, limit: 15 }, base);
-    } catch (e) {
-      sumar(rechazos, "error de consulta");
-      continue;
-    }
-    await pausa(300);
-    let listo = false;
-    for (const post of Array.isArray(posts) ? posts : []) {
-      const r = await procesarPost(post, { base, scoreMin: 0 });
-      if (r.ok) { agregadas.push(r.personaje); listo = true; break; }
-    }
-    if (!listo) sumar(rechazos, "sin imagen válida");
-  }
-
-  for (let page = 1; page <= 3 && agregadas.length < max; page++) {
-    let posts;
-    try {
-      posts = await api("/post.json", { tags: `${serie} rating:safe order:score`, limit: 40, page }, base);
+      posts = await api("/posts.json", { tags: `${serie} order:score`, limit: 100, page });
     } catch (e) {
       break;
     }
     if (!Array.isArray(posts) || !posts.length) break;
-    for (const post of posts) {
-      if (agregadas.length >= max) break;
-      const r = await procesarPost(post, { base, scoreMin: 0 });
-      if (r.ok) agregadas.push(r.personaje);
-      else sumar(rechazos, r.motivo);
+    for (const p of posts) {
+      const pj = lista(p.tag_string_character);
+      if (pj.length === 1) candidatos.add(pj[0]);
     }
-    await pausa(300);
+    await pausa(250);
+  }
+  console.log(`[yanderandom] ${serie}: ${candidatos.size} personajes candidatos`);
+
+  for (const tag of candidatos) {
+    if (agregadas.length >= max) break;
+    if (indice.tiene(tag, bonito(serie))) { sumar(rechazos, "personaje ya registrado"); continue; }
+    let posts;
+    try {
+      posts = await postsDePersonaje(tag);
+    } catch (e) {
+      sumar(rechazos, "error de consulta");
+      continue;
+    }
+    await pausa(250);
+    let listo = false;
+    for (const post of posts) {
+      const r = await procesarPost(post, { indice, serie, objetivo: tag });
+      if (r.ok) { agregadas.push(r.personaje); listo = true; break; }
+    }
+    if (!listo) sumar(rechazos, "sin imagen válida");
   }
   return { agregadas, rechazos };
 }
@@ -276,20 +282,19 @@ export async function agregarSerie(serie, { base = BASE, max = 40 } = {}) {
 export async function agregarAnimes(cantidad = 5, onSerie) {
   const resumen = [];
   for (let i = 0; i < cantidad; i++) {
-    const base = FUENTES[i % FUENTES.length];
     let serie;
     try {
-      [serie] = await animesAleatorios(1, base);
+      [serie] = await animesAleatorios(1);
     } catch (e) {
       continue;
     }
     if (!serie) continue;
     try {
-      const r = await agregarSerie(serie, { base });
-      resumen.push({ serie, base, ...r });
-      if (onSerie) await onSerie(serie, r, base);
+      const r = await agregarSerie(serie);
+      resumen.push({ serie, ...r });
+      if (onSerie) await onSerie(serie, r);
     } catch (e) {
-      resumen.push({ serie, base, agregadas: [], rechazos: { "error de consulta": 1 } });
+      resumen.push({ serie, agregadas: [], rechazos: { "error de consulta": 1 } });
     }
   }
   return resumen;
@@ -297,31 +302,44 @@ export async function agregarAnimes(cantidad = 5, onSerie) {
 
 export async function agregarPorLink(link) {
   const p = parseLink(link);
-  if (!p) return { ok: false, motivo: "link inválido" };
+  if (!p) return { ok: false, motivo: "link inválido (usa un link de danbooru.donmai.us)" };
+
+  if (p.tipo === "serie") {
+    const r = await agregarSerie(p.tag);
+    return { ok: r.agregadas.length > 0, ...r, motivo: Object.keys(r.rechazos)[0] || "sin resultados" };
+  }
+
   let posts = [];
   if (p.tipo === "post") {
-    const post = await postPorId(p.id, p.base);
-    if (!post) return { ok: false, motivo: "el post no existe o fue eliminado" };
+    const post = await api(`/posts/${p.id}.json`, {});
+    if (!post?.id) return { ok: false, motivo: "el post no existe o fue eliminado" };
     posts = [post];
   } else if (p.tipo === "pool") {
-    const d = await api("/pool/show.json", { id: p.id }, p.base);
-    posts = d?.posts || [];
-  } else {
-    const tags = p.tags.split(/\s+/).filter((t) => t && !t.startsWith("rating:")).concat("rating:safe").join(" ");
     for (let page = 1; page <= 3 && posts.length < MAX_LINK; page++) {
-      const l = await api("/post.json", { tags, limit: 40, page }, p.base);
+      const l = await api("/posts.json", { tags: `pool:${p.id}`, limit: 100, page });
       if (!Array.isArray(l) || !l.length) break;
       posts.push(...l);
-      await pausa(300);
+      await pausa(250);
+    }
+  } else {
+    let tags = lista(p.tags).filter((t) => !t.startsWith("rating:"));
+    if (!tags.length) return { ok: false, motivo: "la búsqueda no tiene tags" };
+    if (!tags.some((t) => t.startsWith("order:")) && tags.length < 2) tags = [...tags, "order:score"];
+    for (let page = 1; page <= 3 && posts.length < MAX_LINK; page++) {
+      const l = await api("/posts.json", { tags: tags.join(" "), limit: 100, page });
+      if (!Array.isArray(l) || !l.length) break;
+      posts.push(...l);
+      await pausa(250);
     }
   }
+
+  const indice = crearIndice();
   const agregadas = [];
   const rechazos = {};
   for (const post of posts.slice(0, MAX_LINK)) {
-    const r = await procesarPost(post, { base: p.base, forzar: true });
+    const r = await procesarPost(post, { indice, forzar: p.tipo === "post" });
     if (r.ok) agregadas.push(r.personaje);
     else sumar(rechazos, r.motivo);
   }
   return { ok: agregadas.length > 0, agregadas, rechazos, motivo: Object.keys(rechazos)[0] || "sin resultados" };
-                                                                                                }
-      
+}

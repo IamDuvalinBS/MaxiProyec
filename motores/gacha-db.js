@@ -1001,3 +1001,53 @@ export function limpiarDuplicadosGacha() {
     return { quitados, reembolsos };
   });
 }
+
+const OFFSET_POSTS_DANBOORU = 10_000_000_000;
+
+export function analizarWaifusAnteriores(nivelProtegido = 10) {
+  const borrar = [];
+  const conservar = [];
+  let propiedades = 0;
+  for (const f of porCategoria.get("waifu") || []) {
+    if (f.meta?.fuente === "danbooru") continue;
+    const d = duenos.get(f.id);
+    let maximo = -1;
+    if (d) for (const r of d.values()) if (r.nivel > maximo) maximo = r.nivel;
+    if (maximo > nivelProtegido) conservar.push(f);
+    else {
+      borrar.push(f);
+      propiedades += d ? d.size : 0;
+    }
+  }
+  return { borrar, conservar, propiedades };
+}
+
+export function limpiarWaifusAnteriores(nivelProtegido = 10) {
+  const { borrar, conservar, propiedades } = analizarWaifusAnteriores(nivelProtegido);
+  const ids = new Set(borrar.map((f) => f.id));
+  const idsConservados = new Set(conservar.map((f) => f.id));
+
+  for (const f of borrar) {
+    const d = duenos.get(f.id);
+    if (d) for (const usuario of [...d.keys()]) quitarPropiedad(usuario, f.id);
+    personajes.delete(f.id);
+    porClave.delete(`${f.categoria}|${f.clave}`);
+    marcar(COL.personajes, f.id);
+  }
+  if (ids.size) {
+    porCategoria.set("waifu", (porCategoria.get("waifu") || []).filter((f) => !ids.has(f.id)));
+    ordenados.delete("waifu");
+  }
+
+  let postsQuitados = 0;
+  for (const [id, fila] of [...posts]) {
+    if (id >= OFFSET_POSTS_DANBOORU) continue;
+    if (fila.char_id != null && idsConservados.has(fila.char_id)) continue;
+    posts.delete(id);
+    marcar(COL.posts, id);
+    postsQuitados++;
+  }
+  reindexarPosts();
+
+  return { borradas: borrar.length, conservadas: conservar.length, propiedades, postsQuitados, series: [...new Set(conservar.map((f) => f.serie).filter(Boolean))] };
+}

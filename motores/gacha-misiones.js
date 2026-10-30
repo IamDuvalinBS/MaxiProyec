@@ -2,6 +2,7 @@ import { addToWallet } from "./db.js";
 import { cantidadItem, sumarItem, quitarItem, itemsDe } from "./gacha-db.js";
 import { darFragmentos } from "./gacha-niveles.js";
 import { darTickets } from "./gacha-tickets.js";
+import { darSellos } from "./gacha-sellos.js";
 import { CAT } from "./gacha-categorias.js";
 import { sumarEstadistica, revisarInsignias } from "./gacha-insignias.js";
 import { encabezado } from "../src/economia/estilo.js";
@@ -13,15 +14,16 @@ const formatoFecha = new Intl.DateTimeFormat("en-CA", { timeZone: ZONA });
 export const hoy = () => formatoFecha.format(new Date());
 
 const MISIONES_POR_DIA = 3;
+const SELLOS_BONO_DIA = 3;
 
 export const TIPOS = {
-  tirada: { texto: (n) => `Haz ${n} ${n === 1 ? "tirada" : "tiradas"} en cualquier gacha`, rango: [3, 6], dinero: 2500, fragmentos: 0 },
-  reclamar: { texto: (n) => `Reclama ${n} ${n === 1 ? "personaje" : "personajes"}`, rango: [1, 3], dinero: 4000, fragmentos: 1 },
-  pvp: { texto: (n) => `Gana ${n} ${n === 1 ? "combate" : "combates"} PvP`, rango: [1, 2], dinero: 8000, fragmentos: 1 },
-  equipo: { texto: (n) => `Gana ${n} ${n === 1 ? "batalla" : "batallas"} por equipos`, rango: [1, 1], dinero: 15000, fragmentos: 2 },
-  mejorar: { texto: (n) => `Sube ${n} niveles a tus personajes`, rango: [3, 8], dinero: 1500, fragmentos: 0 },
-  tienda: { texto: (n) => `Compra ${n} ${n === 1 ? "artículo" : "artículos"} en las tiendas del gacha`, rango: [2, 4], dinero: 2000, fragmentos: 0 },
-  variedad: { texto: (n) => `Haz tiradas en ${n} gachas distintos`, rango: [2, 3], dinero: 3000, fragmentos: 1 }
+  tirada: { texto: (n) => `Haz ${n} ${n === 1 ? "tirada" : "tiradas"} en cualquier gacha`, rango: [3, 6], dinero: 2500, fragmentos: 0, sellos: 1 },
+  reclamar: { texto: (n) => `Reclama ${n} ${n === 1 ? "personaje" : "personajes"}`, rango: [1, 3], dinero: 4000, fragmentos: 1, sellos: 1 },
+  pvp: { texto: (n) => `Gana ${n} ${n === 1 ? "combate" : "combates"} PvP`, rango: [1, 2], dinero: 8000, fragmentos: 1, sellos: 2 },
+  equipo: { texto: (n) => `Gana ${n} ${n === 1 ? "batalla" : "batallas"} por equipos`, rango: [1, 1], dinero: 15000, fragmentos: 2, sellos: 3 },
+  mejorar: { texto: (n) => `Sube ${n} niveles a tus personajes`, rango: [3, 8], dinero: 1500, fragmentos: 0, sellos: 1 },
+  tienda: { texto: (n) => `Compra ${n} ${n === 1 ? "artículo" : "artículos"} en las tiendas del gacha`, rango: [2, 4], dinero: 2000, fragmentos: 0, sellos: 1 },
+  variedad: { texto: (n) => `Haz tiradas en ${n} gachas distintos`, rango: [2, 3], dinero: 3000, fragmentos: 1, sellos: 2 }
 };
 
 const ESTADISTICAS = {
@@ -58,7 +60,7 @@ export function asignadas(usuario, fecha = hoy()) {
   return tipos.slice(0, MISIONES_POR_DIA).map((tipo) => {
     const [min, max] = TIPOS[tipo].rango;
     const meta = min + Math.floor(azar() * (max - min + 1));
-    return { tipo, meta, texto: TIPOS[tipo].texto(meta), dinero: TIPOS[tipo].dinero * meta, fragmentos: TIPOS[tipo].fragmentos };
+    return { tipo, meta, texto: TIPOS[tipo].texto(meta), dinero: TIPOS[tipo].dinero * meta, fragmentos: TIPOS[tipo].fragmentos, sellos: TIPOS[tipo].sellos };
   });
 }
 
@@ -119,13 +121,14 @@ export function cobrarMisiones(usuario) {
   const fecha = hoy();
   const lista = misionesDe(usuario);
   const cobradas = lista.filter((m) => m.completa && !m.cobrada);
-  const resultado = { cobradas, dinero: 0, fragmentos: 0, ticket: null, bono: false, pendientes: lista.filter((m) => !m.completa).length };
+  const resultado = { cobradas, dinero: 0, fragmentos: 0, ticket: null, bono: false, sellos: 0, pendientes: lista.filter((m) => !m.completa).length };
   if (!cobradas.length) return resultado;
 
   for (const m of cobradas) {
     sumarItem(usuario, claveCobro(fecha, m.tipo), 1);
     resultado.dinero += m.dinero;
     resultado.fragmentos += m.fragmentos;
+    resultado.sellos += m.sellos || 0;
   }
   if (resultado.dinero) addToWallet(usuario, resultado.dinero);
   if (resultado.fragmentos) darFragmentos(usuario, resultado.fragmentos);
@@ -139,7 +142,9 @@ export function cobrarMisiones(usuario) {
     darTickets(usuario, resultado.ticket, 1);
     sumarEstadistica(usuario, "dias_completos", 1);
     resultado.bono = true;
+    resultado.sellos += SELLOS_BONO_DIA;
   }
+  if (resultado.sellos) resultado.sellos = darSellos(usuario, resultado.sellos).agregados;
   return resultado;
 }
 

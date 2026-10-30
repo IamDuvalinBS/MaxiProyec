@@ -26,6 +26,7 @@ import { PITY_TIRADAS, PITY_RANGO_MINIMO } from "./gacha-config.js";
 import { RAREZA_NOMBRES } from "./gacha-niveles.js";
 import { CAT } from "./gacha-categorias.js";
 import { ticketsDe, sorteoTicket } from "./gacha-tickets.js";
+import { requiereSello, sellosDe, gastarSello, sorteoSello, NOMBRE_SELLO, NOMBRE_SELLOS, EMOJI_SELLO, SELLOS_MAXIMOS, PROBABILIDAD_SELLO } from "./gacha-sellos.js";
 import {
   bloqueCabecera, bloquesDePersonaje, repartirBloques, lineasPersonaje, textoStats, fuenteDe
 } from "./gacha-estilo.js";
@@ -438,6 +439,17 @@ function programarPrecarga({ clave, categoria, obtener }) {
 export async function hacerRoll({ categoria, obtener, reply, sender, from, cooldownMs, titulo, textoVacio }) {
   await revisarMigracion({ sender, from, reply }).catch((e) => console.log("[gacha] migración: " + e.message));
   const cat = CAT[categoria];
+  if (requiereSello(categoria) && sellosDe(sender) < 1) {
+    return reply({
+      text: [
+        encabezado(EMOJI_SELLO, `SIN ${NOMBRE_SELLO.toUpperCase()}S`),
+        "",
+        `> ${arroba(sender)} no tienes *${NOMBRE_SELLO}s* para tirar con *${cat.rollCmd}*.`,
+        "> Consíguelos al azar al hacer tiradas en cualquier gacha o cobrando tus *.misiones*."
+      ].join("\n"),
+      mentions: [sender]
+    });
+  }
   const clave = `roll:${categoria}:${sender}`;
   const espera = tomarCooldown(clave, Math.round(cooldownMs * factorCooldown(sender)));
   if (espera > 0) return reply({ text: textoCooldown(espera) });
@@ -470,6 +482,8 @@ export async function hacerRoll({ categoria, obtener, reply, sender, from, coold
       if (via === "pity") extra.unshift(T(`🍀 *Garantía activada:* rareza ${RAREZA_NOMBRES[PITY_RANGO_MINIMO]} o superior.`, `🍀 *Garantía activada:* los espíritus aseguran rareza ${RAREZA_NOMBRES[PITY_RANGO_MINIMO]} o superior.`));
       extra.push(T(`Garantía ›› *${pityDespuesDe(sender, categoria, personaje)}/${pityMaximoDe(sender)}*`, `Garantía de la noche ›› *${pityDespuesDe(sender, categoria, personaje)}/${pityMaximoDe(sender)}*`));
 
+      if (requiereSello(categoria)) extra.push(`${EMOJI_SELLO} ${NOMBRE_SELLO}s ›› *${Math.max(0, sellosDe(sender) - 1)}*`);
+
       try {
         const enviado = await enviarPersonaje({
           reply, personaje, titulo, lineasExtra: extra, mentions,
@@ -478,6 +492,13 @@ export async function hacerRoll({ categoria, obtener, reply, sender, from, coold
         if ((!duenos.length || esMio) && enviado?.key?.id) registrarPendiente(enviado.key.id, from, personaje, sender);
         exito = true;
         registrarTirada(sender, categoria, personaje);
+        if (requiereSello(categoria)) gastarSello(sender);
+        if (sorteoSello(sender)) {
+          await reply({
+            text: `${EMOJI_SELLO} ${arroba(sender)} obtuviste *1 ${NOMBRE_SELLO}*. Ahora tienes *${sellosDe(sender)}*.`,
+            mentions: [sender]
+          });
+        }
         if (sorteoTicket(sender, categoria)) {
           sumarEstadistica(sender, "tickets_suerte", 1);
           await reply({ text: tarjetaTicket(sender, cat), mentions: [sender] });
@@ -631,6 +652,9 @@ async function enviarColeccionHtml({ sock, from, msg, categoria, sender, pagina,
     partes,
     porParte: POR_PARTE_HTML,
     firma: "Powered By ItsDuva",
+    sellos: requiereSello(categoria)
+      ? { n: sellosDe(sender), max: SELLOS_MAXIMOS, prob: Math.round(PROBABILIDAD_SELLO * 100), nombre: NOMBRE_SELLOS, cmd: cat.rollCmd }
+      : null,
     items: trozo.map((c, i) => {
       const clase = claseDe(c, categoria, series);
       const item = { id: c.id, nombre: c.nombre, clase, claseN: clase, serie: fuenteDe(c), rareza: c.rareza, valorTxt: monto(c.valor), img: imagenes[i] };
