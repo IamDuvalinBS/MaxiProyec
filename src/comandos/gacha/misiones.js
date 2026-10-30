@@ -4,6 +4,7 @@ import { revisarInsignias } from "../../../motores/gacha-insignias.js";
 import { msHastaMedianoche } from "../../../motores/gacha-config.js";
 import { encabezado, tiempoLargo } from "../../../src/economia/estilo.js";
 import { T } from "../../../motores/gacha-tema.js";
+import { NOMBRE_SELLOS, EMOJI_SELLO } from "../../../motores/gacha-sellos.js";
 
 function lineasDeMisiones(lista) {
   const lineas = [];
@@ -12,6 +13,7 @@ function lineasDeMisiones(lista) {
     lineas.push(`${i + 1}. *${m.texto}*`);
     lineas.push(`> ${estado} ›› ${m.avance}/${m.meta}`);
     const premio = [`${monto(m.dinero)}`];
+    if (m.sellos) premio.push(`${m.sellos} ${m.sellos === 1 ? "sello" : "sellos"}`);
     if (m.fragmentos) premio.push(`${m.fragmentos} ${m.fragmentos === 1 ? "fragmento" : "fragmentos"}`);
     lineas.push(T(`> 🎁 Recompensa: ${premio.join(" + ")}`, `> 🍬 Botín: ${premio.join(" + ")}`));
   });
@@ -40,6 +42,7 @@ export default {
         `💴 *Dinero* ›› +${monto(r.dinero)}`
       ];
       if (r.fragmentos) partes.push(`🧩 *Fragmentos de ascensión* ›› +${r.fragmentos}`);
+      if (r.sellos) partes.push(`${EMOJI_SELLO} *${NOMBRE_SELLOS}* ›› +${r.sellos}`);
       if (r.bono) {
         partes.push("", `🎟️ *Bono por completar las 3 misiones* ›› +1 ticket de ${CAT[r.ticket].plural}.`);
       } else if (r.pendientes) {

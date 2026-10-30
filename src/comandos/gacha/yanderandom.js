@@ -8,8 +8,8 @@ const MAXIMO = 10;
 let ocupado = false;
 
 export default {
-  names: [".yanderandom"],
-  desc: "Agrega animes completos (todos sus personajes) desde yande.re y konachan (solo owners)",
+  names: [".yanderandom", ".danbooruandom"],
+  desc: "Agrega animes completos (todos sus personajes) desde Danbooru (solo owners)",
   category: "Owner",
   usage: ".yanderandom [cantidad de animes]",
   handler: ownerGacha(async ({ cleanText, reply }) => {

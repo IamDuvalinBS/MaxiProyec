@@ -42,7 +42,7 @@ export default {
       if (rarezas) lineas.push(`   ${rarezas}`);
     }
     if (yandere.length) {
-      lineas.push("", "🔎 *Posts de yande.re revisados*", ...yandere.map((y) => `• ${y.estado}: ${y.n}`));
+      lineas.push("", "🔎 *Posts de Danbooru revisados*", ...yandere.map((y) => `• ${y.estado}: ${y.n}`));
     }
     lineas.push("", "📋 Lista completa por categoría: *.testgacha waifu*, *pokemon*, *brawl*, *snake*, *cod*, *dragon* o *clash*.");
     return reply({ text: tarjeta({ emoji: "📊", titulo: "INFO DEL GACHA", lineas }) });

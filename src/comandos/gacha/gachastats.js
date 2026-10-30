@@ -64,7 +64,7 @@ export default {
       `🧮 *Total general* ›› ${fmt(general)} personajes`
     ];
     if (yandere.length) {
-      partes2.push("", "🔎 *Posts de yande.re revisados* ››", ...yandere.map((y) => `> ${y.estado}: ${y.n}`));
+      partes2.push("", "🔎 *Posts de Danbooru revisados* ››", ...yandere.map((y) => `> ${y.estado}: ${y.n}`));
     }
     partes2.push("", "> Para ver la lista de un sistema usa *.gachastats <categoría>*: waifu, pokemon, brawl, snake, cod, dragon o clash.");
     return reply({ text: partes2.join("\n") });

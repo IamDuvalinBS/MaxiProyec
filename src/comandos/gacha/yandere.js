@@ -3,14 +3,14 @@ import { agregarPorLink } from "../../../motores/gacha-yandere.js";
 import { gachaListo, enviarPersonaje, registrarPendiente, tarjeta, EXCLUSIVO_MS } from "../../../motores/gacha-core.js";
 
 export default {
-  names: [".yandere"],
-  desc: "Agrega waifus desde un link de yande.re o konachan: post, búsqueda o pool (solo owners)",
+  names: [".yandere", ".danbooru"],
+  desc: "Agrega waifus desde un link de Danbooru: post, búsqueda, pool o wiki de una serie (solo owners)",
   category: "Owner",
   usage: ".yandere <link>",
   handler: ownerGacha(async ({ from, sender, cleanText, reply }) => {
     await gachaListo;
     const link = cleanText.split(/\s+/)[1];
-    if (!link) return reply({ text: "⚙️ Uso: .yandere <link de yande.re o konachan.net (post, búsqueda o pool)>" });
+    if (!link) return reply({ text: "⚙️ Uso: .yandere <link de danbooru.donmai.us (post, búsqueda, pool o wiki de una serie)>" });
 
     let r;
     try {
