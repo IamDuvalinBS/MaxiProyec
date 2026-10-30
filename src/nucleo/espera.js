@@ -33,6 +33,10 @@ export function enfriar(clave, ms) {
   return 0;
 }
 
-export function limpiarEnfriamientos() {
-  enfriamientos.clear();
+export function limpiarEnfriamientos(jid = null) {
+  if (!jid) return enfriamientos.clear();
+  const numero = String(jid).split("@")[0].split(":")[0];
+  for (const clave of [...enfriamientos.keys()]) {
+    if (String(clave).split(":").slice(1).join(":").split("@")[0].split(":")[0] === numero) enfriamientos.delete(clave);
+  }
 }
