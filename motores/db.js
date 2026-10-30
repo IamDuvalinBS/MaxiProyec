@@ -537,13 +537,12 @@ export function checkCooldown(sender, comando, ms) {
   return 0;
 }
 
-export function reiniciarEsperas(claves) {
+export function reiniciarEsperas(claves, jid = null) {
   let afectadas = 0;
+  const destino = jid ? canonId(jid) : null;
   for (const [sender, acc] of accounts) {
+    if (destino && sender !== destino) continue;
     if (!acc.cooldowns) continue;
-    let cambio = false;
-    for (const clave of claves) {
-      if (clave in acc.cooldowns) {
         delete acc.cooldowns[clave];
         cambio = true;
       }
