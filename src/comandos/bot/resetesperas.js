@@ -4,6 +4,8 @@ import { trabajosRegistrados } from "../../economia/trabajos.js";
 import { limpiarEnfriamientos } from "../../nucleo/espera.js";
 import { tarjeta } from "../../economia/formato-evento.js";
 import { estilo } from "../../economia/temas.js";
+import { reiniciarCooldownsGacha } from "../../../motores/gacha-core.js";
+import { jidObjetivo } from "../../economia/formato.js";
 
 const ESTILOS = {
   normal: {
@@ -26,15 +28,21 @@ const CLAVES_ECONOMIA = ["daily", "semanal", "cofre", "trivia"];
 
 export default {
   names: [".resetesperas", ".resetcd"],
-  usage: ".resetesperas",
+  usage: ".resetesperas [@usuario | responder a su mensaje | número]",
   desc: "Reiniciar las esperas de economía de todos los usuarios (solo owner)",
   category: "Owner",
-  handler: ownerCommand(async ({ reply }) => {
+  handler: ownerCommand(async ({ reply, msg, cleanText }) => {
     const E = estilo(ESTILOS);
-    const claves = [...new Set([...CLAVES_ECONOMIA, ...trabajosRegistrados.keys()])];
-    const cuentas = reiniciarEsperas(claves);
-    limpiarEnfriamientos();
-
+    let objetivo = jidObjetivo(msg);
+if (!objetivo) {
+  const numero = cleanText.split(/\s+/).slice(1).map((p) => p.replace(/\D/g, "")).find((n) => n.length >= 8);
+  if (numero) objetivo = `${numero}@s.whatsapp.net`;
+}
+const claves = [...new Set([...CLAVES_ECONOMIA, ...trabajosRegistrados.keys()])];
+const cuentas = reiniciarEsperas(claves, objetivo);
+const tiradas = reiniciarCooldownsGacha(objetivo);
+limpiarEnfriamientos(objetivo);
+    
     await reply({
       text: tarjeta({
         emoji: E.emoji,
