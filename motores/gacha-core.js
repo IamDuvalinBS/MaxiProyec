@@ -266,7 +266,20 @@ export function soltarCooldown(clave) {
 export function restanteCooldown(clave) {
   return Math.max(0, (cooldowns.get(clave) || 0) - Date.now());
 }
-
+export function reiniciarCooldownsGacha(jid = null) {
+  const numero = jid ? String(jid).split("@")[0].split(":")[0] : null;
+  let quitadas = 0;
+  for (const clave of [...cooldowns.keys()]) {
+    if (!clave.startsWith("roll:")) continue;
+    if (numero) {
+      const dueno = clave.split(":").slice(2).join(":");
+      if (dueno.split("@")[0].split(":")[0] !== numero) continue;
+    }
+    cooldowns.delete(clave);
+    quitadas++;
+  }
+  return quitadas;
+}
 export const textoCooldown = (ms) => T(`⏳ Debes esperar *${formatTime(ms)}* para volver a usar este comando.`, `⏳ Los espíritus aún descansan. Espera *${formatTime(ms)}* para volver a invocar.`);
 
 setInterval(() => {
