@@ -6,7 +6,6 @@ import {
 import pino from "pino";
 import http from "http";
 import { manejarApiJuegos } from "./motores/juegos-api.js";
-import { iniciarTunel } from "./motores/juegos-tunel.js";
 import { manejarComando } from "./src/nucleo/comandos.js";
 import { checkTriviaAnswer } from "./src/economia/trivia.js";
 import { iniciarSubbots, usarPagina } from "./src/subbots/gestor.js";
@@ -25,7 +24,7 @@ import { iniciarAvisosRacha } from "./src/economia/avisos.js";
 import { enlazarSalidaAfk } from "./src/economia/afk-auto.js";
 import { idDeRespuestaInteractiva } from "./motores/respuestas-botones.js";
 import { manejarParticipantes } from "./src/eventos/participantes.js";
-import { antilinkActivo, botApagado, ajustesDe } from "./src/grupos/estado.js";
+import { antilinkActivo, botApagado, ajustesDe, cargarGruposMongo } from "./src/grupos/estado.js";
 import { eliminarEnlace } from "./src/grupos/enlaces.js";
 import { olvidarMetadatos } from "./src/grupos/nucleo.js";
 import { recordarNombre } from "./motores/profile.js";
@@ -89,10 +88,7 @@ http
     console.log("❌ Ya hay otra copia del bot encendida (puerto ocupado). Ciérrala con: pkill -f node");
     process.exit(1);
   })
-  .listen(PORT, () => {
-    console.log("Servidor web escuchando en el puerto " + PORT);
-    iniciarTunel(PORT);
-  });
+  .listen(PORT, () => console.log("Servidor web escuchando en el puerto " + PORT));
 
 process.on("uncaughtException", (err) => {
   console.log("Error no manejado (el bot sigue corriendo): " + err.message);
@@ -256,20 +252,19 @@ function desenvolverMensaje(contenido) {
   return c || contenido;
 }
 
+const MAX_ANTIGUEDAD_MS = (Number(process.env.MAX_ANTIGUEDAD_MENSAJE_SEG) || 60) * 1000;
+
+function esMensajeViejo(msg) {
+  const bruto = msg?.messageTimestamp;
+  const seg = typeof bruto === "object" && bruto ? (bruto.toNumber ? bruto.toNumber() : Number(bruto.low)) : Number(bruto);
+  if (!seg) return false;
+  return Date.now() - seg * 1000 > MAX_ANTIGUEDAD_MS;
+}
+
 function puedeResponderEnGrupo(sock, grupo) {
   const principal = ajustesDe(grupo).principal;
   if (!principal || !sock.user || !sock.user.id) return true;
-  const propios = [sock.user.id, sock.user.lid].filter(Boolean).map((j) => String(j).split(":")[0].split("@")[0]);
-  return propios.includes(String(principal));
-}
-
-// ¿El texto es .setprimary / .botprincipal? Acepta cualquier prefijo configurado y espacios tras él (". setprimary").
-// Es lo único que un bot que NO es el principal sigue escuchando en el grupo, para poder cambiarlo o quitarlo.
-function esSetPrimary(texto) {
-  const prefijos = (config.prefixes && config.prefixes.length) ? config.prefixes : [config.prefix || "."];
-  const t = String(texto || "").trim();
-  const prefijo = [...prefijos].sort((a, b) => b.length - a.length).find((p) => t.startsWith(p));
-  return Boolean(prefijo) && /^\s*(?:setprimary|botprincipal)\b/i.test(t.slice(prefijo.length));
+  return sock.user.id.split(":")[0].split("@")[0] === String(principal);
 }
 
 function enlazarEventos(sock, esSub) {
@@ -295,7 +290,9 @@ function enlazarEventos(sock, esSub) {
   });
 
   sock.ev.on("messages.upsert", (m) => {
-    const lote = m.messages || [];
+    // Al reiniciar o limpiar la sesión WhatsApp reenvía los mensajes pendientes. Se descartan los viejos para no
+    // responder comandos de hace rato ni atrasar los nuevos (cada mensaje del lote espera 400 ms).
+    const lote = (m.messages || []).filter((msg) => !esMensajeViejo(msg));
     const manejar = (msg) => procesarMensaje(m, msg).catch((e) => console.log("Error procesando mensaje: " + e.message));
     if (lote.length <= 1) {
       for (const msg of lote) manejar(msg);
@@ -312,9 +309,8 @@ function enlazarEventos(sock, esSub) {
   async function procesarMensaje(m, msg) {
     if (!msg.message) return;
     if (msg.key.remoteJid.endsWith("@g.us") && !puedeResponderEnGrupo(sock, msg.key.remoteJid)) {
-      const interno = desenvolverMensaje(msg.message);
-      const crudo = interno.conversation || interno.extendedTextMessage?.text || interno.imageMessage?.caption || "";
-      if (!esSetPrimary(crudo)) return;
+      const crudo = msg.message.conversation || (msg.message.extendedTextMessage && msg.message.extendedTextMessage.text) || "";
+      if (esSub || !/^\s*\S{0,3}setprimary\b/i.test(crudo)) return;
     }
     if (!(await reclamarMensaje(msg, esSub))) return;
     if (m.type === "notify" && !msg.key.fromMe) PAG.msgsHoy++;
@@ -429,6 +425,7 @@ async function startBot() {
   }
   isConnecting = true;
 
+  cargarGruposMongo();   // en segundo plano: no retrasa el arranque (el archivo local ya cubre los primeros segundos)
   const { state, saveCreds } = await sesionPrincipal("auth_info", pino({ level: "silent" }));
   const { version } = await fetchLatestBaileysVersion();
 
@@ -440,7 +437,7 @@ async function startBot() {
     browser: ["Ubuntu", "Chrome", "20.0.04"],
     keepAliveIntervalMs: 30000,
     connectTimeoutMs: 60000,
-    defaultQueryTimeoutMs: 180000, // antes 60000: subir videos grandes a WhatsApp podia dar 408 (Timed Out)
+    defaultQueryTimeoutMs: 60000,
     markOnlineOnConnect: false,
     syncFullHistory: false,
     shouldSyncHistoryMessage: () => false,
