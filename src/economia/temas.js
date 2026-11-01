@@ -58,7 +58,7 @@ export function estilo(estilos) {
 
 // Nombre de la moneda que se ve en pantalla (el valor guardado no cambia).
 export function moneda() {
-  return esHalloween() ? "🎃 Calabazas" : CURRENCY;
+  return esHalloween() ? "🕯️ Velas" : CURRENCY;
 }
 
 const BANDAS_HALLOWEEN = [
