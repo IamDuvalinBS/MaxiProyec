@@ -14,11 +14,11 @@ const ESTILOS = {
   },
   halloween: {
     emoji: "⚰️",
-    titulo: "DURMIENDO EN EL ATAÚD",
-    aviso: (m) => `> ${m} se metió a su ataúd y ahora está AFK. 🧛`,
+    titulo: "DURMIENDO EN TÚ TUMBA",
+    aviso: (m) => `> ${m} se metió a su tumba y ahora está AFK. 🧛`,
     motivo: (t) => `> Motivo del letargo: *${t}*`,
     ganancia: (n) => `🎃 *Botín nocturno*:: ${monto(n)} por minuto`,
-    tip: "> Escribe cualquier mensaje o usa *.afk* para despertar y recibir tus calabazas. 🦇"
+    tip: "> Escribe cualquier mensaje o usa *.afk* para despertar y recibir tus velas. 🦇"
   }
 };
 
