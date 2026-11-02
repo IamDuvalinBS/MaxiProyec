@@ -26,19 +26,18 @@ const ESTILOS = {
     emoji: "⚰️",
     tituloBonus: "ATAÚD CON MALDICIÓN DORADA!",
     titulo: "ATAÚD ABIERTO",
-    relatos: [
-      "Nadie te dio dulces, pero fuistes al cementerio; en el altar se huzo presente él difunto, sin que lo pdiieras te dio dulces *llévatelo*, como buen Mexicano no dudaste ni un momento y le diste las gracias! 
-      🪦.",
-      "Un cuervo dejó un ataud en el suelo; adentro había una caña, calabaza y dulces por tu calaverita, y una nota que decía ~ *de nada* 🐦‍⬛.",
-      "Encontraste un esqueleto debajo de un árbol seco; las ramas te entregaron dulces como si fuera lo más normal del mundo 🌳.",
-      "Una bruja amable te dio un par de dulces; Los dulces hablaban, pero no te importó y aceptaste tu calabacita 🧙‍♀️
-      "Un cofre polvoriento apareció entre los muebles de una casa embrujada; el fantasma dueño dijo que lo olvidaste tú 🏚️."
-    ],
-    contenido: (n) => `🎃 *BOTÍN DEL ATAÚD::* +${monto(n)}`,
-    bonus: (n) => `👻 *REGALO DE LOS ESPÍRITUS::* +${monto(n)}`,
-    cartera: (n) => `🧙‍♀️ *CALDERO::* ${monto(n)}`,
-    tip: "Vuelve a desenterrar otro con *.cofre* en 24 horas. 🌙"
-  }
+     relatos: [
+  "Fuiste al panteón a dejar flores y, de repente, un difuntito salió de su tumba para regalarte dulces por tu calaverita. Como buen mexicano, le diste las gracias y te los llevaste sin hacer preguntas 💀🍬.",
+  "Encontraste un ataúd abandonado junto a una ofrenda; adentro había una calabacita, cañas y dulces. Una nota decía: *Pa' que te lleves algo, mijo* 🪦🍬.",
+  "Seguiste un camino de pétalos de cempasúchil y llegaste hasta un árbol seco. Entre las raíces encontraste una olla llena de monedas y dulces que alguien dejó para las almas 🏵️🌳.",
+  "Una Catrina salió detrás de una ofrenda y te regaló una bolsa de dulces. Algunos se movían solos, pero tú ya estabas pensando en repartirlos 💀🍬.",
+  "Entraste a una casa abandonada buscando un cofre y encontraste a un fantasma cuidando una montaña de monedas. Te miró y dijo: *Ya era hora de que vinieras por tu herencia* 👻🪙."
+],
+contenido: (n) => `🏵️ *BOTÍN DE LA OFRENDA::* +${monto(n)}`,
+bonus: (n) => `💀 *REGALO DEL MÁS ALLÁ::* +${monto(n)}`,
+cartera: (n) => `🪙 *TESORO DEL PANTEÓN::* ${monto(n)}`,
+tip: "Vuelve a buscar otro tesoro con *.cofre* dentro de 24 horas. 🏵️🪦"
+}
 };
 
 export default {
