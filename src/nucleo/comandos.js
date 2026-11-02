@@ -7,6 +7,7 @@ import { esAdminOOwner, ajustarMenciones } from "../grupos/nucleo.js";
 import { enviarConCache, reenviarCacheado, guardarRelay, registrarMedio, claveDeDescarga } from "../../motores/cache-medios.js";
 import { contarComando, contarComandoGrupo } from "../../motores/estadisticas.js";
 import { antesDeComando, despuesDeComando, COMANDOS_LOGROS } from "../economia/logros.js";
+import { avisarMuertos } from "../../motores/gacha-muertos.js";
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const CARPETAS_EXCLUIDAS = new Set([
@@ -83,6 +84,7 @@ const cargaLista = cargarComandos();
 
 const COMANDOS_PROTEGIDOS = new Set([".banear", ".desbanear", ".baneos"]);
 const CATEGORIAS_LOGROS = new Set(["Economía", "Trabajos", "Apuestas", "Negocios"]);
+const COMANDOS_MUERTOS = new Set([".muertos", ".diademuertos", ".ofrenda", ".altar"]);
 
 const historialComandos = new Map();
 
@@ -140,6 +142,7 @@ export async function manejarComando(sock, from, sender, text, msg) {
     contarComando(principalDeComando.get(comando));
     if (!msg.paginaChat) contarComandoGrupo(from, principalDeComando.get(comando), sender);
     if (antesLogros) await despuesDeComando({ antes: antesLogros, sender, comando, categoria: categoriaActual, reply });
+    if (cuentaLogros && !COMANDOS_MUERTOS.has(comando)) await avisarMuertos({ sender, reply });
     if (claveDescarga && capturados.length) guardarRelay(claveDescarga, capturados);
   } catch (e) {
     console.log(`❌ ERROR ejecutando el comando "${comando}": ${e.stack || e.message}`);
