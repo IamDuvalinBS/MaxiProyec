@@ -30,36 +30,35 @@ const ESTILOS = {
     tipFinal: "Usa *.dado* de nuevo para intentar otra vez.",
     cancelada: "⚠️ La apuesta fue cancelada porque ya no cuentas con fondos suficientes."
   },
-  halloween: {
-    emoji: "💀",
-    titulo: "DADO MALDITO",
-    relato: `Elige en qué número crees que caerá el *dado de hueso*, del *1 al ${CARAS}*. 🦴`,
-    apuesta: (n) => `🎟️ *PACTO::* ${monto(n)}`,
-    premio: (n) => `🏆 *BOTÍN SI ACIERTAS::* ${monto(n)}`,
-    tip: `Responde con un número del 1 al ${CARAS} en los próximos 30 segundos, antes de que cante el cuervo. 🐦‍⬛`,
-    tirando: "🎲 💀 Lanzando el dado de hueso...",
-    tituloAcierto: "DADO MALDITO ACERTADO",
-    tituloFallo: "DADO MALDITO FALLADO",
+   halloween: {
+    emoji: "🏵️",
+    titulo: "DADO DEL MICTLÁN",
+    relato: `Adivina en qué número caerá el *dado de hueso*, del *1 al ${CARAS}*. 🦴`,
+    apuesta: (n) => `🕯️ *OFRENDA::* ${monto(n)}`,
+    premio: (n) => `🏵️ *PREMIO SI ACIERTAS::* ${monto(n)}`,
+    tip: `Responde con un número del 1 al ${CARAS} en los próximos 30 segundos, antes de que se apague la veladora. 🕯️`,
+    tirando: "🏵️ Lanzando el dado del más allá...",
+    tituloAcierto: "🏵️ DESTINO DEL MICTLÁN ACERTADO",
+    tituloFallo: "💀 EL DESTINO TE HA FALLADO",
     relatoAcierto: [
-      "El dado de hueso cayó justo donde dijiste; el esqueleto que lo lanzó aplaudió con sus propias manos 💀.",
-      "Un fantasma sopló el dado hasta tu número y pidió que no lo acusaras de trampa 👻.",
-      "La Catrina vio el dado, sonrió y dijo 'este me cae bien'. Cobraste el botín 🌹.",
-      "El dado giró tanto que hasta un murciélago se mareó, pero cayó en tu número 🦇."
+      "El dado cayó justo en tu número; hasta las almas del Mictlán celebraron tu buena fortuna 🏵️.",
+      "Los pétalos de cempasúchil guiaron al dado hasta tu número; tu ofrenda fue bien recibida 🌼.",
+      "La Catrina observó tu jugada, sonrió y te concedió la fortuna de esta noche 💀🌹.",
+      "Una veladora iluminó tu destino y el dado cayó exactamente donde lo predijiste 🕯️."
     ],
     relatoFallo: [
-      "El dado cayó en otro número; el cuervo que lo miraba soltó una carcajada 🐦‍⬛.",
-      "Un gato negro tiró el dado de la mesa y rodó hacia el número equivocado 🐈‍⬛.",
-      "La Llorona lloró encima del dado y lo desvió; perdiste la apuesta 😭.",
-      "El dado era un hueso del vecino y se fue rodando a su lugar de descanso 🪦."
+      "El dado cayó en otro número y la Catrina se llevó tu suerte al más allá 💀.",
+      "Un viento del panteón dispersó los pétalos de cempasúchil y el dado terminó en otro número 🏵️.",
+      "Un difuntito movió el dado mientras nadie miraba; esta vez no hubo fortuna 👻.",
+      "La veladora se apagó justo antes de la tirada y tu suerte se perdió entre las sombras del Mictlán 🕯️."
     ],
-    eleccion: (n) => `🎯 *TU ELECCIÓN::* ${n}`,
-    resultado: (n) => `🦴 *RESULTADO::* ${n}`,
-    monedas: (acierto, n) => `${acierto ? "🎃" : "💀"} *CALABAZAS::* ${montoConSigno(n)}`,
-    experiencia: (n) => `🔮 *EXPERIENCIA::* +${n}`,
-    tipFinal: "Usa *.dado* de nuevo para desafiar otra vez a los espíritus. 🦇",
-    cancelada: "⚠️ 💀 El pacto fue cancelado porque ya no tienes calabazas suficientes."
-  }
-};
+    eleccion: (n) => `🎯 *TU NÚMERO ELEGIDO::* ${n}`,
+    resultado: (n) => `🦴 *NÚMERO DEL DESTINO::* ${n}`,
+    monedas: (acierto, n) => `${acierto ? "🏵️" : "💀"} *MONEDAS DE LA OFRENDA::* ${montoConSigno(n)}`,
+    experiencia: (n) => `🕯️ *SABIDURÍA ANCESTRAL::* +${n}`,
+    tipFinal: "Usa *.dado* para volver a desafiar al destino y probar tu fortuna en el Mictlán 🏵️.",
+    cancelada: "⚠️ 💀 La ofrenda fue cancelada porque ya no tienes suficientes monedas."
+   }
 
 export default {
   names: [".dado", ".dice"],
