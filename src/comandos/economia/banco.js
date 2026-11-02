@@ -1,6 +1,7 @@
 import { getAccount } from "../../../motores/db.js";
 import { getProfile } from "../../../motores/profile.js";
-import { monto, fmt, jidObjetivo } from "../../economia/formato-evento.j
+import { monto, fmt, jidObjetivo } from "../../economia/formato-evento.js";
+import { esHalloween } from "../../economia/temas.js";
   
 const ESTILO_EVENTO = "muertos";
 
