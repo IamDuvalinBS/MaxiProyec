@@ -40,34 +40,34 @@ const ESTILOS = {
   },
   halloween: {
     victoria: [
-      "Apostaste con un esqueleto y su mano de huesos temblaba más que tu pulso; ganaste la ronda 💀.",
-      "La Catrina repartió las cartas y, por simpatía, te dejó la mejor mano 🌹.",
-      "Un fantasma te sopló el número ganador; luego pidió una comisión que nunca cobró 👻.",
-      "Hiciste trampa con una carta de la manga... era una mano de verdad y ganaste igual 🃏.",
-      "El Charro Negro se sentó en la mesa; perdió contigo y se fue silbando sin llevarse tu alma 🐎.",
-      "Una bruja bendijo tus fichas con un hechizo de suerte y la banca lloró calabazas 🧙‍♀️."
-    ],
-    derrota: [
-      "Apostaste contra el diablo en persona; su sonrisa cobró buena parte de tus fichas 😈.",
-      "Un gato negro cruzó la mesa justo cuando tirabas y tu suerte huyó con él 🐈‍⬛.",
-      "La Llorona se sentó a tu lado y lloró tanto que se mojaron las cartas y perdiste 😭.",
-      "El crupier era un vampiro y se bebió parte de tu apuesta... el resto se salvó por poco 🧛.",
-      "Un espectro barajó con las manos atravesadas y las cartas cayeron a su favor 👻.",
-      "La mesa estaba maldita desde 1892 y tú no leíste el cartel 🪦."
-    ],
-    emojiGana: "🃏",
-    emojiPierde: "💀",
-    tituloGana: "APUESTA MALDITA GANADA",
-    tituloPierde: "APUESTA MALDITA PERDIDA",
-    uso: (min, max) => `> Uso: *.apuesta <cantidad|todo>*\n> Apuesta mínima: *${monto(min)}* · máxima: *${monto(max)}* 🕸️`,
-    apuesta: (n) => `🎟️ *PACTO::* ${monto(n)}`,
-    resultado: (gana, n, pct) => `${gana ? "🎃" : "💀"} *RESULTADO::* ${montoConSigno(n)} (${pct > 0 ? "+" : ""}${pct}%)`,
-    devuelto: (n) => `🏺 *DEVUELTO::* ${monto(n)}`,
-    experiencia: (n) => `🔮 *EXPERIENCIA::* +${n}`,
-    tip: "Usa *.dep* para esconder tus calabazas en la cripta antes de apostar con los espíritus. ⚰️",
-    cancelada: "⚠️ 💀 El pacto fue cancelado porque ya no tienes calabazas suficientes.",
-    inicial: "🃏 Barajando las cartas malditas..."
-  }
+  "La Catrina te guiñó el ojo desde el altar y te concedió una victoria más 🌹💀.",
+  "Seguiste el camino de pétalos de cempasúchil y encontraste la fortuna al final 🏵️.",
+  "Un difuntito salió del Mictlán para echarte la mano; hasta en el más allá tienes contactos 💀.",
+  "El esqueleto de la lotería cantó ¡BUENA SUERTE! y te llevaste todas las fichas 🎴.",
+  "El Charro Negro quiso cobrarte la apuesta, pero terminaste quitándole hasta el último peso 🐎.",
+  "Tu ofrenda estaba tan bien preparada que los espíritus te bendijeron con una victoria 🕯️."
+],
+derrota: [
+  "La Catrina te invitó a bailar y terminaste entregándole hasta tus últimas monedas 💀.",
+  "Un aire del panteón apagó tus veladoras y con ellas se fue toda tu suerte 🕯️.",
+  "Te distrajiste siguiendo las flores de cempasúchil y cuando volviste, ya habías perdido 🏵️.",
+  "El Charro Negro aceptó tu apuesta y se marchó cabalgando con tus ganancias 🐎.",
+  "Los espíritus del Mictlán jugaron en tu contra; ni poniendo una ofrenda pudiste salvarte 👻.",
+  "Hasta las calaveritas de azúcar se burlaron de ti; hoy la suerte se fue al otro mundo 💀."
+],
+emojiGana: "🏵️",
+emojiPierde: "💀",
+tituloGana: "🏵️ OFRENDA DE LA FORTUNA",
+tituloPierde: "💀 LA SUERTE SE FUE AL MICTLÁN",
+uso: (min, max) => `> Uso: *.apuesta <cantidad|todo>*\n> Apuesta mínima: *${monto(min)}* · máxima: *${monto(max)}* 🏵️`,
+apuesta: (n) => `🕯️ *OFRENDA::* ${monto(n)}`,
+resultado: (gana, n, pct) => `${gana ? "🏵️" : "💀"} *DESTINO::* ${montoConSigno(n)} (${pct > 0 ? "+" : ""}${pct}%)`,
+devuelto: (n) => `🪙 *MONEDAS RECUPERADAS::* ${monto(n)}`,
+experiencia: (n) => `💀 *SABIDURÍA DEL MÁS ALLÁ::* +${n}`,
+tip: "Usa *.dep* para guardar tus monedas en el altar antes de tentar a la suerte 🏵️🕯️.",
+cancelada: "⚠️ 💀 La ofrenda fue cancelada; ya no tienes suficientes monedas para continuar.",
+inicial: "🏵️ Las cartas están listas, las veladoras encendidas y los espíritus esperan tu apuesta... 
+  },
 };
 
 export default {
