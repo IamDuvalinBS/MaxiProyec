@@ -38,14 +38,14 @@ const ESTILOS = {
       "Usa *.daily pagar* para romper la maldición y conservar tu racha. 🕯️",
       "Usa *.daily reiniciar* para empezar un nuevo ritual desde 1 día. 🦇"
     ],
-    sinFondos: (costo, enMano) => `⚠️ 💀 Los espíritus piden *${monto(costo)}* para salvar tu racha y solo tienes *${monto(enMano)}* en el caldero. Usa *.retirar* para sacar calabazas de la cripta o *.daily reiniciar* para empezar una nueva racha. 🕸️`,
+    sinFondos: (costo, enMano) => `⚠️ 💀 Los espíritus piden *${monto(costo)}* para salvar tu racha y solo tienes *${monto(enMano)}* en el caldero. Usa *.retirar* para sacar las velas de tu altaro *.daily reiniciar* para empezar una nueva racha. 🕸️`,
     lineaGanado: (n) => `🍬 *BOTÍN DE DULCES::* +${monto(n)}`,
     lineaAnual: (n) => `🧙‍♀️ *RACHA DE UN AÑO EMBRUJADO::* +${monto(n)}`,
     lineaRecuperada: (n) => `⚰️ *RACHA RESCATADA DE LA TUMBA::* -${monto(n)}`,
-    lineaCartera: (n) => `🧙‍♀️ *CALDERO::* ${monto(n)}`,
+    lineaCartera: (n) => `🧙‍♀️ *ALTAR::* ${monto(n)}`,
     titulo: "TRUCO O TRATO DIARIO!",
-    relato: "Tocaste la puerta de la casa embrujada y te dieron tu *tratito* diario. Vuelve en *24 horas* para otra visita nocturna. 🦇",
-    tip: (racha) => [`Llevas una racha de ${textoDias(racha)} sobreviviendo a la noche 🌙`, "Usa *.dep* para esconder tus calabazas en la cripta. ⚰️"]
+    relato: "Tocaste la puerta de la casa embrujada y te dieron tus *dulces* diario. Vuelve en *24 horas* para más calabacitas. 🦇",
+    tip: (racha) => [`Llevas una racha de ${textoDias(racha)} sobreviviendo a la noche 🌙`, "Usa *.dep* para poner tus velas en el altar. ⚰️"]
   }
 };
 
