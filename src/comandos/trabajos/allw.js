@@ -139,4 +139,3 @@ export default {
     if (nivel) await reply({ text: avisoNivel(nivel) });
   }
 };
-  q
