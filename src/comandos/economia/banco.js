@@ -1,9 +1,7 @@
 import { getAccount } from "../../../motores/db.js";
 import { getProfile } from "../../../motores/profile.js";
-import { monto, fmt, jidObjetivo } from "../../economia/formato-evento.js";
-
-// Estilo que se usa mientras está activo el evento de Halloween:
-// "halloween" (calabazas, panteón) o "muertos" (Día de Muertos, 1 y 2 de noviembre).
+import { monto, fmt, jidObjetivo } from "../../economia/formato-evento.j
+  
 const ESTILO_EVENTO = "muertos";
 
 const azar = (lista) => lista[Math.floor(Math.random() * lista.length)];
@@ -21,27 +19,12 @@ const ESTILOS = {
     nivel: "🎖️ *NIVEL::*",
     carteraTxt: (n) => `${monto(n)} fuera del banco`,
     bancoTxt: (n) => `${monto(n)} en el banco`,
-    totalTxt: (n) => `${monto(n)} en total`,
-    tip: "Usa *.dep* para guardar tu dinero al banco.",
+    totalTxt: (n) => `${monton)} en total`,
+    tip: "Usa *.dep* para guardar tu dinero en el banco.",
     banda: () => null,
     cierre: () => null
   },
-  halloween: {
-    emoji: "🪦",
-    titulo: "PANTEÓN DE",
-    icono: "🦇",
-    cartera: "🧙‍♀️ *Caldero ››*",
-    banco: "⚰️ *Panteón ››*",
-    total: "☠︎︎ *Tesoro total ››*",
-    nivel: "🔮 *NIVEL::*",
-    carteraTxt: (n) => `${monto(n)} fuera del panteón`,
-    bancoTxt: (n) => `${monto(n)} escondidas en el panteón`,
-    totalTxt: (n) => `${monto(n)} en total`,
-    tip: "Usa *.dep* para esconder tus calabazas en el panteón. 🎃",
-    banda: null,
-    cierre: null
-  },
-  muertos: {
+  hallowen: {
     emoji: "🕯️",
     titulo: "ALTAR DE",
     icono: "💀",
@@ -64,7 +47,7 @@ export default {
   desc: "Consultar tu saldo o el de otro usuario (etiquetándolo o respondiendo a su mensaje)",
   category: "Economía",
   handler: async ({ sender, msg, reply }) => {
-    const E = esHalloween() ? { ...ESTILOS.normal, ...ESTILOS[ESTILO_EVENTO] } : ESTILOS.normal;
+    const E = esHalloween() ? { ...ESTILOS.normal, ...ESTILOS.halloween } : ESTILOS.normal;
     const objetivo = jidObjetivo(msg) || sender;
     const cuenta = getAccount(objetivo);
     const perfil = getProfile(objetivo);
