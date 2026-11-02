@@ -579,6 +579,14 @@ export function crearPersonaje({ categoria, clave, nombre, serie = "", genero = 
   return { id: fila.id };
 }
 
+export function etiquetarPersonaje(id, extra) {
+  const fila = personajes.get(Number(id));
+  if (!fila) return false;
+  fila.meta = { ...(fila.meta || {}), ...extra };
+  marcar(COL.personajes, fila.id);
+  return true;
+}
+
 export function personajePorId(id) {
   return copia(personajes.get(Number(id)));
 }

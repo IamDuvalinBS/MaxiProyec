@@ -5,7 +5,8 @@ import { PITY_TIRADAS, PROBABILIDAD_BANNER } from "./gacha-config.js";
 export const RELIQUIAS = [
   { id: "linterna", emoji: "🏮", nombre: "Linterna Eterna", efecto: "+50% de fragmentos al reclamar un personaje repetido (en todos los gachas)." },
   { id: "telarana", emoji: "🕸️", nombre: "Telaraña del Destino", efecto: "La garantía se activa a las 18 tiradas en vez de 25 (en todos los gachas)." },
-  { id: "corona", emoji: "👑", nombre: "Corona del Señor de Halloween", efecto: "Tiradas con 30% menos de espera y el doble de probabilidad del destacado semanal." }
+  { id: "corona", emoji: "👑", nombre: "Corona del Señor de Halloween", efecto: "Tiradas con 30% menos de espera y el doble de probabilidad del destacado semanal." },
+  { id: "cempasuchil", emoji: "🌼", nombre: "Cempasúchil Eterno", efecto: "+10% de probabilidad de ganar un Sello de Reclamo en cada tirada. Exclusiva de la Ofrenda de Día de Muertos 2026." }
 ];
 
 const clave = (id) => `reliquia:${id}`;
@@ -18,6 +19,7 @@ export function darReliquia(usuario, id) {
   return true;
 }
 
+export const probSelloExtra = (usuario) => (tieneReliquia(usuario, "cempasuchil") ? 0.1 : 0);
 export const reliquiasDe = (usuario) => RELIQUIAS.filter((r) => tieneReliquia(usuario, r.id));
 
 export const multFragmentos = (usuario) => (tieneReliquia(usuario, "linterna") ? 1.5 : 1);

@@ -42,7 +42,15 @@ export const TEMPORADA = [
   { id: "hwi_supremo", emoji: "💀", nombre: "Señor de Halloween", desc: "Consigue las otras 8 insignias de la temporada." }
 ].map((i) => ({ ...i, temporada: TEMPORADA_HALLOWEEN }));
 
+export const EVENTO_MUERTOS = "Día de Muertos 2026";
+
+export const INSIGNIAS_MUERTOS = [
+  { id: "mu_ofrendador", emoji: "🕯️", nombre: "Ofrendador", desc: "Participa en la Ofrenda de Día de Muertos con 100 comandos de economía." },
+  { id: "mu_guardian", emoji: "💀", nombre: "Guardián de la Ofrenda", desc: "Recibe el premio final de la Ofrenda comunitaria de Día de Muertos 2026." }
+];
+
 const POR_ID = new Map(AUTOMATICAS.map((i) => [i.id, i]));
+const MUERTOS_POR_ID = new Map(INSIGNIAS_MUERTOS.map((i) => [i.id, i]));
 const TEMPORADA_POR_ID = new Map(TEMPORADA.map((i) => [i.id, i]));
 
 function exclusivas() {
@@ -53,7 +61,8 @@ const deTemporada = (i) => ({ id: i.id, emoji: i.emoji, nombre: i.nombre, desc: 
 
 export function listaExclusivas() {
   const propias = Object.entries(exclusivas()).map(([id, d]) => ({ id, emoji: d.emoji, nombre: d.nombre, desc: d.desc, exclusiva: true }));
-  return [...TEMPORADA.map(deTemporada), ...propias];
+  const muertos = INSIGNIAS_MUERTOS.map((i) => ({ id: i.id, emoji: i.emoji, nombre: i.nombre, desc: i.desc, exclusiva: true }));
+  return [...TEMPORADA.map(deTemporada), ...muertos, ...propias];
 }
 
 export function definicion(id) {
@@ -61,6 +70,8 @@ export function definicion(id) {
   if (auto) return { id: auto.id, emoji: auto.emoji, nombre: auto.nombre, desc: auto.desc, exclusiva: false };
   const temporada = TEMPORADA_POR_ID.get(id);
   if (temporada) return deTemporada(temporada);
+  const muertos = MUERTOS_POR_ID.get(id);
+  if (muertos) return { id: muertos.id, emoji: muertos.emoji, nombre: muertos.nombre, desc: muertos.desc, exclusiva: true };
   const ex = exclusivas()[id];
   return ex ? { id, emoji: ex.emoji, nombre: ex.nombre, desc: ex.desc, exclusiva: true } : null;
 }
@@ -123,7 +134,7 @@ export function revisarInsignias(usuario) {
 
 export async function crearExclusiva({ id, emoji, nombre, desc }) {
   if (!FORMATO_ID.test(id)) return { error: "formato" };
-  if (POR_ID.has(id) || TEMPORADA_POR_ID.has(id)) return { error: "reservado" };
+  if (POR_ID.has(id) || TEMPORADA_POR_ID.has(id) || MUERTOS_POR_ID.has(id)) return { error: "reservado" };
   config.gachaInsignias = { ...exclusivas(), [id]: { emoji, nombre, desc } };
   await saveConfig();
   return { ok: true };

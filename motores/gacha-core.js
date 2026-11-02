@@ -26,7 +26,7 @@ import { PITY_TIRADAS, PITY_RANGO_MINIMO } from "./gacha-config.js";
 import { RAREZA_NOMBRES } from "./gacha-niveles.js";
 import { CAT } from "./gacha-categorias.js";
 import { ticketsDe, sorteoTicket } from "./gacha-tickets.js";
-import { requiereSello, sellosDe, gastarSello, sorteoSello, NOMBRE_SELLO, NOMBRE_SELLOS, EMOJI_SELLO, SELLOS_MAXIMOS, PROBABILIDAD_SELLO } from "./gacha-sellos.js";
+import { requiereSello, sellosDe, gastarSello, sorteoSello, NOMBRE_SELLO, NOMBRE_SELLOS, EMOJI_SELLO, SELLOS_MAXIMOS, probabilidadSelloDe } from "./gacha-sellos.js";
 import {
   bloqueCabecera, bloquesDePersonaje, repartirBloques, lineasPersonaje, textoStats, fuenteDe
 } from "./gacha-estilo.js";
@@ -653,7 +653,7 @@ async function enviarColeccionHtml({ sock, from, msg, categoria, sender, pagina,
     porParte: POR_PARTE_HTML,
     firma: "Powered By ItsDuva",
     sellos: requiereSello(categoria)
-      ? { n: sellosDe(sender), max: SELLOS_MAXIMOS, prob: Math.round(PROBABILIDAD_SELLO * 100), nombre: NOMBRE_SELLOS, cmd: cat.rollCmd }
+      ? { n: sellosDe(sender), max: SELLOS_MAXIMOS, prob: Math.round(probabilidadSelloDe(sender) * 100), nombre: NOMBRE_SELLOS, cmd: cat.rollCmd }
       : null,
     items: trozo.map((c, i) => {
       const clase = claseDe(c, categoria, series);
