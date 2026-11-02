@@ -58,7 +58,8 @@ const ESTILOS = {
     experiencia: (n) => `🕯️ *SABIDURÍA ANCESTRAL::* +${n}`,
     tipFinal: "Usa *.dado* para volver a desafiar al destino y probar tu fortuna en el Mictlán 🏵️.",
     cancelada: "⚠️ 💀 La ofrenda fue cancelada porque ya no tienes suficientes monedas."
-   }
+   },
+};
 
 export default {
   names: [".dado", ".dice"],
