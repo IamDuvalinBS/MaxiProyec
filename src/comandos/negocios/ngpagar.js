@@ -17,15 +17,15 @@ const ESTILOS = {
     tip: "Usa *.minegocios* para consultar el estado de tus negocios."
   },
   halloween: {
-    sinNegocios: "🏚️ Aún no posees ningún negocio embrujado. Usa *.negocios* para ver la tienda. 🕸️",
-    sinPagos: "✅ 🕯️ Ninguno de tus negocios necesita renovar su conjuro por ahora. El pago se habilita 3 días antes del vencimiento.",
-    sinFondos: (total, cartera) => `⚠️ 💀 El conjuro total cuesta *${monto(total)}* y solo tienes *${monto(cartera)}* en el caldero. Usa *.retirar* para desenterrar calabazas de la cripta.`,
-    emoji: "🔮",
-    titulo: "CONJURO RENOVADO!",
-    relato: "Renovaste el conjuro de mantenimiento semanal. Tus negocios siguen operando durante *7 noches* más. 🌙",
-    pagado: (n) => `💀 *PAGADO*:: -${monto(n)}`,
-    cartera: (n) => `🧙‍♀️ *CALDERO*:: ${monto(n)}`,
-    tip: "Usa *.minegocios* para consultar el estado de tus negocios embrujados. 🦇"
+    sinNegocios: "🏚️ Aún no tienes ningún negocio en el pueblo de los difuntos. Usa *.negocios* para visitar el mercado. 🏵️",
+    sinPagos: "✅ 🕯️ Tus negocios siguen protegidos por las ofrendas. Ninguno necesita renovar su protección por ahora. El pago se habilita 3 días antes del vencimiento.",
+    sinFondos: (total, cartera) => `⚠️ 💀 La ofrenda para mantener tus negocios cuesta *${monto(total)}* y solo tienes *${monto(cartera)}* en tu altar. Usa *.retirar* para recuperar monedas de tu cripta.`,
+    emoji: "🏵️",
+    titulo: "¡OFRENDA RENOVADA!",
+    relato: "Renovaste la ofrenda de protección de tus negocios. Los espíritus cuidarán tus establecimientos durante *7 noches* más. 🕯️",
+    pagado: (n) => `🏵️ *OFRENDA ENTREGADA::* -${monto(n)}`,
+    cartera: (n) => `🪙 *MONEDAS DEL ALTAR::* ${monto(n)}`,
+    tip: "Usa *.minegocios* para consultar el estado de tus negocios y comprobar que los espíritus sigan cuidándolos. 💀"
   }
 };
 
