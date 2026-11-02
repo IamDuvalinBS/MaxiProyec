@@ -66,7 +66,7 @@ devuelto: (n) => `🪙 *MONEDAS RECUPERADAS::* ${monto(n)}`,
 experiencia: (n) => `💀 *SABIDURÍA DEL MÁS ALLÁ::* +${n}`,
 tip: "Usa *.dep* para guardar tus monedas en el altar antes de tentar a la suerte 🏵️🕯️.",
 cancelada: "⚠️ 💀 La ofrenda fue cancelada; ya no tienes suficientes monedas para continuar.",
-inicial: "🏵️ Las cartas están listas, las veladoras encendidas y los espíritus esperan tu apuesta... 
+inicial: "🏵️ Las cartas están listas, las veladoras encendidas y los espíritus esperan tu apuesta..."
   },
 };
 
