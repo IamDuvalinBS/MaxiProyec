@@ -41,11 +41,12 @@ tipPerdida: [
 sinFondos: (costo, enMano) => `⚠️ 💀 Los espíritus piden *${monto(costo)}* para salvar tu racha, pero solo tienes *${monto(enMano)}* en tu ofrenda. Usa *.retirar* para sacar monedas de tu altar o *.daily reiniciar* para comenzar de nuevo. 🕯️`,
 lineaGanado: (n) => `🏵️ *RECOMPENSA DE LA OFRENDA::* +${monto(n)}`,
 lineaAnual: (n) => `💀 *UN AÑO DE TRADICIÓN::* +${monto(n)}`,
-lineaRecuperada: (n) => `⚰️ *RESCATE DE LA RACHА::* -${monto(n)}`,
+lineaRecuperada: (n) => `⚰️ *RESCATE DE LA RACHA::* -${monto(n)}`,
 lineaCartera: (n) => `🕯️ *MONEDAS EN EL ALTAR::* ${monto(n)}`,
 titulo: "¡OFRENDA DIARIA!",
 relato: "Llegaste al altar y encontraste una ofrenda llena de monedas y dulces que los difuntos dejaron para ti. Recoge tu recompensa y vuelve en *24 horas* para mantener viva la tradición. 🏵️🍬",
 tip: (racha) => [`Llevas una racha de ${textoDias(racha)}; ni la Catrina ha conseguido detenerte. 💀`, "Usa *.dep* para guardar tus monedas en el altar y mantenerlas a salvo. 🕯️"]
+  }
 };
 
 export default {
