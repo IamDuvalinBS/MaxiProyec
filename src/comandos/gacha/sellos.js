@@ -1,6 +1,6 @@
 import { ownerGacha } from "../../../motores/gacha-owners.js";
 import { gachaListo, arroba } from "../../../motores/gacha-core.js";
-import { darSellos, NOMBRE_SELLOS, EMOJI_SELLO } from "../../../motores/gacha-sellos.js";
+import { darSellos, reiniciarSellos, NOMBRE_SELLOS, EMOJI_SELLO, SELLOS_INICIALES } from "../../../motores/gacha-sellos.js";
 
 const cmd_darsello = {
   names: [".darsello", ".darsellos"],
@@ -23,4 +23,20 @@ const cmd_darsello = {
   })
 };
 
-export default [cmd_darsello];
+const cmd_reiniciarsellos = {
+  names: [".reiniciarsellos", ".resetsellos"],
+  desc: "Reinicia los Sellos de Reclamo de todos los usuarios: .reiniciarsellos [cantidad] (solo owners)",
+  category: "Owner",
+  usage: ".reiniciarsellos [cantidad]",
+  handler: ownerGacha(async ({ cleanText, reply }) => {
+    await gachaListo;
+    const pedido = parseInt(cleanText.split(/\s+/)[1], 10);
+    const cantidad = Number.isFinite(pedido) && pedido >= 0 ? pedido : SELLOS_INICIALES;
+    const afectados = reiniciarSellos(cantidad);
+    return reply({
+      text: `${EMOJI_SELLO} Se reiniciaron los ${NOMBRE_SELLOS} de *${afectados}* usuarios a *${cantidad}*. Los usuarios nuevos o sin registro empiezan con *${SELLOS_INICIALES}*.`
+    });
+  })
+};
+
+export default [cmd_darsello, cmd_reiniciarsellos];
