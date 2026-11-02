@@ -17,11 +17,11 @@ const ESTILOS = {
   halloween: {
     sinNumero: "🏚️ Indica el número del negocio embrujado que deseas comprar. Ejemplo: *.negocio 1*. Usa *.negocios* para ver la lista. 🕸️",
     poseido: (nombre) => `🏚️ Ya posees *${nombre}*. Usa *.minegocios* para consultar su estado. 👻`,
-    sinFondos: (nombre, precio, falta) => `⚠️ 💀 *${nombre}* cuesta *${monto(precio)}* y te faltan *${monto(falta)}* en el caldero. Usa *.retirar* para desenterrar calabazas de la cripta.`,
+    sinFondos: (nombre, precio, falta) => `⚠️ 💀 *${nombre}* cuesta *${monto(precio)}* y te faltan *${monto(falta)}* en el altar. Usa *.retirar* para sacar mas velas de tu casa.`,
     titulo: "NEGOCIO EMBRUJADO ADQUIRIDO!",
     relato: (nombre, precio, max, horas) => `Hiciste un pacto y adquiriste *${nombre}* por *${monto(precio)}*. Generará hasta *${monto(max)}* cada *${horas} horas* de oscuridad. 🌙`,
-    cartera: (n) => `🧙‍♀️ *CALDERO*:: ${monto(n)}`,
-    tip: (pago) => ["Usa *.ngreclamar* para cobrar tus ganancias malditas. 🎃", `El conjuro de mantenimiento semanal cuesta *${monto(pago)}* y se paga con *.ngpagar*. 🔮`]
+    cartera: (n) => `🧙‍♀️ *ALTAR*:: ${monto(n)}`,
+    tip: (pago) => ["Usa *.ngreclamar* para cobrar tus ganancias malditas. 🪦", `El conjuro de mantenimiento semanal cuesta *${monto(pago)}* y se paga con *.ngpagar*. 🔮`]
   }
 };
 
