@@ -19,8 +19,8 @@ const ESTILOS = {
     titulo: "BANQUETE SEMANAL!",
     relato: "Los murciélagos te trajeron el *tesoro semanal* desde el campanario. Vuelve en *7 noches* para otro banquete macabro. 🕸️",
     ganado: (n) => `🎃 *TESORO MALDITO::* +${monto(n)}`,
-    cartera: (n) => `🧙‍♀️ *CALDERO::* ${monto(n)}`,
-    tip: "Usa *.dep* para esconder tus calabazas en la cripta. ⚰️"
+    cartera: (n) => `🪦 *ALTAR::* ${monto(n)}`,
+    tip: "Usa *.dep* para hacer homenaje a los difuntos en tu altar. 🖼️"
   }
 };
 
