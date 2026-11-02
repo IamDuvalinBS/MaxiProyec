@@ -17,11 +17,11 @@ const ESTILOS = {
     emoji: "⚰️",
     titulo: "ENTIERRO EN LA CRIPTA",
     invalido: "⚠️ 🦇 Indica una cantidad válida o utiliza *todo*. Ejemplo: *.depositar 500*",
-    sinFondos: (n) => `⚠️ 💀 No tienes tantas calabazas. En tu caldero solo hay: *${monto(n)}*.`,
+    sinFondos: (n) => `⚠️ 💀 No tienes tantas Velas 🕯️. En tu altar solo hay: *${monto(n)}*.`,
     depositado: (n) => `🪦 *ENTERRADO::* ${monto(n)}`,
     cartera: (n) => `🧙‍♀️ *CALDERO::* ${monto(n)}`,
     banco: (n) => `⚰️ *CRIPTA::* ${monto(n)}`,
-    tip: "Usa *.retirar* cuando quieras desenterrar tus calabazas. 🕯️"
+    tip: "Usa *.retirar* cuando quieras quitar las velas de tu altar de muerto. 🕯️"
   }
 };
 
