@@ -18,7 +18,7 @@ const ESTILOS = {
     titulo: "SALÓN DE LOS MALDITOS",
     relato: "Las almas con *más calabazas* acumuladas en todo el reino embrujado. 🕸️",
     vacio: "⚠️ 🪦 Todavía no hay almas con calabazas registradas.",
-    fila: (puesto, jid, total) => `${puesto} @${jid.split("@")[0]} ››\n> ${fmt(total)} ${moneda()} escondidas en su cripta.`,
+    fila: (puesto, jid, total) => `${puesto} @${jid.split("@")[0]} ››\n> ${fmt(total)} ${moneda()} en su altar.`,
     tip: "Usa *.bal* para ver cuántas calabazas tienes tú. 🎃"
   }
 };
