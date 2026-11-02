@@ -24,37 +24,37 @@ const ESTILOS = {
     cancelada: "⚠️ La apuesta fue cancelada porque ya no cuentas con fondos suficientes.",
     girando: "🎡 Girando la ruleta..."
   },
-  halloween: {
-    invalido: `⚠️ 🦇 Criatura no válida. Elige un número del 1 al ${COLORES.length} o el nombre de la criatura. Escribe *.ruleta* para ver la tabla.`,
-    uso: "> Uso: *.ruleta <número o criatura> <monto>* 🕸️",
+   halloween: {
+    invalido: `⚠️ 🏵️ Criatura no válida. Elige un número del 1 al ${COLORES.length} o el nombre de la criatura. Escribe *.ruleta* para ver la tabla.`,
+    uso: "> Uso: *.ruleta <número o criatura> <monto>* 🏵️",
     sinCoincidencia: [
-      "La ruleta se detuvo en otra criatura; el Silbón silbó de burla y se llevó tu apuesta 🦴.",
-      "La bola cayó en el casillero equivocado; el fantasma del crupier ni siquiera se disculpó 👻.",
-      "Giraste la ruleta y una mano salió de la rueda a recoger tus calabazas 🖐️.",
-      "Los espíritus se rieron de tu elección y se quedaron con la apuesta 🕸️."
+      "La ruleta se detuvo en otra criatura; la Catrina se llevó tus monedas al Mictlán 💀.",
+      "La bola cayó en el casillero equivocado y hasta las almas del panteón lamentaron tu suerte 🕯️.",
+      "Giraste la ruleta y una mano esquelética salió de la ofrenda para llevarse tus monedas 💀.",
+      "Los espíritus del Mictlán rechazaron tu elección y se quedaron con tu ofrenda 🏵️."
     ],
     coincidencia: (mult) => {
       const frases = [
-        "La ruleta se detuvo justo en tu criatura y el murciélago de la mesa aplaudió 🦇",
-        "La bruja que giraba la rueda guiñó un ojo y cayó en tu casillero 🧙‍♀️",
-        "Un fantasma empujó la bola con cariño hasta tu criatura 👻",
-        "La Catrina sonrió y la ruleta cayó donde dijiste 🌹"
+        "La ruleta se detuvo justo en tu criatura y las almas del panteón celebraron tu fortuna 🏵️",
+        "La Catrina giró la rueda y la suerte cayó de tu lado 💀",
+        "Un espíritu siguió los pétalos de cempasúchil hasta tu casillero 🌼",
+        "Las veladoras iluminaron tu destino y la ruleta cayó donde dijiste 🕯️"
       ];
       return `${frases[Math.floor(Math.random() * frases.length)]}. Coincidencia con ${mult}.`;
     },
-    premioMayor: (mult) => `🧛 ¡PREMIO MAYOR! El Vampiro te eligió. Coincidencia con ${mult}. 🦇`,
-    emojiGana: "🎃",
+    premioMayor: (mult) => `🏵️ ¡PREMIO MAYOR! La Catrina bendijo tu suerte. Coincidencia con ${mult}. 💀`,
+    emojiGana: "🏵️",
     emojiPierde: "💀",
-    tituloGana: "RULETA EMBRUJADA ACERTADA",
-    tituloPierde: "RULETA EMBRUJADA FALLIDA",
-    elegido: (v) => `🔮 *ELEGIDO::* ${v.emoji} ${v.nombre}`,
-    obtenido: (v) => `🎯 *OBTENIDO::* ${v.emoji} ${v.nombre}`,
-    apuesta: (n) => `🎟️ *PACTO::* ${monto(n)}`,
-    monedas: (ok, n) => `${ok ? "🎃" : "💀"} *CALABAZAS::* ${montoConSigno(n)}`,
-    experiencia: (n) => `🦇 *EXPERIENCIA::* +${n}`,
-    tip: "Usa *.ruleta* para ver la tabla de criaturas y probabilidades. 🕯️",
-    cancelada: "⚠️ 💀 El pacto fue cancelado porque ya no tienes calabazas suficientes.",
-    girando: "🎡 🕸️ Girando la ruleta embrujada..."
+    tituloGana: "🌼 RULETA DE LA FORTUNA",
+    tituloPierde: "💀 LA RULETA DEL MICTLÁN",
+    elegido: (v) => `🏵️ *ELEGIDO::* ${v.emoji} ${v.nombre}`,
+    obtenido: (v) => `🕯️ *OBTENIDO::* ${v.emoji} ${v.nombre}`,
+    apuesta: (n) => `🏵️ *OFRENDA::* ${monto(n)}`,
+    monedas: (ok, n) => `${ok ? "🌼" : "💀"} *MONEDAS::* ${montoConSigno(n)}`,
+    experiencia: (n) => `🕯️ *SABIDURÍA ANCESTRAL::* +${n}`,
+    tip: "Usa *.ruleta* para consultar la tabla de criaturas y sus probabilidades. 🏵️",
+    cancelada: "⚠️ 💀 La ofrenda fue cancelada porque ya no tienes suficientes monedas.",
+    girando: "🎡 🏵️ Girando la ruleta del destino..."
   }
 };
 
