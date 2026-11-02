@@ -358,6 +358,8 @@ async function abrir(numero, entrada) {
 
 export async function iniciarSubbots(funcionEnlazar) {
   enlazar = funcionEnlazar;
+  // MongoDB se conecta en paralelo al arrancar; si WhatsApp abre primero se espera (hasta 40 s) en vez de rendirse.
+  for (let i = 0; i < 40 && !sesionesDisponibles(); i++) await new Promise((r) => setTimeout(r, 1000));
   if (!sesionesDisponibles()) {
     console.log("Subbots: MongoDB no está disponible, no se iniciaron.");
     return;
