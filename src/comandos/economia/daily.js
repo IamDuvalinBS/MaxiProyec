@@ -30,23 +30,22 @@ const ESTILOS = {
     tip: (racha) => [`Llevas una racha de ${textoDias(racha)}`, "Usa *.dep* para guardar tu dinero."]
   },
   halloween: {
-    emoji: "🎃",
-    tituloPerdida: "RACHA MALDITA!",
-    relatoPerdida: (cantidad) => `Pasaron más de 48 horas desde tu último ritual diario. Tu racha de *${textoDias(cantidad)}* está a punto de ser devorada por los fantasmas. 👻`,
-    lineaCosto: (costo) => `💀 *PRECIO DEL CONJURO::* ${monto(costo)}`,
-    tipPerdida: [
-      "Usa *.daily pagar* para romper la maldición y conservar tu racha. 🕯️",
-      "Usa *.daily reiniciar* para empezar un nuevo ritual desde 1 día. 🦇"
-    ],
-    sinFondos: (costo, enMano) => `⚠️ 💀 Los espíritus piden *${monto(costo)}* para salvar tu racha y solo tienes *${monto(enMano)}* en el caldero. Usa *.retirar* para sacar las velas de tu altaro *.daily reiniciar* para empezar una nueva racha. 🕸️`,
-    lineaGanado: (n) => `🍬 *BOTÍN DE DULCES::* +${monto(n)}`,
-    lineaAnual: (n) => `🧙‍♀️ *RACHA DE UN AÑO EMBRUJADO::* +${monto(n)}`,
-    lineaRecuperada: (n) => `⚰️ *RACHA RESCATADA DE LA TUMBA::* -${monto(n)}`,
-    lineaCartera: (n) => `🧙‍♀️ *ALTAR::* ${monto(n)}`,
-    titulo: "TRUCO O TRATO DIARIO!",
-    relato: "Tocaste la puerta de la casa embrujada y te dieron tus *dulces* diario. Vuelve en *24 horas* para más calabacitas. 🦇",
-    tip: (racha) => [`Llevas una racha de ${textoDias(racha)} sobreviviendo a la noche 🌙`, "Usa *.dep* para poner tus velas en el altar. ⚰️"]
-  }
+    emoji: "🏵️",
+tituloPerdida: "¡OFRENDA OLVIDADA!",
+relatoPerdida: (cantidad) => `Han pasado más de 48 horas desde tu última ofrenda. Tu racha de *${textoDias(cantidad)}* está a punto de desaparecer entre las almas del Mictlán. 💀`,
+lineaCosto: (costo) => `🕯️ *PRECIO DE LA OFRENDA::* ${monto(costo)}`,
+tipPerdida: [
+  "Usa *.daily pagar* para ofrecer unas monedas y salvar tu racha antes de que la Catrina se la lleve. 💀",
+  "Usa *.daily reiniciar* para comenzar una nueva tradición desde el primer día. 🏵️"
+],
+sinFondos: (costo, enMano) => `⚠️ 💀 Los espíritus piden *${monto(costo)}* para salvar tu racha, pero solo tienes *${monto(enMano)}* en tu ofrenda. Usa *.retirar* para sacar monedas de tu altar o *.daily reiniciar* para comenzar de nuevo. 🕯️`,
+lineaGanado: (n) => `🏵️ *RECOMPENSA DE LA OFRENDA::* +${monto(n)}`,
+lineaAnual: (n) => `💀 *UN AÑO DE TRADICIÓN::* +${monto(n)}`,
+lineaRecuperada: (n) => `⚰️ *RESCATE DE LA RACHА::* -${monto(n)}`,
+lineaCartera: (n) => `🕯️ *MONEDAS EN EL ALTAR::* ${monto(n)}`,
+titulo: "¡OFRENDA DIARIA!",
+relato: "Llegaste al altar y encontraste una ofrenda llena de monedas y dulces que los difuntos dejaron para ti. Recoge tu recompensa y vuelve en *24 horas* para mantener viva la tradición. 🏵️🍬",
+tip: (racha) => [`Llevas una racha de ${textoDias(racha)}; ni la Catrina ha conseguido detenerte. 💀`, "Usa *.dep* para guardar tus monedas en el altar y mantenerlas a salvo. 🕯️"]
 };
 
 export default {
