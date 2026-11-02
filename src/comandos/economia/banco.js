@@ -1,7 +1,6 @@
 import { getAccount } from "../../../motores/db.js";
 import { getProfile } from "../../../motores/profile.js";
 import { monto, fmt, jidObjetivo } from "../../economia/formato-evento.js";
-import { esHalloween, bandaSuperior, bandaInferior } from "../../economia/temas.js";
 
 // Estilo que se usa mientras está activo el evento de Halloween:
 // "halloween" (calabazas, panteón) o "muertos" (Día de Muertos, 1 y 2 de noviembre).
@@ -39,8 +38,8 @@ const ESTILOS = {
     bancoTxt: (n) => `${monto(n)} escondidas en el panteón`,
     totalTxt: (n) => `${monto(n)} en total`,
     tip: "Usa *.dep* para esconder tus calabazas en el panteón. 🎃",
-    banda: bandaSuperior,
-    cierre: bandaInferior
+    banda: null,
+    cierre: null
   },
   muertos: {
     emoji: "🕯️",
@@ -54,8 +53,8 @@ const ESTILOS = {
     bancoTxt: (n) => `Tienes ${fmt(n)} flores (🌼) guardadas en el panteón.`,
     totalTxt: (n) => `Tienes ${fmt(n)} flores (🌼) en tu altar de muertos.`,
     tip: "Usa *.dep* para guardar tus flores en el panteón. 🕯️",
-    banda: () => azar(BANDAS_MUERTOS),
-    cierre: () => azar(CIERRES_MUERTOS)
+    banda: () => null,
+    cierre: () => null
   }
 };
 
