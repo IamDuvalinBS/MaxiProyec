@@ -2,12 +2,6 @@ import { getAccount } from "../../../motores/db.js";
 import { getProfile } from "../../../motores/profile.js";
 import { monto, fmt, jidObjetivo } from "../../economia/formato-evento.js";
 import { esHalloween } from "../../economia/temas.js";
-  
-const ESTILO_EVENTO = "muertos";
-
-const azar = (lista) => lista[Math.floor(Math.random() * lista.length)];
-const BANDAS_MUERTOS = ["🌼 🕯️ 💀 🕯️ 🌼", "🌺 💀 🌼 💀 🌺", "🕯️ 🌼 🪦 🌼 🕯️", "🌼 🍞 💀 🍬 🌼"];
-const CIERRES_MUERTOS = ["🌼 🕯️ 🌼", "💀 🍬 💀", "🕯️ 🌺 🕯️"];
 
 const ESTILOS = {
   normal: {
@@ -20,12 +14,12 @@ const ESTILOS = {
     nivel: "🎖️ *NIVEL::*",
     carteraTxt: (n) => `${monto(n)} fuera del banco`,
     bancoTxt: (n) => `${monto(n)} en el banco`,
-    totalTxt: (n) => `${monton)} en total`,
+    totalTxt: (n) => `${monto(n)} en total`,
     tip: "Usa *.dep* para guardar tu dinero en el banco.",
     banda: () => null,
     cierre: () => null
   },
-  hallowen: {
+  halloween: {
     emoji: "🕯️",
     titulo: "ALTAR DE",
     icono: "💀",
