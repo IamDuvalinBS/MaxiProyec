@@ -18,9 +18,9 @@ const ESTILOS = {
     titulo: "MIS NEGOCIOS MACABROS",
     sinNegocios: "🏚️ Aún no posees ningún negocio embrujado. Usa *.negocios* para ver la tienda. 🕸️",
     acumulado: (a, max) => `> Acumulado: *${a}* de *${max}* 🎃`,
-    vencido: (pago) => `> ⚠️ 💀 Conjuro de mantenimiento vencido (*${pago}*). Los fantasmas detuvieron la producción.`,
+    vencido: (pago) => `> ⚠️ 💀 Conjuro de mantenimiento vencido (*${pago}*). Las catrinas detuvieron la producción.`,
     mantenimiento: (pago, t) => `> Conjuro de mantenimiento: *${pago}* en *${t}* 🕯️`,
-    tip: ["Usa *.ngreclamar* para cobrar tus ganancias malditas. 🎃", "Usa *.ngpagar* para renovar el conjuro de mantenimiento semanal. 🔮"]
+    tip: ["Usa *.ngreclamar* para cobrar tus ganancias malditas. 🕯️", "Usa *.ngpagar* para renovar el conjuro de mantenimiento semanal. 🔮"]
   }
 };
 
