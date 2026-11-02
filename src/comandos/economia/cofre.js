@@ -27,10 +27,11 @@ const ESTILOS = {
     tituloBonus: "ATAÚD CON MALDICIÓN DORADA!",
     titulo: "ATAÚD ABIERTO",
     relatos: [
-      "Desenterraste un ataúd en el cementerio; el difunto dijo 'llévatelo, ya no lo uso' y volvió a dormir 🪦.",
-      "Un cuervo dejó un ataúd diminuto en tu puerta; adentro había un tesoro y una nota que decía 'de nada' 🐦‍⬛.",
-      "Encontraste un cofre bajo un árbol seco; las ramas te lo entregaron como si fuera lo más normal 🌳.",
-      "Una bruja agradecida te regaló un cofre; la tapa pidió que lo abrieras con cuidado y mordió a medias 🧙‍♀️.",
+      "Nadie te dio dulces, pero fuistes al cementerio; en el altar se huzo presente él difunto, sin que lo pdiieras te dio dulces *llévatelo*, como buen Mexicano no dudaste ni un momento y le diste las gracias! 
+      🪦.",
+      "Un cuervo dejó un ataud en el suelo; adentro había una caña, calabaza y dulces por tu calaverita, y una nota que decía ~ *de nada* 🐦‍⬛.",
+      "Encontraste un esqueleto debajo de un árbol seco; las ramas te entregaron dulces como si fuera lo más normal del mundo 🌳.",
+      "Una bruja amable te dio un par de dulces; Los dulces hablaban, pero no te importó y aceptaste tu calabacita 🧙‍♀️
       "Un cofre polvoriento apareció entre los muebles de una casa embrujada; el fantasma dueño dijo que lo olvidaste tú 🏚️."
     ],
     contenido: (n) => `🎃 *BOTÍN DEL ATAÚD::* +${monto(n)}`,
