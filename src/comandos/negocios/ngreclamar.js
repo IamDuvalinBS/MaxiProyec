@@ -16,16 +16,16 @@ const ESTILOS = {
     titulo: "GANANCIAS RECLAMADAS!",
     relato: "Cobraste el dinero acumulado de tus negocios."
   },
-  halloween: {
-    sinNegocios: "🏚️ Aún no posees ningún negocio embrujado. Usa *.negocios* para ver la tienda. 🕸️",
-    nada: (aviso) => `⏳ 🕯️ Tus negocios todavía no han acumulado calabazas.${aviso ? " Algunos tienen el conjuro vencido; usa *.ngpagar* para reactivarlos. 🔮" : ""}`,
-    total: (n) => `🎃 *TOTAL*:: +${monto(n)}`,
-    cartera: (n) => `🧙‍♀️ *CALDERO*:: ${monto(n)}`,
-    tipBase: "Usa *.dep* para esconder tus calabazas en la cripta. ⚰️",
-    tipVencido: "Tienes negocios con el conjuro de mantenimiento vencido. Usa *.ngpagar*. 💀",
-    emoji: "🎃",
-    titulo: "BOTÍN MALDITO RECLAMADO!",
-    relato: "Cobraste las calabazas acumuladas de tus negocios embrujados. 🦇"
+   halloween: {
+    sinNegocios: "🏚️ Aún no tienes ningún negocio en el pueblo de los difuntos. Usa *.negocios* para visitar el mercado. 🏵️",
+    nada: (aviso) => `⏳ 🕯️ Tus negocios todavía no han generado monedas para tu ofrenda.${aviso ? " Algunos tienen su protección vencida; usa *.ngpagar* para renovar la ofrenda. 💀" : ""}`,
+    total: (n) => `🏵️ *GANANCIAS DE LA OFRENDA::* +${monto(n)}`,
+    cartera: (n) => `🪙 *MONEDAS DEL ALTAR::* ${monto(n)}`,
+    tipBase: "Usa *.dep* para guardar tus monedas en la cripta y mantenerlas a salvo. ⚰️",
+    tipVencido: "Algunos negocios han perdido la protección de los espíritus. Usa *.ngpagar* para renovarla. 🕯️",
+    emoji: "🏵️",
+    titulo: "¡OFRENDA RECLAMADA!",
+    relato: "Recogiste las monedas que tus negocios acumularon mientras los espíritus cuidaban de ellos. ¡Tu altar está más lleno que nunca! 💀🪙"
   }
 };
 
