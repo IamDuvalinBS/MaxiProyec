@@ -28,11 +28,11 @@ const kFase = (id) => `mu26:fase:${id}`;
 const kObjeto = (id) => `mu26:objeto:${id}`;
 
 export const OBJETOS = {
-  flor: { emoji: "🌼", nombre: "Flor de Cempasúchil" },
-  pan: { emoji: "🍞", nombre: "Pan de Muerto" },
-  calavera: { emoji: "💀", nombre: "Calavera de Azúcar" },
-  vela: { emoji: "🕯️", nombre: "Vela de Ofrenda" },
-  catrina: { emoji: "💃", nombre: "Catrina Eterna" }
+  flor: { emoji: "🌼", nombre: "Flor de Cempasúchil", fase: 1, efecto: "Objeto de colección. Adorna tu ofrenda y demuestra que participaste desde el inicio." },
+  pan: { emoji: "🍞", nombre: "Pan de Muerto", fase: 2, efecto: "Objeto de colección. Adorna tu ofrenda y demuestra que participaste desde el inicio." },
+  calavera: { emoji: "💀", nombre: "Calavera de Azúcar", fase: 3, efecto: "Objeto de colección. Adorna tu ofrenda y demuestra que participaste desde el inicio." },
+  vela: { emoji: "🕯️", nombre: "Vela de Ofrenda", fase: 4, bonoDaily: 0.1, efecto: "Aumenta un 10% la recompensa de tu .daily." },
+  catrina: { emoji: "💃", nombre: "Catrina Eterna", fase: 5, bonoDaily: 0.15, efecto: "Aumenta un 15% la recompensa de tu .daily. Se suma al bono de la Vela de Ofrenda." }
 };
 
 export const FASES = [
@@ -78,6 +78,18 @@ export const comandosDe = (usuario) => cantidadItem(usuario, K_N);
 export const faseDesbloqueada = (fase) => totalComunidad() >= umbralDe(fase);
 export const faseEntregada = (usuario, fase) => cantidadItem(usuario, kFase(fase.id)) > 0;
 export const objetosDe = (usuario) => Object.entries(OBJETOS).map(([id, o]) => ({ id, ...o, tiene: cantidadItem(usuario, kObjeto(id)) > 0 }));
+
+export function bonoDaily(usuario) {
+  try {
+    let total = 0;
+    for (const [id, o] of Object.entries(OBJETOS)) if (o.bonoDaily && cantidadItem(usuario, kObjeto(id)) > 0) total += o.bonoDaily;
+    return total;
+  } catch {
+    return 0;
+  }
+}
+
+export const extraDaily = (usuario, base) => Math.floor(base * bonoDaily(usuario));
 
 const monedaTexto = (n) => `${fmt(n)} ${moneda()}`;
 
@@ -269,7 +281,16 @@ export function construirDatosMuertos(usuario, { nombre }) {
       entregada: faseEntregada(usuario, f),
       premio: premioTexto(f)
     })),
-    objetos: objetosDe(usuario),
+    objetos: objetosDe(usuario).map((o) => ({
+      id: o.id,
+      emoji: o.emoji,
+      nombre: o.nombre,
+      tiene: o.tiene,
+      efecto: o.efecto,
+      bono: o.bonoDaily ? Math.round(o.bonoDaily * 100) : 0,
+      como: `Se entrega al completar la Fase ${o.fase}: ${FASES[o.fase - 1].nombre}.`
+    })),
+    bono: Math.round(bonoDaily(usuario) * 100),
     insignias: ["mu_ofrendador", "mu_guardian"].map((id) => ({ ...definicion(id), tiene: tieneInsignia(usuario, id) })),
     firma: "Powered By ItsDuva"
   };
