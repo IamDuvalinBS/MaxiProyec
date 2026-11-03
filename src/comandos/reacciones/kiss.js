@@ -3,7 +3,6 @@ import { createCanvas, loadImage } from "@napi-rs/canvas";
 
 const HEADERS = { "User-Agent": "MaxiProyecBot/1.0 (WhatsApp bot, contacto en GitHub IamDuvalinBS)" };
 const FIRMA = "Pᴏᴡᴇʀᴇᴅ Bʏ • ItsDuva";
-const LINK_OCULTO = false;
 const MIN_RESERVA = 10;
 const RECUERDA_USADAS = 40;
 
@@ -65,36 +64,58 @@ const siguiente = async () => {
   return elegido;
 };
 
+const dibujar = (img) => {
+  const W = 800;
+  const H = 450;
+  const canvas = createCanvas(W, H);
+  const ctx = canvas.getContext("2d");
+  const chico = createCanvas(32, 18);
+  chico.getContext("2d").drawImage(img, 0, 0, 32, 18);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(chico, 0, 0, W, H);
+  const s = Math.min(W / img.width, H / img.height);
+  const w = Math.round(img.width * s);
+  const h = Math.round(img.height * s);
+  ctx.drawImage(img, Math.round((W - w) / 2), Math.round((H - h) / 2), w, h);
+  return canvas.toBuffer("image/jpeg", 78);
+};
+
+const bajarImagen = async (url) => {
+  const archivo = await fetch(url, { headers: HEADERS, signal: AbortSignal.timeout(10000) });
+  if (!archivo.ok) throw new Error(`HTTP ${archivo.status} al bajar la imagen`);
+  return loadImage(Buffer.from(await archivo.arrayBuffer()));
+};
+
+const imagenRespaldo = async () => {
+  const res = await fetch("https://nekos.best/api/v2/kiss", { headers: HEADERS, signal: AbortSignal.timeout(8000) });
+  if (!res.ok) throw new Error(`HTTP ${res.status} en el respaldo`);
+  const item = (await res.json()).results?.[0];
+  if (!item?.url) throw new Error("el respaldo no devolvió imagen");
+  const img = await bajarImagen(item.url);
+  return { buffer: dibujar(img), link: item.source_url || item.url };
+};
+
 const obtenerImagenBeso = async () => {
   for (let i = 0; i < 2; i++) {
     try {
       const elegido = await siguiente();
-      if (!elegido) return undefined;
-      const archivo = await fetch(elegido.url, { headers: HEADERS, signal: AbortSignal.timeout(8000) });
-      if (!archivo.ok) throw new Error(`HTTP ${archivo.status} al bajar la imagen`);
-      const img = await loadImage(Buffer.from(await archivo.arrayBuffer()));
-      const W = 640;
-      const H = 360;
-      const canvas = createCanvas(W, H);
-      const ctx = canvas.getContext("2d");
-      const chico = createCanvas(32, 18);
-      chico.getContext("2d").drawImage(img, 0, 0, 32, 18);
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = "high";
-      ctx.drawImage(chico, 0, 0, W, H);
-      const s = Math.min(W / img.width, H / img.height);
-      const w = Math.round(img.width * s);
-      const h = Math.round(img.height * s);
-      ctx.drawImage(img, Math.round((W - w) / 2), Math.round((H - h) / 2), w, h);
-      return { buffer: canvas.toBuffer("image/jpeg", 70), id: elegido.id, url: elegido.url };
+      if (!elegido) break;
+      const img = await bajarImagen(elegido.url);
+      return { buffer: dibujar(img), link: `https://safebooru.donmai.us/posts/${elegido.id}` };
     } catch (e) {
       console.log("kiss: error obteniendo imagen: " + e.message);
     }
   }
+  try {
+    return await imagenRespaldo();
+  } catch (e) {
+    console.log("kiss: error en el respaldo: " + e.message);
+  }
   return undefined;
 };
 
-console.log("kiss: v12 cargado (solo parejas chico-chica)");
+console.log("kiss: v13 cargado (solo parejas chico-chica)");
 recargar();
 
 export default {
@@ -116,23 +137,25 @@ export default {
     const linea = esASiMismo ? `> ${nombreDe} se mandó un beso al aire.` : `> ${nombreDe} le dio un beso a ${nombrePara}.`;
     const titulo = esASiMismo ? "Beso al aire" : `${total} beso${total === 1 ? "" : "s"} en total`;
 
-    const ZW = "\u200b";
-    const link = imagen ? `https://safebooru.donmai.us/posts/${imagen.id}` : "";
-
     const mensaje = {
-      text: imagen ? `${linea}\n\n${LINK_OCULTO ? ZW : link}` : `${linea}\n\n*${titulo}*\n${FIRMA}`,
+      text: imagen ? linea : `${linea}\n\n*${titulo}*\n${FIRMA}`,
       mentions: esASiMismo ? [sender] : [sender, target]
     };
     if (imagen) {
-      mensaje.linkPreview = {
-        "matched-text": LINK_OCULTO ? ZW : link,
-        "canonical-url": link,
-        title: titulo,
-        description: FIRMA,
-        jpegThumbnail: imagen.buffer
+      mensaje.contextInfo = {
+        externalAdReply: {
+          title: titulo,
+          body: FIRMA,
+          mediaType: 1,
+          thumbnail: imagen.buffer,
+          sourceUrl: imagen.link,
+          renderLargerThumbnail: true,
+          showAdAttribution: false
+        }
       };
     }
 
     await sock.sendMessage(from, mensaje, { quoted: msg });
   }
 };
+               
