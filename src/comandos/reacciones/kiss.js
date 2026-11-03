@@ -87,16 +87,28 @@ const bajarImagen = async (url) => {
   return loadImage(Buffer.from(await archivo.arrayBuffer()));
 };
 
-const imagenRespaldo = async () => {
-  const res = await fetch("https://nekos.best/api/v2/kiss", { headers: HEADERS, signal: AbortSignal.timeout(8000) });
+const respaldo = [];
+const usadasRespaldo = [];
+
+const rellenarRespaldo = async () => {
+  const res = await fetch("https://nekos.best/api/v2/kiss?amount=20", { headers: HEADERS, signal: AbortSignal.timeout(8000) });
   if (!res.ok) throw new Error(`HTTP ${res.status} en el respaldo`);
-  const item = (await res.json()).results?.[0];
-  if (!item?.url) throw new Error("el respaldo no devolvió imagen");
-  const img = await bajarImagen(item.url);
-  return { buffer: dibujar(img), link: item.source_url || item.url };
+  for (const item of (await res.json()).results || []) {
+    if (item?.url && !usadasRespaldo.includes(item.url) && !respaldo.some((x) => x.url === item.url)) respaldo.push({ url: item.url, link: item.source_url || item.url });
+  }
 };
 
-const obtenerImagenBeso = async () => {
+const imagenRespaldo = async () => {
+  if (respaldo.length < 3) await rellenarRespaldo();
+  const [item] = respaldo.splice(Math.floor(Math.random() * respaldo.length), 1);
+  if (!item) throw new Error("el respaldo no devolvió imagen");
+  usadasRespaldo.push(item.url);
+  if (usadasRespaldo.length > 150) usadasRespaldo.shift();
+  const img = await bajarImagen(item.url);
+  return { buffer: dibujar(img), link: item.link };
+};
+
+const generarUna = async () => {
   for (let i = 0; i < 2; i++) {
     try {
       const elegido = await siguiente();
@@ -115,8 +127,28 @@ const obtenerImagenBeso = async () => {
   return undefined;
 };
 
-console.log("kiss: v13 cargado (solo parejas chico-chica)");
+const LISTAS = 6;
+const listas = [];
+let llenando = null;
+
+const llenar = () => (llenando ??= (async () => {
+  let fallos = 0;
+  while (listas.length < LISTAS && fallos < 2) {
+    const una = await generarUna();
+    if (una) listas.push(una);
+    else fallos++;
+  }
+})().finally(() => { llenando = null; }));
+
+const obtenerImagenBeso = async () => {
+  const lista = listas.shift() ?? (await generarUna());
+  llenar();
+  return lista;
+};
+
+console.log("kiss: v14 cargado (solo parejas chico-chica)");
 recargar();
+llenar();
 
 export default {
   names: [".kiss", ".besar"],
@@ -158,4 +190,4 @@ export default {
     await sock.sendMessage(from, mensaje, { quoted: msg });
   }
 };
-               
+  
