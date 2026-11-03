@@ -88,9 +88,17 @@ const dibujar = (img) => {
 };
 
 const bajarImagen = async (url) => {
-  const archivo = await fetch(url, { headers: HEADERS_NAV, signal: AbortSignal.timeout(10000) });
-  if (!archivo.ok) throw new Error(`HTTP ${archivo.status} al bajar la imagen`);
-  return loadImage(Buffer.from(await archivo.arrayBuffer()));
+  let ultimoError;
+  for (const headers of [HEADERS, HEADERS_NAV, {}]) {
+    try {
+      const archivo = await fetch(url, { headers, signal: AbortSignal.timeout(10000) });
+      if (!archivo.ok) throw new Error(`HTTP ${archivo.status} al bajar la imagen (${new URL(url).host})`);
+      return await loadImage(Buffer.from(await archivo.arrayBuffer()));
+    } catch (e) {
+      ultimoError = e;
+    }
+  }
+  throw ultimoError;
 };
 
 const respaldo = [];
@@ -146,13 +154,16 @@ const llenar = () => (llenando ??= (async () => {
   }
 })().finally(() => { llenando = null; }));
 
+let ultima;
+
 const obtenerImagenBeso = async () => {
-  const lista = listas.shift() ?? (await generarUna());
+  const lista = listas.shift() ?? (await generarUna()) ?? ultima;
+  if (lista) ultima = lista;
   llenar();
   return lista;
 };
 
-console.log("kiss: v15 cargado (solo parejas chico-chica)");
+console.log("kiss: v16 cargado (solo parejas chico-chica)");
 recargar();
 llenar();
 
@@ -196,3 +207,4 @@ export default {
     await sock.sendMessage(from, mensaje, { quoted: msg });
   }
 };
+                       
