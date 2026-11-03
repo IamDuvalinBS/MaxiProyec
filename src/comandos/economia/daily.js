@@ -2,6 +2,7 @@ import { addToWallet, getAccount, checkCooldown } from "../../../motores/db.js";
 import { tarjeta, monto, textoEspera } from "../../economia/formato-evento.js";
 import { textoDias, costoRecuperar, estadoRacha, registrarReclamo } from "../../economia/rachas.js";
 import { estilo } from "../../economia/temas.js";
+import { extraDaily } from "../../../motores/gacha-muertos.js";
 
 const CLAVE = "daily";
 const PREMIO = 20000;
@@ -91,11 +92,13 @@ export default {
     }
 
     checkCooldown(sender, CLAVE, ESPERA_MS);
-    addToWallet(sender, PREMIO);
+    const extra = extraDaily(sender, PREMIO);
+    addToWallet(sender, PREMIO + extra);
     const { cantidad: racha, completoMaximo } = registrarReclamo(sender, CLAVE, reiniciar, from);
     if (completoMaximo) addToWallet(sender, PREMIO_RACHA_MAXIMA);
 
     const lineas = [E.lineaGanado(PREMIO)];
+    if (extra) lineas.push(`🌼 *BONO DE OFRENDA::* +${monto(extra)}`);
     if (completoMaximo) lineas.push(E.lineaAnual(PREMIO_RACHA_MAXIMA));
     if (pagado) lineas.push(E.lineaRecuperada(pagado));
     lineas.push(E.lineaCartera(getAccount(sender).wallet));
