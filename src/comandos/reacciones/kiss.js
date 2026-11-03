@@ -2,6 +2,9 @@ import { registrarBeso } from "../../../motores/db.js";
 import { createCanvas, loadImage } from "@napi-rs/canvas";
 
 const HEADERS = { "User-Agent": "MaxiProyecBot/1.0 (WhatsApp bot, contacto en GitHub IamDuvalinBS)" };
+const HEADERS_NAV = { "User-Agent": "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Mobile Safari/537.36", Accept: "application/json,image/*,*/*" };
+const PAUSA_CAIDA = 15 * 60 * 1000;
+let caidoHasta = 0;
 const FIRMA = "Pᴏᴡᴇʀᴇᴅ Bʏ • ItsDuva";
 const MIN_RESERVA = 10;
 const RECUERDA_USADAS = 40;
@@ -28,7 +31,7 @@ const esBeso = (p) => {
 
 const buscarPagina = async (tags, pagina) => {
   try {
-    const res = await fetch(`https://safebooru.donmai.us/posts.json?tags=${encodeURIComponent(tags)}&limit=100&page=${pagina}`, { headers: HEADERS, signal: AbortSignal.timeout(8000) });
+    const res = await fetch(`https://safebooru.donmai.us/posts.json?tags=${encodeURIComponent(tags)}&limit=100&page=${pagina}`, { headers: HEADERS_NAV, signal: AbortSignal.timeout(8000) });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const todos = (await res.json()).filter((p) => p.rating === "g" && p.large_file_url && /jpg|jpeg|png|webp/.test(p.file_ext) && p.tag_string_general.split(" ").includes("kiss"));
     const buenos = todos.filter((p) => p.tag_count_character > 0 && esBeso(p));
@@ -37,12 +40,14 @@ const buscarPagina = async (tags, pagina) => {
     const conOjos = ancha.filter((p) => p.tag_string_general.split(" ").includes("closed_eyes"));
     return conOjos.length >= 5 ? conOjos : ancha;
   } catch (e) {
-    console.log("kiss: error cargando imágenes: " + e.message);
+    if (Date.now() >= caidoHasta) console.log(`kiss: Safebooru falló (${e.message}); uso el respaldo por 15 min`);
+    caidoHasta = Date.now() + PAUSA_CAIDA;
     return [];
   }
 };
 
 const rellenar = async () => {
+  if (Date.now() < caidoHasta) return;
   const trabajos = FUENTES.flatMap((f) => [...new Set(Array.from({ length: 2 }, () => 1 + Math.floor(Math.random() * f.paginas)))].map((n) => buscarPagina(f.tags, n)));
   const posts = (await Promise.all(trabajos)).flat();
   for (const p of posts) {
@@ -54,13 +59,14 @@ const rellenar = async () => {
 const recargar = () => (cargando ??= rellenar().finally(() => { cargando = null; }));
 
 const siguiente = async () => {
-  for (let i = 0; i < 3 && !pool.length; i++) await recargar();
+  if (Date.now() < caidoHasta && !pool.length) return undefined;
+  for (let i = 0; i < 3 && !pool.length && Date.now() >= caidoHasta; i++) await recargar();
   const [elegido] = pool.splice(Math.floor(Math.random() * pool.length), 1);
   if (!elegido) return undefined;
   usadas.push(elegido.id);
   if (usadas.length > RECUERDA_USADAS) usadas.shift();
   console.log(`kiss: post ${elegido.id} (reserva: ${pool.length})`);
-  if (pool.length < MIN_RESERVA) recargar();
+  if (pool.length < MIN_RESERVA && Date.now() >= caidoHasta) recargar();
   return elegido;
 };
 
@@ -82,7 +88,7 @@ const dibujar = (img) => {
 };
 
 const bajarImagen = async (url) => {
-  const archivo = await fetch(url, { headers: HEADERS, signal: AbortSignal.timeout(10000) });
+  const archivo = await fetch(url, { headers: HEADERS_NAV, signal: AbortSignal.timeout(10000) });
   if (!archivo.ok) throw new Error(`HTTP ${archivo.status} al bajar la imagen`);
   return loadImage(Buffer.from(await archivo.arrayBuffer()));
 };
@@ -146,7 +152,7 @@ const obtenerImagenBeso = async () => {
   return lista;
 };
 
-console.log("kiss: v14 cargado (solo parejas chico-chica)");
+console.log("kiss: v15 cargado (solo parejas chico-chica)");
 recargar();
 llenar();
 
@@ -190,4 +196,3 @@ export default {
     await sock.sendMessage(from, mensaje, { quoted: msg });
   }
 };
-  
