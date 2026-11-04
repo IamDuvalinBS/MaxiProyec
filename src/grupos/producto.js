@@ -25,7 +25,7 @@ async function cargarLibreria() {
  * imagen grande arriba con el título, y debajo el texto completo.
  * Devuelve true si se envió, false si no (para usar un respaldo).
  */
-export async function enviarProducto(sock, jid, { imagen, titulo, descripcion = "", texto, footer = "", mentions = [], quoted }) {
+export async function enviarProducto(sock, jid, { imagen, titulo, descripcion = "", texto, footer = "", enlace = "", mentions = [], quoted }) {
   const lib = await cargarLibreria();
   if (!lib || !Buffer.isBuffer(imagen)) return false;
 
@@ -44,10 +44,8 @@ export async function enviarProducto(sock, jid, { imagen, titulo, descripcion = 
             productId: String(Date.now()),
             title: titulo,
             description: descripcion,
-            currencyCode: "USD",
-            priceAmount1000: 0,
             retailerId: titulo,
-            url: "",
+            url: enlace,
             productImageCount: 1
           },
           businessOwnerJid: "0@s.whatsapp.net"
