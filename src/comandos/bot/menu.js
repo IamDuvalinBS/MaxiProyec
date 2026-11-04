@@ -37,6 +37,13 @@ const GRUPOS = [
     alias: ["gacha", "waifus", "rw", "pokemon", "brawl"]
   },
   {
+    titulo: "PETS",
+    icono: "🐾",
+    descripcion: "Incuba huevos, cuida a tus mascotas y mira cómo crecen.",
+    categorias: ["Pets"],
+    alias: ["pets", "pet", "mascotas", "mascota"]
+  },
+  {
     titulo: "GRUPOS",
     icono: "👥",
     descripcion: "Administración y utilidades para tus grupos.",
