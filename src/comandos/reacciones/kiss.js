@@ -6,6 +6,7 @@ const HEADERS = { "User-Agent": "MaxiProyecBot/1.0 (WhatsApp bot, contacto en Gi
 const HEADERS_NAV = { "User-Agent": "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Mobile Safari/537.36", Accept: "application/json,image/*,*/*" };
 const PAUSA_CAIDA = 15 * 60 * 1000;
 let caidoHasta = 0;
+let caidoOrgHasta = 0;
 const FIRMA_TARJETA = "~ ⏤͟͟͞͞𝕭𝓎𝕯𝚞𝚟𝚊𝚕𝚒𝚗𝕭𝕮  ˓ˋ🧸ˊ˒";
 const FIRMA = "Pᴏᴡᴇʀᴇᴅ Bʏ • ItsDuva";
 const MIN_RESERVA = 10;
@@ -48,27 +49,66 @@ const buscarPagina = async (tags, pagina) => {
   }
 };
 
+const buscarPaginaOrg = async (pagina) => {
+  try {
+    const tags = "kiss 1boy 1girl closed_eyes";
+    const res = await fetch(`https://safebooru.org/index.php?page=dapi&s=post&q=index&json=1&limit=100&pid=${pagina}&tags=${encodeURIComponent(tags)}`, { headers: HEADERS_NAV, signal: AbortSignal.timeout(8000) });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const texto = await res.text();
+    const lista = texto.trim() ? JSON.parse(texto) : [];
+    return (Array.isArray(lista) ? lista : [])
+      .filter((p) => {
+        const t = String(p.tags || "").split(" ");
+        const noHetero = t.some((x) => /yaoi|yuri|2boys|2girls|multiple|otoko|crossdress|genderswap|trap|androgynous|futanari/.test(x));
+        const raro = t.some((x) => x.includes("kiss") && /cheek|forehead|hand|blow|neck|foot|imminent|almost|incoming|interrupt/.test(x));
+        const feo = t.some((x) => EXCLUIDOS.has(x));
+        return t.includes("kiss") && t.includes("1boy") && t.includes("1girl") && !noHetero && !raro && !feo
+          && /\.(jpe?g|png|webp)$/i.test(p.image || "") && p.width / p.height >= 1.3;
+      })
+      .map((p) => {
+        const conMuestra = p.sample === true || p.sample === 1 || p.sample === "1" || p.sample === "true";
+        const url = conMuestra
+          ? `https://safebooru.org/samples/${p.directory}/sample_${String(p.image).replace(/\.\w+$/, ".jpg")}`
+          : `https://safebooru.org/images/${p.directory}/${p.image}`;
+        return { id: `org-${p.id}`, url, link: `https://safebooru.org/index.php?page=post&s=view&id=${p.id}` };
+      });
+  } catch (e) {
+    if (Date.now() >= caidoOrgHasta) console.log(`kiss: safebooru.org falló (${e.message}); lo pauso 15 min`);
+    caidoOrgHasta = Date.now() + PAUSA_CAIDA;
+    return [];
+  }
+};
+
 const rellenar = async () => {
+  if (Date.now() >= caidoOrgHasta) {
+    const paginas = [...new Set(Array.from({ length: 3 }, () => Math.floor(Math.random() * 8)))];
+    const extra = (await Promise.all(paginas.map(buscarPaginaOrg))).flat();
+    for (const p of extra) {
+      if (usadas.includes(p.id) || pool.some((x) => x.id === p.id)) continue;
+      pool.push(p);
+    }
+  }
   if (Date.now() < caidoHasta) return;
   const trabajos = FUENTES.flatMap((f) => [...new Set(Array.from({ length: 2 }, () => 1 + Math.floor(Math.random() * f.paginas)))].map((n) => buscarPagina(f.tags, n)));
   const posts = (await Promise.all(trabajos)).flat();
   for (const p of posts) {
     if (usadas.includes(p.id) || pool.some((x) => x.id === p.id)) continue;
-    pool.push({ id: p.id, url: p.large_file_url });
+    pool.push({ id: p.id, url: p.large_file_url, link: `https://safebooru.donmai.us/posts/${p.id}` });
   }
 };
 
 const recargar = () => (cargando ??= rellenar().finally(() => { cargando = null; }));
 
 const siguiente = async () => {
-  if (Date.now() < caidoHasta && !pool.length) return undefined;
-  for (let i = 0; i < 3 && !pool.length && Date.now() >= caidoHasta; i++) await recargar();
+  const todoCaido = Date.now() < caidoHasta && Date.now() < caidoOrgHasta;
+  if (todoCaido && !pool.length) return undefined;
+  for (let i = 0; i < 3 && !pool.length && !todoCaido; i++) await recargar();
   const [elegido] = pool.splice(Math.floor(Math.random() * pool.length), 1);
   if (!elegido) return undefined;
   usadas.push(elegido.id);
   if (usadas.length > RECUERDA_USADAS) usadas.shift();
   console.log(`kiss: post ${elegido.id} (reserva: ${pool.length})`);
-  if (pool.length < MIN_RESERVA && Date.now() >= caidoHasta) recargar();
+  if (pool.length < MIN_RESERVA && !todoCaido) recargar();
   return elegido;
 };
 
@@ -154,7 +194,7 @@ const generarUna = async () => {
       const elegido = await siguiente();
       if (!elegido) break;
       const img = await bajarImagen(elegido.url);
-      return { buffer: dibujar(img), link: `https://safebooru.donmai.us/posts/${elegido.id}` };
+      return { buffer: dibujar(img), link: elegido.link };
     } catch (e) {
       console.log("kiss: error obteniendo imagen: " + e.message);
     }
@@ -189,7 +229,7 @@ const obtenerImagenBeso = async () => {
   return lista;
 };
 
-console.log("kiss: v20 cargado (solo parejas chico-chica)");
+console.log("kiss: v21 cargado (solo parejas chico-chica)");
 recargar();
 llenar();
 
@@ -248,4 +288,4 @@ export default {
     await sock.sendMessage(from, mensaje, { quoted: msg });
   }
 };
-  
+                                 
