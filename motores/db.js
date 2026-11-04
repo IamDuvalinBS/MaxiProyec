@@ -55,7 +55,8 @@ function cargarCuenta(doc) {
     afk: doc.afk || null,
     profile: doc.profile,
     gachaClaim: doc.gachaClaim,
-    prestamo: doc.prestamo
+    prestamo: doc.prestamo,
+    mascotas: doc.mascotas
   };
   accounts.set(doc._id, cuenta);
   saldosBase.set(doc._id, { wallet: cuenta.wallet, bank: cuenta.bank });
@@ -161,7 +162,7 @@ function documentoCuenta(sender) {
   const acc = accounts.get(sender);
   if (!acc) return null;
   const doc = { _id: sender, wallet: acc.wallet, bank: acc.bank };
-  for (const clave of ["cooldowns", "rachas", "negocios", "afk", "profile", "gachaClaim", "prestamo"]) {
+  for (const clave of ["cooldowns", "rachas", "negocios", "afk", "profile", "gachaClaim", "prestamo", "mascotas"]) {
     const valor = acc[clave];
     const vacio = valor === undefined || valor === null || (typeof valor === "object" && Object.keys(valor).length === 0);
     if (!vacio) doc[clave] = valor;
@@ -342,7 +343,7 @@ function armarOperacion(sender) {
   if (!dBank) alInsertar.bank = acc.bank;
   const asignar = {};
   const quitar = {};
-  const opcionales = { cooldowns: acc.cooldowns, rachas: acc.rachas, negocios: acc.negocios, afk: acc.afk, profile: acc.profile, gachaClaim: acc.gachaClaim, prestamo: acc.prestamo };
+  const opcionales = { cooldowns: acc.cooldowns, rachas: acc.rachas, negocios: acc.negocios, afk: acc.afk, profile: acc.profile, gachaClaim: acc.gachaClaim, prestamo: acc.prestamo, mascotas: acc.mascotas };
   for (const [clave, valor] of Object.entries(opcionales)) {
     const vacio = valor === undefined || valor === null || (typeof valor === "object" && Object.keys(valor).length === 0);
     if (vacio) quitar[clave] = "";
@@ -471,6 +472,7 @@ export async function fusionarCuenta(origen, destino) {
   if (!d.afk && o.afk) d.afk = o.afk;
   if (!d.gachaClaim && o.gachaClaim) d.gachaClaim = o.gachaClaim;
   if (!d.prestamo && o.prestamo) d.prestamo = o.prestamo;
+  if (!d.mascotas && o.mascotas) d.mascotas = o.mascotas;
   const perfil = unirPerfiles(d.profile, o.profile);
   if (perfil) d.profile = perfil;
   const casados = [];
