@@ -1,4 +1,4 @@
-import { registrarBeso } from "../../../motores/db.js";
+import { registrarBeso, config } from "../../../motores/db.js";
 import { createCanvas, loadImage } from "@napi-rs/canvas";
 import { enviarProducto } from "../../grupos/producto.js";
 
@@ -6,6 +6,7 @@ const HEADERS = { "User-Agent": "MaxiProyecBot/1.0 (WhatsApp bot, contacto en Gi
 const HEADERS_NAV = { "User-Agent": "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Mobile Safari/537.36", Accept: "application/json,image/*,*/*" };
 const PAUSA_CAIDA = 15 * 60 * 1000;
 let caidoHasta = 0;
+const FIRMA_TARJETA = "~ ⏤͟͟͞͞𝕭𝓎𝕯𝚞𝚟𝚊𝚕𝚒𝚗𝕭𝕮  ˓ˋ🧸ˊ˒";
 const FIRMA = "Pᴏᴡᴇʀᴇᴅ Bʏ • ItsDuva";
 const MIN_RESERVA = 10;
 const RECUERDA_USADAS = 40;
@@ -188,7 +189,7 @@ const obtenerImagenBeso = async () => {
   return lista;
 };
 
-console.log("kiss: v18 cargado (solo parejas chico-chica)");
+console.log("kiss: v20 cargado (solo parejas chico-chica)");
 recargar();
 llenar();
 
@@ -216,10 +217,10 @@ export default {
     if (imagen) {
       const enviado = await enviarProducto(sock, from, {
         imagen: imagen.buffer,
-        titulo,
-        descripcion: FIRMA,
+        titulo: `${titulo}\n${FIRMA_TARJETA}`,
+        descripcion: FIRMA_TARJETA,
         texto: linea,
-        footer: FIRMA,
+        enlace: config.channelLink,
         mentions: mencionados,
         quoted: msg
       });
@@ -247,4 +248,4 @@ export default {
     await sock.sendMessage(from, mensaje, { quoted: msg });
   }
 };
-                                                                 
+  
