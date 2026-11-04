@@ -1,5 +1,6 @@
 import { registrarBeso } from "../../../motores/db.js";
 import { createCanvas, loadImage } from "@napi-rs/canvas";
+import { enviarProducto } from "../../grupos/producto.js";
 
 const HEADERS = { "User-Agent": "MaxiProyecBot/1.0 (WhatsApp bot, contacto en GitHub IamDuvalinBS)" };
 const HEADERS_NAV = { "User-Agent": "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Mobile Safari/537.36", Accept: "application/json,image/*,*/*" };
@@ -104,16 +105,40 @@ const bajarImagen = async (url) => {
 const respaldo = [];
 const usadasRespaldo = [];
 
+const agregarRespaldo = (url, link) => {
+  if (url && !usadasRespaldo.includes(url) && !respaldo.some((x) => x.url === url)) respaldo.push({ url, link: link || url });
+};
+
 const rellenarRespaldo = async () => {
-  const res = await fetch("https://nekos.best/api/v2/kiss?amount=20", { headers: HEADERS, signal: AbortSignal.timeout(8000) });
-  if (!res.ok) throw new Error(`HTTP ${res.status} en el respaldo`);
-  for (const item of (await res.json()).results || []) {
-    if (item?.url && !usadasRespaldo.includes(item.url) && !respaldo.some((x) => x.url === item.url)) respaldo.push({ url: item.url, link: item.source_url || item.url });
-  }
+  const bust = Date.now();
+  const fuentes = [
+    async () => {
+      const res = await fetch(`https://nekos.best/api/v2/kiss?amount=20&_=${bust}`, { headers: HEADERS, signal: AbortSignal.timeout(8000) });
+      if (!res.ok) throw new Error(`HTTP ${res.status} en nekos.best`);
+      for (const item of (await res.json()).results || []) agregarRespaldo(item?.url, item?.source_url);
+    },
+    async () => {
+      const res = await fetch("https://api.waifu.pics/many/sfw/kiss", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+        signal: AbortSignal.timeout(8000)
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status} en waifu.pics`);
+      for (const url of (await res.json()).files || []) agregarRespaldo(url);
+    }
+  ];
+  const resultados = await Promise.allSettled(fuentes.map((f) => f()));
+  const fallos = resultados.filter((r) => r.status === "rejected").map((r) => r.reason.message);
+  if (fallos.length) console.log("kiss: respaldo con fallos: " + fallos.join(" | "));
 };
 
 const imagenRespaldo = async () => {
-  if (respaldo.length < 3) await rellenarRespaldo();
+  if (respaldo.length < 5) await rellenarRespaldo();
+  if (!respaldo.length) {
+    usadasRespaldo.length = 0;
+    await rellenarRespaldo();
+  }
   const [item] = respaldo.splice(Math.floor(Math.random() * respaldo.length), 1);
   if (!item) throw new Error("el respaldo no devolvió imagen");
   usadasRespaldo.push(item.url);
@@ -163,7 +188,7 @@ const obtenerImagenBeso = async () => {
   return lista;
 };
 
-console.log("kiss: v16 cargado (solo parejas chico-chica)");
+console.log("kiss: v18 cargado (solo parejas chico-chica)");
 recargar();
 llenar();
 
@@ -186,6 +211,21 @@ export default {
     const linea = esASiMismo ? `> ${nombreDe} se mandó un beso al aire.` : `> ${nombreDe} le dio un beso a ${nombrePara}.`;
     const titulo = esASiMismo ? "Beso al aire" : `${total} beso${total === 1 ? "" : "s"} en total`;
 
+    const mencionados = esASiMismo ? [sender] : [sender, target];
+
+    if (imagen) {
+      const enviado = await enviarProducto(sock, from, {
+        imagen: imagen.buffer,
+        titulo,
+        descripcion: FIRMA,
+        texto: linea,
+        footer: FIRMA,
+        mentions: mencionados,
+        quoted: msg
+      });
+      if (enviado) return;
+    }
+
     const mensaje = {
       text: imagen ? linea : `${linea}\n\n*${titulo}*\n${FIRMA}`,
       mentions: esASiMismo ? [sender] : [sender, target]
@@ -207,4 +247,4 @@ export default {
     await sock.sendMessage(from, mensaje, { quoted: msg });
   }
 };
-                       
+                                                                 
