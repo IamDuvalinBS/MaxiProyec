@@ -112,8 +112,8 @@ export async function manejarComando(sock, from, sender, text, msg) {
 
   const reply = async (contenido) => {
     if (!msg.paginaChat) {
-      await delayAleatorio(300, 900);
-      await simularEscritura(sock, from, 800 + Math.floor(Math.random() * 1200));
+      await delayAleatorio(100, 300);
+await simularEscritura(sock, from, 300 + Math.floor(Math.random() * 400));
     }
     const enviado = await enviarConCache(sock, from, await ajustarMenciones(sock, from, contenido), msg);
     if (capturados) registrarMedio(capturados, enviado);
