@@ -34,12 +34,12 @@ function esComandoAfk(texto, prefijos) {
 
 // Listener independiente: corre ANTES de cualquier filtro del handler principal
 // (botones, antilink, bot apagado, etc.), así que nada lo puede saltar.
-export function enlazarSalidaAfk(sock, obtenerPrefijos) {
+export function enlazarSalidaAfk(sock, obtenerPrefijos, puedeResponder = () => true) {
   sock.ev.on("messages.upsert", async (m) => {
     if (m.type !== "notify") return;
     for (const msg of m.messages || []) {
       try {
-        await revisarMensaje(sock, msg, obtenerPrefijos());
+        await revisarMensaje(sock, msg, obtenerPrefijos(), puedeResponder);
       } catch (e) {
         console.log("Error en salida automática de AFK: " + e.message);
       }
@@ -47,7 +47,7 @@ export function enlazarSalidaAfk(sock, obtenerPrefijos) {
   });
 }
 
-async function revisarMensaje(sock, msg, prefijos) {
+async function revisarMensaje(sock, msg, prefijos, puedeResponder) {
   if (!msg?.message || msg.key.fromMe) return;
   if (!hayActividad(msg.message)) return;
 
@@ -64,6 +64,8 @@ async function revisarMensaje(sock, msg, prefijos) {
 
   const esGrupo = from.endsWith("@g.us");
   if (esGrupo && botApagado(from)) return;
+  // Si el grupo tiene bot primario, solo ese bot avisa (los demás no tocan el AFK para que el primario lo procese).
+  if (esGrupo && !puedeResponder(from)) return;
 
   // se desactiva de forma síncrona (antes de cualquier await) para no pagar dos veces
   const datos = desactivarAfk(sender);

@@ -1,12 +1,13 @@
 import { cuentasConDatos, avisoDe, registrarAviso, migrarTodoDeDisco, cantidadDeRacha } from "../../motores/almacen-local.js";
 import { formatTime } from "../../motores/ui.js";
 import { esGrupo, metadatos } from "../grupos/nucleo.js";
-import { botApagado } from "../grupos/estado.js";
 import { encabezado, mencion } from "./estilo-evento.js";
 // La boda pertenece al perfil, no a la economía: conserva siempre su estilo normal.
 import { encabezado as encabezadoBase } from "./estilo.js";
 import { textoDias } from "./rachas.js";
 import { estilo } from "./temas.js";
+import { botApagado, ajustesDe } from "../grupos/estado.js";
+import { socketsSubbots } from "../subbots/gestor.js";
 
 const ESTILOS_RACHA = {
   normal: {
@@ -35,6 +36,15 @@ function pausa(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// Si el grupo tiene bot primario, el aviso lo manda ese bot (puede ser un subbot); si no, el principal.
+function socketDelGrupo(grupo) {
+  const principal = ajustesDe(grupo).principal;
+  const numeroDe = (sock) => String((sock && sock.user && sock.user.id) || "").split(":")[0].split("@")[0];
+  if (!principal || numeroDe(socketActual) === String(principal)) return socketActual;
+  const sub = socketsSubbots().find((x) => numeroDe(x.sock) === String(principal));
+  return sub ? sub.sock : null;
+}
+
 export async function revisarRachas() {
   if (!socketActual || revisando) return;
   revisando = true;
@@ -61,18 +71,20 @@ export async function revisarRachas() {
         E.tip
       ].join("\n");
 
-      const destinos = [...new Set([aviso && aviso.chat, sender].filter(Boolean))].filter((d) => !(esGrupo(d) && botApagado(d)));
+      // El aviso va SOLO al grupo donde reclamó el daily (nunca al privado).
+      const grupo = aviso && aviso.chat;
+      if (!grupo || !esGrupo(grupo) || botApagado(grupo)) continue;
+      const sockGrupo = socketDelGrupo(grupo);
       let enviado = false;
-      for (const destino of destinos) {
+      if (sockGrupo) {
         try {
-          await socketActual.sendMessage(destino, { text: texto, mentions: [sender] });
+          await sockGrupo.sendMessage(grupo, { text: texto, mentions: [sender] });
           enviado = true;
-          break;
         } catch (e) {
-          console.log(`❌ No se pudo enviar el aviso de racha a ${sender} por ${destino}: ${e.message}`);
+          console.log(`❌ No se pudo enviar el aviso de racha a ${sender} en ${grupo}: ${e.message}`);
         }
       }
-      if (enviado) registrarAviso(sender, "daily", (aviso && aviso.chat) || sender, ultimo);
+      if (enviado) registrarAviso(sender, "daily", grupo, ultimo);
       await pausa(1500);
     }
   } finally {

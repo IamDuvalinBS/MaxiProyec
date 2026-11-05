@@ -27,6 +27,6 @@ export function registrarReclamo(sender, clave, reiniciar = false, chat = null) 
   const completoMaximo = previa < RACHA_MAXIMA && cantidad === RACHA_MAXIMA;
   cuenta.rachas[clave] = cantidad;
   guardarDatos(sender);
-  if (chat) registrarAviso(sender, clave, chat);
+  if (chat && String(chat).endsWith("@g.us")) registrarAviso(sender, clave, chat);   // el aviso se manda solo a grupos
   return { cantidad, completoMaximo };
 }
