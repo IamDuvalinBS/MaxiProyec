@@ -33,6 +33,13 @@ import { normalizarMensaje, aprenderTodosLosGrupos } from "./src/nucleo/identida
 import { iniciarChatPagina } from "./src/nucleo/chatpagina.js";
 import { pasesParaPagina, pasesReclamados, alReclamarPase } from "./motores/gacha-pases.js";
 
+const _err = console.error;
+console.error = (...a) => {
+  const t = String(a[0]);
+  if (t.includes("Session error") || t.includes("Bad MAC") || t.includes("Closing session")) return;
+  _err(...a);
+};
+
 function imprimirBanner() {
   console.clear();
   cfonts.say("MAXI-BOT", {
