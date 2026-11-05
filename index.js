@@ -33,11 +33,12 @@ import { normalizarMensaje, aprenderTodosLosGrupos } from "./src/nucleo/identida
 import { iniciarChatPagina } from "./src/nucleo/chatpagina.js";
 import { pasesParaPagina, pasesReclamados, alReclamarPase } from "./motores/gacha-pases.js";
 
-const _err = console.error;
-console.error = (...a) => {
-  const t = String(a[0]);
-  if (t.includes("Session error") || t.includes("Bad MAC") || t.includes("Closing session")) return;
-  _err(...a);
+// Calla el spam de libsignal (usa console.error directo y el logger de Baileys no lo controla).
+const _consoleError = console.error;
+console.error = (...args) => {
+  const t = String(args[0]);
+  if (t.includes("Session error") || t.includes("Bad MAC") || t.includes("Failed to decrypt")) return;
+  _consoleError(...args);
 };
 
 function imprimirBanner() {
@@ -275,7 +276,7 @@ function puedeResponderEnGrupo(sock, grupo) {
 }
 
 function enlazarEventos(sock, esSub) {
-  enlazarSalidaAfk(sock, () => (config.prefixes && config.prefixes.length) ? config.prefixes : [config.prefix || "."]);
+  enlazarSalidaAfk(sock, () => (config.prefixes && config.prefixes.length) ? config.prefixes : [config.prefix || "."], (grupo) => puedeResponderEnGrupo(sock, grupo));
 
   sock.ev.on("group-participants.update", async (update) => {
     cacheGrupos.delete(update.id);
