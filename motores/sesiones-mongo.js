@@ -282,6 +282,9 @@ export function vigilarDescifrado(sock, etiqueta, reparar) {
   let fallas = [];
   sock.ev.on("messages.upsert", (m) => {
     const ahora = Date.now();
+    // Solo cuentan los mensajes en vivo ("notify"). Los que WhatsApp reenvía al reconectar ("append", atrasados)
+    // fallan al descifrar y disparaban la limpieza en cada reinicio, lo que rompía los comandos nuevos.
+    if (m.type !== "notify") return;
     for (const msg of m.messages || []) {
       if (msg.key?.fromMe) continue;
       if (msg.messageStubType === CIFRADO && !msg.message) {
@@ -297,4 +300,4 @@ export function vigilarDescifrado(sock, etiqueta, reparar) {
     fallas = [];
     Promise.resolve(reparar()).catch((e) => console.log(`[${etiqueta}] no se pudo reparar la sesión: ${e.message}`));
   });
-}
+          }
