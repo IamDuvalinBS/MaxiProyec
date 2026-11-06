@@ -1,15 +1,17 @@
 import {
-  buscarStickersTenor,
   descargarBuffer,
   crearSticker,
   contextoMeta,
   enviarPaqueteStickers
 } from "../../nucleo/sticker.js";
+import { elegirStickers } from "../../nucleo/sticker-busqueda.js";
 import { delayAleatorio } from "../../../core.js";
 
 const FIRMA = "ByDuvalinBS";
 const MINIMO_PAQUETE = 3;
 const SIMULTANEOS = 3;
+const CANTIDAD_BASE = 10;
+const CANTIDAD_MAXIMA = 20;
 
 const aTitulo = (texto) =>
   texto
@@ -22,34 +24,38 @@ const aTitulo = (texto) =>
 
 export default {
   names: [".spack", ".stickers"],
-  desc: "Manda un paquete de stickers animados (hasta 10) de una búsqueda",
+  desc: "Manda un paquete de stickers distinto en cada búsqueda (Sticker.ly y Tenor)",
   category: "Stickers",
-  usage: ".spack <busqueda>",
+  usage: ".spack <búsqueda> • <cantidad opcional, hasta 20>",
   handler: async ({ cleanText, from, sender, msg, sock, reply }) => {
-    const query = cleanText.split(/\s+/).slice(1).join(" ").trim();
+    const [bruto, extra] = cleanText.split(/\s+/).slice(1).join(" ").split("•").map((p) => p.trim());
+    const query = bruto || "";
     if (!query) {
-      await reply({ text: "✏️ Usa: *.spack <búsqueda>* (ejemplo: .spack Goku)" });
+      await reply({ text: "✏️ Usa: *.spack <búsqueda>* (ejemplo: .spack Goku)\nPuedes indicar la cantidad así: *.spack Goku • 15*" });
       return;
     }
 
-    let urls;
+    const pedida = parseInt(extra, 10);
+    const cantidad = Number.isFinite(pedida) ? Math.min(CANTIDAD_MAXIMA, Math.max(MINIMO_PAQUETE, pedida)) : CANTIDAD_BASE;
+
+    let seleccion;
     try {
-      urls = await buscarStickersTenor(query, 10);
+      seleccion = await elegirStickers(query, { cantidad, clave: from });
     } catch (e) {
-      await reply({ text: "❌ No se pudo buscar en Tenor: " + e.message });
+      await reply({ text: "❌ No se pudo buscar stickers: " + e.message });
       return;
     }
 
-    if (!urls.length) {
+    if (!seleccion.urls.length) {
       await reply({ text: `🔎 No encontré resultados para "${query}".` });
       return;
     }
 
     const contexto = await contextoMeta({ sock, from, sender, msg });
     const stickers = [];
-    for (let i = 0; i < urls.length; i += SIMULTANEOS) {
+    for (let i = 0; i < seleccion.urls.length && stickers.length < cantidad; i += SIMULTANEOS) {
       const lote = await Promise.all(
-        urls.slice(i, i + SIMULTANEOS).map(async (url) => {
+        seleccion.urls.slice(i, i + SIMULTANEOS).map(async (url) => {
           try {
             return await crearSticker(await descargarBuffer(url), sender, contexto);
           } catch (e) {
@@ -60,6 +66,7 @@ export default {
       );
       stickers.push(...lote.filter(Boolean));
     }
+    stickers.length = Math.min(stickers.length, cantidad);
 
     if (!stickers.length) {
       await reply({ text: `❌ No se pudo preparar ningún sticker de "${query}".` });
