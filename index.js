@@ -33,13 +33,18 @@ import { normalizarMensaje, aprenderTodosLosGrupos } from "./src/nucleo/identida
 import { iniciarChatPagina } from "./src/nucleo/chatpagina.js";
 import { pasesParaPagina, pasesReclamados, alReclamarPase } from "./motores/gacha-pases.js";
 
-// Calla el spam de libsignal (usa console.error directo y el logger de Baileys no lo controla).
-const _consoleError = console.error;
-console.error = (...args) => {
-  const t = String(args[0]);
-  if (t.includes("Session error") || t.includes("Bad MAC") || t.includes("Failed to decrypt")) return;
-  _consoleError(...args);
-};
+// Calla el spam de libsignal (imprime sesiones completas con console.error/info/warn/log directo;
+// el logger de Baileys no lo controla y en Termux frena todo el bot).
+const _ruido = ["Session error", "Bad MAC", "Failed to decrypt", "Closing session", "Opening session",
+  "Removing old closed session", "Migrating session", "Closing open session", "Decrypted message with closed session"];
+for (const metodo of ["error", "warn", "info", "log"]) {
+  const original = console[metodo].bind(console);
+  console[metodo] = (...args) => {
+    const t = typeof args[0] === "string" ? args[0] : "";
+    if (_ruido.some((r) => t.includes(r))) return;
+    original(...args);
+  };
+}
 
 function imprimirBanner() {
   console.clear();
