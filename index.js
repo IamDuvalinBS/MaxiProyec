@@ -305,7 +305,13 @@ function enlazarEventos(sock, esSub) {
   sock.ev.on("messages.upsert", (m) => {
     // Al reiniciar o limpiar la sesión WhatsApp reenvía los mensajes pendientes. Se descartan los viejos para no
     // responder comandos de hace rato ni atrasar los nuevos (cada mensaje del lote espera 400 ms).
-    const lote = (m.messages || []).filter((msg) => !esMensajeViejo(msg));
+    const lote = (m.messages || []).filter((msg) => {
+      if (!esMensajeViejo(msg)) return true;
+      const bruto = msg.messageTimestamp;
+      const seg = typeof bruto === "object" && bruto ? (bruto.toNumber ? bruto.toNumber() : Number(bruto.low)) : Number(bruto);
+      console.log(`[ignorado] mensaje con ${Math.round(Date.now() / 1000 - seg)}s de antigüedad (límite ${MAX_ANTIGUEDAD_MS / 1000}s, tipo ${m.type})`);
+      return false;
+    });
     const manejar = (msg) => procesarMensaje(m, msg).catch((e) => console.log("Error procesando mensaje: " + e.message));
     if (lote.length <= 1) {
       for (const msg of lote) manejar(msg);
