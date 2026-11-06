@@ -274,9 +274,9 @@ export async function limpiarSesionesLocales(carpeta) {
 
 // Si llegan muchos mensajes que no se pueden descifrar y ninguno se lee bien, la sesión de cifrado está dañada:
 // avisa para repararla (una vez cada 6 horas como máximo por socket).
-const FALLAS_PARA_REPARAR = 8;
+const FALLAS_PARA_REPARAR = Number(process.env.FALLAS_PARA_REPARAR) || 3;
 const VENTANA_FALLAS_MS = 10 * 60000;
-const ESPERA_ENTRE_REPARACIONES_MS = 6 * 3600000;
+const ESPERA_ENTRE_REPARACIONES_MS = 20 * 60000;
 const ultimaReparacion = new Map();
 
 export function vigilarDescifrado(sock, etiqueta, reparar) {
