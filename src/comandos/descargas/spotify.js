@@ -101,19 +101,24 @@ async function buscarOpciones(texto) {
   };
 }
 
-function tarjetaResultados(consulta, pistas, albumes) {
-  const top = pistas[0] ? `${pistas[0].title} - ${pistas[0].artist.name}` : `${albumes[0].title} - ${albumes[0].artist.name}`;
+function cabeceraResultados(consulta, pistas, albumes) {
   return [
-    "🎃 *SPOTIFY* 🕸️",
+    "⧼📚⧽ ```##``` *SPOTIFY DOWNLOAD*",
     "",
-    `> 「🎃」 ${consulta}`,
+    "🐋˒ ˙ ˓ *Busqueda / search:*",
+    `> ${consulta}`,
     "",
-    `🕸️ *CANCIONES:* ${pistas.length}`,
-    `🕸️ *ÁLBUMES:* ${albumes.length}`,
-    `🕸️ *TOP:* ${top}`,
+    "⧼🌺⧽ ```##``` *RESULTADOS*",
     "",
-    "🦇 Toca 📋 *Lista* y elige una canción o un álbum 🎃"
+    "🎧˒ ˙ ˓ *Canciones:*",
+    `> ${pistas.length} canciones encontradas`,
+    "📚˒ ˙ ˓  *Álbumes:*",
+    `> ${albumes.length} álbum encontrados`
   ].join("\n");
+}
+
+function tarjetaResultados(consulta, pistas, albumes) {
+  return `${cabeceraResultados(consulta, pistas, albumes)}\n\n> Toca el botón de *📋 Lista* para descargar.`;
 }
 
 function seccionesDeLista(pistas, albumes) {
@@ -142,7 +147,7 @@ function seccionesDeLista(pistas, albumes) {
 }
 
 function textoDeRespaldo(consulta, pistas, albumes) {
-  const lineas = [tarjetaResultados(consulta, pistas, albumes).split("\n").slice(0, 7).join("\n"), ""];
+  const lineas = [cabeceraResultados(consulta, pistas, albumes), ""];
   let n = 1;
   if (pistas.length) {
     lineas.push("*Canciones*");
@@ -307,3 +312,4 @@ export default {
     }
   }
 };
+                   
