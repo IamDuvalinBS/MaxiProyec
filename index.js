@@ -274,6 +274,22 @@ function esMensajeViejo(msg) {
   return Date.now() - seg * 1000 > MAX_ANTIGUEDAD_MS;
 }
 
+// Resume en una sola línea los mensajes viejos descartados (imprimir miles de líneas en Termux es lento).
+let ignoradosViejos = 0;
+let ignoradosMaxEdad = 0;
+let ignoradosTimer = null;
+function registrarIgnorado(edadSeg, tipo) {
+  ignoradosViejos++;
+  if (edadSeg > ignoradosMaxEdad) ignoradosMaxEdad = edadSeg;
+  if (ignoradosTimer) return;
+  ignoradosTimer = setTimeout(() => {
+    console.log(`[ignorados] ${ignoradosViejos} mensajes viejos descartados (más antiguo: ${ignoradosMaxEdad}s, límite ${MAX_ANTIGUEDAD_MS / 1000}s, tipo ${tipo})`);
+    ignoradosViejos = 0;
+    ignoradosMaxEdad = 0;
+    ignoradosTimer = null;
+  }, 5000);
+}
+
 function puedeResponderEnGrupo(sock, grupo) {
   const principal = ajustesDe(grupo).principal;
   if (!principal || !sock.user || !sock.user.id) return true;
@@ -309,7 +325,7 @@ function enlazarEventos(sock, esSub) {
       if (!esMensajeViejo(msg)) return true;
       const bruto = msg.messageTimestamp;
       const seg = typeof bruto === "object" && bruto ? (bruto.toNumber ? bruto.toNumber() : Number(bruto.low)) : Number(bruto);
-      console.log(`[ignorado] mensaje con ${Math.round(Date.now() / 1000 - seg)}s de antigüedad (límite ${MAX_ANTIGUEDAD_MS / 1000}s, tipo ${m.type})`);
+      registrarIgnorado(Math.round(Date.now() / 1000 - seg), m.type);
       return false;
     });
     const manejar = (msg) => procesarMensaje(m, msg).catch((e) => console.log("Error procesando mensaje: " + e.message));
