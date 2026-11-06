@@ -302,4 +302,4 @@ export function vigilarDescifrado(sock, etiqueta, reparar) {
     fallas = [];
     Promise.resolve(reparar()).catch((e) => console.log(`[${etiqueta}] no se pudo reparar la sesión: ${e.message}`));
   });
-                                   }
+          }
