@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import { NODO_BIZ } from "./botones-nativos.js";
 
 let libreria;
 
@@ -77,7 +78,7 @@ export async function enviarLista({ sock, from, msg, texto, footer, imagen, boto
     };
 
     const armado = await lib.generateWAMessageFromContent(from, contenido, { userJid: sock.user?.id, quoted: msg });
-    await sock.relayMessage(from, armado.message, { messageId: armado.key.id });
+    await sock.relayMessage(from, armado.message, { messageId: armado.key.id, additionalNodes: [NODO_BIZ] });
     return true;
   } catch (e) {
     console.log(`[lista] No se pudo enviar la lista: ${e.stack || e.message}`);
