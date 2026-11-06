@@ -467,6 +467,14 @@ export function esSubbot(sock) {
   return false;
 }
 
+let socketDelPrincipal = null;
+export function fijarSocketPrincipal(sock) {
+  socketDelPrincipal = sock;
+}
+export function socketPrincipal() {
+  return socketDelPrincipal;
+}
+
 export function socketsSubbots() {
   return [...subs.entries()].filter(([, e]) => e.sock).map(([numero, e]) => ({ numero, sock: e.sock }));
 }
