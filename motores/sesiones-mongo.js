@@ -170,12 +170,14 @@ function enFila(archivo, tarea) {
   return siguiente;
 }
 
-async function escribirAtomico(archivo, texto) {
+// sincronizar=false para las claves de cifrado: siguen siendo atómicas (temporal + renombrar) pero sin fsync, que en el
+// almacenamiento de Termux tarda mucho y atrasaba el descifrado de cada mensaje del atraso al reconectar.
+async function escribirAtomico(archivo, texto, sincronizar = true) {
   const temporal = `${archivo}.${process.pid}.tmp`;
   const fd = await fs.promises.open(temporal, "w");
   try {
     await fd.writeFile(texto);
-    await fd.sync();
+    if (sincronizar) await fd.sync();
   } finally {
     await fd.close();
   }
@@ -246,7 +248,7 @@ export async function sesionPrincipal(carpeta, logger) {
           const archivo = ruta(`${tipo}-${id}.json`);
           const valor = datos[tipo][id];
           tareas.push(
-            enFila(archivo, () => (valor ? escribirAtomico(archivo, JSON.stringify(valor, baileys.BufferJSON.replacer)) : fs.promises.unlink(archivo).catch(() => {})))
+            enFila(archivo, () => (valor ? escribirAtomico(archivo, JSON.stringify(valor, baileys.BufferJSON.replacer), false) : fs.promises.unlink(archivo).catch(() => {})))
           );
         }
       }
@@ -300,4 +302,4 @@ export function vigilarDescifrado(sock, etiqueta, reparar) {
     fallas = [];
     Promise.resolve(reparar()).catch((e) => console.log(`[${etiqueta}] no se pudo reparar la sesión: ${e.message}`));
   });
-          }
+                                   }
