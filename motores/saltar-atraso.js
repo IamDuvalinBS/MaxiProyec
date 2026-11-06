@@ -3,6 +3,9 @@
 // Se apaga con SALTAR_ATRASO=0. El límite es el mismo que usa index.js (MAX_ANTIGUEDAD_MENSAJE_SEG, 60 s por defecto).
 const ACTIVO = process.env.SALTAR_ATRASO !== "0";
 const LIMITE_MS = (Number(process.env.MAX_ANTIGUEDAD_MENSAJE_SEG) || 60) * 1000;
+// Por defecto se salta TODO lo marcado como "offline" (lo que llegó mientras el bot estaba desconectado), sin mirar la edad.
+// SALTAR_ATRASO_TODO=0 vuelve a saltar solo lo que supere el límite de antigüedad.
+const SALTAR_TODO = process.env.SALTAR_ATRASO_TODO !== "0";
 
 let saltados = 0;
 let maxEdad = 0;
@@ -24,6 +27,7 @@ function esViejoDelAtraso(nodo) {
   const a = nodo && nodo.attrs;
   if (!a || nodo.tag !== "message" || a.offline === undefined) return false;
   if (a.category === "peer") return false;            // mensajes entre dispositivos propios (claves de sincronización)
+  if (SALTAR_TODO) return true;
   const t = Number(a.t);
   if (!t) return false;
   return Date.now() - t * 1000 > LIMITE_MS;
@@ -64,7 +68,7 @@ export function saltarAtrasoViejo(sock, etiqueta = "principal") {
           if (esViejoDelAtraso(nodo)) {
             if (evento === "CB:message") {
               confirmar(sock, nodo);
-              resumir(Math.round(Date.now() / 1000 - Number(nodo.attrs.t)));
+              resumir(Math.max(0, Math.round(Date.now() / 1000 - Number(nodo.attrs.t || 0))));
             }
             return;
           }
