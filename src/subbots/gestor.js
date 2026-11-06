@@ -11,6 +11,7 @@ import {
   vigilarDescifrado
 } from "../../motores/sesiones-mongo.js";
 import { config, saveConfig } from "../../motores/db.js";
+import { saltarAtrasoViejo } from "../../motores/saltar-atraso.js";
 import { isOwner } from "../../motores/owner.js";
 
 const MAX_SUBS = Math.max(1, Number(process.env.MAX_SUBBOTS) || 10);
@@ -300,6 +301,7 @@ async function abrir(numero, entrada) {
       .catch((e) => console.log(`[subbot ${numero}] no se pudo guardar la sesión: ${e.message}`));
   });
 
+  saltarAtrasoViejo(sock);
   vigilarDescifrado(sock, `subbot ${numero}`, () => reparar(numero, entrada));
 
   sock.ev.on("connection.update", async (update) => {
