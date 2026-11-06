@@ -29,28 +29,51 @@ function esViejoDelAtraso(nodo) {
   return Date.now() - t * 1000 > LIMITE_MS;
 }
 
-export function saltarAtrasoViejo(sock) {
-  if (!ACTIVO || !sock || !sock.ws || typeof sock.ws.emit !== "function") return;
-  const emitir = sock.ws.emit.bind(sock.ws);
-  sock.ws.emit = (evento, ...args) => {
-    try {
-      if (typeof evento === "string" && evento.startsWith("CB:message")) {
-        const nodo = args[0];
-        if (esViejoDelAtraso(nodo)) {
-          if (evento === "CB:message") {   // un mismo mensaje se emite con varios nombres: se confirma una sola vez
-            const a = nodo.attrs;
-            const ack = { tag: "ack", attrs: { id: a.id, to: a.from, class: "message" } };
-            if (a.participant) ack.attrs.participant = a.participant;
-            if (a.recipient) ack.attrs.recipient = a.recipient;
-            sock.sendNode(ack).catch(() => {});
-            resumir(Math.round(Date.now() / 1000 - Number(a.t)));
+const DEPURAR = process.env.DEPURAR_ATRASO === "1";
+let vistos = 0;
+
+function confirmar(sock, nodo) {
+  const a = nodo.attrs;
+  const ack = { tag: "ack", attrs: { id: a.id, to: a.from, class: "message" } };
+  if (a.participant) ack.attrs.participant = a.participant;
+  if (a.recipient) ack.attrs.recipient = a.recipient;
+  Promise.resolve(sock.sendNode(ack)).catch(() => {});
+}
+
+// Reemplaza los oyentes de "CB:message*" de Baileys por versiones que revisan el mensaje antes de descifrarlo.
+export function saltarAtrasoViejo(sock, etiqueta = "principal") {
+  if (!ACTIVO) return;
+  const ws = sock && sock.ws;
+  if (!ws || typeof ws.eventNames !== "function") {
+    console.log(`[atraso] (${etiqueta}) no se pudo activar: sock.ws no es un emisor de eventos`);
+    return;
+  }
+  let envueltos = 0;
+  for (const evento of ws.eventNames()) {
+    if (typeof evento !== "string" || !evento.startsWith("CB:message")) continue;
+    const originales = ws.listeners(evento);
+    ws.removeAllListeners(evento);
+    for (const original of originales) {
+      envueltos++;
+      ws.on(evento, (nodo, ...resto) => {
+        try {
+          if (DEPURAR && vistos < 10 && nodo && nodo.attrs) {
+            vistos++;
+            console.log(`[atraso] visto ${evento} attrs=${JSON.stringify({ ...nodo.attrs, from: undefined, participant: undefined })}`);
           }
-          return true;                     // no llega al descifrado de Baileys
+          if (esViejoDelAtraso(nodo)) {
+            if (evento === "CB:message") {
+              confirmar(sock, nodo);
+              resumir(Math.round(Date.now() / 1000 - Number(nodo.attrs.t)));
+            }
+            return;
+          }
+        } catch (e) {
+          console.log("[atraso] error, se deja pasar el mensaje: " + e.message);
         }
-      }
-    } catch (e) {
-      console.log("[atraso] error, se deja pasar el mensaje: " + e.message);
+        return original(nodo, ...resto);
+      });
     }
-    return emitir(evento, ...args);
-  };
+  }
+  console.log(`[atraso] (${etiqueta}) activo, oyentes enganchados: ${envueltos}`);
 }
