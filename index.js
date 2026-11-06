@@ -333,7 +333,11 @@ function enlazarEventos(sock, esSub) {
     // Al reiniciar o limpiar la sesión WhatsApp reenvía los mensajes pendientes. Se descartan los viejos para no
     // responder comandos de hace rato ni atrasar los nuevos (cada mensaje del lote espera 400 ms).
     const lote = (m.messages || []).filter((msg) => {
-      if (m.type !== "notify" || esMensajeViejo(msg) || (!msg.message && msg.messageStubType === 2)) {
+      if (m.type === "notify" && !msg.message && msg.messageStubType === 2) {
+        console.log(chalk.red(`[sin-descifrar] mensaje EN VIVO que no se pudo descifrar (chat ${String(msg.key.remoteJid).slice(0, 14)}, fromMe=${Boolean(msg.key.fromMe)}). La sesión de cifrado está dañada.`));
+        return false;
+      }
+      if (m.type !== "notify" || esMensajeViejo(msg)) {
         const bruto0 = msg.messageTimestamp;
         const seg0 = typeof bruto0 === "object" && bruto0 ? (bruto0.toNumber ? bruto0.toNumber() : Number(bruto0.low)) : Number(bruto0);
         registrarIgnorado(seg0 ? Math.round(Date.now() / 1000 - seg0) : 0, m.type);
@@ -478,6 +482,10 @@ async function startBot() {
   isConnecting = true;
   try {
   cargarGruposMongo();   // en segundo plano: no retrasa el arranque (el archivo local ya cubre los primeros segundos)
+  if (process.env.LIMPIAR_SESIONES === "1") {
+    const borrados = await limpiarSesionesLocales("auth_info");
+    console.log(chalk.yellow(`LIMPIAR_SESIONES=1: ${borrados} sesiones de cifrado borradas (creds.json intacto).`));
+  }
   const { state, saveCreds } = await sesionPrincipal("auth_info", pino({ level: "silent" }));
   const { version } = await fetchLatestBaileysVersion();
 
