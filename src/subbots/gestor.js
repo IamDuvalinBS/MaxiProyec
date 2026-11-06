@@ -301,7 +301,7 @@ async function abrir(numero, entrada) {
       .catch((e) => console.log(`[subbot ${numero}] no se pudo guardar la sesión: ${e.message}`));
   });
 
-  saltarAtrasoViejo(sock);
+  saltarAtrasoViejo(sock, `subbot ${numero}`);
   vigilarDescifrado(sock, `subbot ${numero}`, () => reparar(numero, entrada));
 
   sock.ev.on("connection.update", async (update) => {
