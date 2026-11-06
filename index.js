@@ -8,7 +8,7 @@ import http from "http";
 import { manejarApiJuegos } from "./motores/juegos-api.js";
 import { manejarComando } from "./src/nucleo/comandos.js";
 import { checkTriviaAnswer } from "./src/economia/trivia.js";
-import { iniciarSubbots, usarPagina } from "./src/subbots/gestor.js";
+import { iniciarSubbots, usarPagina, fijarSocketPrincipal } from "./src/subbots/gestor.js";
 import { reclamarMensaje, fijarPrincipal } from "./src/subbots/dedupe.js";
 import { sesionPrincipal, limpiarSesionesLocales, vigilarDescifrado } from "./motores/sesiones-mongo.js";
 import { iniciarCobranzaPrestamos } from "./src/economia/prestamos.js";
@@ -29,7 +29,6 @@ import { eliminarEnlace } from "./src/grupos/enlaces.js";
 import { olvidarMetadatos } from "./src/grupos/nucleo.js";
 import { recordarNombre } from "./motores/profile.js";
 import { saltarAtrasoViejo } from "./motores/saltar-atraso.js";
-import { vigilarVida } from "./motores/vigilante-zombi.js";
 import { esMensajeDePersona, contarMensajeGrupo } from "./motores/estadisticas.js";
 import { normalizarMensaje, aprenderTodosLosGrupos } from "./src/nucleo/identidad.js";
 import { iniciarChatPagina } from "./src/nucleo/chatpagina.js";
@@ -333,16 +332,6 @@ function enlazarEventos(sock, esSub) {
     // Al reiniciar o limpiar la sesión WhatsApp reenvía los mensajes pendientes. Se descartan los viejos para no
     // responder comandos de hace rato ni atrasar los nuevos (cada mensaje del lote espera 400 ms).
     const lote = (m.messages || []).filter((msg) => {
-      if (m.type === "notify" && !msg.message && msg.messageStubType === 2) {
-        console.log(chalk.red(`[sin-descifrar] mensaje EN VIVO que no se pudo descifrar (chat ${String(msg.key.remoteJid).slice(0, 14)}, fromMe=${Boolean(msg.key.fromMe)}). La sesión de cifrado está dañada.`));
-        return false;
-      }
-      if (m.type !== "notify" || esMensajeViejo(msg)) {
-        const bruto0 = msg.messageTimestamp;
-        const seg0 = typeof bruto0 === "object" && bruto0 ? (bruto0.toNumber ? bruto0.toNumber() : Number(bruto0.low)) : Number(bruto0);
-        registrarIgnorado(seg0 ? Math.round(Date.now() / 1000 - seg0) : 0, m.type);
-        return false;
-      }
       if (!esMensajeViejo(msg)) return true;
       const bruto = msg.messageTimestamp;
       const seg = typeof bruto === "object" && bruto ? (bruto.toNumber ? bruto.toNumber() : Number(bruto.low)) : Number(bruto);
@@ -366,7 +355,9 @@ function enlazarEventos(sock, esSub) {
     if (!msg.message) return;
     if (msg.key.remoteJid.endsWith("@g.us") && !puedeResponderEnGrupo(sock, msg.key.remoteJid)) {
       const crudo = msg.message.conversation || (msg.message.extendedTextMessage && msg.message.extendedTextMessage.text) || "";
-      if (esSub || !/^\s*\S{0,3}setprimary\b/i.test(crudo)) return;
+      // Un bot silenciado (principal o subbot) deja pasar solo .setprimary/.botprincipal, así se puede cambiar o quitar el
+      // bot principal desde cualquier bot del grupo. reclamarMensaje evita que más de un bot lo procese.
+      if (!/^\s*\S{0,3}(setprimary|botprincipal)\b/i.test(crudo)) return;
     }
     if (!(await reclamarMensaje(msg, esSub))) return;
     if (m.type === "notify" && !msg.key.fromMe) PAG.msgsHoy++;
@@ -480,12 +471,8 @@ async function startBot() {
     return;
   }
   isConnecting = true;
-  try {
+
   cargarGruposMongo();   // en segundo plano: no retrasa el arranque (el archivo local ya cubre los primeros segundos)
-  if (process.env.LIMPIAR_SESIONES === "1") {
-    const borrados = await limpiarSesionesLocales("auth_info");
-    console.log(chalk.yellow(`LIMPIAR_SESIONES=1: ${borrados} sesiones de cifrado borradas (creds.json intacto).`));
-  }
   const { state, saveCreds } = await sesionPrincipal("auth_info", pino({ level: "silent" }));
   const { version } = await fetchLatestBaileysVersion();
 
@@ -505,19 +492,8 @@ async function startBot() {
     cachedGroupMetadata: metadatosParaEnvio
   });
   socketPrincipal = sock;
+  fijarSocketPrincipal(sock);
   saltarAtrasoViejo(sock, "principal");
-  let cerrado = false;
-  sock.ev.on("connection.update", (u) => { if (u.connection === "close") cerrado = true; });
-  vigilarVida(sock, "principal", () => {
-    try { sock.end(new Error("Sesión zombie")); } catch {}
-    setTimeout(() => {
-      if (cerrado || socketPrincipal !== sock) return;
-      console.log(chalk.yellow("[vigilante] el socket no cerró solo: se fuerza una conexión nueva."));
-      try { sock.ev.removeAllListeners(); } catch {}
-      isConnecting = false;
-      startBot();
-    }, 10000);
-  });
 
   console.log("Intentando conectar con WhatsApp...");
 
@@ -593,11 +569,6 @@ async function startBot() {
     console.log(chalk.yellow(`   ${borrados} sesiones borradas, reconectando...`));
     sock.end(new Error("Reparación de sesión"));
   });
-  } catch (e) {
-    console.log(chalk.red("Error al iniciar la conexión: " + e.message + ". Reintentando en 5 s..."));
-    isConnecting = false;
-    setTimeout(startBot, 5000);
-  }
 }
 
 startBot();
