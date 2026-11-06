@@ -1,6 +1,6 @@
 import { comandoGrupo, metadatos, buscarBot, buscarParticipante, limpiarJid, objetivoDe } from "../../grupos/nucleo.js";
 import { ajustesDe, definirAjuste } from "../../grupos/estado.js";
-import { socketsSubbots } from "../../subbots/gestor.js";
+import { socketsSubbots, socketPrincipal } from "../../subbots/gestor.js";
 import { tarjetaMarcada, mencion } from "../../economia/estilo.js";
 
 const OPCIONES_QUITAR = new Set(["off", "all", "todos", "reset", "quitar"]);
@@ -37,7 +37,9 @@ export default {
       );
     }
 
-    const candidatos = [sock, ...socketsSubbots().map((x) => x.sock).filter((s) => s && s !== sock)].filter((s) => s.user && s.user.id);
+    // Quien recibe el comando puede ser el principal o un subbot (aunque esté silenciado): se consideran todos los bots de esta copia.
+    const candidatos = [sock, socketPrincipal(), ...socketsSubbots().map((x) => x.sock)]
+      .filter((s, i, todos) => s && s.user && s.user.id && todos.indexOf(s) === i);
     const objetivo = objetivoDe({ msg, cleanText });
 
     let elegido = sock;
@@ -65,7 +67,7 @@ export default {
     }
 
     // El bot que recibe el mensaje ya está en el grupo; solo se verifica a los subbots (el LID puede no coincidir en el principal).
-    if (!externo && elegido !== sock) {
+    if (!externo && elegido !== sock && elegido !== socketPrincipal()) {
       const metaElegido = await metadatos(elegido, from);
       if (!buscarBot(elegido, metaElegido)) return avisar("Ese bot no está en este grupo.");
     }
