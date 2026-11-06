@@ -29,6 +29,7 @@ import { eliminarEnlace } from "./src/grupos/enlaces.js";
 import { olvidarMetadatos } from "./src/grupos/nucleo.js";
 import { recordarNombre } from "./motores/profile.js";
 import { saltarAtrasoViejo } from "./motores/saltar-atraso.js";
+import { vigilarVida } from "./motores/vigilante-zombi.js";
 import { esMensajeDePersona, contarMensajeGrupo } from "./motores/estadisticas.js";
 import { normalizarMensaje, aprenderTodosLosGrupos } from "./src/nucleo/identidad.js";
 import { iniciarChatPagina } from "./src/nucleo/chatpagina.js";
@@ -332,6 +333,12 @@ function enlazarEventos(sock, esSub) {
     // Al reiniciar o limpiar la sesión WhatsApp reenvía los mensajes pendientes. Se descartan los viejos para no
     // responder comandos de hace rato ni atrasar los nuevos (cada mensaje del lote espera 400 ms).
     const lote = (m.messages || []).filter((msg) => {
+      if (m.type !== "notify" || esMensajeViejo(msg) || (!msg.message && msg.messageStubType === 2)) {
+        const bruto0 = msg.messageTimestamp;
+        const seg0 = typeof bruto0 === "object" && bruto0 ? (bruto0.toNumber ? bruto0.toNumber() : Number(bruto0.low)) : Number(bruto0);
+        registrarIgnorado(seg0 ? Math.round(Date.now() / 1000 - seg0) : 0, m.type);
+        return false;
+      }
       if (!esMensajeViejo(msg)) return true;
       const bruto = msg.messageTimestamp;
       const seg = typeof bruto === "object" && bruto ? (bruto.toNumber ? bruto.toNumber() : Number(bruto.low)) : Number(bruto);
@@ -469,7 +476,7 @@ async function startBot() {
     return;
   }
   isConnecting = true;
-
+  try {
   cargarGruposMongo();   // en segundo plano: no retrasa el arranque (el archivo local ya cubre los primeros segundos)
   const { state, saveCreds } = await sesionPrincipal("auth_info", pino({ level: "silent" }));
   const { version } = await fetchLatestBaileysVersion();
@@ -491,6 +498,18 @@ async function startBot() {
   });
   socketPrincipal = sock;
   saltarAtrasoViejo(sock, "principal");
+  let cerrado = false;
+  sock.ev.on("connection.update", (u) => { if (u.connection === "close") cerrado = true; });
+  vigilarVida(sock, "principal", () => {
+    try { sock.end(new Error("Sesión zombie")); } catch {}
+    setTimeout(() => {
+      if (cerrado || socketPrincipal !== sock) return;
+      console.log(chalk.yellow("[vigilante] el socket no cerró solo: se fuerza una conexión nueva."));
+      try { sock.ev.removeAllListeners(); } catch {}
+      isConnecting = false;
+      startBot();
+    }, 10000);
+  });
 
   console.log("Intentando conectar con WhatsApp...");
 
@@ -566,6 +585,11 @@ async function startBot() {
     console.log(chalk.yellow(`   ${borrados} sesiones borradas, reconectando...`));
     sock.end(new Error("Reparación de sesión"));
   });
+  } catch (e) {
+    console.log(chalk.red("Error al iniciar la conexión: " + e.message + ". Reintentando en 5 s..."));
+    isConnecting = false;
+    setTimeout(startBot, 5000);
+  }
 }
 
 startBot();
