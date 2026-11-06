@@ -481,7 +481,7 @@ async function startBot() {
     cachedGroupMetadata: metadatosParaEnvio
   });
   socketPrincipal = sock;
-  saltarAtrasoViejo(sock);
+  saltarAtrasoViejo(sock, "principal");
 
   console.log("Intentando conectar con WhatsApp...");
 
