@@ -28,6 +28,7 @@ import { antilinkActivo, botApagado, ajustesDe, cargarGruposMongo } from "./src/
 import { eliminarEnlace } from "./src/grupos/enlaces.js";
 import { olvidarMetadatos } from "./src/grupos/nucleo.js";
 import { recordarNombre } from "./motores/profile.js";
+import { saltarAtrasoViejo } from "./motores/saltar-atraso.js";
 import { esMensajeDePersona, contarMensajeGrupo } from "./motores/estadisticas.js";
 import { normalizarMensaje, aprenderTodosLosGrupos } from "./src/nucleo/identidad.js";
 import { iniciarChatPagina } from "./src/nucleo/chatpagina.js";
@@ -480,6 +481,7 @@ async function startBot() {
     cachedGroupMetadata: metadatosParaEnvio
   });
   socketPrincipal = sock;
+  saltarAtrasoViejo(sock);
 
   console.log("Intentando conectar con WhatsApp...");
 
