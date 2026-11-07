@@ -1,4 +1,4 @@
-import { ESPECIES, RAREZAS, HUEVOS, COMIDAS, CASAS, ACCESORIOS, ESPACIOS } from "./mascotas-datos.js";
+import { ESPECIES, RAREZAS, HUEVOS, COMIDAS, CASAS, ACCESORIOS, ESPACIOS, JABON, HABILIDADES, NIVEL_HABILIDAD } from "./mascotas-datos.js";
 import { svgEscena } from "./mascotas-arte.js";
 import { svgEscenaZona } from "./mascotas-zonas-arte.js";
 import { ZONAS, ITEMS, ORDEN_RAREZA } from "./mascotas-zonas.js";
@@ -22,7 +22,7 @@ function barra(icono, titulo, valor) {
 
 function animoDe(m, estado) {
   if (m.dormido) return "normal";
-  if (["hambriento", "cansado", "aburrido", "mojado"].includes(estado.clave)) return "triste";
+  if (["hambriento", "cansado", "aburrido", "mojado", "sucio"].includes(estado.clave)) return "triste";
   return estado.clave === "feliz" ? "feliz" : "normal";
 }
 
@@ -87,12 +87,12 @@ function tarjetaMascota(m, i, ctx) {
 <div class="escwrap">${escena}<div class="bub"></div></div>
 <div class="fila"><div class="nom"><b>${esc(m.nombre)}</b><small>#${i + 1} · ${esp.emoji} ${esp.nombre}</small></div>
 <div class="ins"><span class="pill nv">Nv ${nivelDe(m)}</span><span class="pill e${etapa.id}">${etapa.nombre}</span><span class="pill cal r${m.rareza}">${rareza.emoji} ${rareza.nombre}</span></div></div>
-<div class="rasgo">✨ ${esc(esp.rasgo)}</div>
+<div class="rasgo">✨ ${esc(esp.rasgo)}<br>⭐ ${esc(HABILIDADES[m.especie].nombre)}: ${esc(HABILIDADES[m.especie].texto)} <b>${nivelDe(m) >= NIVEL_HABILIDAD ? "(activa)" : `(Nv ${NIVEL_HABILIDAD})`}</b></div>
 ${banner}<div class="est">${estado.emoji} ${estado.texto}<span>Ánimo ${felicidad(m)}%</span></div>
 <div class="crec"><div class="ct"><span>🌱 Crecimiento</span><span>${meta}</span></div><div class="bar g"><i style="width:${Math.round(prog.fraccion * 100)}%"></i></div></div>
-${barra("🍖", "Comida", m.hambre)}${barra(m.dormido ? "😴" : "⚡", "Energía", m.energia)}${barra("🎾", "Diversión", m.diversion)}
+${barra("🍖", "Comida", m.hambre)}${barra(m.dormido ? "😴" : "⚡", "Energía", m.energia)}${barra("🎾", "Diversión", m.diversion)}${barra("🫧", "Limpieza", m.limpieza)}
 <div class="chips"><span class="chip casa">${casa ? `🏠 ${esc(casa.nombre)}` : "🏚️ Sin casa"}</span>${prendas}</div>
-<div class="cmds">${activa ? "Está explorando; no puede jugar, comer ni dormir hasta que vuelva." : `Usa <b>.petalimentar ${i + 1}</b> · <b>.petjugar ${i + 1}</b> · <b>.${m.dormido ? "petdespertar" : "petdormir"} ${i + 1}</b> · <b>.petinvestigar</b>`}</div>
+<div class="cmds">${activa ? "Está explorando; no puede jugar, comer ni dormir hasta que vuelva." : `Usa <b>.petalimentar ${i + 1}</b> · <b>.petjugar ${i + 1}</b> · <b>.petbañar ${i + 1}</b> · <b>.${m.dormido ? "petdespertar" : "petdormir"} ${i + 1}</b> · <b>.petinvestigar</b>`}</div>
 </section>`;
 }
 
@@ -111,7 +111,8 @@ function bloqueInventario(est) {
   const huevos = Object.entries(HUEVOS).filter(([k]) => est.huevos[k] > 0).map(([k, h]) => `<span class="chip">${h.emoji} ${est.huevos[k]}</span>`);
   const comida = Object.entries(COMIDAS).filter(([k]) => est.comida[k] > 0).map(([k, c]) => `<span class="chip">${c.emoji} ${est.comida[k]}</span>`);
   const prendas = Object.entries(ACCESORIOS).filter(([k]) => est.accesorios[k] > 0).map(([k, a]) => `<span class="chip">${a.emoji} ${est.accesorios[k]}</span>`);
-  const todo = [...huevos, ...comida, ...prendas];
+  const jabon = est.jabon > 0 ? [`<span class="chip">${JABON.emoji} ${est.jabon}</span>`] : [];
+  const todo = [...huevos, ...comida, ...jabon, ...prendas];
   return `<div class="caja"><div class="ct2">🎒 Mochila</div><div class="chips">${todo.join("") || `<span class="chip vacio">Vacía</span>`}</div></div>`;
 }
 
@@ -183,7 +184,7 @@ small{color:#8a735d;font-size:11px}
 
 const SCRIPT = String.raw`(function(){
 var tabs=[].slice.call(document.querySelectorAll('.tab')),pets=[].slice.call(document.querySelectorAll('.pet'));
-var F={dormido:['Zzz...','💤 Cinco minutos más...'],hambriento:['¡Tengo mucha hambre!','🍖 ¿Hay comida?'],cansado:['Necesito dormir...','🥱 Estoy agotado'],aburrido:['¿Jugamos?','🎾 Estoy aburrido'],mojado:['Brrr, qué frío','🌧️ Me estoy mojando'],impermeable:['Mi impermeable funciona 😎'],feliz:['¡Qué buen día!','💛 ¡Te quiero!','¡Sigamos jugando!'],tranquilo:['Todo está tranquilo','🙂 Aquí estoy']};
+var F={dormido:['Zzz...','💤 Cinco minutos más...'],hambriento:['¡Tengo mucha hambre!','🍖 ¿Hay comida?'],cansado:['Necesito dormir...','🥱 Estoy agotado'],aburrido:['¿Jugamos?','🎾 Estoy aburrido'],sucio:['Necesito un baño 🫧','Estoy lleno de lodo'],mojado:['Brrr, qué frío','🌧️ Me estoy mojando'],impermeable:['Mi impermeable funciona 😎'],feliz:['¡Qué buen día!','💛 ¡Te quiero!','¡Sigamos jugando!'],tranquilo:['Todo está tranquilo','🙂 Aquí estoy']};
 function ir(i){tabs.forEach(function(t,j){t.classList.toggle('on',j===i)});pets.forEach(function(p,j){p.hidden=j!==i})}
 tabs.forEach(function(t,i){t.onclick=function(){ir(i)}});
 pets.forEach(function(p){var w=p.querySelector('.escwrap'),b=p.querySelector('.bub'),tm;

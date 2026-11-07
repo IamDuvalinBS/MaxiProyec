@@ -1,5 +1,5 @@
 import {
-  ETAPAS, ESPECIES, RASGOS, RAREZAS, INCUBADORA, HUEVOS, COMIDAS, CASAS, ACCESORIOS, ESPACIOS, DECAIMIENTO,
+  ETAPAS, ESPECIES, RASGOS, RAREZAS, INCUBADORA, HUEVOS, JABON, BANO_DIVERSION, COMIDAS, CASAS, ACCESORIOS, ESPACIOS, DECAIMIENTO,
   CRECIMIENTO_POR_HORA, MAX_MASCOTAS, MAX_NOMBRE, PASO_MS, MAX_SIMULACION_MS, ESPERA_JUGAR_MS, LLUVIA_MINIMA_MM
 } from "./mascotas-datos.js";
 
@@ -38,6 +38,7 @@ export function normalizar(est) {
   for (const id of Object.keys(HUEVOS)) e.huevos[id] = Number(e.huevos[id]) || 0;
   for (const id of Object.keys(COMIDAS)) e.comida[id] = Number(e.comida[id]) || 0;
   for (const id of Object.keys(ACCESORIOS)) e.accesorios[id] = Number(e.accesorios[id]) || 0;
+  e.jabon = Number(e.jabon) || 0;
   if (!e.items || typeof e.items !== "object") e.items = {};
   for (const id of Object.keys(e.items)) if (!(Number(e.items[id]) > 0)) delete e.items[id];
   if (!Array.isArray(e.mascotas)) e.mascotas = [];
@@ -52,6 +53,7 @@ export function normalizar(est) {
     m.casa = Number(m.casa) || 0;
     m.crec = Number(m.crec) || 0;
     m.xp = Number(m.xp) || 0;
+    if (!Number.isFinite(m.limpieza)) m.limpieza = 80;
   }
   return e;
 }
@@ -107,10 +109,12 @@ export function actualizarMascota(m, ahora, precipitacionEn = () => 0) {
     const bonoLluvia = sinRefugio && rasgo.amaLluvia ? 1.15 : 1;
 
     if (m.dormido) {
+      m.limpieza -= DECAIMIENTO.dormido.limpieza * dt;
       m.hambre -= DECAIMIENTO.dormido.hambre * dt * (rasgo.hambre ?? 1);
       m.diversion -= DECAIMIENTO.dormido.diversion * dt * (rasgo.diversion ?? 1);
       m.energia += -DECAIMIENTO.dormido.energia * dt * (1 + comodidad);
     } else {
+      m.limpieza -= DECAIMIENTO.despierto.limpieza * dt * (enExpedicion ? 2.5 : 1);
       m.hambre -= DECAIMIENTO.despierto.hambre * dt * (rasgo.hambre ?? 1);
       m.diversion -= DECAIMIENTO.despierto.diversion * dt * (rasgo.diversion ?? 1) * (enExpedicion ? 0.3 : 1);
       m.energia -= DECAIMIENTO.despierto.energia * dt * (rasgo.energia ?? 1) * (enExpedicion ? 0.6 : 1);
@@ -123,12 +127,13 @@ export function actualizarMascota(m, ahora, precipitacionEn = () => 0) {
     m.hambre = limitar(m.hambre);
     m.diversion = limitar(m.diversion);
     m.energia = limitar(m.energia);
+    m.limpieza = limitar(m.limpieza);
     if (enExpedicion) m.energia = Math.max(m.energia, 5);
     if (m.dormido && m.energia >= 100) m.dormido = false;
     else if (!m.dormido && m.energia <= 0) m.dormido = true;
 
     if (Math.min(m.hambre, m.diversion, m.energia) > 10) {
-      const satisfaccion = (m.hambre * 0.4 + m.diversion * 0.3 + m.energia * 0.3) / 100;
+      const satisfaccion = (m.hambre * 0.35 + m.diversion * 0.25 + m.energia * 0.25 + m.limpieza * 0.15) / 100;
       const factor = (m.dormido ? 1.5 : 1) * (1 - 0.5 * exposicion) * (1 + comodidad) * calidad * bonoLluvia;
       m.crec += CRECIMIENTO_POR_HORA * satisfaccion * factor * dt;
     }
@@ -139,7 +144,7 @@ export function actualizarMascota(m, ahora, precipitacionEn = () => 0) {
 }
 
 export function felicidad(m) {
-  return Math.round((m.hambre + m.diversion + m.energia) / 3);
+  return Math.round((m.hambre + m.diversion + m.energia + m.limpieza) / 4);
 }
 
 export function estadoActual(m, llueveAhora) {
@@ -147,6 +152,7 @@ export function estadoActual(m, llueveAhora) {
   if (m.hambre <= 15) return { clave: "hambriento", texto: "Tiene mucha hambre", emoji: "🍽️" };
   if (m.energia <= 15) return { clave: "cansado", texto: "Está agotado", emoji: "🥱" };
   if (m.diversion <= 15) return { clave: "aburrido", texto: "Está aburrido", emoji: "😒" };
+  if (m.limpieza <= 15) return { clave: "sucio", texto: "Necesita un baño", emoji: "🫧" };
   if (llueveAhora && !m.casa) {
     return proteccionLluvia(m) >= 0.5
       ? { clave: "impermeable", texto: "Protegido con su impermeable", emoji: "🧥" }
@@ -194,6 +200,18 @@ export function jugar(m, ahora) {
   m.hambre = limitar(m.hambre - 8);
   m.crec += 3;
   return { ok: true };
+}
+
+export function banar(est, m) {
+  if (m.dormido) return { ok: false, error: `${m.nombre} está durmiendo.` };
+  if (m.limpieza >= 90) return { ok: false, error: `${m.nombre} ya está limpio.` };
+  if (est.jabon <= 0) return { ok: false, error: `No tienes ${JABON.nombre.toLowerCase()}. Puedes comprarlo con *.petcomprar jabon*.` };
+  est.jabon -= 1;
+  m.limpieza = 100;
+  const cambio = BANO_DIVERSION[m.especie] ?? 0;
+  m.diversion = limitar(m.diversion + cambio);
+  m.crec += 2;
+  return { ok: true, cambio };
 }
 
 export function dormir(m) {
@@ -261,6 +279,7 @@ export function resolverArticulo(texto) {
     const id = Object.keys(COMIDAS).find((k) => t.includes(k)) || "basica";
     return { tipo: "comida", id, numero: n };
   }
+  if (/jabon/.test(t)) return { tipo: "jabon", numero: n };
   if (/casa|caseta|mansion/.test(t)) return { tipo: "casa", numero: n };
   const accesorio = Object.keys(ACCESORIOS).find((id) => coincideAccesorio(id, t));
   if (accesorio) return { tipo: "accesorio", id: accesorio, numero: n };
@@ -276,6 +295,7 @@ export function precioDe(articulo, cantidad = 1) {
   if (articulo.tipo === "incubadora") return INCUBADORA.precio;
   if (articulo.tipo === "huevo") return HUEVOS[articulo.id].precio * cantidad;
   if (articulo.tipo === "comida") return COMIDAS[articulo.id].precio * cantidad;
+  if (articulo.tipo === "jabon") return JABON.precio * cantidad;
   if (articulo.tipo === "casa") return CASAS.precio;
   if (articulo.tipo === "accesorio") return ACCESORIOS[articulo.id].precio * cantidad;
   return 0;
@@ -355,6 +375,7 @@ export function eclosionar(est, ahora, rnd = Math.random) {
       hambre: 80,
       energia: 80,
       diversion: 80,
+      limpieza: 80,
       dormido: false,
       ts: ahora,
       casa: 0,

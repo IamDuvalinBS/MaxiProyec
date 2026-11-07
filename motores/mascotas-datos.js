@@ -82,9 +82,32 @@ export const ACCESORIOS = {
 export const ESPACIOS = ["cabeza", "cuello", "cara", "cuerpo"];
 
 export const DECAIMIENTO = {
-  despierto: { hambre: 6, energia: 4, diversion: 5 },
-  dormido: { hambre: 2, energia: -12, diversion: 1 },
+  despierto: { hambre: 6, energia: 4, diversion: 5, limpieza: 3 },
+  dormido: { hambre: 2, energia: -12, diversion: 1, limpieza: 1 },
   lluviaSinRefugio: { energia: 3, diversion: 8 }
 };
 
 export const CRECIMIENTO_POR_HORA = 10;
+
+export const JABON = { nombre: "Jabón de baño", emoji: "🧼", precio: 1500 };
+
+export const BANO_DIVERSION = { perro: 10, gato: -10, zorro: 0, pinguino: 10, ajolote: 15, dragon: 5 };
+
+export const NIVEL_HABILIDAD = 31;
+
+export const BONOS_NIVEL = [
+  { desde: 1, texto: "Nivel 1-5: sin bonificaciones" },
+  { desde: 6, texto: "Nivel 6-10: bono de monedas (+5% del valor de cada expedición)" },
+  { desde: 11, texto: "Nivel 11-20: mejora de recompensas (+10% de hallazgos)" },
+  { desde: 21, texto: "Nivel 21-30: mejores recompensas (+10% de probabilidad de ítems raros o mejores)" },
+  { desde: NIVEL_HABILIDAD, texto: "Nivel 31+: habilidad especial según la especie" }
+];
+
+export const HABILIDADES = {
+  perro: { nombre: "Olfato", texto: "20% de probabilidad de duplicar cada hallazgo" },
+  gato: { nombre: "Instinto cazador", texto: "+25% de probabilidad de ítems raros o mejores" },
+  zorro: { nombre: "Astucia", texto: "25% de probabilidad de un hallazgo extra" },
+  pinguino: { nombre: "Piel gruesa", texto: "+20% de hallazgos con frío o nieve" },
+  ajolote: { nombre: "Regeneración", texto: "Recupera 25 de energía al volver de una expedición" },
+  dragon: { nombre: "Tesoro del dragón", texto: "+15% extra de monedas por expedición" }
+};

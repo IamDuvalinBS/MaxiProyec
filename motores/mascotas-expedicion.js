@@ -1,5 +1,5 @@
 import { ZONAS, ITEMS, ORDEN_RAREZA, MAX_MINUTOS_EXPEDICION, PROB_BASURA, XP_POR_MINUTO, MAX_BOTIN } from "./mascotas-zonas.js";
-import { RASGOS } from "./mascotas-datos.js";
+import { RASGOS, HABILIDADES, NIVEL_HABILIDAD } from "./mascotas-datos.js";
 import { nivelDe, explorando } from "./mascotas-logica.js";
 
 const PESOS_BASURA = { comun: 55, poco_comun: 35, raro: 10 };
@@ -59,20 +59,28 @@ function elegirPonderado(pares, rnd) {
   return pares[pares.length - 1][0];
 }
 
-function elegirItem(lista, pesos, indicePet, rnd) {
+function elegirItem(lista, pesos, factorRaro, rnd) {
   const pares = ORDEN_RAREZA
     .filter((r) => lista.some((i) => i.rareza === r) && (pesos[r] || 0) > 0)
-    .map((r) => [r, pesos[r] * (ORDEN_RAREZA.indexOf(r) >= 2 ? 1 + 0.05 * indicePet : 1)]);
+    .map((r) => [r, pesos[r] * (ORDEN_RAREZA.indexOf(r) >= 2 ? factorRaro : 1)]);
   const rareza = elegirPonderado(pares, rnd);
   const candidatos = lista.filter((i) => i.rareza === rareza);
   return candidatos[Math.floor(rnd() * candidatos.length)];
 }
 
+const tieneHabilidad = (m, especie) => m.especie === especie && nivelDe(m) >= NIVEL_HABILIDAD;
+
 export function cantidadBotin(zona, m, minutos, clima, rnd = Math.random) {
   const base = 2 * Math.pow(minutos / zona.minutos, 0.7);
-  const mult = (zona.favoritas.includes(m.especie) ? 1.25 : 1) * (favorableClima(m.especie, clima) ? 1.1 : 1);
+  const favorable = favorableClima(m.especie, clima);
+  const mult = (zona.favoritas.includes(m.especie) ? 1.25 : 1)
+    * (favorable ? 1.1 : 1)
+    * (nivelDe(m) >= 11 ? 1.1 : 1)
+    * (tieneHabilidad(m, "pinguino") && favorable ? 1.2 : 1);
   const n = base * mult;
-  return Math.max(1, Math.min(MAX_BOTIN, Math.floor(n) + (rnd() < n % 1 ? 1 : 0)));
+  let tiradas = Math.floor(n) + (rnd() < n % 1 ? 1 : 0);
+  if (tieneHabilidad(m, "zorro") && rnd() < 0.25) tiradas += 1;
+  return Math.max(1, Math.min(MAX_BOTIN, tiradas));
 }
 
 export function generarBotin(zona, m, minutos, clima, rnd = Math.random) {
@@ -80,12 +88,19 @@ export function generarBotin(zona, m, minutos, clima, rnd = Math.random) {
   const delaZona = Object.values(ITEMS).filter((i) => i.zona === zona.id);
   const universales = Object.values(ITEMS).filter((i) => !i.zona);
   const botin = {};
+  const factorRaro = (1 + 0.05 * indicePet) * (nivelDe(m) >= 21 ? 1.1 : 1) * (tieneHabilidad(m, "gato") ? 1.25 : 1);
   const tiradas = cantidadBotin(zona, m, minutos, clima, rnd);
+  let duplicados = 0;
   for (let i = 0; i < tiradas; i++) {
-    const it = rnd() < PROB_BASURA ? elegirItem(universales, PESOS_BASURA, indicePet, rnd) : elegirItem(delaZona, zona.pesos, indicePet, rnd);
-    botin[it.id] = (botin[it.id] || 0) + 1;
+    const it = rnd() < PROB_BASURA ? elegirItem(universales, PESOS_BASURA, factorRaro, rnd) : elegirItem(delaZona, zona.pesos, factorRaro, rnd);
+    let n = 1;
+    if (tieneHabilidad(m, "perro") && rnd() < 0.2) {
+      n = 2;
+      duplicados += 1;
+    }
+    botin[it.id] = (botin[it.id] || 0) + n;
   }
-  return { botin, tiradas };
+  return { botin, tiradas, duplicados };
 }
 
 export function reclamarExpedicion(est, m, ahora, clima, rnd = Math.random) {
@@ -94,13 +109,21 @@ export function reclamarExpedicion(est, m, ahora, clima, rnd = Math.random) {
   if (ahora < ex.fin) return { ok: false, espera: ex.fin - ahora };
   const zona = ZONAS[ex.zona];
   const nivelAntes = nivelDe(m);
-  const { botin, tiradas } = generarBotin(zona, m, ex.minutos, clima, rnd);
+  const { botin, tiradas, duplicados } = generarBotin(zona, m, ex.minutos, clima, rnd);
   for (const [id, n] of Object.entries(botin)) est.items[id] = (est.items[id] || 0) + n;
   const xp = Math.round(ex.minutos * XP_POR_MINUTO * (zona.nivel / 15));
   m.xp = (m.xp || 0) + xp;
   delete m.expedicion;
   const valor = Object.entries(botin).reduce((a, [id, n]) => a + ITEMS[id].precio * n, 0);
-  return { ok: true, zona, minutos: ex.minutos, botin, tiradas, xp, valor, nivelAntes, nivelDespues: nivelDe(m) };
+  const porcentaje = (nivelAntes >= 6 ? 0.05 : 0) + (tieneHabilidad(m, "dragon") ? 0.15 : 0);
+  const monedas = Math.round(valor * porcentaje);
+  const notas = [];
+  if (duplicados) notas.push(`🐾 *${HABILIDADES.perro.nombre.toUpperCase()}::* duplicó ${duplicados} hallazgo${duplicados > 1 ? "s" : ""}`);
+  if (tieneHabilidad(m, "ajolote")) {
+    m.energia = Math.min(100, m.energia + 25);
+    notas.push(`🦎 *${HABILIDADES.ajolote.nombre.toUpperCase()}::* +25 de energía`);
+  }
+  return { ok: true, zona, minutos: ex.minutos, botin, tiradas, xp, valor, monedas, porcentaje, notas, nivelAntes, nivelDespues: nivelDe(m) };
 }
 
 export function valorDe(id, cantidad = 1) {
