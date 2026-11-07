@@ -4,9 +4,9 @@ import { getProfile } from "../../../motores/profile.js";
 import { cargarMascotas, guardarMascotas } from "../../../motores/mascotas-core.js";
 import { obtenerClimaZonas } from "../../../motores/mascotas-clima.js";
 import { htmlZonas } from "../../../motores/mascotas-html.js";
-import { ESPECIES, RAREZAS } from "../../../motores/mascotas-datos.js";
+import { ESPECIES, RAREZAS, BONOS_NIVEL, HABILIDADES, NIVEL_HABILIDAD } from "../../../motores/mascotas-datos.js";
 import { ZONAS, ITEMS, ORDEN_RAREZA, MAX_MINUTOS_EXPEDICION, buscarZona, buscarItem } from "../../../motores/mascotas-zonas.js";
-import { mascotaPorNumero, nivelDe, explorando } from "../../../motores/mascotas-logica.js";
+import { mascotaPorNumero, nivelDe, explorando, xpParaNivel } from "../../../motores/mascotas-logica.js";
 import { iniciarExpedicion, reclamarExpedicion, parsearTiempo, textoDuracion, vender, venderTodo } from "../../../motores/mascotas-expedicion.js";
 
 const FIRMA = "Powered By ItsDuva";
@@ -129,6 +129,11 @@ export default [
         const r = reclamarExpedicion(est, m, ahora, climaZonas[m.expedicion.zona]);
         const lineas = Object.entries(r.botin).sort(porRareza).map(([id, n]) => lineaItem(id, n));
         lineas.push("", `💰 *VALOR TOTAL::* ${monto(r.valor)}`, `✨ *EXPERIENCIA::* +${r.xp}`);
+        if (r.monedas > 0) {
+          addToWallet(sender, r.monedas);
+          lineas.push(`🪙 *BONO DE MONEDAS::* +${monto(r.monedas)} (${Math.round(r.porcentaje * 100)}%)`);
+        }
+        lineas.push(...r.notas);
         if (r.nivelDespues > r.nivelAntes) lineas.push(`⬆️ *NIVEL::* ${r.nivelAntes} → ${r.nivelDespues}`);
         await reply({
           text: tarjeta({
@@ -141,6 +146,28 @@ export default [
         });
       }
       guardarMascotas(sender, cuenta, est);
+    }
+  },
+  {
+    names: [".petniveles", ".petnivel"],
+    usage: ".petniveles",
+    desc: "Muestra los bonos por nivel, las habilidades especiales y el nivel de tus mascotas",
+    category: "Pets",
+    handler: async ({ sender, reply }) => {
+      const { est } = await cargarMascotas(sender);
+      const habilidades = Object.entries(HABILIDADES).map(([id, h]) => `${ESPECIES[id].emoji} *${h.nombre}* — ${h.texto}`);
+      const tuyas = est.mascotas.map((m, i) => {
+        const nv = nivelDe(m);
+        return `*${i + 1}.* ${ESPECIES[m.especie].emoji} *${m.nombre}* — Nv ${nv} (faltan ${Math.max(0, xpParaNivel(nv + 1) - Math.floor(m.crec + m.xp))} XP para el ${nv + 1})`;
+      });
+      await reply({
+        text: tarjeta({
+          emoji: "🎚️",
+          titulo: "NIVELES Y HABILIDADES",
+          lineas: [...BONOS_NIVEL.map((b) => b.texto), "", `*HABILIDADES (nivel ${NIVEL_HABILIDAD}+)*`, ...habilidades, ...(tuyas.length ? ["", "*TUS MASCOTAS*", ...tuyas] : [])],
+          tip: "El nivel sube cuidando a tu mascota (comida, juego, sueño y limpieza) y con las expediciones."
+        })
+      });
     }
   },
   {

@@ -1,7 +1,7 @@
 import { tarjeta, textoEspera } from "../../economia/formato-evento.js";
 import { cargarMascotas, guardarMascotas, elegirMascota } from "../../../motores/mascotas-core.js";
 import { COMIDAS, ACCESORIOS } from "../../../motores/mascotas-datos.js";
-import { explorando, alimentar, jugar, dormir, despertar, equipar, quitar, resolverAccesorio, limpiarNombre, mascotaPorNumero } from "../../../motores/mascotas-logica.js";
+import { explorando, banar, alimentar, jugar, dormir, despertar, equipar, quitar, resolverAccesorio, limpiarNombre, mascotaPorNumero } from "../../../motores/mascotas-logica.js";
 
 const sinTildes = (s) => String(s).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const redondo = (n) => Math.round(n);
@@ -72,6 +72,27 @@ export default [
           `⚡ *ENERGÍA::* ${redondo(m.energia)}/100`,
           `🍖 *COMIDA::* ${redondo(m.hambre)}/100`
         ], "Puedes volver a jugar con tu mascota en 10 minutos.")
+      });
+    })
+  },
+  {
+    names: [".petbañar", ".petbanar", ".petbano", ".petbath"],
+    usage: ".petbañar [número]",
+    desc: "Baña a tu mascota con jabón para dejarla limpia (a algunas les encanta y a otras no)",
+    category: "Pets",
+    handler: async (ctx) => conMascota(ctx, async ({ est, m }) => {
+      const r = banar(est, m);
+      if (!r.ok) {
+        await ctx.reply({ text: `⚠️ ${r.error}` });
+        return false;
+      }
+      const relato = r.cambio > 0 ? `${m.nombre} disfrutó muchísimo el baño.` : r.cambio < 0 ? `${m.nombre} no disfrutó nada el baño, pero quedó impecable.` : `${m.nombre} quedó limpio y reluciente.`;
+      await ctx.reply({
+        text: tarjetaCuidado("🫧", "HORA DEL BAÑO", relato, [
+          `🫧 *LIMPIEZA::* ${redondo(m.limpieza)}/100`,
+          `🎾 *DIVERSIÓN::* ${redondo(m.diversion)}/100`,
+          `🧼 *JABONES RESTANTES::* ${est.jabon}`
+        ])
       });
     })
   },

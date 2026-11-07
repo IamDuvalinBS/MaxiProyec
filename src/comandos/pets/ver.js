@@ -12,7 +12,7 @@ const FIRMA = "Powered By ItsDuva";
 function textoMascotas(est, clima) {
   const lineas = est.mascotas.map((m, i) => {
     const estado = explorando(m, Date.now()) ? { emoji: "🔍", texto: `Investigando ${ZONAS[m.expedicion.zona].nombre}` } : estadoActual(m, clima.llueve);
-    return `*${i + 1}.* ${ESPECIES[m.especie].emoji} *${m.nombre}* — Nv ${nivelDe(m)} · ${etapaDe(m.crec).nombre} · ${estado.emoji} ${estado.texto}\n     🍖 ${Math.round(m.hambre)}  ⚡ ${Math.round(m.energia)}  🎾 ${Math.round(m.diversion)}`;
+    return `*${i + 1}.* ${ESPECIES[m.especie].emoji} *${m.nombre}* — Nv ${nivelDe(m)} · ${etapaDe(m.crec).nombre} · ${estado.emoji} ${estado.texto}\n     🍖 ${Math.round(m.hambre)}  ⚡ ${Math.round(m.energia)}  🎾 ${Math.round(m.diversion)}  🫧 ${Math.round(m.limpieza)}`;
   });
   return tarjeta({ emoji: "🐾", titulo: "TUS MASCOTAS", lineas, tip: "Alimenta con *.petalimentar*, juega con *.petjugar* y descansa con *.petdormir*." });
 }
