@@ -13,7 +13,7 @@ export const VIGENCIA_RELAY_MS = 7 * 24 * 60 * 60 * 1000;
 
 const MAXIMO_ENTRADAS_RELAY = 1500;
 const CAMPOS_MEDIO = ["imageMessage", "videoMessage", "audioMessage", "documentMessage"];
-const COMANDOS_SIN_CACHE = new Set([".play", ".yt", ".ytsearch", ".buscaryt"]);
+const COMANDOS_SIN_CACHE = new Set([".play", ".yt", ".ytsearch", ".buscaryt", ".ytperfil", ".ytcanal", ".canalyt"]);
 
 try {
   fs.mkdirSync(DIR_IMAGENES, { recursive: true });
