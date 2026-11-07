@@ -30,11 +30,18 @@ const GRUPOS = [
     alias: ["economy", "economia", "trabajos", "trabajo", "jobs", "job", "work", "apuestas", "apuesta", "casino", "bets", "betting"]
   },
   {
+    titulo: "WAIFU",
+    icono: "🌸",
+    descripcion: "Gacha de personajes de anime: tiradas, harem, votos y más.",
+    categorias: ["Waifu"],
+    alias: ["waifu", "waifus", "rw", "harem", "anime", "claim"]
+  },
+  {
     titulo: "GACHA",
     icono: "🎴",
-    descripcion: "Colecciona waifus, pokémon, brawlers y más.",
+    descripcion: "Colecciona pokémon, brawlers, dragones y más.",
     categorias: ["Gacha"],
-    alias: ["gacha", "waifus", "rw", "pokemon", "brawl"]
+    alias: ["gacha", "pokemon", "brawl", "snake", "clash", "cod", "dragon"]
   },
   {
     titulo: "PETS",
