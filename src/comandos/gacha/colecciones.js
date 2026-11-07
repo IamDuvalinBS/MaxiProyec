@@ -6,7 +6,7 @@ const cmd_harem = (() => {
   return {
     names: [".harem", ".miswaifus"],
     desc: "Muestra tu colección de waifus",
-    category: "Gacha",
+    category: "Waifu",
     usage: ".harem [página]",
     handler: async ({ sock, from, msg, sender, cleanText, reply }) => {
       await gachaListo;

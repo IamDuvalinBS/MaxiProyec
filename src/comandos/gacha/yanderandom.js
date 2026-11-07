@@ -24,11 +24,11 @@ export default {
       const resumen = await agregarAnimes(n, async (serie, r) => {
         const motivo = Object.entries(r.rechazos).sort((x, y) => y[1] - x[1])[0];
         const extra = !r.agregadas.length && motivo ? ` (${motivo[0]}: ${motivo[1]})` : "";
-        await reply({ text: `✅ *${nom(serie)}* — ${r.agregadas.length} personajes agregados.${extra}` });
+        await reply({ text: `✅ *${nom(serie)}* — ${r.agregadas.length} personajes nuevos y ${r.fotosNuevas || 0} fotos.${extra}` });
       });
 
       const total = resumen.reduce((a, s) => a + s.agregadas.length, 0);
-      const lineas = resumen.map((s) => `• *${nom(s.serie)}* — ${s.agregadas.length} personajes`);
+      const lineas = resumen.map((s) => `• *${nom(s.serie)}* — ${s.agregadas.length} personajes, ${s.fotosNuevas || 0} fotos`);
       if (!resumen.length) lineas.push("No se encontró ningún anime en esta tanda.");
       lineas.push("", `📚 *Waifus en la base* ›› ${contarPersonajes("waifu")}`);
 

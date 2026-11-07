@@ -6,7 +6,7 @@ const USO = [
   "⚙️ Uso: *.setclaim <texto> • <variante>*",
   "",
   "> Cambia el texto que aparece cuando *tú* reclamas un personaje de esa variante. El inicio *#✿* se mantiene fijo.",
-  "> Variables opcionales: *{user}*, *{personaje}* y *{variante}*.",
+  "> Variables opcionales: *{user}*, *{personaje}*, *{variante}* y *{tiempo}* (segundos que tardaste en reclamarlo).",
   "",
   "Ejemplos:",
   "*.setclaim Este personaje ahora es mío • Pokemon*",

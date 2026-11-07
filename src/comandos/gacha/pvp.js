@@ -8,7 +8,7 @@ const cmd_waifupvp = (() => {
   return {
     names: [".waifupvp"],
     desc: "Desafía a otro usuario con tu waifu: .waifupvp <@usuario> <apuesta> <ID> (también por equipos)",
-    category: "Gacha",
+    category: "Waifu",
     usage: ".waifupvp <@usuario> <apuesta> <ID>",
     handler: async (ctx) => {
       await gachaListo;

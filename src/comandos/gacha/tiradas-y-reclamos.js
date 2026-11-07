@@ -15,7 +15,7 @@ const cmd_rw = (() => {
   return {
     names: [".rw", ".rollwaifu"],
     desc: "Genera una waifu al azar para reclamar con .claim (cada 20 minutos)",
-    category: "Gacha",
+    category: "Waifu",
     handler: async ({ from, sender, reply }) => {
       await gachaListo;
       await hacerRoll({
