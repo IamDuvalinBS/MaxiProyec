@@ -1,4 +1,5 @@
 import { config, saveConfig, CURRENCY } from "../../motores/db.js";
+import { ajusteBot } from "../../motores/ajustes-bot.js";
 
 // ─────────────────────────────────────────────────────────────
 //  SISTEMA DE EVENTOS / TEMAS DE LA ECONOMÍA
@@ -57,8 +58,9 @@ export function estilo(estilos) {
 }
 
 // Nombre de la moneda que se ve en pantalla (el valor guardado no cambia).
+// Si el dueño del bot (o del subbot) puso su propia moneda con .setmoneda, esa manda sobre el evento.
 export function moneda() {
-  return esHalloween() ? "🕯️ Velas" : CURRENCY;
+  return ajusteBot("moneda") || (esHalloween() ? "🕯️ Velas" : CURRENCY);
 }
 
 const BANDAS_HALLOWEEN = [

@@ -1,5 +1,6 @@
 import { CURRENCY } from "../../motores/db.js";
 import { formatTime } from "../../motores/ui.js";
+import { ajusteBot } from "../../motores/ajustes-bot.js";
 
 export const SEPARADOR = "╼┉✦┉╍✦┉╍✦┉╍✦┉╍✦╾";
 
@@ -8,7 +9,7 @@ export function fmt(n) {
 }
 
 export function monto(n) {
-  return `${fmt(n)} ${CURRENCY}`;
+  return `${fmt(n)} ${ajusteBot("moneda") || CURRENCY}`;
 }
 
 export function montoConSigno(n) {
