@@ -60,3 +60,59 @@ function armar(datos, disponible) {
     precipitacionEn
   };
 }
+
+const CODIGOS_NIEVE = new Set([71, 73, 75, 77, 85, 86]);
+const CODIGOS_TORMENTA = new Set([95, 96, 99]);
+const CODIGOS_NIEBLA = new Set([45, 48]);
+
+let cacheZonas = null;
+let pendienteZonas = null;
+
+function clasificar(c) {
+  const codigo = Number(c.weather_code);
+  const precipitacion = Number(c.precipitation) || 0;
+  let tipo = "despejado";
+  if ((Number(c.snowfall) || 0) > 0 || CODIGOS_NIEVE.has(codigo)) tipo = "nieve";
+  else if (CODIGOS_TORMENTA.has(codigo)) tipo = "tormenta";
+  else if (precipitacion >= LLUVIA_MINIMA_MM || CODIGOS_LLUVIA.has(codigo)) tipo = "lluvia";
+  else if (CODIGOS_NIEBLA.has(codigo)) tipo = "niebla";
+  else if ((Number(c.cloud_cover) || 0) >= 70 || codigo === 3) tipo = "nublado";
+  return {
+    disponible: true,
+    tipo,
+    temperatura: Number.isFinite(c.temperature_2m) ? c.temperature_2m : null,
+    esDia: c.is_day !== 0,
+    nubes: Number(c.cloud_cover) || 0
+  };
+}
+
+const SIN_DATOS = { disponible: false, tipo: "despejado", temperatura: null, esDia: true, nubes: 0 };
+
+async function descargarZonas(zonas) {
+  const url = "https://api.open-meteo.com/v1/forecast"
+    + `?latitude=${zonas.map((z) => z.lat).join(",")}&longitude=${zonas.map((z) => z.lon).join(",")}`
+    + "&current=temperature_2m,precipitation,snowfall,weather_code,cloud_cover,is_day&timezone=GMT";
+  const { data } = await axios.get(url, { timeout: 8000 });
+  const lista = Array.isArray(data) ? data : [data];
+  const salida = { obtenido: Date.now() };
+  zonas.forEach((z, i) => {
+    if (lista[i]?.current) salida[z.id] = clasificar(lista[i].current);
+  });
+  return salida;
+}
+
+export async function obtenerClimaZonas(zonas) {
+  const lista = Object.values(zonas);
+  if (!cacheZonas || Date.now() - cacheZonas.obtenido >= VIGENCIA_MS) {
+    if (!pendienteZonas) {
+      pendienteZonas = descargarZonas(lista)
+        .then((c) => { cacheZonas = c; })
+        .catch((e) => { console.log("[mascotas-clima] zonas: " + e.message); })
+        .finally(() => { pendienteZonas = null; });
+    }
+    await pendienteZonas;
+  }
+  const salida = {};
+  for (const z of lista) salida[z.id] = cacheZonas?.[z.id] && Date.now() - cacheZonas.obtenido < 6 * HORA_MS ? cacheZonas[z.id] : SIN_DATOS;
+  return salida;
+}

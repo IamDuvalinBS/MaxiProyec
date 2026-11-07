@@ -247,7 +247,12 @@ function cuerpo(especie, p, equipo) {
   return s;
 }
 
-export function svgMascota({ especie, etapa = "adulto", dormido = false, animo = "normal", mojado = false, equipo = {}, uid = "a", x = 100, y = 180, k = 1 }) {
+const LUPA = `<g><animateTransform attributeName="transform" type="rotate" values="-14 130 162;14 130 162;-14 130 162" dur="1.4s" repeatCount="indefinite"/>`
+  + `<line x1="132" y1="164" x2="152" y2="142" stroke="#7a5a3a" stroke-width="5" stroke-linecap="round"/>`
+  + `<circle cx="158" cy="132" r="14" fill="#cfeaff" fill-opacity=".55" stroke="#5b6a7e" stroke-width="4"/>`
+  + `<path d="M150 127Q153 122 160 122" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round" opacity=".9"/></g>`;
+
+export function svgMascota({ especie, etapa = "adulto", dormido = false, animo = "normal", mojado = false, equipo = {}, uid = "a", x = 100, y = 180, k = 1, buscando = false }) {
   const p = PALETAS[especie];
   const e = ETAPAS.find((t) => t.id === etapa) || ETAPAS[2];
   const ch = e.cabeza;
@@ -265,10 +270,12 @@ export function svgMascota({ especie, etapa = "adulto", dormido = false, animo =
     + `<g transform="translate(100 84) scale(${ch})"><g>`
     + (dormido
       ? `<animateTransform attributeName="transform" type="translate" values="0 0;0 2;0 0" dur="3.2s" repeatCount="indefinite"/>`
-      : `<animateTransform attributeName="transform" type="translate" values="0 0;0 -1.6;0 0" dur="2.6s" repeatCount="indefinite"/>`)
+      : buscando
+        ? `<animateTransform attributeName="transform" type="translate" values="0 0;0 5;0 0" dur="0.9s" repeatCount="indefinite"/>`
+        : `<animateTransform attributeName="transform" type="translate" values="0 0;0 -1.6;0 0" dur="2.6s" repeatCount="indefinite"/>`)
     + orejas(especie, p) + cabeza + cara + accesoriosCabeza(equipo, especie) + `</g></g>`
     + `<g transform="translate(100 0)">${accesoriosCuello(equipo, cuelloY)}</g>`
-    + `</g>` + zzz + `</g>`;
+    + `</g>` + zzz + (buscando ? LUPA : "") + `</g>`;
 }
 
 const ESTILO_CASA = [

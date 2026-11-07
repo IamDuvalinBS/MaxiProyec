@@ -1,6 +1,8 @@
 import { ESPECIES, RAREZAS, HUEVOS, COMIDAS, CASAS, ACCESORIOS, ESPACIOS } from "./mascotas-datos.js";
 import { svgEscena } from "./mascotas-arte.js";
-import { etapaDe, progresoEtapa, estadoActual, felicidad, estadoIncubadora } from "./mascotas-logica.js";
+import { svgEscenaZona } from "./mascotas-zonas-arte.js";
+import { ZONAS, ITEMS, ORDEN_RAREZA } from "./mascotas-zonas.js";
+import { etapaDe, progresoEtapa, estadoActual, felicidad, estadoIncubadora, nivelDe } from "./mascotas-logica.js";
 
 const esc = (t) => String(t ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
@@ -24,14 +26,42 @@ function animoDe(m, estado) {
   return estado.clave === "feliz" ? "feliz" : "normal";
 }
 
+const NOMBRE_CLIMA = {
+  despejado: (c) => (c.esDia ? "☀️ Despejado" : "🌙 Despejado"),
+  nublado: () => "☁️ Nublado",
+  lluvia: () => "🌧️ Lloviendo",
+  tormenta: () => "⛈️ Tormenta",
+  nieve: () => "❄️ Nevando",
+  niebla: () => "🌫️ Niebla"
+};
+
+function textoClimaZona(c) {
+  if (!c || !c.disponible) return "🌤️ Clima no disponible";
+  return `${NOMBRE_CLIMA[c.tipo](c)}${c.temperatura !== null ? ` · ${Math.round(c.temperatura)}°` : ""}${c.esDia ? "" : " · noche"}`;
+}
+
 function tarjetaMascota(m, i, ctx) {
-  const estado = estadoActual(m, ctx.llueve);
+  const ex = m.expedicion;
+  const activa = Boolean(ex && ctx.ahora < ex.fin);
+  const zonaEx = ex ? ZONAS[ex.zona] : null;
+  const estado = activa
+    ? { clave: "explorando", texto: "Investigando la zona", emoji: "🔍" }
+    : estadoActual(m, ctx.llueve);
   const etapa = etapaDe(m.crec);
   const prog = progresoEtapa(m.crec);
   const esp = ESPECIES[m.especie];
   const rareza = RAREZAS[m.rareza] || RAREZAS.comun;
   const casa = m.casa ? CASAS.niveles[m.casa - 1] : null;
-  const escena = svgEscena({
+  const climaEx = activa ? ctx.climaZonas?.[ex.zona] : null;
+  const escena = activa ? svgEscenaZona({
+    zona: ex.zona,
+    clima: climaEx,
+    especie: m.especie,
+    etapa: etapa.id,
+    animo: "normal",
+    equipo: m.equipo,
+    uid: `p${m.id}`
+  }) : svgEscena({
     especie: m.especie,
     etapa: etapa.id,
     dormido: m.dormido,
@@ -45,19 +75,24 @@ function tarjetaMascota(m, i, ctx) {
   });
   const prendas = ESPACIOS.map((e) => ACCESORIOS[m.equipo[e]]).filter(Boolean)
     .map((a) => `<span class="chip">${a.emoji} ${esc(a.nombre)}</span>`).join("") || `<span class="chip vacio">Sin accesorios</span>`;
+  const banner = activa
+    ? `<div class="exp"><div class="ct"><span>🔍 ${zonaEx.emoji} ${esc(zonaEx.nombre)}</span><span>Vuelve en ${duracion(ex.fin - ctx.ahora)}</span></div><div class="bar g"><i style="width:${Math.round(Math.min(1, (ctx.ahora - ex.inicio) / (ex.fin - ex.inicio)) * 100)}%"></i></div><small>${esc(zonaEx.lugar)} · ${textoClimaZona(climaEx)}</small></div>`
+    : ex
+      ? `<div class="exp listo">✅ ¡${esc(m.nombre)} volvió de ${zonaEx.emoji} ${esc(zonaEx.nombre)}! Usa <b>.petreclamar</b> para recibir lo que encontró.</div>`
+      : "";
   const meta = prog.siguiente
     ? `Hacia ${esc(prog.siguiente.nombre)}: ${Math.round(prog.fraccion * 100)}%`
     : "Crecimiento completo";
   return `<section class="pet" data-estado="${estado.clave}" hidden>
 <div class="escwrap">${escena}<div class="bub"></div></div>
 <div class="fila"><div class="nom"><b>${esc(m.nombre)}</b><small>#${i + 1} · ${esp.emoji} ${esp.nombre}</small></div>
-<div class="ins"><span class="pill e${etapa.id}">${etapa.nombre}</span><span class="pill cal r${m.rareza}">${rareza.emoji} ${rareza.nombre}</span></div></div>
+<div class="ins"><span class="pill nv">Nv ${nivelDe(m)}</span><span class="pill e${etapa.id}">${etapa.nombre}</span><span class="pill cal r${m.rareza}">${rareza.emoji} ${rareza.nombre}</span></div></div>
 <div class="rasgo">✨ ${esc(esp.rasgo)}</div>
-<div class="est">${estado.emoji} ${estado.texto}<span>Ánimo ${felicidad(m)}%</span></div>
+${banner}<div class="est">${estado.emoji} ${estado.texto}<span>Ánimo ${felicidad(m)}%</span></div>
 <div class="crec"><div class="ct"><span>🌱 Crecimiento</span><span>${meta}</span></div><div class="bar g"><i style="width:${Math.round(prog.fraccion * 100)}%"></i></div></div>
 ${barra("🍖", "Comida", m.hambre)}${barra(m.dormido ? "😴" : "⚡", "Energía", m.energia)}${barra("🎾", "Diversión", m.diversion)}
 <div class="chips"><span class="chip casa">${casa ? `🏠 ${esc(casa.nombre)}` : "🏚️ Sin casa"}</span>${prendas}</div>
-<div class="cmds">Usa <b>.petalimentar ${i + 1}</b> · <b>.petjugar ${i + 1}</b> · <b>.${m.dormido ? "petdespertar" : "petdormir"} ${i + 1}</b></div>
+<div class="cmds">${activa ? "Está explorando; no puede jugar, comer ni dormir hasta que vuelva." : `Usa <b>.petalimentar ${i + 1}</b> · <b>.petjugar ${i + 1}</b> · <b>.${m.dormido ? "petdespertar" : "petdormir"} ${i + 1}</b> · <b>.petinvestigar</b>`}</div>
 </section>`;
 }
 
@@ -111,6 +146,19 @@ small{color:#8a735d;font-size:11px}
 .pill.cal{background:#fff0d6;color:#8a5a1d}
 .pill.rpoco_comun{background:#dff5e3;color:#25703a}.pill.rraro{background:#dcebff;color:#245a9c}.pill.repico{background:#ead9ff;color:#6a3fb0}.pill.rlegendario{background:#ffe9a8;color:#8a6200}
 .rasgo{margin:2px 12px 6px;font-size:11.5px;color:#8a735d}
+.pill.nv{background:#2f6fb8}
+.exp{margin:2px 12px 8px;padding:8px 10px;border-radius:12px;background:#e8f4ff;color:#2f5f8f;font-size:12px}
+.exp.listo{background:#e4f7e8;color:#25703a;line-height:1.5}
+.exp small{display:block;margin-top:5px;color:#4a7aa8}
+.zc{background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 3px 10px rgba(90,60,20,.16);margin-bottom:10px;padding-bottom:10px}
+.zc .nombre{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 12px 0}
+.zc .nombre b{font-size:15px;overflow-wrap:anywhere}
+.zc .lug{margin:2px 12px 6px;font-size:11.5px;color:#8a735d}
+.zc .datos{display:flex;flex-wrap:wrap;gap:5px;margin:0 12px 6px}
+.zc .loot{margin:6px 12px 0;font-size:16px;letter-spacing:2px;line-height:1.5}
+.zc .nota{margin:6px 12px 0;font-size:11.5px;color:#6a4a2b}
+.ok{background:#e4f7e8!important;color:#25703a!important}
+.no{background:#fde8e6!important;color:#a3352c!important}
 .est{display:flex;justify-content:space-between;gap:8px;margin:4px 12px 8px;padding:6px 10px;border-radius:12px;background:#fff4e2;font-weight:800}
 .est span{font-weight:600;color:#8a735d}
 .crec{margin:0 12px 6px}
@@ -143,8 +191,8 @@ w.onclick=function(e){var l=F[p.getAttribute('data-estado')]||F.tranquilo;b.text
 var r=w.getBoundingClientRect(),h=document.createElement('span');h.className='fl';h.textContent=['💛','✨','💖'][Math.floor(Math.random()*3)];h.style.left=Math.max(5,Math.min(r.width-25,(e.clientX-r.left)-10))+'px';w.appendChild(h);setTimeout(function(){h.remove()},1200)}});
 ir(Math.min(pets.length-1,Math.max(0,__INICIAL__)))})();`;
 
-export function htmlMascotas({ nombre, est, ahora, clima, noche, inicial = 0, firma }) {
-  const ctx = { llueve: clima.llueve, noche };
+export function htmlMascotas({ nombre, est, ahora, clima, noche, inicial = 0, firma, climaZonas = null }) {
+  const ctx = { llueve: clima.llueve, noche, ahora, climaZonas };
   const tarjetas = est.mascotas.map((m, i) => tarjetaMascota(m, i, ctx)).join("");
   const tabs = est.mascotas.length > 1
     ? `<div class="tabs">${est.mascotas.map((m, i) => `<button class="tab">${ESPECIES[m.especie].emoji} ${esc(m.nombre)}</button>`).join("")}</div>`
@@ -160,4 +208,28 @@ export function htmlMascotas({ nombre, est, ahora, clima, noche, inicial = 0, fi
 ${tabs}${tarjetas}${vacio}${bloqueIncubadora(est, ahora)}${bloqueInventario(est)}
 <div class="pie">${esc(firma)}</div>
 <script>${SCRIPT.replace("__INICIAL__", String(inicial | 0))}</script></body></html>`;
+}
+
+export function htmlZonas({ nombre, est, ahora, climaZonas, firma }) {
+  const tarjetas = Object.values(ZONAS).map((z) => {
+    const c = climaZonas?.[z.id];
+    const escena = svgEscenaZona({ zona: z.id, clima: c, uid: `zz${z.id}`, conMascota: false });
+    const aptas = est.mascotas.filter((m) => nivelDe(m) >= z.nivel).map((m) => m.nombre);
+    const loot = Object.values(ITEMS).filter((i) => i.zona === z.id)
+      .sort((a, b) => ORDEN_RAREZA.indexOf(a.rareza) - ORDEN_RAREZA.indexOf(b.rareza)).map((i) => i.emoji).join(" ");
+    const fav = z.favoritas.map((f) => ESPECIES[f].emoji + " " + ESPECIES[f].nombre).join(" · ");
+    return `<section class="zc">${escena}
+<div class="nombre"><b>${z.emoji} ${esc(z.nombre)}</b><span class="clima">${esc(textoClimaZona(c))}</span></div>
+<div class="lug">📍 ${esc(z.lugar)}</div>
+<div class="datos"><span class="chip">🎚️ Nivel ${z.nivel}</span><span class="chip">⏱️ Desde ${z.minutos} min</span><span class="chip">⚔️ ${esc(z.dificultad)}</span></div>
+<div class="loot">${loot}</div>
+<div class="nota">⭐ Ventaja: ${esc(fav)}</div>
+<div class="datos"><span class="chip ${aptas.length ? "ok" : "no"}">${aptas.length ? `Pueden ir: ${esc(aptas.join(", "))}` : "Ninguna de tus mascotas tiene el nivel"}</span></div>
+</section>`;
+  }).join("");
+  return `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>${CSS}</style></head><body>
+<div class="top"><b>🗺️ Zonas de ${esc(nombre)}</b><span class="clima">Clima real en vivo</span></div>
+${tarjetas}
+<div class="caja"><div class="ct2">🔍 Cómo investigar</div><div class="nota">Usa <b>.petinvestigar &lt;zona&gt; [tiempo] [mascota]</b>. Mientras más tiempo busque, más ítems encontrará. Ejemplo: <b>.petinvestigar bosque 2h 1</b></div></div>
+<div class="pie">${esc(firma)}</div></body></html>`;
 }

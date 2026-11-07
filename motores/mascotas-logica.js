@@ -38,6 +38,8 @@ export function normalizar(est) {
   for (const id of Object.keys(HUEVOS)) e.huevos[id] = Number(e.huevos[id]) || 0;
   for (const id of Object.keys(COMIDAS)) e.comida[id] = Number(e.comida[id]) || 0;
   for (const id of Object.keys(ACCESORIOS)) e.accesorios[id] = Number(e.accesorios[id]) || 0;
+  if (!e.items || typeof e.items !== "object") e.items = {};
+  for (const id of Object.keys(e.items)) if (!(Number(e.items[id]) > 0)) delete e.items[id];
   if (!Array.isArray(e.mascotas)) e.mascotas = [];
   if (!Number.isInteger(e.proximoId) || e.proximoId < 1) {
     e.proximoId = e.mascotas.reduce((a, m) => Math.max(a, m.id || 0), 0) + 1;
@@ -49,6 +51,7 @@ export function normalizar(est) {
     if (!m.equipo || typeof m.equipo !== "object") m.equipo = {};
     m.casa = Number(m.casa) || 0;
     m.crec = Number(m.crec) || 0;
+    m.xp = Number(m.xp) || 0;
   }
   return e;
 }
@@ -78,6 +81,12 @@ export function proteccionLluvia(m) {
 
 export const multiplicadorCrecimiento = (m) => (RAREZAS[m.rareza]?.crecimiento || 1) * (RASGOS[m.especie]?.crecimiento || 1);
 
+export const nivelDe = (m) => 1 + Math.floor(Math.sqrt(((m.crec || 0) + (m.xp || 0)) / 1.2));
+
+export const xpParaNivel = (n) => Math.ceil(1.2 * (n - 1) ** 2);
+
+export const explorando = (m, ahora) => Boolean(m.expedicion && ahora < m.expedicion.fin);
+
 export const comodidadDe = (m) => (m.casa ? CASAS.niveles[m.casa - 1]?.comodidad || 0 : 0);
 
 export function actualizarMascota(m, ahora, precipitacionEn = () => 0) {
@@ -90,7 +99,9 @@ export function actualizarMascota(m, ahora, precipitacionEn = () => 0) {
   while (t < ahora) {
     const dtMs = Math.min(PASO_MS, ahora - t);
     const dt = dtMs / HORA_MS;
-    const llueve = precipitacionEn(t + dtMs / 2) >= LLUVIA_MINIMA_MM;
+    const medio = t + dtMs / 2;
+    const enExpedicion = Boolean(m.expedicion && medio >= m.expedicion.inicio && medio < m.expedicion.fin);
+    const llueve = !enExpedicion && precipitacionEn(medio) >= LLUVIA_MINIMA_MM;
     const sinRefugio = llueve && !m.casa;
     const exposicion = sinRefugio && !rasgo.amaLluvia ? (1 - proteccion) * (rasgo.lluvia ?? 1) : 0;
     const bonoLluvia = sinRefugio && rasgo.amaLluvia ? 1.15 : 1;
@@ -101,8 +112,8 @@ export function actualizarMascota(m, ahora, precipitacionEn = () => 0) {
       m.energia += -DECAIMIENTO.dormido.energia * dt * (1 + comodidad);
     } else {
       m.hambre -= DECAIMIENTO.despierto.hambre * dt * (rasgo.hambre ?? 1);
-      m.diversion -= DECAIMIENTO.despierto.diversion * dt * (rasgo.diversion ?? 1);
-      m.energia -= DECAIMIENTO.despierto.energia * dt * (rasgo.energia ?? 1);
+      m.diversion -= DECAIMIENTO.despierto.diversion * dt * (rasgo.diversion ?? 1) * (enExpedicion ? 0.3 : 1);
+      m.energia -= DECAIMIENTO.despierto.energia * dt * (rasgo.energia ?? 1) * (enExpedicion ? 0.6 : 1);
     }
     if (exposicion > 0) {
       m.energia -= DECAIMIENTO.lluviaSinRefugio.energia * dt * exposicion;
@@ -112,6 +123,7 @@ export function actualizarMascota(m, ahora, precipitacionEn = () => 0) {
     m.hambre = limitar(m.hambre);
     m.diversion = limitar(m.diversion);
     m.energia = limitar(m.energia);
+    if (enExpedicion) m.energia = Math.max(m.energia, 5);
     if (m.dormido && m.energia >= 100) m.dormido = false;
     else if (!m.dormido && m.energia <= 0) m.dormido = true;
 
