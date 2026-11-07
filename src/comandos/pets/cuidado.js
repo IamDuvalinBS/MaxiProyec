@@ -1,7 +1,7 @@
 import { tarjeta, textoEspera } from "../../economia/formato-evento.js";
 import { cargarMascotas, guardarMascotas, elegirMascota } from "../../../motores/mascotas-core.js";
 import { COMIDAS, ACCESORIOS } from "../../../motores/mascotas-datos.js";
-import { alimentar, jugar, dormir, despertar, equipar, quitar, resolverAccesorio, limpiarNombre, mascotaPorNumero } from "../../../motores/mascotas-logica.js";
+import { explorando, alimentar, jugar, dormir, despertar, equipar, quitar, resolverAccesorio, limpiarNombre, mascotaPorNumero } from "../../../motores/mascotas-logica.js";
 
 const sinTildes = (s) => String(s).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const redondo = (n) => Math.round(n);
@@ -16,11 +16,15 @@ const JUEGOS = [
 
 const elegirTexto = (lista, n) => lista[Math.floor(Math.random() * lista.length)].replaceAll("{n}", n);
 
-async function conMascota(ctx, accion) {
+async function conMascota(ctx, accion, { bloquear = true } = {}) {
   const { sender, cleanText, reply } = ctx;
   const datos = await cargarMascotas(sender);
   const elegido = elegirMascota(datos.est, cleanText);
   if (elegido.error) return reply({ text: elegido.error });
+  if (bloquear && explorando(elegido.m, datos.ahora)) {
+    const minutos = Math.ceil((elegido.m.expedicion.fin - datos.ahora) / 60000);
+    return reply({ text: `🔍 ${elegido.m.nombre} está investigando una zona y volverá en *${minutos} min*. No puede hacer otras actividades mientras tanto.` });
+  }
   const resultado = await accion({ ...datos, m: elegido.m, resto: elegido.resto, numero: datos.est.mascotas.indexOf(elegido.m) + 1 });
   if (resultado === false) return null;
   return guardarMascotas(sender, datos.cuenta, datos.est);
@@ -127,7 +131,7 @@ export default [
       await ctx.reply({
         text: tarjetaCuidado(r.acc.emoji, "ACCESORIO EQUIPADO", `${m.nombre} ahora lleva *${r.acc.nombre}*.`, [`${r.acc.emoji} *ESPACIO::* ${r.acc.espacio}`, ...(r.anterior ? [`🎒 *DEVUELTO A LA MOCHILA::* ${r.anterior.nombre}`] : [])], "Usa *.mispets* para ver cómo luce.")
       });
-    })
+    }, { bloquear: false })
   },
   {
     names: [".petquitar", ".petretirar"],
@@ -141,7 +145,7 @@ export default [
         return false;
       }
       await ctx.reply({ text: tarjetaCuidado(r.acc.emoji, "ACCESORIO RETIRADO", `${m.nombre} ya no lleva *${r.acc.nombre}*. Quedó guardado en tu mochila.`, []) });
-    })
+    }, { bloquear: false })
   },
   {
     names: [".petnombre", ".petrename"],

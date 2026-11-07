@@ -2,15 +2,17 @@ import { tarjeta } from "../../economia/formato-evento.js";
 import { getProfile } from "../../../motores/profile.js";
 import { cargarMascotas, esDeNoche } from "../../../motores/mascotas-core.js";
 import { htmlMascotas } from "../../../motores/mascotas-html.js";
+import { obtenerClimaZonas } from "../../../motores/mascotas-clima.js";
+import { ZONAS } from "../../../motores/mascotas-zonas.js";
 import { ESPECIES, RAREZAS, HUEVOS, CIUDAD } from "../../../motores/mascotas-datos.js";
-import { etapaDe, estadoActual } from "../../../motores/mascotas-logica.js";
+import { etapaDe, estadoActual, nivelDe, explorando } from "../../../motores/mascotas-logica.js";
 
 const FIRMA = "Powered By ItsDuva";
 
 function textoMascotas(est, clima) {
   const lineas = est.mascotas.map((m, i) => {
-    const estado = estadoActual(m, clima.llueve);
-    return `*${i + 1}.* ${ESPECIES[m.especie].emoji} *${m.nombre}* — ${etapaDe(m.crec).nombre} · ${estado.emoji} ${estado.texto}\n     🍖 ${Math.round(m.hambre)}  ⚡ ${Math.round(m.energia)}  🎾 ${Math.round(m.diversion)}`;
+    const estado = explorando(m, Date.now()) ? { emoji: "🔍", texto: `Investigando ${ZONAS[m.expedicion.zona].nombre}` } : estadoActual(m, clima.llueve);
+    return `*${i + 1}.* ${ESPECIES[m.especie].emoji} *${m.nombre}* — Nv ${nivelDe(m)} · ${etapaDe(m.crec).nombre} · ${estado.emoji} ${estado.texto}\n     🍖 ${Math.round(m.hambre)}  ⚡ ${Math.round(m.energia)}  🎾 ${Math.round(m.diversion)}`;
   });
   return tarjeta({ emoji: "🐾", titulo: "TUS MASCOTAS", lineas, tip: "Alimenta con *.petalimentar*, juega con *.petjugar* y descansa con *.petdormir*." });
 }
@@ -40,6 +42,7 @@ export default [
       }
       try {
         const numero = parseInt(cleanText.trim().split(/\s+/)[1], 10);
+        const climaZonas = est.mascotas.some((m) => m.expedicion) ? await obtenerClimaZonas(ZONAS) : null;
         const html = htmlMascotas({
           nombre: msg?.pushName || getProfile(sender)?.name || "Entrenador",
           est,
@@ -47,7 +50,8 @@ export default [
           clima,
           noche: esDeNoche(ahora),
           inicial: Number.isInteger(numero) ? numero - 1 : 0,
-          firma: FIRMA
+          firma: FIRMA,
+          climaZonas
         });
         await sock.sendHtml(from, html, [], msg, {});
       } catch (e) {
