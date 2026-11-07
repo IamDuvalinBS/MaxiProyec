@@ -11,6 +11,6 @@ export default crearInterruptor({
   tituloDesactivado: "DESPEDIDA DESACTIVADA",
   relatoActivado: "A partir de ahora se enviará un mensaje cuando un integrante abandone el grupo.",
   relatoDesactivado: "Ya no se enviará un mensaje cuando un integrante abandone el grupo.",
-  tipActivado: "Para probarla usa *.testbye* (admins).",
+  tipActivado: ["Para personalizar el mensaje usa *.setgoodbye* (admins).", "Para probarla usa *.testbye* (admins)."],
   tipDesactivado: "Para activarla nuevamente usa *.goodbye on* (admins)."
 });
