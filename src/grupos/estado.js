@@ -38,12 +38,19 @@ function coleccion() {
   return base ? base.collection(COLECCION) : null;
 }
 
+// Devuelve una promesa que resuelve true si MongoDB confirmó el guardado y false si no (sin conexión o con error).
 function guardarEnMongo(grupo) {
   const col = coleccion();
-  if (!col) return;
+  if (!col) return Promise.resolve(false);
   const entrada = grupos[grupo];
   const op = entrada ? col.replaceOne({ _id: grupo }, { _id: grupo, ...entrada }, { upsert: true }) : col.deleteOne({ _id: grupo });
-  op.catch((e) => console.log(`❌ No se pudo guardar el grupo ${grupo} en MongoDB: ${e.message}`));
+  return op.then(
+    () => true,
+    (e) => {
+      console.log(`❌ No se pudo guardar el grupo ${grupo} en MongoDB: ${e.message}`);
+      return false;
+    }
+  );
 }
 
 // Carga los ajustes (on/off, antilink, etc.) desde MongoDB. Mongo manda; lo que solo exista en el archivo local se sube.
@@ -69,13 +76,34 @@ export function ajustesDe(grupo) {
   return grupos[grupo] || SIN_AJUSTES;
 }
 
-export function definirAjuste(grupo, clave, valor) {
+function aplicarAjuste(grupo, clave, valor) {
   const entrada = grupos[grupo] || (grupos[grupo] = {});
   if (valor === false || valor === undefined || valor === null || valor === "") delete entrada[clave];
   else entrada[clave] = valor;
   if (!Object.keys(entrada).length) delete grupos[grupo];
   guardar();
+}
+
+export function definirAjuste(grupo, clave, valor) {
+  aplicarAjuste(grupo, clave, valor);
   guardarEnMongo(grupo);
+}
+
+// Igual que definirAjuste pero espera a MongoDB: devuelve true si quedó guardado en la base de datos.
+export async function definirAjusteMongo(grupo, clave, valor) {
+  aplicarAjuste(grupo, clave, valor);
+  return guardarEnMongo(grupo);
+}
+
+// Quita varias claves de golpe y guarda una sola vez (true si MongoDB confirmó).
+export async function quitarAjustesMongo(grupo, claves) {
+  const entrada = grupos[grupo];
+  if (entrada) {
+    for (const clave of claves) delete entrada[clave];
+    if (!Object.keys(entrada).length) delete grupos[grupo];
+    guardar();
+  }
+  return guardarEnMongo(grupo);
 }
 
 export function antilinkActivo(grupo) {
