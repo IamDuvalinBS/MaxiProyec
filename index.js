@@ -26,6 +26,7 @@ import { idDeRespuestaInteractiva } from "./motores/respuestas-botones.js";
 import { manejarParticipantes } from "./src/eventos/participantes.js";
 import { antilinkActivo, botApagado, ajustesDe, cargarGruposMongo } from "./src/grupos/estado.js";
 import { eliminarEnlace } from "./src/grupos/enlaces.js";
+import { cargarAjustesBot, ajusteBot } from "./motores/ajustes-bot.js";
 import { olvidarMetadatos } from "./src/grupos/nucleo.js";
 import { recordarNombre } from "./motores/profile.js";
 import { saltarAtrasoViejo } from "./motores/saltar-atraso.js";
@@ -205,7 +206,7 @@ function sincronizarCuenta(uid) {
   const acc = getAllAccounts().get(v.jid) || {}, pr = acc.profile || {};
   const datos = {
     wallet: Math.floor(acc.wallet || 0), bank: Math.floor(acc.bank || 0),
-    nivel: pr.level || 1, xp: pr.xp || 0, nombre: String(pr.name || "").slice(0, 30), moneda: CURRENCY,
+    nivel: pr.level || 1, xp: pr.xp || 0, nombre: String(pr.name || "").slice(0, 30), moneda: ajusteBot("moneda", "principal") || CURRENCY,
     pases: pasesReclamados(v.jid)
   };
   const firma = JSON.stringify(datos);
@@ -472,6 +473,7 @@ async function startBot() {
   }
   isConnecting = true;
 
+  cargarAjustesBot();    // moneda, foto y demás ajustes de cada bot (en segundo plano)
   cargarGruposMongo();   // en segundo plano: no retrasa el arranque (el archivo local ya cubre los primeros segundos)
   const { state, saveCreds } = await sesionPrincipal("auth_info", pino({ level: "silent" }));
   const { version } = await fetchLatestBaileysVersion();
