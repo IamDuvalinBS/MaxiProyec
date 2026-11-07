@@ -31,17 +31,28 @@ export function resolverVariante(texto) {
 
 export const listaVariantes = () => Object.values(VARIANTES).map((v) => v.nombre).join(", ");
 
-export function mensajeReclamo({ categoria, sender, personaje }) {
+export function textoTiempoReclamo(ms) {
+  const segundos = Math.max(0, ms) / 1000;
+  const redondeado = segundos < 100 ? segundos.toFixed(1) : String(Math.round(segundos));
+  return `${redondeado.replace(/\.0$/, "")} ${redondeado === "1.0" || redondeado === "1" ? "segundo" : "segundos"}`;
+}
+
+export function mensajeReclamo({ categoria, sender, personaje, tiempoMs = null }) {
   const variante = VARIANTES[categoria]?.nombre || categoria;
   const base = getAccount(sender).gachaClaim?.[categoria] || TEXTO_CLAIM_BASE;
   const mentions = [];
-  const texto = PREFIJO_CLAIM + base
+  const tiempo = tiempoMs === null ? "" : textoTiempoReclamo(tiempoMs);
+  const llevaTiempo = /\{tiempo\}/i.test(base);
+  const cuerpo = base
+    .replace(/\{tiempo\}/gi, tiempo ? `*${tiempo}*` : "");
+  const texto = PREFIJO_CLAIM + cuerpo
     .replace(/\{user\}/gi, () => {
       if (!mentions.includes(sender)) mentions.push(sender);
       return arroba(sender);
     })
     .replace(/\{(personaje|nombre)\}/gi, `*${personaje.nombre}*`)
-    .replace(/\{variante\}/gi, `*${variante}*`);
+    .replace(/\{variante\}/gi, `*${variante}*`)
+    + (tiempo && !llevaTiempo ? `\n> ⏱️ Lo reclamaste en *${tiempo}*.` : "");
 
   return { texto, mentions };
 }

@@ -11,6 +11,7 @@ import { crearHandlerPvp } from "./gacha-pvp.js";
 import { crearComandoTienda, crearComandoComprar, crearComandoDar } from "./gacha-tienda.js";
 import { T } from "./gacha-tema.js";
 
+const categoriaDeMenu = (categoria) => (categoria === "waifu" ? "Waifu" : "Gacha");
 const MEDALLAS = ["🥇", "🥈", "🥉"];
 const ESPERA_LISTO_MS = 15000;
 
@@ -47,7 +48,7 @@ function crearComandoTopBase({ categoria, names }) {
   return {
     names,
     desc: `Muestra a las 10 personas con más ${cat.unidades} en todo el bot`,
-    category: "Gacha",
+    category: categoriaDeMenu(categoria),
     usage: cat.topCmd,
     handler: async ({ reply }) => {
       await esperarListo();
@@ -80,7 +81,7 @@ function crearComandoTicketBase({ categoria, names }) {
   return {
     names,
     desc: `Usa un ticket para obtener ${cat.indef} eligiendo su ID: ${cat.ticketCmd} <ID>`,
-    category: "Gacha",
+    category: categoriaDeMenu(categoria),
     usage: `${cat.ticketCmd} <ID>`,
     handler: async ({ sender, cleanText, reply }) => {
       await esperarListo();
@@ -132,7 +133,7 @@ function crearComandoTiradaBase({ categoria, names, asegurar, sincronizar, texto
   return {
     names,
     desc: descripcion || `Genera ${cat.indef} al azar para reclamar con ${cat.claimCmd} (cada ${COOLDOWN_TIRADA_MS / 60000} minutos)`,
-    category: "Gacha",
+    category: categoriaDeMenu(categoria),
     usage: cat.rollCmd,
     handler: async ({ from, sender, cleanText, reply }) => {
       await esperarListo();
@@ -178,7 +179,7 @@ function crearComandoColeccionBase({ categoria, names }) {
   return {
     names,
     desc: `Muestra tus ${cat.unidades} con su nivel`,
-    category: "Gacha",
+    category: categoriaDeMenu(categoria),
     usage: `${cat.coleccionCmd} [página]`,
     handler: async ({ sock, from, msg, sender, cleanText, reply }) => {
       await esperarListo();

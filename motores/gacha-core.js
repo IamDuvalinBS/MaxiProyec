@@ -520,7 +520,7 @@ export async function hacerRoll({ categoria, obtener, reply, sender, from, coold
 export function crearComandoClaim({ categoria, names, desc }) {
   const cat = CAT[categoria];
   return {
-    names, desc, category: "Gacha",
+    names, desc, category: categoria === "waifu" ? "Waifu" : "Gacha",
     handler: async ({ sock, from, sender, msg, reply }) => {
       await gachaListo;
       const r = buscarPendiente({ from, categoria, idCitado: idMensajeCitado(msg), sender });
@@ -557,7 +557,7 @@ export function crearComandoClaim({ categoria, names, desc }) {
       }
 
       cerrarPendiente(r.id);
-      const { texto, mentions } = mensajeReclamo({ categoria, sender, personaje: p });
+      const { texto, mentions } = mensajeReclamo({ categoria, sender, personaje: p, tiempoMs: Date.now() - (pendiente.creado || Date.now()) });
       await enviarReclamo({ sock, from, msg, texto, mentions, reply });
       await registrarActividad({ reply, sender, eventos: [{ tipo: "reclamar", categoria, rareza: p.rareza }] });
     }

@@ -951,7 +951,23 @@ export function personajeAleatorioMinRareza(categoria, rangoMinimo, { soloLibres
 }
 
 export function personajesDeCategoria(categoria) {
-  return (porCategoria.get(categoria) || []).map((f) => copia(f));
+  return (porCategoria.get(categoria) || []).map((f) => ({ ...f }));
+}
+
+export function filasPersonajes(categoria) {
+  return porCategoria.get(categoria) || [];
+}
+
+export function registrarVotoPersonaje(id, incremento) {
+  const fila = personajes.get(Number(id));
+  if (!fila || fila.categoria !== "waifu") return null;
+  const antes = fila.valor;
+  const votos = (Number(fila.meta?.votos) || 0) + 1;
+  fila.valor = Math.max(0, Math.round(antes + incremento));
+  fila.meta = { ...(fila.meta || {}), votos };
+  ordenados.delete(fila.categoria);
+  marcar(COL.personajes, fila.id);
+  return { antes, despues: fila.valor, votos };
 }
 
 export function fusionarUsuarioGacha(origen, destino) {

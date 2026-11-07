@@ -66,3 +66,19 @@ export function msHastaLunes(ms = Date.now()) {
   const faltan = (Math.floor((dias + 3) / 7) + 1) * 7 - 3 - dias;
   return faltan * 86400000 - horaDelDiaMs(ms);
 }
+
+export const VALOR_WAIFU_MIN = 0;
+export const VALOR_WAIFU_MAX = 12000;
+export const valorInicialWaifu = () => VALOR_WAIFU_MIN + Math.floor(Math.random() * (VALOR_WAIFU_MAX - VALOR_WAIFU_MIN + 1));
+
+export function rarezaPorValorWaifu(valor) {
+  if (valor >= 11500) return "Legendaria";
+  if (valor >= 10000) return "Épica";
+  if (valor >= 7500) return "Rara";
+  if (valor >= 4000) return "Poco común";
+  return "Común";
+}
+
+export const VOTO_ESPERA_MS = 5 * 60 * 60 * 1000;
+export const VOTO_MIN = 50;
+export const VOTO_MAX = 250;

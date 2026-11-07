@@ -15,7 +15,7 @@ function textoNiveles(n) {
 export function crearComandoTienda({ categoria, names, desc }) {
   const t = TIENDAS[categoria];
   return {
-    names, desc, category: "Gacha", usage: t.comandoTienda,
+    names, desc, category: categoria === "waifu" ? "Waifu" : "Gacha", usage: t.comandoTienda,
     handler: async ({ sender, reply }) => {
       await gachaListo;
       const lineas = [encabezado(t.emoji, `SHOP - ${t.titulo}`), ""];
@@ -42,7 +42,7 @@ export function crearComandoTienda({ categoria, names, desc }) {
 export function crearComandoComprar({ categoria, names, desc }) {
   const t = TIENDAS[categoria];
   return {
-    names, desc, category: "Gacha", usage: `${t.comandoComprar} <número> [cantidad]`,
+    names, desc, category: categoria === "waifu" ? "Waifu" : "Gacha", usage: `${t.comandoComprar} <número> [cantidad]`,
     handler: async ({ sender, cleanText, reply }) => {
       await gachaListo;
       const partes = cleanText.split(/\s+/).slice(1);
@@ -86,7 +86,7 @@ export function crearComandoDar({ categoria, names, desc }) {
   const t = TIENDAS[categoria];
   const cat = CAT[categoria];
   return {
-    names, desc, category: "Gacha", usage: `${t.comandoDar} <número> [ID] [cantidad]`,
+    names, desc, category: categoria === "waifu" ? "Waifu" : "Gacha", usage: `${t.comandoDar} <número> [ID] [cantidad]`,
     handler: async ({ sender, cleanText, reply }) => {
       await gachaListo;
       const partes = cleanText.split(/\s+/).slice(1);
