@@ -2,7 +2,7 @@ import { tarjeta } from "../../economia/formato-evento.js";
 import { getProfile } from "../../../motores/profile.js";
 import { cargarMascotas, esDeNoche } from "../../../motores/mascotas-core.js";
 import { htmlMascotas } from "../../../motores/mascotas-html.js";
-import { ESPECIES, CIUDAD } from "../../../motores/mascotas-datos.js";
+import { ESPECIES, RAREZAS, HUEVOS, CIUDAD } from "../../../motores/mascotas-datos.js";
 import { etapaDe, estadoActual } from "../../../motores/mascotas-logica.js";
 
 const FIRMA = "Powered By ItsDuva";
@@ -54,6 +54,24 @@ export default [
         console.log("[mispets] ERROR: " + (e.stack || e.message));
         await reply({ text: est.mascotas.length ? textoMascotas(est, clima) : "❌ No pude mostrar tus mascotas en este momento." });
       }
+    }
+  },
+  {
+    names: [".petespecies", ".petrazas"],
+    usage: ".petespecies",
+    desc: "Muestra las especies de mascotas, sus rasgos y las rarezas de cada huevo",
+    category: "Pets",
+    handler: async ({ reply }) => {
+      const especies = Object.values(ESPECIES).map((e) => `${e.emoji} *${e.nombre}* — ${e.rasgo}`);
+      const huevos = Object.values(HUEVOS).map((h) => `${h.emoji} *${h.nombre}*: ${Object.keys(h.rarezas).map((r) => `${RAREZAS[r].emoji} ${RAREZAS[r].nombre}`).join(" / ")}`);
+      await reply({
+        text: tarjeta({
+          emoji: "📖",
+          titulo: "ESPECIES Y HUEVOS",
+          lineas: [...especies, "", ...huevos],
+          tip: "El dragón solo puede nacer con rareza Raro o superior."
+        })
+      });
     }
   },
   {

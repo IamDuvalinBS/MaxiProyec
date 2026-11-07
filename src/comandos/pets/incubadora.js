@@ -1,7 +1,7 @@
 import { tarjeta } from "../../economia/formato-evento.js";
 import { formatTime } from "../../../motores/ui.js";
 import { cargarMascotas, guardarMascotas } from "../../../motores/mascotas-core.js";
-import { HUEVOS, ESPECIES } from "../../../motores/mascotas-datos.js";
+import { HUEVOS, ESPECIES, RAREZAS } from "../../../motores/mascotas-datos.js";
 import { incubar, eclosionar, estadoIncubadora } from "../../../motores/mascotas-logica.js";
 
 const sinTildes = (s) => String(s).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
@@ -16,6 +16,7 @@ export default [
       const { cuenta, est, ahora } = await cargarMascotas(sender);
       const texto = sinTildes(cleanText.trim().split(/\s+/).slice(1).join(" "));
       const tipo = Object.keys(HUEVOS).find((k) => texto.includes(k)) || null;
+      if (texto && !tipo) return reply({ text: "⚠️ No reconozco ese huevo. Los tipos son: común, raro, místico y legendario." });
       const r = incubar(est, tipo, ahora);
       if (!r.ok) return reply({ text: `⚠️ ${r.error}` });
       guardarMascotas(sender, cuenta, est);
@@ -67,7 +68,7 @@ export default [
         return reply({ text: pendientes ? "⏳ Tus huevos aún no están listos. Revisa el tiempo con *.petincubadora*." : "No hay huevos en la incubadora. Coloca uno con *.petincubar*." });
       }
       guardarMascotas(sender, cuenta, est);
-      const lineas = nuevas.map((m) => `${ESPECIES[m.especie].emoji} *${m.nombre}* — ${ESPECIES[m.especie].nombre} ${HUEVOS[m.calidad].emoji}`);
+      const lineas = nuevas.map((m) => `${ESPECIES[m.especie].emoji} *${m.nombre}* — ${ESPECIES[m.especie].nombre} · ${RAREZAS[m.rareza].emoji} ${RAREZAS[m.rareza].nombre}`);
       await reply({
         text: tarjeta({
           emoji: "🐣",

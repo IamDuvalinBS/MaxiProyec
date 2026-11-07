@@ -1,10 +1,10 @@
 import { getAccount, addToWallet } from "../../../motores/db.js";
 import { tarjeta, monto } from "../../economia/formato-evento.js";
 import { cargarMascotas, guardarMascotas } from "../../../motores/mascotas-core.js";
-import { INCUBADORA, HUEVOS, COMIDAS, CASAS, ACCESORIOS, MAX_MASCOTAS } from "../../../motores/mascotas-datos.js";
+import { INCUBADORA, HUEVOS, COMIDAS, CASAS, ACCESORIOS, RAREZAS, MAX_MASCOTAS } from "../../../motores/mascotas-datos.js";
 import { resolverArticulo, precioDe, mascotaPorNumero } from "../../../motores/mascotas-logica.js";
 
-const lineaHuevo = ([id, h]) => `${h.emoji} *${h.nombre}* (${id}) — ${monto(h.precio)} · ${h.horas} h`;
+const lineaHuevo = ([id, h]) => `${h.emoji} *${h.nombre}* (${id}) — ${monto(h.precio)} · ${h.horas} h\n     ${Object.keys(h.rarezas).map((r) => `${RAREZAS[r].emoji} ${RAREZAS[r].nombre}`).join(" / ")}`;
 const lineaComida = ([id, c]) => `${c.emoji} *${c.nombre}* (${id}) — ${monto(c.precio)} · +${c.hambre} comida`;
 const lineaAccesorio = ([id, a]) => `${a.emoji} *${a.nombre}* (${id}) — ${monto(a.precio)} · ${a.espacio}${a.lluvia ? ` · ${Math.round(a.lluvia * 100)}% contra lluvia` : ""}`;
 
