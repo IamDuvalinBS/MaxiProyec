@@ -1,9 +1,12 @@
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import { metadatos } from "../grupos/nucleo.js";
+import { metadatos, enlaceDeGrupo } from "../grupos/nucleo.js";
+import { ajustesDe } from "../grupos/estado.js";
 import { mencion } from "../economia/estilo.js";
 import { imagenDePerfil, enviarConImagen } from "../grupos/foto.js";
+import { aplicarPlantilla, usaBroche } from "../grupos/plantillas.js";
+import { valoresDeBroches } from "./welcome.js";
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const RUTAS_AUDIO = ["assets/audios/goodbye.mp3", "assets/fonts/goodbye.mp3", "assets/goodbye.mp3"].map((ruta) => path.join(RAIZ, ruta));
@@ -43,7 +46,22 @@ export function construirDespedida({ usuario, meta }) {
 }
 
 export async function enviarDespedida(sock, grupo, usuario, ids = [usuario]) {
-  const [meta, imagen] = await Promise.all([metadatos(sock, grupo), imagenDePerfil(sock, [usuario, ...ids])]);
+  const plantilla = ajustesDe(grupo).plantillaDespedida;
+  const pideEnlace = Boolean(plantilla) && usaBroche(plantilla, "link");
+
+  const [meta, enlace, imagen] = await Promise.all([
+    metadatos(sock, grupo),
+    pideEnlace ? enlaceDeGrupo(sock, grupo) : Promise.resolve(null),
+    imagenDePerfil(sock, [usuario, ...ids])
+  ]);
+
+  if (plantilla) {
+    // Mensaje personalizado: se envía tal cual lo escribió el usuario (sin la frase aleatoria ni el audio).
+    const texto = aplicarPlantilla(plantilla, valoresDeBroches({ usuario, meta, enlace }));
+    await enviarConImagen(sock, grupo, imagen, texto, [usuario]);
+    return;
+  }
+
   await enviarConImagen(sock, grupo, imagen, construirDespedida({ usuario, meta }), [usuario]);
 
   const ruta = RUTAS_AUDIO.find((r) => fs.existsSync(r));
