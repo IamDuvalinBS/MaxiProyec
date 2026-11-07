@@ -1,6 +1,7 @@
 //   .gato            -> jugas contra el bot (IA local, gratis, sin API).
 import { registrarJuego, iniciarJuego, FUENTE } from "../motores/juegos-core.js";
 import { addToWallet, CURRENCY } from "../motores/db.js";
+import { ajusteBot } from "../motores/ajustes-bot.js";
 import { addXp } from "../motores/profile.js";
 
 const LINEAS = [
@@ -204,7 +205,7 @@ registrarJuego({
 
     const lineas = [
       `🏆 GANADOR: @${ganadorJid.split("@")[0]}`,
-      `💰 DINERO: +${monto} ${CURRENCY}`,
+      `💰 DINERO: +${monto} ${ajusteBot("moneda") || CURRENCY}`,
       `✨ XP: +${xpGanada}`,
     ];
     if (leveledUp) lineas.push(`🎉 ¡Subió a nivel ${newLevel}!`);
