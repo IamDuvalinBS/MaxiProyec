@@ -10,7 +10,7 @@ import {
   limpiarSesionesSignal,
   vigilarDescifrado
 } from "../../motores/sesiones-mongo.js";
-import { config, saveConfig } from "../../motores/db.js";
+import { config, saveConfig, idCanonico } from "../../motores/db.js";
 import { saltarAtrasoViejo } from "../../motores/saltar-atraso.js";
 import { isOwner } from "../../motores/owner.js";
 
@@ -426,6 +426,7 @@ export async function solicitarCodigo(numeroCrudo, dueno) {
 
   try {
     await guardarMetaSub(numero, { dueno });
+    cacheSubsGuardados = null;
     await conectar(numero);
   } catch (e) {
     terminarVinculacion(entrada, false);
@@ -459,7 +460,39 @@ export async function quitarSubbot(numeroCrudo, { cerrarSesion = false } = {}) {
     subs.delete(numero);
   }
   if (sesionesDisponibles()) await eliminarSub(numero).catch((e) => console.log(`[subbot ${numero}] no se pudo borrar la sesión: ${e.message}`));
+  cacheSubsGuardados = null;
   return guardado;
+}
+
+// Número (clave) del subbot al que pertenece este socket, o null si es el bot principal.
+export function numeroSubbot(sock) {
+  for (const [numero, entrada] of subs) if (entrada.sock === sock) return numero;
+  return null;
+}
+
+// Número del subbot vinculado de este usuario (por ser el dueño que lo vinculó o por ser su mismo número), o null.
+let cacheSubsGuardados = null;
+const VIGENCIA_CACHE_SUBS_MS = 20000;
+
+export async function subDeUsuario(sender) {
+  for (const [numero, entrada] of subs) {
+    if (entrada.sock?.authState?.creds?.me && mismoNumero(numero, sender)) return numero;
+  }
+  if (!sesionesDisponibles()) return null;
+  try {
+    if (!cacheSubsGuardados || cacheSubsGuardados.vence < Date.now()) {
+      cacheSubsGuardados = { lista: await listarSubsGuardados(), vence: Date.now() + VIGENCIA_CACHE_SUBS_MS };
+    }
+  } catch {
+    return null;
+  }
+  const yo = idCanonico(sender);
+  for (const sub of cacheSubsGuardados.lista) {
+    if (!sub.vinculado) continue;
+    if (mismoNumero(sub.numero, sender)) return sub.numero;
+    if (sub.dueno && (mismoId(sub.dueno, sender) || idCanonico(sub.dueno) === yo)) return sub.numero;
+  }
+  return null;
 }
 
 export function esSubbot(sock) {
