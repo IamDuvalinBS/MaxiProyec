@@ -8,6 +8,8 @@ import { enviarConCache, reenviarCacheado, guardarRelay, registrarMedio, claveDe
 import { contarComando, contarComandoGrupo } from "../../motores/estadisticas.js";
 import { antesDeComando, despuesDeComando, COMANDOS_LOGROS } from "../economia/logros.js";
 import { avisarMuertos } from "../../motores/gacha-muertos.js";
+import { correrComoBot, botActual, baneadoEnBot, PRINCIPAL } from "../../motores/ajustes-bot.js";
+import { numeroSubbot } from "../subbots/gestor.js";
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const CARPETAS_EXCLUIDAS = new Set([
@@ -96,7 +98,13 @@ function debeEsperarPorSpam(sender) {
   return historial.length > 10;
 }
 
-export async function manejarComando(sock, from, sender, text, msg) {
+// Cada comando corre "como" el bot que lo recibió (principal o un subbot): así la moneda, el menú y los baneos
+// que cada dueño personalizó se aplican solo en su bot.
+export function manejarComando(sock, from, sender, text, msg) {
+  return correrComoBot(numeroSubbot(sock) || PRINCIPAL, () => ejecutarComando(sock, from, sender, text, msg));
+}
+
+async function ejecutarComando(sock, from, sender, text, msg) {
   await cargaLista;
 
   const cleanText = text.trim();
@@ -122,6 +130,11 @@ await simularEscritura(sock, from, 300 + Math.floor(Math.random() * 400));
 
   if (!COMANDOS_PROTEGIDOS.has(comando) && comandoEstaBaneado(comando, categoriaDeComando.get(comando))) {
     await reply({ text: "🚫 Este comando fue desactivado por mi Owner, intenta nuevamente mas después." });
+    return true;
+  }
+
+  if (!COMANDOS_PROTEGIDOS.has(comando) && baneadoEnBot(comando, categoriaDeComando.get(comando), botActual())) {
+    await reply({ text: "🚫 Este comando fue desactivado por el dueño de este bot, intenta nuevamente mas después." });
     return true;
   }
 
