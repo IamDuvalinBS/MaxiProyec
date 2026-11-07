@@ -6,7 +6,8 @@ import {
   listarBaneos,
   commandRegistry
 } from "../../../core.js";
-import { ownerCommand } from "../../../motores/owner.js";
+import { cambiarBaneoBot, listarBaneosBot } from "../../../motores/ajustes-bot.js";
+import { comandoDeBot } from "../../subbots/permisos.js";
 
 function categoriasConocidas() {
   const set = new Set();
@@ -28,20 +29,26 @@ function todosLosAliasDe(alias) {
 export default {
   names: [".banear", ".desbanear", ".baneos"],
   usage: ".banear <comando o categoría> | .desbanear <comando o categoría> | .baneos",
-  desc: "Desactivar o reactivar un comando o una categoría entera (solo owner)",
-  category: "Owner",
-  handler: ownerCommand(async ({ cleanText, reply }) => {
+  desc: "Desactivar o reactivar un comando o una categoría entera. El owner lo aplica a todos los bots; el dueño de un subbot, solo a su subbot",
+  category: "Subbots",
+  handler: comandoDeBot(async ({ cleanText, reply, objetivo }) => {
+    // Owner → baneo global (todos los bots). Dueño de subbot → baneo solo en su subbot.
+    const global = objetivo.via === "owner";
+    const alcance = global ? "para todos, incluido el owner" : `en tu subbot (${objetivo.botId})`;
     const partes = cleanText.trim().split(/\s+/);
     const accion = partes[0].toLowerCase();
     const valor = partes.slice(1).join(" ").trim();
 
     if (accion === ".baneos") {
       const { comandos, categorias } = listarBaneos();
-      if (!comandos.length && !categorias.length) return reply({ text: "✅ No hay nada baneado ahora mismo." });
-      const texto =
-        "🚫 *BANEADO ACTUALMENTE*\n\n" +
-        (categorias.length ? `*Categorías::* ${categorias.join(", ")}\n` : "") +
-        (comandos.length ? `*Comandos::* ${comandos.join(", ")}` : "");
+      const propios = objetivo.esPrincipal ? { comandos: [], categorias: [] } : listarBaneosBot(objetivo.botId);
+      const hay = (b) => b.comandos.length || b.categorias.length;
+      if (!hay({ comandos, categorias }) && !hay(propios)) return reply({ text: "✅ No hay nada baneado ahora mismo." });
+      const bloque = (titulo, b) =>
+        hay(b)
+          ? `*${titulo}*\n` + (b.categorias.length ? `*Categorías::* ${b.categorias.join(", ")}\n` : "") + (b.comandos.length ? `*Comandos::* ${b.comandos.join(", ")}\n` : "")
+          : "";
+      const texto = "🚫 *BANEADO ACTUALMENTE*\n\n" + bloque(objetivo.esPrincipal ? "Todos los bots" : "Globales (los puso el owner)", { comandos, categorias }) + (objetivo.esPrincipal ? "" : `\n${bloque("En este subbot", propios)}`);
       return reply({ text: texto.trim() });
     }
 
@@ -61,16 +68,26 @@ export default {
       return reply({ text: `⚠️ No se encontró ningún comando ni categoría llamada *${valor}*.\nSi es un comando, escríbelo con el punto: *.play*` });
     }
 
+    const etiqueta = grupoAlias ? grupoAlias.join(" / ") : categoria;
+
     if (accion === ".banear") {
-      if (grupoAlias) grupoAlias.forEach(banearComando);
-      else banearCategoria(categoria);
-      const etiqueta = grupoAlias ? grupoAlias.join(" / ") : categoria;
-      return reply({ text: `🚫 *${etiqueta}* quedó desactivado para todos, incluido el owner. Usa *.desbanear ${valor}* para reactivarlo.` });
+      if (global) {
+        if (grupoAlias) grupoAlias.forEach(banearComando);
+        else banearCategoria(categoria);
+      } else {
+        await cambiarBaneoBot(objetivo.botId, grupoAlias ? "comando" : "categoria", grupoAlias || categoria, true);
+      }
+      return reply({ text: `🚫 *${etiqueta}* quedó desactivado ${alcance}. Usa *.desbanear ${valor}* para reactivarlo.` });
     }
 
-    if (grupoAlias) grupoAlias.forEach(desbanearComando);
-    else desbanearCategoria(categoria);
-    const etiqueta = grupoAlias ? grupoAlias.join(" / ") : categoria;
-    return reply({ text: `✅ *${etiqueta}* quedó reactivado.` });
+    if (global) {
+      if (grupoAlias) grupoAlias.forEach(desbanearComando);
+      else desbanearCategoria(categoria);
+      // Si el owner está en un subbot, también se levanta el baneo propio de ese subbot.
+      if (!objetivo.esPrincipal) await cambiarBaneoBot(objetivo.botId, grupoAlias ? "comando" : "categoria", grupoAlias || categoria, false);
+    } else {
+      await cambiarBaneoBot(objetivo.botId, grupoAlias ? "comando" : "categoria", grupoAlias || categoria, false);
+    }
+    return reply({ text: `✅ *${etiqueta}* quedó reactivado ${global ? "en todos los bots" : "en tu subbot"}.` });
   })
 };

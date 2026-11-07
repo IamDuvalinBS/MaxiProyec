@@ -1,16 +1,9 @@
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import { config, formatUptime, commandRegistry, FOTO_PATH } from "../../../core.js";
+import { formatUptime, commandRegistry } from "../../../core.js";
+import { ajusteBot, fotoBot } from "../../../motores/ajustes-bot.js";
 import { enviarConBoton } from "../../../motores/botones.js";
-
-function leerFoto() {
-  try {
-    return fs.existsSync(FOTO_PATH) ? fs.readFileSync(FOTO_PATH) : null;
-  } catch {
-    return null;
-  }
-}
 
 // "categorias" son los nombres reales que usan los archivos de comandos (no se tocan).
 // "titulo" es lo único que se muestra en el menú. El orden de esta lista es el orden del menú.
@@ -30,18 +23,11 @@ const GRUPOS = [
     alias: ["economy", "economia", "trabajos", "trabajo", "jobs", "job", "work", "apuestas", "apuesta", "casino", "bets", "betting"]
   },
   {
-    titulo: "WAIFU",
-    icono: "🌸",
-    descripcion: "Gacha de personajes de anime: tiradas, harem, votos y más.",
-    categorias: ["Waifu"],
-    alias: ["waifu", "waifus", "rw", "harem", "anime", "claim"]
-  },
-  {
     titulo: "GACHA",
     icono: "🎴",
-    descripcion: "Colecciona pokémon, brawlers, dragones y más.",
+    descripcion: "Colecciona waifus, pokémon, brawlers y más.",
     categorias: ["Gacha"],
-    alias: ["gacha", "pokemon", "brawl", "snake", "clash", "cod", "dragon"]
+    alias: ["gacha", "waifus", "rw", "pokemon", "brawl"]
   },
   {
     titulo: "PETS",
@@ -164,13 +150,13 @@ function textoMenuCompleto(categorias) {
   const total = new Set(commandRegistry.values()).size;
 
   const cabecera = [
-    `> 🐋 *¡Holaa!*, es un gusto tenerte aquí. Soy *${config.botNameShort}*, aquí tienes la lista de comandos. ⬎`,
+    `> 🐋 *¡Holaa!*, es un gusto tenerte aquí. Soy *${ajusteBot("botNameShort")}*, aquí tienes la lista de comandos. ⬎`,
     "",
     "╔≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈⧽⧽",
     "︴ *⨳⌗۵ : ᥆ᥕᥒᥱr ძᥱᥣ ᑲ᥆𝗍 ::*",
-    `> ${config.ownerName}`,
+    `> ${ajusteBot("ownerName")}`,
     "︴ *⨳⌗۵ : ᥒ᥆mᑲrᥱ ძᥱᥣ ᑲ᥆𝗍 ::*",
-    `> ${config.botNameLong}`,
+    `> ${ajusteBot("botNameLong")}`,
     "︴ *⨳⌗۵ : 𝗍і⍴᥆ / 𝖿ᥙᥒᥴі᥆́ᥒ ::*",
     "> Multi-Device",
     "︴ *⨳⌗۵ : ᥙ́ᥣ𝗍іmᥲ ᥎ᥱrsі᥆́ᥒ ::*",
@@ -243,12 +229,12 @@ export default {
       from,
       msg,
       texto,
-      footer: config.botNameShort,
-      foto: leerFoto(),
+      footer: ajusteBot("botNameShort"),
+      foto: fotoBot(),
       lista: [
-      config.channelLink && { texto: "📢 Canal", url: config.channelLink },
-      config.groupLink && { texto: "👥 GRUPO OFICIAL", url: config.groupLink },
-      config.webLink && { texto: "🌐 Página oficial", url: config.webLink }
+      ajusteBot("channelLink") && { texto: "📢 Canal", url: ajusteBot("channelLink") },
+      ajusteBot("groupLink") && { texto: "👥 GRUPO OFICIAL", url: ajusteBot("groupLink") },
+      ajusteBot("webLink") && { texto: "🌐 Página oficial", url: ajusteBot("webLink") }
       ].filter(Boolean),
       mentions: [sender]
     });

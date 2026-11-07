@@ -1,15 +1,7 @@
-import fs from "fs";
-import { config, commandRegistry, FOTO_PATH } from "../../../core.js";
+import { commandRegistry } from "../../../core.js";
+import { ajusteBot, fotoBot } from "../../../motores/ajustes-bot.js";
 import { enviarConBoton } from "../../../motores/botones.js";
 import { isOwner } from "../../../motores/owner.js";
-
-function leerFoto() {
-  try {
-    return fs.existsSync(FOTO_PATH) ? fs.readFileSync(FOTO_PATH) : null;
-  } catch {
-    return null;
-  }
-}
 
 function etiquetaDe(info) {
   const principal = info.names[0];
@@ -23,7 +15,7 @@ function comandosOwner() {
   const vistos = new Set();
   const lista = [];
   for (const info of commandRegistry.values()) {
-    if (vistos.has(info) || info.category !== "Owner" || info.names.includes(".ownermenu")) continue;
+    if (vistos.has(info) || !["Owner", "Subbots"].includes(info.category) || info.names.includes(".ownermenu")) continue;
     vistos.add(info);
     lista.push(info);
   }
@@ -41,7 +33,7 @@ export default {
     const bloques = comandosOwner().map((info) => `✿ *${etiquetaDe(info)}*\n> ${info.desc}`);
     const usuario = `@${sender.split("@")[0]}`;
     const texto =
-      `✿ *Panel exclusivo de owners* — 『 *${config.botNameLong}* 』\n\n` +
+      `✿ *Panel exclusivo de owners* — 『 *${ajusteBot("botNameLong")}* 』\n\n` +
       `> Hola ${usuario}, este menú solo es visible para ti.\n\n` +
       `👑 ⧼⧼ OWNER ⧽⧽\n\n${bloques.join("\n\n")}`;
 
@@ -50,8 +42,8 @@ export default {
       from,
       msg,
       texto,
-      footer: config.botNameShort,
-      foto: leerFoto(),
+      footer: ajusteBot("botNameShort"),
+      foto: fotoBot(),
       boton: null,
       mentions: [sender]
     });
