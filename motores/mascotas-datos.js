@@ -14,10 +14,29 @@ export const ETAPAS = [
 ];
 
 export const ESPECIES = {
-  perro: { nombre: "Perrito", emoji: "🐶", sexo: null },
-  gato: { nombre: "Gatito", emoji: "🐱", sexo: null },
-  zorro_m: { nombre: "Zorrito", emoji: "🦊", sexo: "macho" },
-  zorro_h: { nombre: "Zorrita", emoji: "🦊", sexo: "hembra" }
+  perro: { nombre: "Perrito", emoji: "🐶", rasgo: "Leal y juguetón: disfruta más cada juego", peso: 24 },
+  gato: { nombre: "Gatito", emoji: "🐱", rasgo: "Independiente: se aburre más despacio", peso: 24 },
+  zorro: { nombre: "Zorrito", emoji: "🦊", rasgo: "Ágil: gasta menos energía", peso: 18 },
+  pinguino: { nombre: "Pingüinito", emoji: "🐧", rasgo: "Resistente: aguanta mejor el frío y la lluvia", peso: 14 },
+  ajolote: { nombre: "Ajolote", emoji: "🦎", rasgo: "Acuático: la lluvia lo hace crecer más", peso: 14 },
+  dragon: { nombre: "Dragoncito", emoji: "🐲", rasgo: "Poderoso: crece más rápido, pero come más", peso: 6 }
+};
+
+export const RASGOS = {
+  perro: { juego: 1.3 },
+  gato: { diversion: 0.75 },
+  zorro: { energia: 0.8 },
+  pinguino: { lluvia: 0.5 },
+  ajolote: { amaLluvia: true },
+  dragon: { crecimiento: 1.1, hambre: 1.15 }
+};
+
+export const RAREZAS = {
+  comun: { nombre: "Común", emoji: "⚪", crecimiento: 1 },
+  poco_comun: { nombre: "Poco común", emoji: "🟢", crecimiento: 1.05 },
+  raro: { nombre: "Raro", emoji: "🔵", crecimiento: 1.1 },
+  epico: { nombre: "Épico", emoji: "🟣", crecimiento: 1.2 },
+  legendario: { nombre: "Legendario", emoji: "🟡", crecimiento: 1.35 }
 };
 
 export const INCUBADORA = {
@@ -30,18 +49,10 @@ export const INCUBADORA = {
 };
 
 export const HUEVOS = {
-  comun: {
-    nombre: "Huevo común", emoji: "🥚", precio: 25000, horas: 4, crecimiento: 1,
-    pesos: { perro: 40, gato: 40, zorro: 20 }
-  },
-  raro: {
-    nombre: "Huevo raro", emoji: "🪺", precio: 90000, horas: 6, crecimiento: 1.1,
-    pesos: { perro: 30, gato: 30, zorro: 40 }
-  },
-  epico: {
-    nombre: "Huevo épico", emoji: "💎", precio: 300000, horas: 8, crecimiento: 1.25,
-    pesos: { perro: 20, gato: 20, zorro: 60 }
-  }
+  comun: { nombre: "Huevo común", emoji: "🥚", precio: 25000, horas: 4, rarezas: { comun: 70, poco_comun: 30 } },
+  raro: { nombre: "Huevo raro", emoji: "🪺", precio: 90000, horas: 6, rarezas: { poco_comun: 70, raro: 30 } },
+  mistico: { nombre: "Huevo místico", emoji: "🔮", precio: 300000, horas: 8, rarezas: { raro: 75, epico: 25 } },
+  legendario: { nombre: "Huevo legendario", emoji: "🌟", precio: 900000, horas: 10, rarezas: { epico: 80, legendario: 20 } }
 };
 
 export const COMIDAS = {

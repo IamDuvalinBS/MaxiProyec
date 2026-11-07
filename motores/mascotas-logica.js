@@ -1,5 +1,5 @@
 import {
-  ETAPAS, ESPECIES, INCUBADORA, HUEVOS, COMIDAS, CASAS, ACCESORIOS, ESPACIOS, DECAIMIENTO,
+  ETAPAS, ESPECIES, RASGOS, RAREZAS, INCUBADORA, HUEVOS, COMIDAS, CASAS, ACCESORIOS, ESPACIOS, DECAIMIENTO,
   CRECIMIENTO_POR_HORA, MAX_MASCOTAS, MAX_NOMBRE, PASO_MS, MAX_SIMULACION_MS, ESPERA_JUGAR_MS, LLUVIA_MINIMA_MM
 } from "./mascotas-datos.js";
 
@@ -10,9 +10,14 @@ const sinTildes = (s) => String(s).normalize("NFD").replace(/[̀-ͯ]/g, "").toLo
 const NOMBRES = {
   perro: ["Rocky", "Max", "Toby", "Coco", "Bruno", "Thor"],
   gato: ["Luna", "Michi", "Simba", "Nala", "Tigre", "Misifú"],
-  zorro_m: ["Rufus", "Fénix", "Ember", "Cobre", "Kitsu"],
-  zorro_h: ["Canela", "Brasa", "Ámbar", "Flama", "Kyoko"]
+  zorro: ["Rufus", "Canela", "Fénix", "Kitsu", "Ember", "Brasa"],
+  pinguino: ["Pingu", "Copo", "Frosty", "Hielo", "Polar", "Nieve"],
+  ajolote: ["Xolo", "Xochi", "Coral", "Burbuja", "Lirio", "Nemo"],
+  dragon: ["Drako", "Ignis", "Zafiro", "Esmeralda", "Ceniza", "Volcán"]
 };
+
+const MIGRACION_ESPECIE = { zorro_m: "zorro", zorro_h: "zorro" };
+const MIGRACION_RAREZA = { comun: "comun", raro: "raro", epico: "epico" };
 
 export function estadoInicial() {
   return { incubadora: null, huevos: {}, comida: {}, accesorios: {}, mascotas: [], proximoId: 1 };
@@ -25,6 +30,11 @@ export function normalizar(est) {
   for (const campo of ["huevos", "comida", "accesorios"]) {
     if (!e[campo] || typeof e[campo] !== "object") e[campo] = {};
   }
+  if (e.huevos.epico) {
+    e.huevos.mistico = (Number(e.huevos.mistico) || 0) + Number(e.huevos.epico);
+    delete e.huevos.epico;
+  }
+  if (e.incubadora) for (const h of e.incubadora.huevos) if (h.tipo === "epico") h.tipo = "mistico";
   for (const id of Object.keys(HUEVOS)) e.huevos[id] = Number(e.huevos[id]) || 0;
   for (const id of Object.keys(COMIDAS)) e.comida[id] = Number(e.comida[id]) || 0;
   for (const id of Object.keys(ACCESORIOS)) e.accesorios[id] = Number(e.accesorios[id]) || 0;
@@ -33,6 +43,9 @@ export function normalizar(est) {
     e.proximoId = e.mascotas.reduce((a, m) => Math.max(a, m.id || 0), 0) + 1;
   }
   for (const m of e.mascotas) {
+    if (MIGRACION_ESPECIE[m.especie]) m.especie = MIGRACION_ESPECIE[m.especie];
+    if (!RAREZAS[m.rareza]) m.rareza = MIGRACION_RAREZA[m.calidad] || "comun";
+    if (m.calidad === "epico") m.calidad = "mistico";
     if (!m.equipo || typeof m.equipo !== "object") m.equipo = {};
     m.casa = Number(m.casa) || 0;
     m.crec = Number(m.crec) || 0;
@@ -63,11 +76,14 @@ export function proteccionLluvia(m) {
   return Math.min(0.9, total);
 }
 
+export const multiplicadorCrecimiento = (m) => (RAREZAS[m.rareza]?.crecimiento || 1) * (RASGOS[m.especie]?.crecimiento || 1);
+
 export const comodidadDe = (m) => (m.casa ? CASAS.niveles[m.casa - 1]?.comodidad || 0 : 0);
 
 export function actualizarMascota(m, ahora, precipitacionEn = () => 0) {
   let t = Math.max(m.ts || ahora, ahora - MAX_SIMULACION_MS);
-  const calidad = HUEVOS[m.calidad]?.crecimiento || 1;
+  const calidad = multiplicadorCrecimiento(m);
+  const rasgo = RASGOS[m.especie] || {};
   const comodidad = comodidadDe(m);
   const proteccion = proteccionLluvia(m);
 
@@ -75,16 +91,18 @@ export function actualizarMascota(m, ahora, precipitacionEn = () => 0) {
     const dtMs = Math.min(PASO_MS, ahora - t);
     const dt = dtMs / HORA_MS;
     const llueve = precipitacionEn(t + dtMs / 2) >= LLUVIA_MINIMA_MM;
-    const exposicion = llueve && !m.casa ? 1 - proteccion : 0;
+    const sinRefugio = llueve && !m.casa;
+    const exposicion = sinRefugio && !rasgo.amaLluvia ? (1 - proteccion) * (rasgo.lluvia ?? 1) : 0;
+    const bonoLluvia = sinRefugio && rasgo.amaLluvia ? 1.15 : 1;
 
     if (m.dormido) {
-      m.hambre -= DECAIMIENTO.dormido.hambre * dt;
-      m.diversion -= DECAIMIENTO.dormido.diversion * dt;
+      m.hambre -= DECAIMIENTO.dormido.hambre * dt * (rasgo.hambre ?? 1);
+      m.diversion -= DECAIMIENTO.dormido.diversion * dt * (rasgo.diversion ?? 1);
       m.energia += -DECAIMIENTO.dormido.energia * dt * (1 + comodidad);
     } else {
-      m.hambre -= DECAIMIENTO.despierto.hambre * dt;
-      m.diversion -= DECAIMIENTO.despierto.diversion * dt;
-      m.energia -= DECAIMIENTO.despierto.energia * dt;
+      m.hambre -= DECAIMIENTO.despierto.hambre * dt * (rasgo.hambre ?? 1);
+      m.diversion -= DECAIMIENTO.despierto.diversion * dt * (rasgo.diversion ?? 1);
+      m.energia -= DECAIMIENTO.despierto.energia * dt * (rasgo.energia ?? 1);
     }
     if (exposicion > 0) {
       m.energia -= DECAIMIENTO.lluviaSinRefugio.energia * dt * exposicion;
@@ -99,7 +117,7 @@ export function actualizarMascota(m, ahora, precipitacionEn = () => 0) {
 
     if (Math.min(m.hambre, m.diversion, m.energia) > 10) {
       const satisfaccion = (m.hambre * 0.4 + m.diversion * 0.3 + m.energia * 0.3) / 100;
-      const factor = (m.dormido ? 1.5 : 1) * (1 - 0.5 * exposicion) * (1 + comodidad) * calidad;
+      const factor = (m.dormido ? 1.5 : 1) * (1 - 0.5 * exposicion) * (1 + comodidad) * calidad * bonoLluvia;
       m.crec += CRECIMIENTO_POR_HORA * satisfaccion * factor * dt;
     }
     t += dtMs;
@@ -147,7 +165,7 @@ export function alimentar(est, m, tipo) {
   est.comida[id] -= 1;
   const antes = m.hambre;
   m.hambre = limitar(m.hambre + comida.hambre);
-  m.crec += comida.crecimiento * (HUEVOS[m.calidad]?.crecimiento || 1);
+  m.crec += comida.crecimiento * multiplicadorCrecimiento(m);
   return { ok: true, comida, recuperado: Math.round(m.hambre - antes) };
 }
 
@@ -159,7 +177,7 @@ export function jugar(m, ahora) {
   const restante = (m.ultimoJuego || 0) + ESPERA_JUGAR_MS - ahora;
   if (restante > 0) return { ok: false, espera: restante };
   m.ultimoJuego = ahora;
-  m.diversion = limitar(m.diversion + 25);
+  m.diversion = limitar(m.diversion + 25 * (RASGOS[m.especie]?.juego ?? 1));
   m.energia = limitar(m.energia - 12);
   m.hambre = limitar(m.hambre - 8);
   m.crec += 3;
@@ -224,7 +242,7 @@ export function resolverArticulo(texto) {
   const n = numero ? Math.min(99, Math.max(1, parseInt(numero, 10))) : null;
   if (/incubadora/.test(t)) return { tipo: "incubadora", numero: n };
   if (/huevo/.test(t)) {
-    const id = Object.keys(HUEVOS).find((k) => t.includes(k)) || (t.includes("epic") ? "epico" : "comun");
+    const id = Object.keys(HUEVOS).find((k) => t.includes(k)) || "comun";
     return { tipo: "huevo", id, numero: n };
   }
   if (/comida|croqueta|banquete/.test(t)) {
@@ -299,18 +317,27 @@ function elegirPonderado(pesos, rnd) {
   return Object.keys(pesos)[0];
 }
 
+function pesosEspecie(rareza) {
+  const pesos = {};
+  for (const [id, e] of Object.entries(ESPECIES)) pesos[id] = e.peso;
+  if (rareza === "comun" || rareza === "poco_comun") delete pesos.dragon;
+  else if (rareza === "epico" || rareza === "legendario") pesos.dragon *= 2;
+  return pesos;
+}
+
 export function eclosionar(est, ahora, rnd = Math.random) {
   if (!est.incubadora) return { nuevas: [], pendientes: 0 };
   const listos = est.incubadora.huevos.filter((h) => h.fin <= ahora);
   const nuevas = [];
   for (const huevo of listos) {
-    let especie = elegirPonderado(HUEVOS[huevo.tipo].pesos, rnd);
-    if (especie === "zorro") especie = rnd() < 0.5 ? "zorro_m" : "zorro_h";
+    const rareza = elegirPonderado(HUEVOS[huevo.tipo].rarezas, rnd);
+    const especie = elegirPonderado(pesosEspecie(rareza), rnd);
     const nombres = NOMBRES[especie];
     const m = {
       id: est.proximoId++,
       especie,
       nombre: nombres[Math.floor(rnd() * nombres.length)],
+      rareza,
       calidad: huevo.tipo,
       crec: 0,
       hambre: 80,

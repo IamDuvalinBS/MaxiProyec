@@ -1,4 +1,4 @@
-import { ESPECIES, HUEVOS, COMIDAS, CASAS, ACCESORIOS, ESPACIOS } from "./mascotas-datos.js";
+import { ESPECIES, RAREZAS, HUEVOS, COMIDAS, CASAS, ACCESORIOS, ESPACIOS } from "./mascotas-datos.js";
 import { svgEscena } from "./mascotas-arte.js";
 import { etapaDe, progresoEtapa, estadoActual, felicidad, estadoIncubadora } from "./mascotas-logica.js";
 
@@ -29,7 +29,7 @@ function tarjetaMascota(m, i, ctx) {
   const etapa = etapaDe(m.crec);
   const prog = progresoEtapa(m.crec);
   const esp = ESPECIES[m.especie];
-  const calidad = HUEVOS[m.calidad] || HUEVOS.comun;
+  const rareza = RAREZAS[m.rareza] || RAREZAS.comun;
   const casa = m.casa ? CASAS.niveles[m.casa - 1] : null;
   const escena = svgEscena({
     especie: m.especie,
@@ -50,8 +50,9 @@ function tarjetaMascota(m, i, ctx) {
     : "Crecimiento completo";
   return `<section class="pet" data-estado="${estado.clave}" hidden>
 <div class="escwrap">${escena}<div class="bub"></div></div>
-<div class="fila"><div class="nom"><b>${esc(m.nombre)}</b><small>#${i + 1} · ${esp.emoji} ${esp.nombre}${esp.sexo ? ` (${esp.sexo})` : ""}</small></div>
-<div class="ins"><span class="pill e${etapa.id}">${etapa.nombre}</span><span class="pill cal">${calidad.emoji} ${calidad.nombre.replace("Huevo ", "")}</span></div></div>
+<div class="fila"><div class="nom"><b>${esc(m.nombre)}</b><small>#${i + 1} · ${esp.emoji} ${esp.nombre}</small></div>
+<div class="ins"><span class="pill e${etapa.id}">${etapa.nombre}</span><span class="pill cal r${m.rareza}">${rareza.emoji} ${rareza.nombre}</span></div></div>
+<div class="rasgo">✨ ${esc(esp.rasgo)}</div>
 <div class="est">${estado.emoji} ${estado.texto}<span>Ánimo ${felicidad(m)}%</span></div>
 <div class="crec"><div class="ct"><span>🌱 Crecimiento</span><span>${meta}</span></div><div class="bar g"><i style="width:${Math.round(prog.fraccion * 100)}%"></i></div></div>
 ${barra("🍖", "Comida", m.hambre)}${barra(m.dormido ? "😴" : "⚡", "Energía", m.energia)}${barra("🎾", "Diversión", m.diversion)}
@@ -108,6 +109,8 @@ small{color:#8a735d;font-size:11px}
 .pill{font-size:11px;font-weight:800;color:#fff;padding:3px 9px;border-radius:20px;background:#8d6e4f}
 .pill.ecria{background:#4fb3e8}.pill.ejoven{background:#8e6bd6}.pill.eadulto{background:#e0803a}
 .pill.cal{background:#fff0d6;color:#8a5a1d}
+.pill.rpoco_comun{background:#dff5e3;color:#25703a}.pill.rraro{background:#dcebff;color:#245a9c}.pill.repico{background:#ead9ff;color:#6a3fb0}.pill.rlegendario{background:#ffe9a8;color:#8a6200}
+.rasgo{margin:2px 12px 6px;font-size:11.5px;color:#8a735d}
 .est{display:flex;justify-content:space-between;gap:8px;margin:4px 12px 8px;padding:6px 10px;border-radius:12px;background:#fff4e2;font-weight:800}
 .est span{font-weight:600;color:#8a735d}
 .crec{margin:0 12px 6px}
