@@ -44,7 +44,7 @@ console.error = (...args) => {
 };
 
 let clientePromise = null;
-function obtenerCliente() {
+export function obtenerCliente() {
   if (!clientePromise) {
     clientePromise = (async () => {
       const { Innertube, Platform } = await import("youtubei.js");
