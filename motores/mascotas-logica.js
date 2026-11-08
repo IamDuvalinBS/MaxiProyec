@@ -1,5 +1,5 @@
 import {
-  ETAPAS, ESPECIES, RASGOS, RAREZAS, INCUBADORA, HUEVOS, JABON, BANO_DIVERSION, COMIDAS, CASAS, ACCESORIOS, ESPACIOS, DECAIMIENTO,
+  ETAPAS, ESPECIES, RASGOS, RAREZAS, INCUBADORA, HUEVOS, JABON, BANO_DIVERSION, FLAUTA, ARBOL, PREP_HORAS_BASE, PREP_MAX, PREP_PUNTOS, COMIDAS, CASAS, ACCESORIOS, ESPACIOS, DECAIMIENTO,
   CRECIMIENTO_POR_HORA, MAX_MASCOTAS, MAX_NOMBRE, PASO_MS, MAX_SIMULACION_MS, ESPERA_JUGAR_MS, LLUVIA_MINIMA_MM
 } from "./mascotas-datos.js";
 
@@ -39,6 +39,9 @@ export function normalizar(est) {
   for (const id of Object.keys(COMIDAS)) e.comida[id] = Number(e.comida[id]) || 0;
   for (const id of Object.keys(ACCESORIOS)) e.accesorios[id] = Number(e.accesorios[id]) || 0;
   e.jabon = Number(e.jabon) || 0;
+  e.flauta = Boolean(e.flauta);
+  if (!e.arbol || typeof e.arbol !== "object") e.arbol = {};
+  for (const id of Object.keys(ARBOL)) e.arbol[id] = Math.min(3, Math.max(0, Number(e.arbol[id]) || 0));
   if (!e.items || typeof e.items !== "object") e.items = {};
   for (const id of Object.keys(e.items)) if (!(Number(e.items[id]) > 0)) delete e.items[id];
   if (!Array.isArray(e.mascotas)) e.mascotas = [];
@@ -89,9 +92,24 @@ export const xpParaNivel = (n) => Math.ceil(1.2 * (n - 1) ** 2);
 
 export const explorando = (m, ahora) => Boolean(m.expedicion && ahora < m.expedicion.fin);
 
+export const ausente = (m, ahora) => explorando(m, ahora) || Boolean(m.perdida);
+
+export const prepActiva = (m, ahora) => (m.prep && ahora < m.prep.hasta ? m.prep.puntos : 0);
+
+export const nivelArbol = (est, rama) => est.arbol?.[rama] || 0;
+
+export const valorArbol = (est, rama) => {
+  const n = nivelArbol(est, rama);
+  return n ? ARBOL[rama].valores[n - 1] : 0;
+};
+
 export const comodidadDe = (m) => (m.casa ? CASAS.niveles[m.casa - 1]?.comodidad || 0 : 0);
 
 export function actualizarMascota(m, ahora, precipitacionEn = () => 0) {
+  if (m.perdida) {
+    m.ts = Math.max(m.ts || 0, ahora);
+    return m;
+  }
   let t = Math.max(m.ts || ahora, ahora - MAX_SIMULACION_MS);
   const calidad = multiplicadorCrecimiento(m);
   const rasgo = RASGOS[m.especie] || {};
@@ -172,7 +190,7 @@ export function mascotaPorNumero(est, numero) {
   return est.mascotas[numero - 1] || null;
 }
 
-export function alimentar(est, m, tipo) {
+export function alimentar(est, m, tipo, ahora = Date.now()) {
   if (m.dormido) return { ok: false, error: `${m.nombre} está durmiendo. Despiértalo antes de alimentarlo.` };
   if (m.hambre >= 90) return { ok: false, error: `${m.nombre} no tiene hambre en este momento.` };
   let id = tipo;
@@ -182,9 +200,15 @@ export function alimentar(est, m, tipo) {
   const comida = COMIDAS[id];
   est.comida[id] -= 1;
   const antes = m.hambre;
-  m.hambre = limitar(m.hambre + comida.hambre);
-  m.crec += comida.crecimiento * multiplicadorCrecimiento(m);
-  return { ok: true, comida, recuperado: Math.round(m.hambre - antes) };
+  m.hambre = limitar(m.hambre + comida.hambre * (1 + valorArbol(est, "bosque")));
+  m.crec += comida.crecimiento * multiplicadorCrecimiento(m) * (1 + valorArbol(est, "lago"));
+  const energia = valorArbol(est, "nieve");
+  const diversion = valorArbol(est, "encantado");
+  if (energia) m.energia = limitar(m.energia + energia);
+  if (diversion) m.diversion = limitar(m.diversion + diversion);
+  const horas = PREP_HORAS_BASE + valorArbol(est, "volcan");
+  m.prep = { puntos: Math.min(PREP_MAX, prepActiva(m, ahora) + PREP_PUNTOS[id]), hasta: ahora + horas * HORA_MS };
+  return { ok: true, comida, recuperado: Math.round(m.hambre - antes), energia, diversion, prep: m.prep.puntos, horas };
 }
 
 export function jugar(m, ahora) {
@@ -280,6 +304,7 @@ export function resolverArticulo(texto) {
     return { tipo: "comida", id, numero: n };
   }
   if (/jabon/.test(t)) return { tipo: "jabon", numero: n };
+  if (/flauta/.test(t)) return { tipo: "flauta", numero: n };
   if (/casa|caseta|mansion/.test(t)) return { tipo: "casa", numero: n };
   const accesorio = Object.keys(ACCESORIOS).find((id) => coincideAccesorio(id, t));
   if (accesorio) return { tipo: "accesorio", id: accesorio, numero: n };
@@ -296,6 +321,7 @@ export function precioDe(articulo, cantidad = 1) {
   if (articulo.tipo === "huevo") return HUEVOS[articulo.id].precio * cantidad;
   if (articulo.tipo === "comida") return COMIDAS[articulo.id].precio * cantidad;
   if (articulo.tipo === "jabon") return JABON.precio * cantidad;
+  if (articulo.tipo === "flauta") return FLAUTA.precio;
   if (articulo.tipo === "casa") return CASAS.precio;
   if (articulo.tipo === "accesorio") return ACCESORIOS[articulo.id].precio * cantidad;
   return 0;

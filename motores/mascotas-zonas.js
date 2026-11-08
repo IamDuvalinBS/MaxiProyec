@@ -9,36 +9,42 @@ export const ZONAS = {
   bosque: {
     id: "bosque", nombre: "Bosque tranquilo", emoji: "🌳", lugar: "Valle del Cocora, Colombia",
     lat: 4.6381, lon: -75.5712, nivel: 15, minutos: 10, dificultad: "Fácil",
+    riesgo: 0.02,
     pesos: { comun: 70, poco_comun: 25, raro: 5 },
     favoritas: ["perro", "gato"], clima: "Ideal para comenzar a explorar."
   },
   nieve: {
     id: "nieve", nombre: "Montañas nevadas", emoji: "🏔️", lugar: "Longyearbyen, Svalbard (Noruega)",
     lat: 78.2232, lon: 15.6267, nivel: 18, minutos: 20, dificultad: "Fácil-media",
+    riesgo: 0.05,
     pesos: { comun: 50, poco_comun: 38, raro: 11, epico: 1 },
     favoritas: ["pinguino"], clima: "Un lugar donde casi siempre hace frío y nieva."
   },
   lago: {
     id: "lago", nombre: "Lago cristalino", emoji: "🏞️", lugar: "Lago Titicaca, Perú",
     lat: -15.8402, lon: -70.0219, nivel: 21, minutos: 30, dificultad: "Media",
+    riesgo: 0.07,
     pesos: { comun: 38, poco_comun: 42, raro: 17, epico: 3 },
     favoritas: ["ajolote"], clima: "El ajolote se mueve como pez en el agua."
   },
   encantado: {
     id: "encantado", nombre: "Bosque encantado", emoji: "🍄", lugar: "Monteverde, Costa Rica",
     lat: 10.3, lon: -84.8167, nivel: 25, minutos: 45, dificultad: "Media-alta",
+    riesgo: 0.1,
     pesos: { comun: 25, poco_comun: 40, raro: 28, epico: 7 },
     favoritas: ["zorro"], clima: "Niebla, hongos brillantes y mucha magia."
   },
   volcan: {
     id: "volcan", nombre: "Valle volcánico", emoji: "🌋", lugar: "Volcán Kīlauea, Hawái",
     lat: 19.4194, lon: -155.2885, nivel: 30, minutos: 60, dificultad: "Alta",
+    riesgo: 0.14,
     pesos: { comun: 15, poco_comun: 30, raro: 38, epico: 15, legendario: 2 },
     favoritas: ["dragon"], clima: "Calor, ceniza y minerales raros."
   },
   islas: {
     id: "islas", nombre: "Islas celestiales", emoji: "☁️", lugar: "Cima del Monte Fuji, Japón",
     lat: 35.3606, lon: 138.7274, nivel: 35, minutos: 90, dificultad: "Muy alta",
+    riesgo: 0.18,
     pesos: { poco_comun: 20, raro: 38, epico: 35, legendario: 7 },
     favoritas: ["dragon", "zorro"], clima: "Por encima de las nubes, donde casi nadie llega."
   }

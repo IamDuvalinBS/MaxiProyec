@@ -1,8 +1,8 @@
-import { ESPECIES, RAREZAS, HUEVOS, COMIDAS, CASAS, ACCESORIOS, ESPACIOS, JABON, HABILIDADES, NIVEL_HABILIDAD } from "./mascotas-datos.js";
+import { ESPECIES, RAREZAS, HUEVOS, COMIDAS, CASAS, ACCESORIOS, ESPACIOS, JABON, FLAUTA, ARBOL, PERDIDA_HORAS, HABILIDADES, NIVEL_HABILIDAD } from "./mascotas-datos.js";
 import { svgEscena } from "./mascotas-arte.js";
 import { svgEscenaZona } from "./mascotas-zonas-arte.js";
 import { ZONAS, ITEMS, ORDEN_RAREZA } from "./mascotas-zonas.js";
-import { etapaDe, progresoEtapa, estadoActual, felicidad, estadoIncubadora, nivelDe } from "./mascotas-logica.js";
+import { etapaDe, progresoEtapa, estadoActual, felicidad, estadoIncubadora, nivelDe, prepActiva } from "./mascotas-logica.js";
 
 const esc = (t) => String(t ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
@@ -44,16 +44,23 @@ function tarjetaMascota(m, i, ctx) {
   const ex = m.expedicion;
   const activa = Boolean(ex && ctx.ahora < ex.fin);
   const zonaEx = ex ? ZONAS[ex.zona] : null;
-  const estado = activa
-    ? { clave: "explorando", texto: "Investigando la zona", emoji: "🔍" }
-    : estadoActual(m, ctx.llueve);
+  const zonaPerdida = m.perdida ? ZONAS[m.perdida.resultado.zona] : null;
+  const estado = zonaPerdida
+    ? { clave: "perdida", texto: "Se perdió", emoji: "🌫️" }
+    : activa
+      ? { clave: "explorando", texto: "Investigando la zona", emoji: "🔍" }
+      : estadoActual(m, ctx.llueve);
   const etapa = etapaDe(m.crec);
   const prog = progresoEtapa(m.crec);
   const esp = ESPECIES[m.especie];
   const rareza = RAREZAS[m.rareza] || RAREZAS.comun;
   const casa = m.casa ? CASAS.niveles[m.casa - 1] : null;
   const climaEx = activa ? ctx.climaZonas?.[ex.zona] : null;
-  const escena = activa ? svgEscenaZona({
+  const escenaPerdida = zonaPerdida
+    ? svgEscenaZona({ zona: zonaPerdida.id, clima: ctx.climaZonas?.[zonaPerdida.id], uid: `p${m.id}`, conMascota: false })
+      .replace("</svg>", `<text x="160" y="150" text-anchor="middle" font-size="70" opacity=".9">❓</text></svg>`)
+    : null;
+  const escena = escenaPerdida || (activa ? svgEscenaZona({
     zona: ex.zona,
     clima: climaEx,
     especie: m.especie,
@@ -72,14 +79,18 @@ function tarjetaMascota(m, i, ctx) {
     llueve: ctx.llueve,
     noche: ctx.noche,
     uid: `p${m.id}`
-  });
+  }));
   const prendas = ESPACIOS.map((e) => ACCESORIOS[m.equipo[e]]).filter(Boolean)
     .map((a) => `<span class="chip">${a.emoji} ${esc(a.nombre)}</span>`).join("") || `<span class="chip vacio">Sin accesorios</span>`;
-  const banner = activa
+  const prep = prepActiva(m, ctx.ahora);
+  const bannerPerdida = zonaPerdida
+    ? `<div class="exp perdida">🌫️ ${esc(m.nombre)} se perdió volviendo de ${zonaPerdida.emoji} ${esc(zonaPerdida.nombre)}. Volverá sola en ${duracion(Math.max(0, m.perdida.vuelve - ctx.ahora))} o llámala ahora con <b>.petllamar</b> ${ctx.flauta ? "🎶" : "(necesitas la flauta mágica)"}.</div>`
+    : "";
+  const banner = bannerPerdida || (activa
     ? `<div class="exp"><div class="ct"><span>🔍 ${zonaEx.emoji} ${esc(zonaEx.nombre)}</span><span>Vuelve en ${duracion(ex.fin - ctx.ahora)}</span></div><div class="bar g"><i style="width:${Math.round(Math.min(1, (ctx.ahora - ex.inicio) / (ex.fin - ex.inicio)) * 100)}%"></i></div><small>${esc(zonaEx.lugar)} · ${textoClimaZona(climaEx)}</small></div>`
     : ex
       ? `<div class="exp listo">✅ ¡${esc(m.nombre)} volvió de ${zonaEx.emoji} ${esc(zonaEx.nombre)}! Usa <b>.petreclamar</b> para recibir lo que encontró.</div>`
-      : "";
+      : "");
   const meta = prog.siguiente
     ? `Hacia ${esc(prog.siguiente.nombre)}: ${Math.round(prog.fraccion * 100)}%`
     : "Crecimiento completo";
@@ -91,8 +102,8 @@ function tarjetaMascota(m, i, ctx) {
 ${banner}<div class="est">${estado.emoji} ${estado.texto}<span>Ánimo ${felicidad(m)}%</span></div>
 <div class="crec"><div class="ct"><span>🌱 Crecimiento</span><span>${meta}</span></div><div class="bar g"><i style="width:${Math.round(prog.fraccion * 100)}%"></i></div></div>
 ${barra("🍖", "Comida", m.hambre)}${barra(m.dormido ? "😴" : "⚡", "Energía", m.energia)}${barra("🎾", "Diversión", m.diversion)}${barra("🫧", "Limpieza", m.limpieza)}
-<div class="chips"><span class="chip casa">${casa ? `🏠 ${esc(casa.nombre)}` : "🏚️ Sin casa"}</span>${prendas}</div>
-<div class="cmds">${activa ? "Está explorando; no puede jugar, comer ni dormir hasta que vuelva." : `Usa <b>.petalimentar ${i + 1}</b> · <b>.petjugar ${i + 1}</b> · <b>.petbañar ${i + 1}</b> · <b>.${m.dormido ? "petdespertar" : "petdormir"} ${i + 1}</b> · <b>.petinvestigar</b>`}</div>
+<div class="chips">${prep ? `<span class="chip prep">🛡️ Preparado ×${prep}</span>` : ""}<span class="chip casa">${casa ? `🏠 ${esc(casa.nombre)}` : "🏚️ Sin casa"}</span>${prendas}</div>
+<div class="cmds">${zonaPerdida ? "Está perdida; no puede hacer nada hasta que regrese." : activa ? "Está explorando; no puede jugar, comer ni dormir hasta que vuelva." : `Usa <b>.petalimentar ${i + 1}</b> · <b>.petjugar ${i + 1}</b> · <b>.petbañar ${i + 1}</b> · <b>.${m.dormido ? "petdespertar" : "petdormir"} ${i + 1}</b> · <b>.petinvestigar</b>`}</div>
 </section>`;
 }
 
@@ -112,7 +123,8 @@ function bloqueInventario(est) {
   const comida = Object.entries(COMIDAS).filter(([k]) => est.comida[k] > 0).map(([k, c]) => `<span class="chip">${c.emoji} ${est.comida[k]}</span>`);
   const prendas = Object.entries(ACCESORIOS).filter(([k]) => est.accesorios[k] > 0).map(([k, a]) => `<span class="chip">${a.emoji} ${est.accesorios[k]}</span>`);
   const jabon = est.jabon > 0 ? [`<span class="chip">${JABON.emoji} ${est.jabon}</span>`] : [];
-  const todo = [...huevos, ...comida, ...jabon, ...prendas];
+  const flauta = est.flauta ? [`<span class="chip">${FLAUTA.emoji} Flauta mágica</span>`] : [];
+  const todo = [...huevos, ...comida, ...jabon, ...flauta, ...prendas];
   return `<div class="caja"><div class="ct2">🎒 Mochila</div><div class="chips">${todo.join("") || `<span class="chip vacio">Vacía</span>`}</div></div>`;
 }
 
@@ -150,6 +162,13 @@ small{color:#8a735d;font-size:11px}
 .pill.nv{background:#2f6fb8}
 .exp{margin:2px 12px 8px;padding:8px 10px;border-radius:12px;background:#e8f4ff;color:#2f5f8f;font-size:12px}
 .exp.listo{background:#e4f7e8;color:#25703a;line-height:1.5}
+.exp.perdida{background:#fff0d9;color:#8a5a1d;line-height:1.5}
+.chip.prep{background:#e4f7e8;color:#25703a}
+.rama{background:#fff;border-radius:16px;padding:10px 12px;margin-bottom:8px;box-shadow:0 2px 8px rgba(90,60,20,.14)}
+.rama .rh{display:flex;justify-content:space-between;align-items:center;gap:8px;font-weight:800}
+.rama .ef{margin:4px 0;font-size:12px;color:#6a4a2b}
+.rama .mats{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+.arbolsvg{display:block;width:100%;height:auto;background:#fff;border-radius:18px;box-shadow:0 3px 10px rgba(90,60,20,.16);margin-bottom:10px}
 .exp small{display:block;margin-top:5px;color:#4a7aa8}
 .zc{background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 3px 10px rgba(90,60,20,.16);margin-bottom:10px;padding-bottom:10px}
 .zc .nombre{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 12px 0}
@@ -193,7 +212,7 @@ var r=w.getBoundingClientRect(),h=document.createElement('span');h.className='fl
 ir(Math.min(pets.length-1,Math.max(0,__INICIAL__)))})();`;
 
 export function htmlMascotas({ nombre, est, ahora, clima, noche, inicial = 0, firma, climaZonas = null }) {
-  const ctx = { llueve: clima.llueve, noche, ahora, climaZonas };
+  const ctx = { llueve: clima.llueve, noche, ahora, climaZonas, flauta: est.flauta };
   const tarjetas = est.mascotas.map((m, i) => tarjetaMascota(m, i, ctx)).join("");
   const tabs = est.mascotas.length > 1
     ? `<div class="tabs">${est.mascotas.map((m, i) => `<button class="tab">${ESPECIES[m.especie].emoji} ${esc(m.nombre)}</button>`).join("")}</div>`
@@ -232,5 +251,48 @@ export function htmlZonas({ nombre, est, ahora, climaZonas, firma }) {
 <div class="top"><b>🗺️ Zonas de ${esc(nombre)}</b><span class="clima">Clima real en vivo</span></div>
 ${tarjetas}
 <div class="caja"><div class="ct2">🔍 Cómo investigar</div><div class="nota">Usa <b>.petinvestigar &lt;zona&gt; [tiempo] [mascota]</b>. Mientras más tiempo busque, más ítems encontrará. Ejemplo: <b>.petinvestigar bosque 2h 1</b></div></div>
+<div class="pie">${esc(firma)}</div></body></html>`;
+}
+
+const COLORES_NIVEL = ["#d9d9d9", "#cd8f5a", "#c3cad6", "#ffd34d"];
+
+function svgArbol(est) {
+  const nodos = { bosque: [62, 52], nieve: [160, 34], lago: [258, 52], encantado: [62, 142], volcan: [160, 126], islas: [258, 142] };
+  let s = `<svg viewBox="0 0 320 250" xmlns="http://www.w3.org/2000/svg" class="arbolsvg" role="img">`
+    + `<defs><linearGradient id="fa" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e9f9ff"/><stop offset="1" stop-color="#fff4dd"/></linearGradient></defs>`
+    + `<rect width="320" height="250" fill="url(#fa)"/>`
+    + `<ellipse cx="160" cy="100" rx="150" ry="92" fill="#a9dd95" opacity=".8"/><ellipse cx="160" cy="110" rx="122" ry="72" fill="#8fd27f" opacity=".7"/>`
+    + `<path d="M150 246L154 190Q158 176 160 160Q162 176 166 190L170 246Z" fill="#8a5a36"/>`
+    + `<g stroke="#8a5a36" stroke-width="5" fill="none" stroke-linecap="round">`;
+  for (const [x, y] of Object.values(nodos)) s += `<path d="M160 180Q${(160 + x) / 2} ${(180 + y) / 2 + 10} ${x} ${y + 20}"/>`;
+  s += `</g>`;
+  for (const [id, [x, y]] of Object.entries(nodos)) {
+    const n = est.arbol[id];
+    s += `<g><circle cx="${x}" cy="${y}" r="26" fill="${COLORES_NIVEL[n]}" stroke="#00000033" stroke-width="2"/>`
+      + (n ? `<circle cx="${x}" cy="${y}" r="31" fill="none" stroke="${COLORES_NIVEL[n]}" stroke-width="2" opacity=".6"><animate attributeName="r" values="29;34;29" dur="3s" repeatCount="indefinite"/></circle>` : "")
+      + `<text x="${x}" y="${y + 8}" text-anchor="middle" font-size="24" opacity="${n ? 1 : 0.5}">${ARBOL[id].emoji}</text>`
+      + `<text x="${x}" y="${y + 43}" text-anchor="middle" font-size="11" font-weight="800" fill="#4a3320" font-family="system-ui,sans-serif">${"●".repeat(n)}${"○".repeat(3 - n)}</text></g>`;
+  }
+  return s + `</svg>`;
+}
+
+export function htmlArbol({ nombre, est, firma }) {
+  const ramas = Object.entries(ARBOL).map(([id, r]) => {
+    const n = est.arbol[id];
+    const coste = n < 3 ? r.niveles[n] : null;
+    const mats = coste
+      ? Object.entries(coste.items).map(([item, cant]) => {
+        const tiene = est.items[item] || 0;
+        return `<span class="chip ${tiene >= cant ? "ok" : "no"}">${ITEMS[item].emoji} ${esc(ITEMS[item].nombre)} ${tiene}/${cant}</span>`;
+      }).join("") + `<span class="chip">💸 ${coste.monedas.toLocaleString("es-CO")} ¥</span>`
+      : `<span class="chip ok">✅ Nivel máximo</span>`;
+    return `<div class="rama"><div class="rh"><span>${r.emoji} ${esc(r.nombre)}</span><span>Nv ${n}/3</span></div>
+<div class="ef">${n ? `✨ ${esc(r.formato(r.valores[n - 1]))}` : esc(r.efecto)}${n < 3 ? `<br><small>Siguiente: ${esc(r.formato(r.valores[n]))}</small>` : ""}</div>
+<div class="mats">${mats}</div>${coste ? `<div class="ef"><small>Mejórala con <b>.petarbolmejorar ${id}</b></small></div>` : ""}</div>`;
+  }).join("");
+  return `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>${CSS}</style></head><body>
+<div class="top"><b>🌳 Árbol de comida de ${esc(nombre)}</b></div>
+${svgArbol(est)}${ramas}
+<div class="caja"><div class="ct2">🍖 Cómo funciona</div><div class="ef">Los materiales salen de las expediciones. Cada rama mejora la comida de forma permanente. Alimentar a una mascota también la <b>prepara</b>: reduce el riesgo de perderse al investigar.</div></div>
 <div class="pie">${esc(firma)}</div></body></html>`;
 }

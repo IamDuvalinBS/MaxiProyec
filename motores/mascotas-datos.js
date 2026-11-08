@@ -111,3 +111,68 @@ export const HABILIDADES = {
   ajolote: { nombre: "Regeneración", texto: "Recupera 25 de energía al volver de una expedición" },
   dragon: { nombre: "Tesoro del dragón", texto: "+15% extra de monedas por expedición" }
 };
+
+export const FLAUTA = { nombre: "Flauta mágica", emoji: "🎶", precio: 250000 };
+
+export const PERDIDA_HORAS = 12;
+export const PREP_HORAS_BASE = 3;
+export const PREP_MAX = 8;
+export const PREP_PUNTOS = { basica: 1, premium: 2, gourmet: 4 };
+export const RIESGO_ESPECIE = { perro: 0.85, gato: 1.15, zorro: 0.75, pinguino: 1, ajolote: 1, dragon: 0.8 };
+
+export const ARBOL = {
+  bosque: {
+    nombre: "Despensa del bosque", emoji: "🌳", efecto: "La comida recupera más hambre",
+    valores: [0.1, 0.2, 0.3], formato: (v) => `+${Math.round(v * 100)}% de comida recuperada`,
+    niveles: [
+      { items: { rama_seca: 4, pina_seca: 4 }, monedas: 15000 },
+      { items: { hongo_silvestre: 3, panal_miel: 2 }, monedas: 60000 },
+      { items: { nido_antiguo: 1, panal_miel: 3 }, monedas: 200000 }
+    ]
+  },
+  nieve: {
+    nombre: "Conservas heladas", emoji: "🏔️", efecto: "La comida también da energía",
+    valores: [5, 10, 15], formato: (v) => `+${v} de energía al alimentar`,
+    niveles: [
+      { items: { piedra_escarchada: 4, ramita_congelada: 4 }, monedas: 25000 },
+      { items: { cristal_hielo: 3, copo_eterno: 2 }, monedas: 90000 },
+      { items: { pico_escalador: 2, copo_eterno: 4 }, monedas: 300000 }
+    ]
+  },
+  lago: {
+    nombre: "Pesca fresca", emoji: "🏞️", efecto: "La comida hace crecer más",
+    valores: [0.2, 0.4, 0.6], formato: (v) => `+${Math.round(v * 100)}% de crecimiento por comida`,
+    niveles: [
+      { items: { alga_brillante: 4, concha: 4 }, monedas: 30000 },
+      { items: { caracola: 3, botella_mensaje: 2 }, monedas: 110000 },
+      { items: { perla: 2, caracola: 3 }, monedas: 350000 }
+    ]
+  },
+  encantado: {
+    nombre: "Hongos mágicos", emoji: "🍄", efecto: "La comida también da diversión",
+    valores: [5, 10, 15], formato: (v) => `+${v} de diversión al alimentar`,
+    niveles: [
+      { items: { luciernaga: 4, hoja_plateada: 2 }, monedas: 40000 },
+      { items: { hongo_luminoso: 3, hoja_plateada: 3 }, monedas: 140000 },
+      { items: { esencia_verde: 2, polvo_hada: 2 }, monedas: 450000 }
+    ]
+  },
+  volcan: {
+    nombre: "Brasas eternas", emoji: "🌋", efecto: "La preparación dura más tiempo",
+    valores: [1, 2, 3], formato: (v) => `+${v} h de duración de la preparación`,
+    niveles: [
+      { items: { carbon_ardiente: 5, ceniza_volcanica: 4 }, monedas: 50000 },
+      { items: { mineral_rojizo: 4, obsidiana: 1 }, monedas: 180000 },
+      { items: { obsidiana: 4, mineral_rojizo: 6 }, monedas: 600000 }
+    ]
+  },
+  islas: {
+    nombre: "Ambrosía celestial", emoji: "☁️", efecto: "Menos riesgo de perderse",
+    valores: [0.15, 0.3, 0.45], formato: (v) => `-${Math.round(v * 100)}% de riesgo de perderse`,
+    niveles: [
+      { items: { pluma_nube: 3, fragmento_celestial: 1 }, monedas: 100000 },
+      { items: { pluma_nube: 5, rayo_cautivo: 2 }, monedas: 300000 },
+      { items: { fragmento_celestial: 3, polvo_estelar: 1, rayo_cautivo: 2 }, monedas: 900000 }
+    ]
+  }
+};
