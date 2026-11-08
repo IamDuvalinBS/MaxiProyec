@@ -4,6 +4,7 @@ import { fileURLToPath, pathToFileURL } from "url";
 import { connectDB, commandRegistry, simularEscritura, delayAleatorio, comandoEstaBaneado } from "../../core.js";
 import { soloAdminsActivo, botApagado } from "../grupos/estado.js";
 import { esAdminOOwner, ajustarMenciones } from "../grupos/nucleo.js";
+import { bloqueadoDelBot } from "../grupos/moderacion.js";
 import { enviarConCache, reenviarCacheado, guardarRelay, registrarMedio, claveDeDescarga } from "../../motores/cache-medios.js";
 import { contarComando, contarComandoGrupo } from "../../motores/estadisticas.js";
 import { antesDeComando, despuesDeComando, COMANDOS_LOGROS } from "../economia/logros.js";
@@ -111,6 +112,8 @@ async function ejecutarComando(sock, from, sender, text, msg) {
   const comando = cleanText.toLowerCase().split(/\s+/)[0];
   const handler = comandos.get(comando);
   if (!handler) return false;
+
+  if (await bloqueadoDelBot(sock, msg, from, sender)) return true;
 
   if (from.endsWith("@g.us") && !msg.key.fromMe && botApagado(from) && (comando !== ".mambo" || !(await esAdminOOwner(sock, from, sender)))) return true;
 
