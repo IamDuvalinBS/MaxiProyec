@@ -24,7 +24,8 @@ import { iniciarAvisosRacha } from "./src/economia/avisos.js";
 import { enlazarSalidaAfk } from "./src/economia/afk-auto.js";
 import { idDeRespuestaInteractiva } from "./motores/respuestas-botones.js";
 import { manejarParticipantes } from "./src/eventos/participantes.js";
-import { antilinkActivo, botApagado, ajustesDe, cargarGruposMongo } from "./src/grupos/estado.js";
+import { antilinkActivo, botApagado, ajustesDe, cargarGruposMongo, prefijosDeGrupo } from "./src/grupos/estado.js";
+import { borrarSiSilenciado, bloqueadoDelBot } from "./src/grupos/moderacion.js";
 import { eliminarEnlace } from "./src/grupos/enlaces.js";
 import { cargarAjustesBot, ajusteBot } from "./motores/ajustes-bot.js";
 import { olvidarMetadatos } from "./src/grupos/nucleo.js";
@@ -375,6 +376,8 @@ function enlazarEventos(sock, esSub) {
     if (!msg.key.fromMe && m.type === "notify" && msg.pushName) recordarNombre(sender, msg.pushName);
     if (esMensajeDePersona(msg, m.type)) contarMensajeGrupo(msg.key.remoteJid, sender);
 
+    if (from.endsWith("@g.us") && !msg.key.fromMe && m.type === "notify" && (await borrarSiSilenciado(sock, msg, from, sender))) return;
+
     const idBotonPulsado =
       msg.message.buttonsResponseMessage?.selectedButtonId ||
       msg.message.templateButtonReplyMessage?.selectedId ||
@@ -408,12 +411,18 @@ function enlazarEventos(sock, esSub) {
         .catch(() => {});
     }
 
-    const prefijosConfigurados = (config.prefixes && config.prefixes.length)
+    const prefijosGlobales = (config.prefixes && config.prefixes.length)
       ? config.prefixes
       : [config.prefix || "."];
-    const prefijoUsado = [...prefijosConfigurados]
-      .sort((a, b) => b.length - a.length)
-      .find((p) => text.startsWith(p));
+    // Un grupo puede tener prefijos propios (.setgprefix); si los tiene, reemplazan a los generales en ese grupo.
+    const prefijosGrupo = from.endsWith("@g.us") ? prefijosDeGrupo(from) : null;
+    const buscarPrefijo = (lista) => [...lista].sort((a, b) => b.length - a.length).find((p) => text.startsWith(p));
+    let prefijoUsado = buscarPrefijo(prefijosGrupo || prefijosGlobales);
+    // Salvavidas: los comandos de prefijos del grupo siempre responden a un prefijo general, por si se olvida el propio.
+    if (!prefijoUsado && prefijosGrupo) {
+      const general = buscarPrefijo(prefijosGlobales);
+      if (general && /^\s*(gprefix|setgprefix|addgprefix|delgprefix|resetgprefix)(\s|$)/i.test(text.slice(general.length))) prefijoUsado = general;
+    }
 
     const esMambo = Boolean(prefijoUsado) && /^\s*mambo\s+(on|off)\s*$/i.test(text.slice(prefijoUsado.length));
     if (apagadoAqui && !esMambo) return;
@@ -428,6 +437,7 @@ function enlazarEventos(sock, esSub) {
         : "." + resto;
       await manejarComando(sock, from, sender, textoTraducido, msg);
     } else if (!apagadoAqui) {
+      if (await bloqueadoDelBot(sock, msg, from, sender, false)) return;
       const clave = `${from}:${sender}`;
       if (await procesarEspera(clave, text, { sock, from, sender, msg })) return;
 
