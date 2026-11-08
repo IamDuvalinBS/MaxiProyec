@@ -1,5 +1,5 @@
 import { jidDe, idsDe, normalizarParticipante, olvidarMetadatos } from "../grupos/nucleo.js";
-import { ajustesDe } from "../grupos/estado.js";
+import { ajustesDe, usuarioEnLista } from "../grupos/estado.js";
 import { enviarBienvenida } from "./welcome.js";
 import { enviarDespedida } from "./goodbye.js";
 
@@ -13,6 +13,23 @@ export async function manejarParticipantes(sock, update) {
   const esIngreso = update.action === "add";
   const esSalida = ACCIONES_SALIDA.has(update.action);
   if (!esIngreso && !esSalida) return;
+
+  // Usuarios vetados con .vetar: si vuelven a entrar, se les saca otra vez (requiere que el bot sea admin).
+  if (esIngreso && ajustesDe(grupo).vetados) {
+    const vetados = (update.participants || [])
+      .map((crudo) => normalizarParticipante(crudo))
+      .filter((p) => p && idsDe(p).some((id) => usuarioEnLista(grupo, "vetados", id)))
+      .map((p) => p.id || jidDe(p));
+    if (vetados.length) {
+      try {
+        await sock.groupParticipantsUpdate(grupo, vetados, "remove");
+        olvidarMetadatos(grupo);
+        return;
+      } catch (e) {
+        console.log(`No se pudo sacar a un vetado de ${grupo}: ${e.message}`);
+      }
+    }
+  }
 
   const ajustes = ajustesDe(grupo);
   console.log(`Evento de grupo ${update.action} en ${grupo}: ${(update.participants || []).length} participante(s)`);
