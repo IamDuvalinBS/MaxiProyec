@@ -117,3 +117,45 @@ export function soloAdminsActivo(grupo) {
 export function botApagado(grupo) {
   return Boolean(grupos[grupo]?.apagado);
 }
+
+// Prefijos propios de un grupo (si no hay, el grupo usa los globales del owner).
+export function prefijosDeGrupo(grupo) {
+  const lista = grupos[grupo]?.prefijos;
+  return Array.isArray(lista) && lista.length ? lista : null;
+}
+
+export function definirPrefijosDeGrupo(grupo, lista) {
+  definirAjuste(grupo, "prefijos", lista && lista.length ? lista : false);
+}
+
+// Listas de usuarios por grupo: "silenciados" (.ban) y "sinBot" (.banbot).
+// Cada entrada guarda todos los ids conocidos del usuario (número y LID) para que coincida venga como venga el mensaje.
+const soloNumero = (jid) => String(jid || "").split("@")[0].split(":")[0];
+
+export function listaDeGrupo(grupo, clave) {
+  const lista = grupos[grupo]?.[clave];
+  return Array.isArray(lista) ? lista : [];
+}
+
+export function usuarioEnLista(grupo, clave, jid) {
+  const lista = grupos[grupo]?.[clave];
+  if (!Array.isArray(lista) || !lista.length || !jid) return false;
+  const numero = soloNumero(jid);
+  return lista.some((e) => e.ids.includes(numero));
+}
+
+export function agregarALista(grupo, clave, ids, por) {
+  const numeros = [...new Set(ids.map(soloNumero).filter(Boolean))];
+  const lista = listaDeGrupo(grupo, clave).filter((e) => !e.ids.some((i) => numeros.includes(i)));
+  lista.push({ ids: numeros, por: soloNumero(por), fecha: Date.now() });
+  definirAjuste(grupo, clave, lista);
+}
+
+export function quitarDeLista(grupo, clave, ids) {
+  const numeros = ids.map(soloNumero).filter(Boolean);
+  const actual = listaDeGrupo(grupo, clave);
+  const nueva = actual.filter((e) => !e.ids.some((i) => numeros.includes(i)));
+  if (nueva.length === actual.length) return false;
+  definirAjuste(grupo, clave, nueva.length ? nueva : false);
+  return true;
+}
