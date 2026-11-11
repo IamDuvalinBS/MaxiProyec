@@ -5,13 +5,17 @@ import {
   esStickerAnimado,
   MAX_SEGUNDOS_STICKER
 } from "../../nucleo/sticker.js";
+import { subcomandoS } from "../../nucleo/sticker-acciones.js";
 
 export default {
   names: [".s", ".sticker"],
-  desc: "Convierte una imagen, GIF o video (citado) en sticker",
+  desc: "Convierte una imagen, GIF o video (citado) en sticker. Admins: .s cerrar / .s abrir registran stickers de acción",
   category: "Stickers",
-  usage: ".s (respondiendo a una imagen, GIF o video)",
-  handler: async ({ msg, sender, from, sock, reply }) => {
+  usage: ".s (respondiendo a una imagen, GIF o video) | .s ayuda",
+  handler: async ({ msg, sender, from, sock, reply, cleanText }) => {
+    // .s cerrar / abrir / lista / eliminar / ayuda → stickers de acción (si no es ninguno, sigue el .s normal)
+    if (await subcomandoS({ sock, from, sender, cleanText, msg, reply })) return;
+
     let media = null;
     try {
       media = await extraerMediaDeMensaje(msg);
