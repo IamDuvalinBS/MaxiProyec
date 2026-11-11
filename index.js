@@ -24,10 +24,8 @@ import { iniciarAvisosRacha } from "./src/economia/avisos.js";
 import { enlazarSalidaAfk } from "./src/economia/afk-auto.js";
 import { idDeRespuestaInteractiva } from "./motores/respuestas-botones.js";
 import { manejarParticipantes } from "./src/eventos/participantes.js";
-import { antilinkActivo, botApagado, ajustesDe, cargarGruposMongo, prefijosDeGrupo } from "./src/grupos/estado.js";
-import { borrarSiSilenciado, bloqueadoDelBot } from "./src/grupos/moderacion.js";
+import { antilinkActivo, botApagado, ajustesDe, cargarGruposMongo } from "./src/grupos/estado.js";
 import { eliminarEnlace } from "./src/grupos/enlaces.js";
-import { cargarAjustesBot, ajusteBot } from "./motores/ajustes-bot.js";
 import { olvidarMetadatos } from "./src/grupos/nucleo.js";
 import { recordarNombre } from "./motores/profile.js";
 import { saltarAtrasoViejo } from "./motores/saltar-atraso.js";
@@ -35,6 +33,7 @@ import { esMensajeDePersona, contarMensajeGrupo } from "./motores/estadisticas.j
 import { normalizarMensaje, aprenderTodosLosGrupos } from "./src/nucleo/identidad.js";
 import { iniciarChatPagina } from "./src/nucleo/chatpagina.js";
 import { pasesParaPagina, pasesReclamados, alReclamarPase } from "./motores/gacha-pases.js";
+import { ejecutarStickerAccion } from "./src/nucleo/sticker-acciones.js";
 
 // Calla el spam de libsignal (imprime sesiones completas con console.error/info/warn/log directo;
 // el logger de Baileys no lo controla y en Termux frena todo el bot).
@@ -207,7 +206,7 @@ function sincronizarCuenta(uid) {
   const acc = getAllAccounts().get(v.jid) || {}, pr = acc.profile || {};
   const datos = {
     wallet: Math.floor(acc.wallet || 0), bank: Math.floor(acc.bank || 0),
-    nivel: pr.level || 1, xp: pr.xp || 0, nombre: String(pr.name || "").slice(0, 30), moneda: ajusteBot("moneda", "principal") || CURRENCY,
+    nivel: pr.level || 1, xp: pr.xp || 0, nombre: String(pr.name || "").slice(0, 30), moneda: CURRENCY,
     pases: pasesReclamados(v.jid)
   };
   const firma = JSON.stringify(datos);
@@ -376,8 +375,6 @@ function enlazarEventos(sock, esSub) {
     if (!msg.key.fromMe && m.type === "notify" && msg.pushName) recordarNombre(sender, msg.pushName);
     if (esMensajeDePersona(msg, m.type)) contarMensajeGrupo(msg.key.remoteJid, sender);
 
-    if (from.endsWith("@g.us") && !msg.key.fromMe && m.type === "notify" && (await borrarSiSilenciado(sock, msg, from, sender))) return;
-
     const idBotonPulsado =
       msg.message.buttonsResponseMessage?.selectedButtonId ||
       msg.message.templateButtonReplyMessage?.selectedId ||
@@ -404,6 +401,11 @@ function enlazarEventos(sock, esSub) {
 
     const apagadoAqui = from.endsWith("@g.us") && !msg.key.fromMe && botApagado(from);
 
+    // Stickers de acción (.s cerrar / .s abrir): si un admin envía un sticker registrado, se ejecuta solo.
+    if (!apagadoAqui && m.type === "notify" && cont.stickerMessage && from.endsWith("@g.us")) {
+      if (await ejecutarStickerAccion({ sock, from, sender, msg, sticker: cont.stickerMessage })) return;
+    }
+
     if (!msg.key.fromMe && !apagadoAqui) {
       sock.sendPresenceUpdate("composing", from)
         .then(() => new Promise(r => setTimeout(r, 1500 + Math.floor(Math.random() * 1000))))
@@ -411,18 +413,12 @@ function enlazarEventos(sock, esSub) {
         .catch(() => {});
     }
 
-    const prefijosGlobales = (config.prefixes && config.prefixes.length)
+    const prefijosConfigurados = (config.prefixes && config.prefixes.length)
       ? config.prefixes
       : [config.prefix || "."];
-    // Un grupo puede tener prefijos propios (.setgprefix); si los tiene, reemplazan a los generales en ese grupo.
-    const prefijosGrupo = from.endsWith("@g.us") ? prefijosDeGrupo(from) : null;
-    const buscarPrefijo = (lista) => [...lista].sort((a, b) => b.length - a.length).find((p) => text.startsWith(p));
-    let prefijoUsado = buscarPrefijo(prefijosGrupo || prefijosGlobales);
-    // Salvavidas: los comandos de prefijos del grupo siempre responden a un prefijo general, por si se olvida el propio.
-    if (!prefijoUsado && prefijosGrupo) {
-      const general = buscarPrefijo(prefijosGlobales);
-      if (general && /^\s*(gprefix|setgprefix|addgprefix|delgprefix|resetgprefix)(\s|$)/i.test(text.slice(general.length))) prefijoUsado = general;
-    }
+    const prefijoUsado = [...prefijosConfigurados]
+      .sort((a, b) => b.length - a.length)
+      .find((p) => text.startsWith(p));
 
     const esMambo = Boolean(prefijoUsado) && /^\s*mambo\s+(on|off)\s*$/i.test(text.slice(prefijoUsado.length));
     if (apagadoAqui && !esMambo) return;
@@ -437,7 +433,6 @@ function enlazarEventos(sock, esSub) {
         : "." + resto;
       await manejarComando(sock, from, sender, textoTraducido, msg);
     } else if (!apagadoAqui) {
-      if (await bloqueadoDelBot(sock, msg, from, sender, false)) return;
       const clave = `${from}:${sender}`;
       if (await procesarEspera(clave, text, { sock, from, sender, msg })) return;
 
@@ -483,7 +478,6 @@ async function startBot() {
   }
   isConnecting = true;
 
-  cargarAjustesBot();    // moneda, foto y demás ajustes de cada bot (en segundo plano)
   cargarGruposMongo();   // en segundo plano: no retrasa el arranque (el archivo local ya cubre los primeros segundos)
   const { state, saveCreds } = await sesionPrincipal("auth_info", pino({ level: "silent" }));
   const { version } = await fetchLatestBaileysVersion();
