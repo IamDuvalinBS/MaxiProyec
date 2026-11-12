@@ -682,6 +682,25 @@ async function instagramConAsta(link) {
   }
 }
 
+// Respaldo con btch-downloader (igdl). Tolera cambios en la forma de la respuesta.
+async function instagramConBtch(link) {
+  const modulo = await import("btch-downloader");
+  const igdl = modulo.igdl || modulo.default?.igdl;
+  if (typeof igdl !== "function") throw new Error("btch-downloader no incluye igdl");
+  const r = await Promise.race([igdl(link), pausa(30000).then(() => { throw new Error("btch-downloader no respondió en 30s"); })]);
+  const lista = Array.isArray(r) ? r : Array.isArray(r?.result) ? r.result : Array.isArray(r?.data) ? r.data : [];
+  let medias = lista
+    .map((it) => (typeof it === "string" ? { url: it } : it))
+    .filter((it) => it && /^https?:\/\//i.test(String(it.url || "")))
+    .map((it) => ({ type: /\.mp4(\?|$)|video/i.test(String(it.url) + String(it.type || "")) ? "video" : "image", url: it.url }));
+  if (!medias.length) medias = enlacesDe(r?.result ?? r?.data ?? r)
+    .filter((u) => !/thumb|avatar|profile/i.test(u))
+    .map((u) => ({ type: /\.mp4(\?|$)/i.test(u) ? "video" : "image", url: u }));
+  medias = medias.slice(0, 10);
+  if (!medias.length) throw new Error("btch-downloader no devolvió contenido");
+  return medias;
+}
+
 async function _obtenerMediaInstagram(link) {
   // Reels y videos: la API de ASTA es lo más rápido (una petición, sin procesos, poca RAM).
   // Publicaciones (/p/): pueden ser carruseles con varias fotos; yt-dlp las trae completas, así que va primero.
@@ -706,6 +725,17 @@ async function _obtenerMediaInstagram(link) {
     if (r?.length) return r;
   }
 
+  // Respaldo: btch-downloader.
+  let errorBtch = null;
+  try {
+    const r = await instagramConBtch(link);
+    anotar("btch-downloader");
+    return r;
+  } catch (e) {
+    errorBtch = e;
+    console.log(`[redes] btch-downloader (Instagram) falló: ${String(e.message).split("\n")[0]}`);
+  }
+
   // Último respaldo: el motor anterior (descargas/instagram.js).
   try {
     const viejo = await import("./instagram.js");
@@ -720,7 +750,13 @@ async function _obtenerMediaInstagram(link) {
     console.log(`[redes] Motor anterior de Instagram no disponible: ${String(e.message).split("\n")[0]}`);
   }
 
-  throw errorYt || errorAsta || new Error("No se pudo obtener ese contenido de Instagram.");
+  if (errorYt) throw errorYt;
+  const sinYtdlp = !(await hayYtdlp());
+  throw new Error(
+    "Los servicios de descarga de Instagram no respondieron" +
+    (sinYtdlp ? " y yt-dlp no está instalado en el bot (pip install -U \"yt-dlp[default,curl-cffi]\")" : "") +
+    `. Último error: ${String((errorAsta || errorBtch)?.message || "desconocido").split("\n")[0]}`
+  );
 }
 
 const normalizarInstagram = (url) => {
