@@ -130,16 +130,23 @@ export async function guardarMetaSub(numero, meta) {
   await subs.updateOne({ _id: numero }, { $set: meta, $setOnInsert: { creado: Date.now() } }, { upsert: true });
 }
 
+export function vinculacionCompleta(creds) {
+  if (!creds || !creds.me) return false;
+  return Boolean(creds.account || creds.registered || creds.me.name !== "~");
+}
+
+const PROYECCION_VINCULO = { "creds.me": 1, "creds.account": 1, "creds.registered": 1 };
+
 export async function listarSubsGuardados() {
   const { subs } = colecciones();
-  const docs = await subs.find({}, { projection: { "creds.me": 1, dueno: 1, creado: 1 } }).toArray();
-  return docs.map((d) => ({ numero: d._id, vinculado: Boolean(d.creds && d.creds.me), dueno: d.dueno || null, creado: d.creado || null }));
+  const docs = await subs.find({}, { projection: { ...PROYECCION_VINCULO, dueno: 1, creado: 1 } }).toArray();
+  return docs.map((d) => ({ numero: d._id, vinculado: vinculacionCompleta(d.creds), dueno: d.dueno || null, creado: d.creado || null }));
 }
 
 export async function existeSub(numero) {
   const { subs } = colecciones();
-  const doc = await subs.findOne({ _id: numero }, { projection: { "creds.me": 1 } });
-  return doc ? { vinculado: Boolean(doc.creds && doc.creds.me) } : null;
+  const doc = await subs.findOne({ _id: numero }, { projection: PROYECCION_VINCULO });
+  return doc ? { vinculado: vinculacionCompleta(doc.creds) } : null;
 }
 
 export async function eliminarSub(numero) {

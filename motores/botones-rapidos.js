@@ -15,7 +15,7 @@ async function cargarLibreria() {
   if (libreria !== undefined) return libreria;
 
   try {
-    const modulo = await import("@whiskeysockets/baileys");
+    const modulo = await import("@fer2809fl/baileys").catch(() => import("@whiskeysockets/baileys"));
     const lib = modulo.default && typeof modulo.default === "object"
       ? { ...modulo, ...modulo.default }
       : modulo;
