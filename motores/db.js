@@ -56,7 +56,8 @@ function cargarCuenta(doc) {
     profile: doc.profile,
     gachaClaim: doc.gachaClaim,
     prestamo: doc.prestamo,
-    mascotas: doc.mascotas
+    mascotas: doc.mascotas,
+    stats: doc.stats
   };
   accounts.set(doc._id, cuenta);
   saldosBase.set(doc._id, { wallet: cuenta.wallet, bank: cuenta.bank });
@@ -162,7 +163,7 @@ function documentoCuenta(sender) {
   const acc = accounts.get(sender);
   if (!acc) return null;
   const doc = { _id: sender, wallet: acc.wallet, bank: acc.bank };
-  for (const clave of ["cooldowns", "rachas", "negocios", "afk", "profile", "gachaClaim", "prestamo", "mascotas"]) {
+  for (const clave of ["cooldowns", "rachas", "negocios", "afk", "profile", "gachaClaim", "prestamo", "mascotas", "stats"]) {
     const valor = acc[clave];
     const vacio = valor === undefined || valor === null || (typeof valor === "object" && Object.keys(valor).length === 0);
     if (!vacio) doc[clave] = valor;
@@ -343,7 +344,7 @@ function armarOperacion(sender) {
   if (!dBank) alInsertar.bank = acc.bank;
   const asignar = {};
   const quitar = {};
-  const opcionales = { cooldowns: acc.cooldowns, rachas: acc.rachas, negocios: acc.negocios, afk: acc.afk, profile: acc.profile, gachaClaim: acc.gachaClaim, prestamo: acc.prestamo, mascotas: acc.mascotas };
+  const opcionales = { cooldowns: acc.cooldowns, rachas: acc.rachas, negocios: acc.negocios, afk: acc.afk, profile: acc.profile, gachaClaim: acc.gachaClaim, prestamo: acc.prestamo, mascotas: acc.mascotas, stats: acc.stats };
   for (const [clave, valor] of Object.entries(opcionales)) {
     const vacio = valor === undefined || valor === null || (typeof valor === "object" && Object.keys(valor).length === 0);
     if (vacio) quitar[clave] = "";
@@ -404,10 +405,35 @@ export async function guardarCuentasPendientes() {
   }
 }
 
+// Contador de comandos por usuario. El registro (y la fecha "desde") nace la primera vez que
+// un comando guarda datos de la persona; usar solo .menu/.play no crea nada ni cuenta.
+const comandosActivos = new Map();
+
+export function comandoIniciado(sender) {
+  const id = canonId(sender);
+  comandosActivos.set(id, (comandosActivos.get(id) || 0) + 1);
+}
+
+export function comandoTerminado(sender) {
+  const id = canonId(sender);
+  const n = (comandosActivos.get(id) || 0) - 1;
+  if (n > 0) comandosActivos.set(id, n);
+  else comandosActivos.delete(id);
+}
+
+export function sumarComandoUsuario(sender) {
+  const id = canonId(sender);
+  const cuenta = accounts.get(id);
+  if (!cuenta?.stats) return;
+  cuenta.stats.comandos = (cuenta.stats.comandos || 0) + 1;
+  saveAccount(id);
+}
+
 export function saveAccount(sender) {
   sender = canonId(sender);
   if (!collection && !modoRespaldo) return Promise.resolve();
-  getAccount(sender);
+  const cuenta = getAccount(sender);
+  if (!cuenta.stats && comandosActivos.has(sender)) cuenta.stats = { comandos: 0, desde: Date.now() };
   cuentasPendientes.add(sender);
   if (!temporizadorGuardado) temporizadorGuardado = setTimeout(guardarCuentasPendientes, RETARDO_GUARDADO_MS);
   return Promise.resolve();
@@ -473,6 +499,10 @@ export async function fusionarCuenta(origen, destino) {
   if (!d.gachaClaim && o.gachaClaim) d.gachaClaim = o.gachaClaim;
   if (!d.prestamo && o.prestamo) d.prestamo = o.prestamo;
   if (!d.mascotas && o.mascotas) d.mascotas = o.mascotas;
+  if (o.stats) {
+    const desdes = [d.stats?.desde, o.stats.desde].filter(Boolean);
+    d.stats = { comandos: (d.stats?.comandos || 0) + (o.stats.comandos || 0), desde: desdes.length ? Math.min(...desdes) : Date.now() };
+  }
   const perfil = unirPerfiles(d.profile, o.profile);
   if (perfil) d.profile = perfil;
   const casados = [];
