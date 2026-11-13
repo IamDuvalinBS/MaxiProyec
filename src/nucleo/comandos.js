@@ -7,6 +7,7 @@ import { esAdminOOwner, ajustarMenciones } from "../grupos/nucleo.js";
 import { bloqueadoDelBot } from "../grupos/moderacion.js";
 import { enviarConCache, reenviarCacheado, guardarRelay, registrarMedio, claveDeDescarga } from "../../motores/cache-medios.js";
 import { contarComando, contarComandoGrupo } from "../../motores/estadisticas.js";
+import { comandoIniciado, comandoTerminado, sumarComandoUsuario } from "../../motores/db.js";
 import { antesDeComando, despuesDeComando, COMANDOS_LOGROS } from "../economia/logros.js";
 import { avisarMuertos } from "../../motores/gacha-muertos.js";
 import { correrComoBot, botActual, baneadoEnBot, PRINCIPAL } from "../../motores/ajustes-bot.js";
@@ -155,8 +156,10 @@ await simularEscritura(sock, from, 300 + Math.floor(Math.random() * 400));
   const cuentaLogros = CATEGORIAS_LOGROS.has(categoriaActual) && !COMANDOS_LOGROS.has(comando) && !COMANDOS_LOGROS.has(principal);
   const antesLogros = cuentaLogros ? antesDeComando(sender) : null;
 
+  comandoIniciado(sender);
   try {
     await handler({ sock, from, sender, cleanText, msg, reply });
+    sumarComandoUsuario(sender);
     contarComando(principalDeComando.get(comando));
     if (!msg.paginaChat) contarComandoGrupo(from, principalDeComando.get(comando), sender);
     if (antesLogros) await despuesDeComando({ antes: antesLogros, sender, comando: principal, categoria: categoriaActual, reply });
@@ -165,6 +168,8 @@ await simularEscritura(sock, from, 300 + Math.floor(Math.random() * 400));
   } catch (e) {
     console.log(`❌ ERROR ejecutando el comando "${comando}": ${e.stack || e.message}`);
     await reply({ text: "❌ Ocurrió un error interno ejecutando ese comando." });
+  } finally {
+    comandoTerminado(sender);
   }
   return true;
 }
