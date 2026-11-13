@@ -6,6 +6,7 @@ import { encabezado, mencion } from "./estilo-evento.js";
 import { encabezado as encabezadoBase } from "./estilo.js";
 import { textoDias } from "./rachas.js";
 import { estilo } from "./temas.js";
+import { terminacionPareja } from "../../motores/profile.js";
 import { botApagado, ajustesDe } from "../grupos/estado.js";
 import { socketsSubbots } from "../subbots/gestor.js";
 
@@ -103,7 +104,7 @@ export async function anunciarBoda(sock, chat, a, b, fecha) {
     "",
     `> ${mencion(a)} y ${mencion(b)} acaban de casarse.`,
     "",
-    `📅 *Casados desde* ›› ${fecha}`,
+    `📅 *Casad${terminacionPareja(a, b)} desde* ›› ${fecha}`,
     "",
     "> ¡Felicidades a la pareja! 🎉"
   ].join("\n");
