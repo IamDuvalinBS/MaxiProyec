@@ -1,4 +1,4 @@
-import { getAllAccounts } from "../../../motores/db.js";
+import { getAllAccounts, idCanonico } from "../../../motores/db.js";
 import { tarjeta, fmt } from "../../economia/formato-evento.js";
 import { estilo } from "../../economia/temas.js";
 
@@ -36,6 +36,17 @@ export function rankingXp(limite = 10) {
     if (total > 0) lista.push({ jid, nivel: cuenta.profile.level || 1, total });
   }
   return lista.sort((a, b) => b.total - a.total).slice(0, limite);
+}
+
+export function puestoXp(jid) {
+  const cuentas = getAllAccounts();
+  const propia = cuentas.get(idCanonico(jid));
+  const mio = propia?.profile ? xpTotal(propia.profile) : 0;
+  let delante = 0;
+  for (const cuenta of cuentas.values()) {
+    if (cuenta.profile && xpTotal(cuenta.profile) > mio) delante++;
+  }
+  return delante + 1;
 }
 
 export default {

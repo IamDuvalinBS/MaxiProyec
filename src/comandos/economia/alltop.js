@@ -4,6 +4,7 @@ import { topColeccionistas } from "../../../motores/gacha-db.js";
 import { tarjeta } from "../../economia/formato-evento.js";
 import { estilo, moneda } from "../../economia/temas.js";
 import { rankingXp } from "./xptop.js";
+import { rankingComandos } from "./topusos.js";
 
 const POR_TOP = 3;
 
@@ -15,6 +16,7 @@ const ESTILOS = {
     relato: `Los *${POR_TOP} primeros puestos* de cada ranking del bot.`,
     patrimonio: { emoji: "🏆", titulo: "PATRIMONIO" },
     experiencia: { emoji: "✨", titulo: "EXPERIENCIA" },
+    comandos: { emoji: "📊", titulo: "COMANDOS" },
     nivelXp: (nivel, total) => `Nivel ${nivel} · ${fmt(total)} XP`,
     vacio: "⚠️ Todavía no hay rankings disponibles.",
     tip: "Usa *.top*, *.xptop* o el top de cada categoría para ver los 10 primeros."
@@ -26,6 +28,7 @@ const ESTILOS = {
     relato: `Los *${POR_TOP} primeros puestos* de cada ranking del reino embrujado. 🦇`,
     patrimonio: { emoji: "💀", titulo: "TESORO MALDITO" },
     experiencia: { emoji: "🔮", titulo: "PODER OSCURO" },
+    comandos: { emoji: "🕯️", titulo: "CONJUROS" },
     nivelXp: (nivel, total) => `Nivel ${nivel} · ${fmt(total)} XP de poder oscuro`,
     vacio: "⚠️ 🪦 Todavía no hay rankings disponibles.",
     tip: "Usa *.top*, *.xptop* o el top de cada categoría para ver los 10 primeros. 🕸️"
@@ -50,6 +53,10 @@ function topXp(E) {
   return rankingXp(POR_TOP).map((u) => ({ jid: u.jid, texto: E.nivelXp(u.nivel, u.total) }));
 }
 
+function topComandos() {
+  return rankingComandos(POR_TOP).map((u) => ({ jid: u.jid, texto: `${fmt(u.total)} comandos` }));
+}
+
 function topGacha(categoria) {
   const cat = CAT[categoria];
   return topColeccionistas(categoria, POR_TOP).map((u) => ({
@@ -69,6 +76,7 @@ export default {
     const secciones = [
       { emoji: E.patrimonio.emoji, titulo: E.patrimonio.titulo, filas: topDinero() },
       { emoji: E.experiencia.emoji, titulo: E.experiencia.titulo, filas: topXp(E) },
+      { emoji: E.comandos.emoji, titulo: E.comandos.titulo, filas: topComandos() },
       ...Object.keys(CAT).map((clave) => ({
         emoji: CAT[clave].emojiTop,
         titulo: CAT[clave].tituloTop,
