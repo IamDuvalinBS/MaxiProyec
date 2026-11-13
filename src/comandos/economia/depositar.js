@@ -26,7 +26,7 @@ const ESTILOS = {
 };
 
 export default {
-  names: [".depositar", ".d", ".deposit"],
+  names: [".depositar", ".dep", ".d", ".deposit"],
   usage: ".depositar <cantidad|todo>",
   desc: "Guardar dinero de tu mano en el banco",
   category: "Economía",

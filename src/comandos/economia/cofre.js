@@ -20,7 +20,7 @@ const ESTILOS = {
     contenido: (n) => `🪙 *CONTENIDO::* +${monto(n)}`,
     bonus: (n) => `🌟 *BONUS ESPECIAL::* +${monto(n)}`,
     cartera: (n) => `⛁ *CARTERA::* ${monto(n)}`,
-    tip: "Usa *.cofre* de nuevo en 24 horas."
+    tip: "Vuelve en 24 horas para abrir otro."
   },
   halloween: {
     emoji: "⚰️",
@@ -36,7 +36,7 @@ const ESTILOS = {
 contenido: (n) => `🏵️ *BOTÍN DE LA OFRENDA::* +${monto(n)}`,
 bonus: (n) => `💀 *REGALO DEL MÁS ALLÁ::* +${monto(n)}`,
 cartera: (n) => `🪙 *TESORO DEL PANTEÓN::* ${monto(n)}`,
-tip: "Vuelve a buscar otro tesoro con *.cofre* dentro de 24 horas. 🏵️🪦"
+tip: "Vuelve en 24 horas para buscar otro tesoro. 🏵️🪦"
 }
 };
 

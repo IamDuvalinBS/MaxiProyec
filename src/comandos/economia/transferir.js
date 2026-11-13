@@ -33,7 +33,6 @@ export default {
         titulo: "TRANSFERENCIA COMPLETADA",
         subtitulo: `@${sender.split("@")[0]} ➜ @${destino.split("@")[0]}`,
         lineas: [`📤 *ENVIADO::* ${monto(cantidad)}`, `⛁ *TU CARTERA::* ${monto(cuenta.wallet)}`],
-        tip: "Usa *.banco* para confirmar tu saldo actualizado."
       }),
       mentions: [sender, destino]
     });
