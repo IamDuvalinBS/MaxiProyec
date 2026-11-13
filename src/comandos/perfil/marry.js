@@ -1,4 +1,4 @@
-import { getProfile } from "../../../motores/profile.js";
+import { getProfile, terminacionDe } from "../../../motores/profile.js";
 import { saveAccount } from "../../../motores/db.js";
 import { registrarEspera } from "../../nucleo/espera.js";
 import { encabezado, mencion } from "../../economia/estilo.js";
@@ -70,10 +70,10 @@ export default {
     const destino = mentioned && mentioned[0];
 
     if (!destino) return reply({ text: "⚙️ Uso: *.marry @usuario*\nTienes que etiquetar a la persona." });
-    if (destino === sender) return reply({ text: "❌ No puedes casarte contigo mismo." });
+    if (destino === sender) return reply({ text: `❌ No puedes casarte contigo mism${terminacionDe(sender)}.` });
 
-    if (getProfile(sender).marriedTo) return reply({ text: "❌ Ya estás casado. Primero tienes que separarte con *.divorciar*." });
-    if (getProfile(destino).marriedTo) return reply({ text: "❌ Esa persona ya está casada con alguien más." });
+    if (getProfile(sender).marriedTo) return reply({ text: `❌ Ya estás casad${terminacionDe(sender)}. Primero tienes que separarte con *.divorciar*.` });
+    if (getProfile(destino).marriedTo) return reply({ text: `❌ Esa persona ya está casad${terminacionDe(destino)} con alguien más.` });
 
     const clave = `${from}:${destino}`;
     propuestas.set(clave, { retador: sender, destino, vence: Date.now() + PROPUESTA_MS });

@@ -1,5 +1,7 @@
 import fs from "fs";
-import { getProfile, getConyuge, pfpPath } from "../../../motores/profile.js";
+import { getProfile, getConyuge, pfpPath, nombreGenero, terminacionDe, terminacionPareja } from "../../../motores/profile.js";
+import { textoCumple, fechaCorta } from "../../../motores/cumple.js";
+import { puestoXp } from "../economia/xptop.js";
 import { getAccount } from "../../../motores/db.js";
 import { resumenPerfil } from "../../economia/logros.js";
 import { enviarConBoton } from "../../../motores/botones.js";
@@ -8,6 +10,7 @@ import { FOTO_PATH } from "../../../core.js";
 const FIRMA = "Estilo de Bardera ✿";
 const NOMBRE_BOT = "𝑀𝑎𝑚𝑏𝑜 - 𝑃𝑟𝑜𝑦𝑒𝑐";
 const num = (jid) => jid.split("@")[0];
+const cursiva = (letras) => [...letras].map((l) => ({ o: "𝑜", a: "𝑎", x: "𝑥", s: "𝑠" }[l] || l)).join("");
 
 async function obtenerMedia(sock, target) {
   const ruta = pfpPath(target);
@@ -50,6 +53,10 @@ export default {
     const acc = getAccount(target);
 
     const casadoCon = conyuge ? "@" + num(conyuge) : "Nadie";
+    const estado = cursiva(terminacionDe(target, "x"));
+    const parejaPlural = cursiva(conyuge ? terminacionPareja(target, conyuge, "x") : terminacionDe(target, "x") + "s");
+    const stats = acc.stats || {};
+    const puesto = puestoXp(target);
     const eco = resumenPerfil(target);
 
     const texto = [
@@ -61,21 +68,23 @@ export default {
       `. .┊ ◟﹫ 𝑁𝑜𝑚𝑏𝑟𝑒 → ${p.name || num(target)} ! ꨄ`,
       "     · · ───── ·✶· ───── · ·‧₊˚✧",
       `. .┊◟♯ . / 𝑁𝑖𝑣𝑒𝑙 → ${p.level} (${p.xp || 0}/${p.level * 100} XP)`,
+      `. .┊◟♯ . / 𝑃𝑢𝑒𝑠𝑡𝑜 → #${puesto}`,
       `. .┊◟♯ . / 𝐼𝑛𝑠𝑖𝑔𝑛𝑖𝑎𝑠 → ${eco.insignias}`,
       `. .┊◟♯ . / 𝑀𝑖𝑠𝑖𝑜𝑛𝑒𝑠 → ${eco.misiones} cobradas`,
+      `. .┊◟♯ . / 𝐶𝑜𝑚𝑎𝑛𝑑𝑜𝑠 → ${(stats.comandos || 0).toLocaleString("es-MX")}`,
+      `. .┊◟♯ . / 𝑈𝑠𝑎 𝑒𝑙 𝑏𝑜𝑡 𝑑𝑒𝑠𝑑𝑒 → ${stats.desde ? fechaCorta(stats.desde) : "Sin registro"}`,
       "",
       "> ── - ̗̀ ᯠ _ ̫ _ᯄ੭ ¡ 𝑆𝑜𝑏𝑟𝑒 𝑚𝑖 !",
       "",
-      `. .┊◟♯ . / 𝐶𝑢𝑚𝑝𝑙𝑒𝑎𝑛̃𝑜𝑠 → ${p.birthday || "No establecido"}`,
+      `. .┊◟♯ . / 𝐺𝑒́𝑛𝑒𝑟𝑜 → ${nombreGenero(target) || "No establecido"}`,
+      `. .┊◟♯ . / 𝐶𝑢𝑚𝑝𝑙𝑒𝑎𝑛̃𝑜𝑠 → ${p.birthday ? textoCumple(p.birthday) : "No establecido"}`,
       `. .┊◟♯ . / 𝑃𝑎𝑠𝑎𝑡𝑖𝑒𝑚𝑝𝑜 → ${p.hobby || "No establecido"}`,
       `. .┊◟♯ . / 𝐵𝑖𝑜𝑔𝑟𝑎𝑓𝑖𝑎 → ${p.bio || "Sin biografía"}`,
-      `. .┊◟♯ . / 𝐶𝑎𝑠𝑎𝑑𝑜 𝑐𝑜𝑛 → ${casadoCon}`,
-      `. .┊◟♯ . / 𝐶𝑎𝑠𝑎𝑑𝑜𝑠 → ${p.marriedSince || "No aplica"}`,
+      `. .┊◟♯ . / 𝐶𝑎𝑠𝑎𝑑${estado} 𝑐𝑜𝑛 → ${casadoCon}`,
+      `. .┊◟♯ . / 𝐶𝑎𝑠𝑎𝑑${parejaPlural} 𝑑𝑒𝑠𝑑𝑒 → ${p.marriedSince || "No aplica"}`,
       `. .┊◟♯ . / 𝐽𝑢𝑒𝑔𝑜 𝑓𝑎𝑣 → ${p.favGame || "No establecido"}`,
       `. .┊◟♯ . / 𝑀𝑢𝑠𝑖𝑐𝑎 𝑓𝑎𝑣 → ${p.favMusic || "No establecido"}`,
-      "   ╰━━ ⋅𖥔⋅ ━━━━✶━━━━ ⋅𖥔⋅ ━╯",
-      "",
-      "> Usa *.menu Perfil* para ver cómo editar tu propio perfil."
+      "   ╰━━ ⋅𖥔⋅ ━━━━✶━━━━ ⋅𖥔⋅ ━╯"
     ].join("\n");
 
     const mentions = [target];
