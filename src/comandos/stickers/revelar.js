@@ -32,7 +32,7 @@ export default {
     }
 
     const media = citado[tipo];
-    const pie = `⧼👁️⧽ *REVELADO*\n\n${media.caption ? media.caption + "\n\n" : ""}> Usa *.revelar* respondiendo a un mensaje de ver una vez.`;
+    const pie = `⧼👁️⧽ *REVELADO*\n\n${media.caption || ""}`.trimEnd();
 
     try {
       if (tipo === "imageMessage") {
