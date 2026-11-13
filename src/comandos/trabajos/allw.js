@@ -63,7 +63,7 @@ async function allwMuertos({ sender, reply }) {
   let realizados = 0;
 
   for (const trabajo of trabajosRegistrados.values()) {
-    const r = ejecutarTrabajo(sender, trabajo);
+    const r = ejecutarTrabajo(sender, trabajo, { conRacha: false });
     if (r.enEspera) continue;
     realizados++;
     const delta = r.exito ? r.monto : -r.monto;
@@ -112,7 +112,7 @@ export default {
     let realizados = 0;
 
     for (const trabajo of trabajosRegistrados.values()) {
-      const r = ejecutarTrabajo(sender, trabajo);
+      const r = ejecutarTrabajo(sender, trabajo, { conRacha: false });
       if (r.enEspera) continue;
       realizados++;
       const delta = r.exito ? r.monto : -r.monto;
