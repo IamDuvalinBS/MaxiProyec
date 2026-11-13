@@ -3,7 +3,7 @@ import { solicitarCodigo, canonico, mismoNumero, esNumeroValido, soloDigitos } f
 import { encabezado } from "../../economia/estilo.js";
 import { enviarConBoton } from "../../../motores/botones.js";
 
-const ESPERA_MS = 2 * 60 * 1000;
+const ESPERA_MS = 30 * 1000;
 
 const ERRORES = {
   sin_mongo: "⚠️ El sistema de subbots no está disponible en este momento. Intenta nuevamente más tarde.",
@@ -79,27 +79,26 @@ export default {
     }
 
 
-    const destino = from;   // el código se envía en el mismo chat (grupo o privado) donde se pidió
+    const destino = from;
     const texto = textoCodigo(codigo);
-    const enviado = await enviarConBoton({
+
+    try {
+      await sock.sendMessage(destino, { text: texto }, { quoted: msg });
+    } catch {
+      await reply({ text: `${texto}\n\n*${codigo}*` });
+    }
+
+    await enviarConBoton({
       sock,
       from: destino,
-      msg: msg,
-      texto,
+      msg,
+      texto: "📋 Si tu WhatsApp lo permite, toca el botón para copiar el código.",
       footer: "Código de vinculación",
       boton: { texto: "Copiar código", copiar: codigo }
     });
 
-    if (!enviado) {
-      try {
-        await sock.sendMessage(destino, { text: texto });
-        await sock.sendMessage(destino, { text: codigo });
-      } catch {
-        return reply({ text: `${texto}\n\n*${codigo}*` });
-      }
-    }
-
     pedido.conectado.then(async (ok) => {
+      if (ok === null) return;
       const textoFinal = ok
         ? "✅ Tu subbot quedó conectado. Ya puedes usar los comandos desde tu número. Para eliminarlo usa *.stopsub*."
         : "⚠️ No se completó la vinculación y el código venció. Usa *.code* para intentarlo de nuevo.";
