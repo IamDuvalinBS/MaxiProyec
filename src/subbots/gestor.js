@@ -8,7 +8,8 @@ import {
   existeSub,
   eliminarSub,
   limpiarSesionesSignal,
-  vigilarDescifrado
+  vigilarDescifrado,
+  vinculacionCompleta
 } from "../../motores/sesiones-mongo.js";
 import { config, saveConfig, idCanonico } from "../../motores/db.js";
 import { saltarAtrasoViejo } from "../../motores/saltar-atraso.js";
@@ -172,6 +173,7 @@ const cacheDispositivos = {
   flushAll: () => dispositivos.clear()
 };
 const subs = new Map();
+const fallosSeguidos = new Map();
 let enlazar = null;
 let versionWA = null;
 
@@ -206,8 +208,26 @@ function terminarVinculacion(entrada, conectado, error) {
   if (!v) return;
   entrada.vinculando = null;
   clearTimeout(v.limite);
+  if (entrada.numero) {
+    if (conectado) fallosSeguidos.delete(entrada.numero);
+    else if (entrada.codigoPedido) fallosSeguidos.set(entrada.numero, (fallosSeguidos.get(entrada.numero) || 0) + 1);
+  }
   if (error) v.rechazarCodigo(error);
-  v.resolverConectado(conectado);
+  v.resolverConectado(v.reemplazado ? null : conectado);
+}
+
+function alternativo(numero) {
+  if (/^52\d{10}$/.test(numero)) return "521" + numero.slice(2);
+  if (/^54\d{10}$/.test(numero)) return "549" + numero.slice(2);
+  return numero;
+}
+
+function estrategiaDeCodigo(numero) {
+  const fallos = fallosSeguidos.get(numero) || 0;
+  return {
+    numeroParaCodigo: fallos >= 2 && fallos % 2 === 0 ? alternativo(numero) : numero,
+    codigoPersonalizado: fallos === 0 ? CODIGO_VINCULACION : undefined
+  };
 }
 
 const ESPERA_REINTENTO = (entrada) => Math.min(REINTENTO_MAX_MS, REINTENTO_BASE_MS * 2 ** Math.min(entrada.reintentos++, 4));
@@ -311,7 +331,7 @@ async function abrir(numero, entrada) {
     if (qr && !state.creds.registered && entrada.vinculando && !entrada.codigoPedido) {
       entrada.codigoPedido = true;
       try {
-        const codigo = await sock.requestPairingCode(numero, CODIGO_VINCULACION);
+        const codigo = await sock.requestPairingCode(entrada.numeroParaCodigo || numero, entrada.codigoPersonalizado);
         entrada.vinculando.resolverCodigo(codigo);
       } catch (e) {
         terminarVinculacion(entrada, false, e);
@@ -338,7 +358,7 @@ async function abrir(numero, entrada) {
       await quitarSubbot(numero);
       return;
     }
-    if (entrada.vinculando && !state.creds.me) {
+    if (codigo !== baileys.DisconnectReason.restartRequired && entrada.vinculando && !vinculacionCompleta(state.creds)) {
       terminarVinculacion(entrada, false);
       await quitarSubbot(numero);
       return;
@@ -400,13 +420,29 @@ async function existeAlguna(numero) {   // por si quedó guardado como 521... o 
   return false;
 }
 
+async function descartarIntentosIncompletos(numero) {
+  for (const v of variantes(numero)) {
+    const entrada = subs.get(v);
+    if (entrada && entrada.vinculando) {
+      entrada.vinculando.reemplazado = true;
+      await quitarSubbot(v);
+      continue;
+    }
+    if (entrada || !sesionesDisponibles()) continue;
+    const guardado = await existeSub(v).catch(() => null);
+    if (guardado && !guardado.vinculado) await quitarSubbot(v);
+  }
+}
+
 export async function solicitarCodigo(numeroCrudo, dueno) {
   const numero = canonico(numeroCrudo);
   if (!sesionesDisponibles()) throw new Error("sin_mongo");
+  await descartarIntentosIncompletos(numero);
   if (await existeAlguna(numero)) throw new Error("ya_existe");
   if (subs.size >= MAX_SUBS) throw new Error("limite");
 
-  const entrada = { sock: null, detenido: false, reintentos: 0, enLinea: false, temporizador: null, guardando: null, vinculando: null, codigoPedido: false, grupos: new Map(), conectando: false };
+  const { numeroParaCodigo, codigoPersonalizado } = estrategiaDeCodigo(numero);
+  const entrada = { numero, numeroParaCodigo, codigoPersonalizado, sock: null, detenido: false, reintentos: 0, enLinea: false, temporizador: null, guardando: null, vinculando: null, codigoPedido: false, grupos: new Map(), conectando: false };
   const vinculando = {};
   const codigo = new Promise((resolver, rechazar) => {
     vinculando.resolverCodigo = resolver;
@@ -415,12 +451,17 @@ export async function solicitarCodigo(numeroCrudo, dueno) {
   const conectado = new Promise((resolver) => {
     vinculando.resolverConectado = resolver;
   });
-  vinculando.limite = setTimeout(() => {
-    if (entrada.vinculando && !entrada.sock?.authState?.creds?.me) {
-      terminarVinculacion(entrada, false);
-      quitarSubbot(numero).catch(() => {});
+  const vencer = () => {
+    if (entrada.vinculando !== vinculando) return;
+    if (vinculacionCompleta(entrada.sock?.authState?.creds) && !vinculando.prorrogado) {
+      vinculando.prorrogado = true;
+      vinculando.limite = setTimeout(vencer, 30000);
+      return;
     }
-  }, TIEMPO_VINCULACION_MS);
+    terminarVinculacion(entrada, false);
+    quitarSubbot(numero).catch(() => {});
+  };
+  vinculando.limite = setTimeout(vencer, TIEMPO_VINCULACION_MS);
   entrada.vinculando = vinculando;
   subs.set(numero, entrada);
 
