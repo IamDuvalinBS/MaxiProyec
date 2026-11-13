@@ -3,7 +3,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { formatUptime, commandRegistry } from "../../../core.js";
 import { ajusteBot, fotoBot } from "../../../motores/ajustes-bot.js";
-import { enviarConBoton } from "../../../motores/botones.js";
+import crypto from "crypto";
 
 // "categorias" son los nombres reales que usan los archivos de comandos (no se tocan).
 // "titulo" es lo único que se muestra en el menú. El orden de esta lista es el orden del menú.
@@ -86,14 +86,6 @@ const GRUPOS = [
     alias: ["reacciones", "reaccion", "diversion", "fun"]
   },
   {
-    titulo: "BROMAS",
-    icono: "🃏",
-    descripcion: "Medidores, parejas y juegos al azar para bromear con el grupo.",
-    categorias: ["Bromas"],
-    soloSubmenu: true,
-    alias: ["bromas", "broma", "menubroma", "menubromas"]
-  },
-  {
     titulo: "STICKERS",
     icono: "🌱",
     descripcion: "Crea y personaliza tus stickers.",
@@ -154,16 +146,6 @@ function bloqueGrupo(grupo, comandos) {
   ].join("\n");
 }
 
-function resumenGrupo(grupo, total) {
-  return [
-    `╔≈≈≈⧼⨳˒˙ *${silabico(grupo.titulo)}* ˙˓⨳⧽≈≈≈⧽⧽`,
-    `> ⧼${grupo.icono}⧽ ${grupo.descripcion}`,
-    "︴",
-    `✿ *${total} comandos*\n> Usa *.menu ${grupo.alias[0]}* para ver la lista completa.`,
-    `╚≈≈⧼⨳˒˙ *𝙴𝙽𝙳 ${monoespaciado(grupo.titulo)}* ˙˓⨳⧽≈≈⧽⧽`
-  ].join("\n");
-}
-
 function textoMenuCompleto(categorias) {
   const total = new Set(commandRegistry.values()).size;
 
@@ -191,8 +173,7 @@ function textoMenuCompleto(categorias) {
   const bloques = [];
   for (const grupo of GRUPOS) {
     const comandos = comandosDe(grupo, categorias);
-    if (!comandos.length) continue;
-    bloques.push(grupo.soloSubmenu ? resumenGrupo(grupo, comandos.length) : bloqueGrupo(grupo, comandos));
+    if (comandos.length) bloques.push(bloqueGrupo(grupo, comandos));
   }
 
   return `${cabecera}\n\n\n${bloques.join("\n\n")}`;
@@ -234,6 +215,78 @@ async function enviarNotaDeVideo(sock, from) {
   }
 }
 
+// ── Botones del menú: 1) Canal (inline)  2) "Nuestras redes" = desplegable (bottom sheet) con botones cta_url dentro ──
+const LINK_COMUNIDAD = "https://chat.whatsapp.com/DnWYpCBy9Eh1jTNiCSZ3LG";
+const NODO_BIZ = {
+  tag: "biz",
+  attrs: {},
+  content: [{ tag: "interactive", attrs: { type: "native_flow", v: "1" }, content: [{ tag: "native_flow", attrs: { v: "9", name: "mixed" } }] }]
+};
+
+const urlBtn = (texto, url) => ({ name: "cta_url", buttonParamsJson: JSON.stringify({ display_text: texto, url, merchant_url: url }) });
+
+function botonesDelMenu() {
+  const enlaces = [
+    ["📢 Canal oficial", ajusteBot("channelLink")],
+    ["🧸 Comunidad", LINK_COMUNIDAD],
+    ["🌺 Grupo oficial", ajusteBot("groupLink")],
+    ["⚙️ Nuestra página", ajusteBot("webLink")]
+  ].filter(([, url]) => url);
+  return enlaces.map(([texto, url]) => urlBtn(texto, url));
+}
+
+async function enviarMenuConDesplegable({ sock, from, msg, texto, footer, foto, mentions }) {
+  try {
+    const modulo = await import("@fer2809fl/baileys");
+    const lib = modulo.default && typeof modulo.default === "object" ? { ...modulo, ...modulo.default } : modulo;
+    const botones = botonesDelMenu();
+    if (!lib.proto || !botones.length) return false;
+
+    let header = { title: "", subtitle: "", hasMediaAttachment: false };
+    if (foto) {
+      try {
+        const media = await lib.prepareWAMessageMedia({ image: foto }, { upload: sock.waUploadToServer });
+        header = { title: "", subtitle: "", hasMediaAttachment: true, ...media };
+      } catch (e) {
+        console.log(`[menu] No se pudo subir la foto: ${e.message}`);
+      }
+    }
+
+    const interactiveMessage = {
+      body: { text: texto },
+      footer: { text: footer || "" },
+      header,
+      nativeFlowMessage: {
+        buttons: botones,
+        // El primer botón queda visible (Canal); el resto se agrupa en un desplegable.
+        messageParamsJson: JSON.stringify({
+          bottom_sheet: {
+            in_thread_buttons_limit: 1,
+            divider_indices: [...botones.keys()].slice(1).concat(999),
+            list_title: "Redes oficiales",
+            button_title: "🔗 Nuestras redes"
+          }
+        })
+      },
+      contextInfo: { mentionedJid: mentions }
+    };
+
+    const armado = await lib.generateWAMessageFromContent(from, {
+      viewOnceMessage: {
+        message: {
+          messageContextInfo: { deviceListMetadata: {}, deviceListMetadataVersion: 2, messageSecret: crypto.randomBytes(32) },
+          interactiveMessage
+        }
+      }
+    }, { userJid: sock.user?.id, quoted: msg });
+    await sock.relayMessage(from, armado.message, { messageId: armado.key.id, additionalNodes: [NODO_BIZ] });
+    return true;
+  } catch (e) {
+    console.log(`[menu] No se pudo enviar el desplegable: ${e.stack || e.message}`);
+    return false;
+  }
+}
+
 export default {
   names: [".menu", ".help"],
   desc: "Ver todos los comandos disponibles",
@@ -243,18 +296,13 @@ export default {
     const categorias = agruparComandos();
     const texto = argumento ? textoGrupo(argumento, categorias) : textoMenuCompleto(categorias);
 
-    const enviado = await enviarConBoton({
+    const enviado = await enviarMenuConDesplegable({
       sock,
       from,
       msg,
       texto,
       footer: ajusteBot("botNameShort"),
-      foto: fotoBot(),
-      lista: [
-      ajusteBot("channelLink") && { texto: "📢 Canal", url: ajusteBot("channelLink") },
-      ajusteBot("groupLink") && { texto: "👥 GRUPO OFICIAL", url: ajusteBot("groupLink") },
-      ajusteBot("webLink") && { texto: "🌐 Página oficial", url: ajusteBot("webLink") }
-      ].filter(Boolean),
+      foto: fotoBot() || undefined,
       mentions: [sender]
     });
 
