@@ -150,15 +150,17 @@ await simularEscritura(sock, from, 300 + Math.floor(Math.random() * 400));
   if (claveDescarga) capturados = [];
 
   const categoriaActual = categoriaDeComando.get(comando);
-  const cuentaLogros = CATEGORIAS_LOGROS.has(categoriaActual) && !COMANDOS_LOGROS.has(comando);
+  // Las misiones y los logros se reconocen por el comando PRINCIPAL: cualquier alias (.d, .dep, .deposit...) cuenta igual.
+  const principal = principalDeComando.get(comando) || comando;
+  const cuentaLogros = CATEGORIAS_LOGROS.has(categoriaActual) && !COMANDOS_LOGROS.has(comando) && !COMANDOS_LOGROS.has(principal);
   const antesLogros = cuentaLogros ? antesDeComando(sender) : null;
 
   try {
     await handler({ sock, from, sender, cleanText, msg, reply });
     contarComando(principalDeComando.get(comando));
     if (!msg.paginaChat) contarComandoGrupo(from, principalDeComando.get(comando), sender);
-    if (antesLogros) await despuesDeComando({ antes: antesLogros, sender, comando, categoria: categoriaActual, reply });
-    if (cuentaLogros && !COMANDOS_MUERTOS.has(comando)) await avisarMuertos({ sender, reply });
+    if (antesLogros) await despuesDeComando({ antes: antesLogros, sender, comando: principal, categoria: categoriaActual, reply });
+    if (cuentaLogros && !COMANDOS_MUERTOS.has(comando) && !COMANDOS_MUERTOS.has(principal)) await avisarMuertos({ sender, reply });
     if (claveDescarga && capturados.length) guardarRelay(claveDescarga, capturados);
   } catch (e) {
     console.log(`❌ ERROR ejecutando el comando "${comando}": ${e.stack || e.message}`);
