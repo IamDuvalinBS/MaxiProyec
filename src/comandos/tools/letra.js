@@ -4,6 +4,9 @@ import { pedirJson } from "../../../motores/herramientas-red.js";
 import { limitarEspera, textoCitado } from "../../../motores/herramientas-ui.js";
 import { enviarLista } from "../../../motores/lista.js";
 import { registrarEspera } from "../../nucleo/espera.js";
+import { resolverLinkYoutube, descargarAudioConProveedores } from "../../descargas/youtube-engine.js";
+import { enviarConReintento } from "../../descargas/envio.js";
+import { nombreSeguro, LIMITE_VIDEO_WHATSAPP_MB } from "../../descargas/core.js";
 
 const LRCLIB = "https://lrclib.net/api";
 const LYRICS_OVH = "https://api.lyrics.ovh/v1";
@@ -11,6 +14,9 @@ const ESPERA_MS = 4000;
 const DURACION_ESPERA_MS = 5 * 60 * 1000;
 const OPCIONES = 7;
 const MAX_MENSAJE = 3800;
+const MB = 1024 * 1024;
+const ESPERA_AUDIO_MS = 2 * 60 * 1000;
+const DURACION_MAX_AUDIO_SEG = 15 * 60;
 const esperas = new Map();
 
 const PIE = "Pᴏᴡᴇʀᴇᴅ Bʏ • ItsDuva";
@@ -39,7 +45,7 @@ async function letraPorId(id) {
   const c = await pedirJson(`${LRCLIB}/get/${id}`);
   const letra = String(c?.plainLyrics || "").trim();
   if (!letra) throw new Error("esa canción no tiene letra disponible");
-  return { titulo: c.trackName, artista: c.artistName, album: c.albumName, letra };
+  return { titulo: c.trackName, artista: c.artistName, album: c.albumName, duracion: c.duration, letra };
 }
 
 // Respaldo si LRCLIB no encuentra nada y el usuario escribió "artista - canción".
@@ -73,6 +79,28 @@ function trozos(letra) {
   return salida;
 }
 
+const conLimite = (promesa, ms) =>
+  Promise.race([
+    promesa,
+    new Promise((_, rechazar) => setTimeout(() => rechazar(new Error("la descarga del audio tardó demasiado")), ms))
+  ]);
+
+async function enviarAudio(sock, from, msg, c) {
+  if (c.duracion && c.duracion > DURACION_MAX_AUDIO_SEG) return null;
+  try {
+    const link = await conLimite(resolverLinkYoutube(`${c.artista} ${c.titulo} audio`), 30000);
+    const audio = await conLimite(descargarAudioConProveedores(link), ESPERA_AUDIO_MS);
+    const responder = (contenido) => sock.sendMessage(from, contenido, { quoted: msg, mediaUploadTimeoutMs: 10 * 60 * 1000 });
+    const contenido = audio.length / MB > LIMITE_VIDEO_WHATSAPP_MB
+      ? { document: audio, mimetype: "audio/mpeg", fileName: `${nombreSeguro(`${c.artista} - ${c.titulo}`, "cancion")}.mp3` }
+      : { audio, mimetype: "audio/mpeg", ptt: false };
+    return await enviarConReintento(responder, contenido);
+  } catch (e) {
+    console.log(`[LETRA] audio no disponible: ${String(e.message).split("\n")[0]}`);
+    return null;
+  }
+}
+
 async function enviarLetra(sock, from, msg, c) {
   const partes = trozos(c.letra);
   const cabecera = [
@@ -83,9 +111,11 @@ async function enviarLetra(sock, from, msg, c) {
     ...(c.album ? [`💿 *Álbum::*\n> ${c.album}`] : []),
     ""
   ].join("\n");
+  const audioEnviado = await enviarAudio(sock, from, msg, c);
+  const citado = audioEnviado || msg;
   for (let i = 0; i < partes.length; i++) {
     const texto = i === 0 ? `${cabecera}\n${partes[i]}` : partes[i];
-    await sock.sendMessage(from, { text: texto }, { quoted: i === 0 ? msg : undefined });
+    await sock.sendMessage(from, { text: texto }, { quoted: i === 0 ? citado : undefined });
   }
 }
 
