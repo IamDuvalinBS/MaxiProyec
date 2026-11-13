@@ -2,8 +2,33 @@ import { getAccount, addToWallet, saveAccount, checkCooldown } from "../../motor
 import { addXp, getProfile } from "../../motores/profile.js";
 import { tarjeta, monto, elegir, entre, textoEspera, avisoNivel } from "./formato-evento.js";
 import { esHalloween, estilo } from "./temas.js";
+import { registrarTrabajo, bonosDeGanancia } from "./carrera.js";
 
 export const trabajosRegistrados = new Map();
+
+// Líneas de carrera que se repiten igual en todos los eventos.
+const LINEAS_CARRERA = {
+  racha: (n, pct) => `🔥 *Racha de victorias* ›› ${n} seguidas (+${pct}% extra)`,
+  rachaPerdida: (n) => `💔 *Racha perdida* ›› llevabas ${n} victorias seguidas`,
+  faltas: (c) => `🚫 *Faltas* ›› ${c.faltas} esta semana (-${c.descuento}% a tu sueldo). ¡Trabaja a diario!`
+};
+
+// Una victoria es no fallar. En los trabajos que no pueden fallar, es una buena paga (mitad superior de su rango).
+function esVictoria(trabajo, base) {
+  if (trabajo.chanceFallo > 0) return true;
+  const umbral = (Math.min(...trabajo.exitos.map((e) => e.min)) + Math.max(...trabajo.exitos.map((e) => e.max))) / 2;
+  return base >= umbral;
+}
+
+// Líneas extra de la tarjeta de un trabajo (racha de victorias y faltas). .allw no las usa.
+export function lineasDeCarrera(r) {
+  const c = r.carrera;
+  const lineas = [];
+  if (c.rachaVictorias >= 2 && r.exito) lineas.push(LINEAS_CARRERA.racha(c.rachaVictorias, r.bonoRacha));
+  if (c.rachaPerdida) lineas.push(LINEAS_CARRERA.rachaPerdida(c.rachaPerdida));
+  if (c.faltas) lineas.push(LINEAS_CARRERA.faltas(c));
+  return lineas;
+}
 
 // Textos de las tarjetas que son iguales para todos los trabajos.
 const ESTILOS_TARJETA = {
@@ -12,6 +37,8 @@ const ESTILOS_TARJETA = {
     experiencia: (n) => `✨ *Experiencia* ›› +${n}`,
     enMano: (n) => `💰 *En mano* ›› ${monto(n)}`,
     perdida: (n) => `💸 *Pérdida* ›› -${monto(n)}`,
+    jornada: (c) => `📅 *Jornada* ›› ${c.diaNuevo ? `Día ${c.racha} de racha` : "Trabajo de hoy sumado"}${c.pagado ? ` · +${monto(c.pagado)} a tu sueldo` : " · tope diario de sueldo alcanzado"}`,
+    oficio: (c) => `🔁 *Maestría* ›› ¡Subiste al nivel ${c.nivelOficio} en este oficio!`,
     tipExito: "Usa *.dep* para guardar tu dinero.",
     tipFallo: "Usa *.dep* para guardar tu dinero y protegerlo de futuras pérdidas."
   },
@@ -20,6 +47,8 @@ const ESTILOS_TARJETA = {
     experiencia: (n) => `🔮 *Experiencia* ›› +${n}`,
     enMano: (n) => `🧙‍♀️ *En el caldero* ›› ${monto(n)}`,
     perdida: (n) => `💀 *Pérdida* ›› -${monto(n)}`,
+    jornada: (c) => `📅 *Jornada* ›› ${c.diaNuevo ? `Día ${c.racha} de racha` : "Trabajo de hoy sumado"}${c.pagado ? ` · +${monto(c.pagado)} a tu sueldo` : " · tope diario de sueldo alcanzado"}`,
+    oficio: (c) => `🔁 *Maestría* ›› ¡Subiste al nivel ${c.nivelOficio} en este oficio!`,
     tipExito: "Usa *.dep* para esconder tus calabazas en la cripta. ⚰️",
     tipFallo: "Usa *.dep* para esconder tus calabazas en la cripta y protegerlas de futuras maldiciones. 👻"
   }
@@ -46,7 +75,8 @@ export function vistaDe(trabajo) {
   };
 }
 
-export function ejecutarTrabajo(sender, trabajo) {
+// conRacha=false (.allw): no suma, no rompe y no usa la racha de victorias.
+export function ejecutarTrabajo(sender, trabajo, { conRacha = true } = {}) {
   const espera = checkCooldown(sender, trabajo.clave, trabajo.cooldownMs);
   if (espera > 0) return { enEspera: true, espera };
 
@@ -56,18 +86,24 @@ export function ejecutarTrabajo(sender, trabajo) {
 
   if (!falla) {
     const suceso = elegir(vista.exitos);
-    const ganancia = entre(suceso.min, suceso.max);
+    const base = entre(suceso.min, suceso.max);
+    const victoria = esVictoria(trabajo, base);
+    // Extras sobre la paga: maestría del oficio (+2% por nivel) y racha de victorias (solo con el comando individual).
+    const bonos = bonosDeGanancia(sender, trabajo.clave, { victoria, conRacha });
+    const ganancia = Math.round(base * bonos.multiplicador);
     addToWallet(sender, ganancia);
     const xp = Math.max(1, Math.round(ganancia / 10));
     const { leveledUp, newLevel } = addXp(sender, xp);
-    return { enEspera: false, exito: true, relato: suceso.texto, monto: ganancia, xp, subioNivel: leveledUp, nivel: newLevel };
+    const carrera = registrarTrabajo(sender, trabajo.clave, { victoria, conRacha });
+    return { enEspera: false, exito: true, relato: suceso.texto, monto: ganancia, xp, subioNivel: leveledUp, nivel: newLevel, carrera, bonoRacha: bonos.racha };
   }
 
   const suceso = elegir(vista.fallos);
   const perdida = Math.min(cuenta.wallet, entre(suceso.min, suceso.max));
   cuenta.wallet -= perdida;
   saveAccount(sender);
-  return { enEspera: false, exito: false, relato: suceso.texto, monto: perdida, xp: 0, subioNivel: false, nivel: getProfile(sender).level };
+  const carrera = registrarTrabajo(sender, trabajo.clave, { victoria: false, conRacha });
+  return { enEspera: false, exito: false, relato: suceso.texto, monto: perdida, xp: 0, subioNivel: false, nivel: getProfile(sender).level, carrera };
 }
 
 export function crearTrabajo(def) {
@@ -94,7 +130,7 @@ export function crearTrabajo(def) {
             emoji: vista.emoji,
             titulo: vista.tituloExito,
             relato: r.relato,
-            lineas: [E.ganancia(r.monto), E.experiencia(r.xp), E.enMano(enMano)],
+            lineas: [E.ganancia(r.monto), E.experiencia(r.xp), E.enMano(enMano), E.jornada(r.carrera), ...(r.carrera.subioOficio ? [E.oficio(r.carrera)] : []), ...lineasDeCarrera(r)],
             tip: E.tipExito
           })
         });
@@ -107,7 +143,7 @@ export function crearTrabajo(def) {
           emoji: vista.emojiFallo || "⚠️",
           titulo: vista.tituloFallo,
           relato: r.relato,
-          lineas: [E.perdida(r.monto), E.enMano(enMano)],
+          lineas: [E.perdida(r.monto), E.enMano(enMano), E.jornada(r.carrera), ...lineasDeCarrera(r)],
           tip: E.tipFallo
         })
       });

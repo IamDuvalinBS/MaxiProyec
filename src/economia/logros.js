@@ -9,10 +9,12 @@ import { trabajosRegistrados } from "./trabajos.js";
 import { fmt, monto } from "./formato-evento.js";
 import { tarjetaMarcada, mencion } from "./estilo-evento.js";
 import { moneda } from "./temas.js";
+import { contadoresCarrera } from "./carrera.js";
 
 export const CLAVE_DIARIAS = "misioneseco";
 export const VIDA_DIARIAS_MS = 24 * 60 * 60 * 1000;
-export const COMANDOS_LOGROS = new Set([".misioneseco", ".misioneseconomia", ".mecon", ".tareas", ".hitos", ".insigniaseco", ".logroseco", ".metas"]);
+// Se comparan contra el comando PRINCIPAL (el primer nombre de cada comando), así que sus alias también cuentan.
+export const COMANDOS_LOGROS = new Set([".tareas", ".hitos"]);
 
 const PREMIAR_RETROACTIVOS = true;
 const MISIONES_POR_DIA = 3;
@@ -109,6 +111,22 @@ export const CADENAS = [
     ]
   },
   {
+    id: "jornadas", emoji: "📅", nombre: "Puntual", stat: "dias_trabajados", texto: (n) => `Trabaja ${fmt(n)} días distintos`,
+    tramos: [
+      { meta: 7, dinero: 40_000, xp: 800 },
+      { meta: 30, dinero: 200_000, xp: 4_000, tickets: 1 },
+      { meta: 100, dinero: 1_000_000, xp: 20_000, tickets: 2 }
+    ]
+  },
+  {
+    id: "sueldos", emoji: "💼", nombre: "Asalariado", stat: "sueldos", texto: (n) => `Cobra ${fmt(n)} ${n === 1 ? "sueldo" : "sueldos"} semanales con .sueldo`,
+    tramos: [
+      { meta: 1, dinero: 30_000, xp: 500 },
+      { meta: 4, dinero: 150_000, xp: 3_000 },
+      { meta: 12, dinero: 600_000, xp: 12_000, tickets: 1 }
+    ]
+  },
+  {
     id: "misiones", emoji: "📋", nombre: "Misionero", stat: "misiones_cobradas", texto: (n) => `Cobra ${fmt(n)} misiones diarias`,
     tramos: [
       { meta: 20, dinero: 80_000, xp: 1_500 },
@@ -132,24 +150,33 @@ export const CADENAS = [
 ];
 
 const POOL = [
-  { id: "trabajo", evento: "trabajos", rango: [3, 6], dinero: 4000, xp: 60, texto: (m) => `Trabaja ${m} ${m === 1 ? "vez" : "veces"}` },
-  { id: "ganar", evento: "ganado", rango: [3, 10], unidad: 10_000, dinero: 2000, xp: 25, texto: (m) => `Gana ${fmt(m)} ${moneda()} entre trabajos, apuestas y recompensas` },
-  { id: "apostar", evento: "apuestas", rango: [2, 5], dinero: 2500, xp: 40, texto: (m) => `Juega ${m} ${m === 1 ? "apuesta" : "apuestas"}` },
-  { id: "ganarapuesta", evento: "apuestas_ganadas", rango: [1, 3], dinero: 6000, xp: 80, texto: (m) => `Gana ${m} ${m === 1 ? "apuesta" : "apuestas"}` },
-  { id: "depositar", evento: "depositos", rango: [1, 3], dinero: 1500, xp: 25, texto: (m) => `Deposita dinero en el banco ${m} ${m === 1 ? "vez" : "veces"}` },
-  { id: "transferir", evento: "transferencias", rango: [1, 2], dinero: 3000, xp: 40, texto: (m) => `Haz ${m} ${m === 1 ? "transferencia" : "transferencias"} a otra persona` },
-  { id: "daily", evento: "dailies", rango: [1, 1], dinero: 5000, xp: 80, espera: { clave: "daily", ms: 24 * HORA_MS }, texto: () => "Reclama tu recompensa .daily" },
-  { id: "cofre", evento: "cofres", rango: [1, 1], dinero: 6000, xp: 100, espera: { clave: "cofre", ms: 24 * HORA_MS }, texto: () => "Abre tu .cofre" },
-  { id: "negocios", evento: "negocios_cobros", rango: [1, 1], dinero: 8000, xp: 120, requiere: "negocios", texto: () => "Cobra las ganancias de tus negocios" },
-  { id: "trivia", evento: "trivias", rango: [1, 2], dinero: 3000, xp: 50, texto: (m) => `Juega ${m} ${m === 1 ? "trivia" : "trivias"}` }
+  { id: "trabajo", como: ".trabajar, .minar, .uber, .allw…", evento: "trabajos", rango: [3, 6], dinero: 4000, xp: 60, texto: (m) => `Trabaja ${m} ${m === 1 ? "vez" : "veces"}` },
+  { id: "ganar", como: "trabajos, apuestas, .daily…", evento: "ganado", rango: [3, 10], unidad: 10_000, dinero: 2000, xp: 25, texto: (m) => `Gana ${fmt(m)} ${moneda()} entre trabajos, apuestas y recompensas` },
+  { id: "apostar", como: ".apuesta, .ruleta, .dado…", evento: "apuestas", rango: [2, 5], dinero: 2500, xp: 40, texto: (m) => `Juega ${m} ${m === 1 ? "apuesta" : "apuestas"}` },
+  { id: "ganarapuesta", como: ".apuesta, .ruleta, .dado…", evento: "apuestas_ganadas", rango: [1, 3], dinero: 6000, xp: 80, texto: (m) => `Gana ${m} ${m === 1 ? "apuesta" : "apuestas"}` },
+  { id: "depositar", como: ".dep <cantidad>", evento: "depositos", rango: [1, 3], dinero: 1500, xp: 25, texto: (m) => `Deposita dinero en el banco ${m} ${m === 1 ? "vez" : "veces"}` },
+  { id: "transferir", como: ".transferir <cantidad> @usuario", evento: "transferencias", rango: [1, 2], dinero: 3000, xp: 40, texto: (m) => `Haz ${m} ${m === 1 ? "transferencia" : "transferencias"} a otra persona` },
+  { id: "daily", como: ".daily", evento: "dailies", rango: [1, 1], dinero: 5000, xp: 80, espera: { clave: "daily", ms: 24 * HORA_MS }, texto: () => "Reclama tu recompensa .daily" },
+  { id: "cofre", como: ".cofre", evento: "cofres", rango: [1, 1], dinero: 6000, xp: 100, espera: { clave: "cofre", ms: 24 * HORA_MS }, texto: () => "Abre tu .cofre" },
+  { id: "negocios", como: ".ngreclamar", evento: "negocios_cobros", rango: [1, 1], dinero: 8000, xp: 120, requiere: "negocios", texto: () => "Cobra las ganancias de tus negocios" },
+  { id: "trivia", como: ".trivia", evento: "trivias", rango: [1, 2], dinero: 3000, xp: 50, texto: (m) => `Juega ${m} ${m === 1 ? "trivia" : "trivias"}` }
 ];
 
 const POOL_POR_ID = new Map(POOL.map((m) => [m.id, m]));
 
-const COMANDOS_DEPOSITO = new Set([".depositar", ".dep", ".deposit"]);
-const COMANDOS_TRANSFERENCIA = new Set([".transferir", ".pay", ".dar"]);
-const COMANDOS_NEGOCIOS = new Set([".ngreclamar", ".ngcobrar", ".ngclaim", ".reclamarnegocios", ".cobrarnegocios"]);
-const COMANDOS_SIN_GANANCIA = new Set([".prestamo", ".préstamo", ".loan"]);
+// Qué comando usar para avanzar cada cadena fija (se muestra en .tareas fijas).
+const COMO_CADENA = {
+  trabajos: ".trabajar, .minar, .uber, .allw…", daily: ".daily", semanal: ".semanal", apuestas: ".apuesta, .ruleta, .dado…",
+  ganadas: ".apuesta, .ruleta, .dado…", depositos: ".dep <cantidad>", transferencias: ".transferir <cantidad> @usuario",
+  negocios: ".ngreclamar", ganado: "trabajos, apuestas, daily, negocios…", jornadas: "cualquier trabajo (hacer varios el mismo día cuenta 1)",
+  sueldos: ".sueldo", misiones: ".tareas cobrar", trivias: ".trivia", cofres: ".cofre"
+};
+
+// Nombres PRINCIPALES: el cargador de comandos ya convierte cualquier alias (.d, .dep, .pay, .loan...) a su principal.
+const COMANDOS_DEPOSITO = new Set([".depositar"]);
+const COMANDOS_TRANSFERENCIA = new Set([".transferir"]);
+const COMANDOS_NEGOCIOS = new Set([".ngreclamar"]);
+const COMANDOS_SIN_GANANCIA = new Set([".prestamo"]);
 const CATEGORIAS_GANANCIA = new Set(["Economía", "Trabajos", "Apuestas"]);
 
 const ZONA = process.env.GACHA_ZONA || "America/Mexico_City";
@@ -224,7 +251,7 @@ export function misionesDiarias(jid) {
   const { diarias, restante } = diariasVigentes(jid);
   const lista = diarias.lista
     .filter((m) => POOL_POR_ID.has(m.id))
-    .map((m) => ({ ...m, texto: POOL_POR_ID.get(m.id).texto(m.meta), completa: m.avance >= m.meta }));
+    .map((m) => ({ ...m, texto: POOL_POR_ID.get(m.id).texto(m.meta), como: POOL_POR_ID.get(m.id).como, completa: m.avance >= m.meta }));
   return { lista, restante, bono: diarias.bono, todasCobradas: lista.length > 0 && lista.every((m) => m.cobrada) };
 }
 
@@ -235,7 +262,7 @@ export function cadenasDe(jid) {
     const cobrados = eco.fijas[c.id] || 0;
     const tramo = c.tramos[cobrados] || null;
     return {
-      ...c, progreso, cobrados, total: c.tramos.length, tramo,
+      ...c, como: COMO_CADENA[c.id], progreso, cobrados, total: c.tramos.length, tramo,
       completa: cobrados >= c.tramos.length,
       lista: Boolean(tramo) && progreso >= tramo.meta
     };
@@ -381,10 +408,10 @@ export function revisarHitos(jid) {
 
 export function antesDeComando(jid) {
   const acc = getAccount(jid);
-  return { wallet: acc.wallet || 0, bank: acc.bank || 0, cooldowns: { ...acc.cooldowns } };
+  return { wallet: acc.wallet || 0, bank: acc.bank || 0, cooldowns: { ...acc.cooldowns }, carrera: contadoresCarrera(jid) };
 }
 
-function eventosDe({ comando, categoria, antes, acc }) {
+function eventosDe({ comando, categoria, antes, acc, sender }) {
   const eventos = [];
   if (COMANDOS_LOGROS.has(comando)) return eventos;
   const cambio = (clave) => (acc.cooldowns[clave] || 0) !== (antes.cooldowns[clave] || 0);
@@ -397,6 +424,11 @@ function eventosDe({ comando, categoria, antes, acc }) {
   if (cambio("semanal")) eventos.push({ tipo: "semanales" });
   if (cambio("cofre")) eventos.push({ tipo: "cofres" });
   if (cambio("trivia")) eventos.push({ tipo: "trivias" });
+
+  const carrera = contadoresCarrera(sender);
+  const antesCarrera = antes.carrera || { jornadas: carrera.jornadas, sueldos: carrera.sueldos };
+  if (carrera.jornadas > antesCarrera.jornadas) eventos.push({ tipo: "dias_trabajados", cantidad: carrera.jornadas - antesCarrera.jornadas });
+  if (carrera.sueldos > antesCarrera.sueldos) eventos.push({ tipo: "sueldos", cantidad: carrera.sueldos - antesCarrera.sueldos });
 
   if (categoria === "Apuestas" && dMano !== 0) {
     eventos.push({ tipo: "apuestas" });
@@ -455,7 +487,7 @@ function textoAvisos(jid, completadas, hitos) {
       titulo: T("MISIÓN COMPLETADA", "MISIÓN MALDITA COMPLETADA"),
       relato: `${mencion(jid)} completó ${completadas.length === 1 ? "una misión" : `${completadas.length} misiones`} de economía.`,
       lineas: completadas.map((t) => `> ✅ *${t}*`),
-      tip: "Cobra tu recompensa con *.misioneseco cobrar*."
+      tip: "Cobra tu recompensa con *.tareas cobrar*."
     }));
   }
   if (hitos.nuevos.length) {
@@ -475,7 +507,7 @@ function textoAvisos(jid, completadas, hitos) {
 export async function despuesDeComando({ antes, sender, comando, categoria, reply }) {
   try {
     const acc = getAccount(sender);
-    const eventos = eventosDe({ comando, categoria, antes, acc });
+    const eventos = eventosDe({ comando, categoria, antes, acc, sender });
     let completadas = [];
     if (eventos.length) {
       registrarEventos(sender, eventos);
