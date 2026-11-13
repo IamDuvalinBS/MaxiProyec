@@ -215,24 +215,44 @@ async function enviarNotaDeVideo(sock, from) {
   }
 }
 
-// ── Botones del menú: 1) Canal (inline)  2) "Nuestras redes" = desplegable (bottom sheet) con botones cta_url dentro ──
 const LINK_COMUNIDAD = "https://chat.whatsapp.com/DnWYpCBy9Eh1jTNiCSZ3LG";
+const BOTONES_FUERA_DEL_DESPLEGABLE = 1;
 const NODO_BIZ = {
   tag: "biz",
   attrs: {},
   content: [{ tag: "interactive", attrs: { type: "native_flow", v: "1" }, content: [{ tag: "native_flow", attrs: { v: "9", name: "mixed" } }] }]
 };
 
+const normalizarUrl = (url) => {
+  const limpio = String(url || "").trim();
+  if (!limpio) return "";
+  return /^https?:\/\//i.test(limpio) ? limpio : `https://${limpio.replace(/^\/+/, "")}`;
+};
+
 const urlBtn = (texto, url) => ({ name: "cta_url", buttonParamsJson: JSON.stringify({ display_text: texto, url, merchant_url: url }) });
 
 function botonesDelMenu() {
   const enlaces = [
-    ["📢 Canal oficial", ajusteBot("channelLink")],
+    ["📢 CANAL OFICIAL", ajusteBot("channelLink")],
     ["🧸 Comunidad", LINK_COMUNIDAD],
     ["🌺 Grupo oficial", ajusteBot("groupLink")],
     ["⚙️ Nuestra página", ajusteBot("webLink")]
-  ].filter(([, url]) => url);
+  ]
+    .map(([texto, url]) => [texto, normalizarUrl(url)])
+    .filter(([, url]) => url);
   return enlaces.map(([texto, url]) => urlBtn(texto, url));
+}
+
+function parametrosDelDesplegable(botones) {
+  if (botones.length <= BOTONES_FUERA_DEL_DESPLEGABLE + 1) return "";
+  return JSON.stringify({
+    bottom_sheet: {
+      in_thread_buttons_limit: BOTONES_FUERA_DEL_DESPLEGABLE + 1,
+      divider_indices: [...botones.keys()].slice(BOTONES_FUERA_DEL_DESPLEGABLE).concat(999),
+      list_title: "Redes oficiales",
+      button_title: "🔗 Nuestras redes"
+    }
+  });
 }
 
 async function enviarMenuConDesplegable({ sock, from, msg, texto, footer, foto, mentions }) {
@@ -258,15 +278,7 @@ async function enviarMenuConDesplegable({ sock, from, msg, texto, footer, foto, 
       header,
       nativeFlowMessage: {
         buttons: botones,
-        // El primer botón queda visible (Canal); el resto se agrupa en un desplegable.
-        messageParamsJson: JSON.stringify({
-          bottom_sheet: {
-            in_thread_buttons_limit: 1,
-            divider_indices: [...botones.keys()].slice(1).concat(999),
-            list_title: "Redes oficiales",
-            button_title: "🔗 Nuestras redes"
-          }
-        })
+        messageParamsJson: parametrosDelDesplegable(botones)
       },
       contextInfo: { mentionedJid: mentions }
     };
