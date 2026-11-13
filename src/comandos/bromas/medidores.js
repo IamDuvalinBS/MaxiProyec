@@ -13,8 +13,7 @@ const comandoMedidor = (def) => ({
       `⧼${def.emoji}⧽ *${def.titulo}*\n\n` +
       `Persona analizada: @${numero(objetivo)}\n\n` +
       `*${def.adj}* → ${barra(pct)}\n\n` +
-      `${tramo(pct, def.frases)}\n\n` +
-      `> Usa *${def.names[0]} @usuario* para medir a otra persona.`;
+      `${tramo(pct, def.frases)}`;
 
     await enviarResultado(sock, from, msg, {
       clave: def.names[0],
@@ -46,8 +45,7 @@ const comandoPareja = (def) => ({
       `⧼${def.emoji}⧽ *${def.titulo}*\n\n` +
       `@${numero(pareja[0])} ${def.union} @${numero(pareja[1])}\n\n` +
       `${barra(pct)}\n\n` +
-      `${tramo(pct, def.frases)}\n\n` +
-      `> Usa *${def.names[0]} @usuario @usuario* para calcular otra pareja.`;
+      `${tramo(pct, def.frases)}`;
 
     await enviarResultado(sock, from, msg, {
       clave: def.names[0],

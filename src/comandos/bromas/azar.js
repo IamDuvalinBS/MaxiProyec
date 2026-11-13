@@ -112,7 +112,7 @@ const CUANDOS = ["mañana mismo", "dentro de 3 días", "la próxima semana", "en
 
 const MEDALLAS = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"];
 
-const bloque = (titulo, emoji, cuerpo, uso) => `⧼${emoji}⧽ *${titulo}*\n\n${cuerpo}\n\n> ${uso}`;
+const bloque = (titulo, emoji, cuerpo, uso) => `⧼${emoji}⧽ *${titulo}*\n\n${cuerpo}${uso ? `\n\n> ${uso}` : ""}`;
 
 export default [
   {
@@ -128,7 +128,7 @@ export default [
       try { lista = await participantesDelGrupo(sock, from); } catch { return reply({ text: "❌ No se pudo leer la lista del grupo." }); }
       if (!lista.length) return reply({ text: "❌ No hay suficientes participantes." });
       const elegido = elegir(lista);
-      await enviarTexto(sock, from, msg, bloque("¿QUIÉN?", "🎲", `*${frase}*\n\nLa persona elegida es @${numero(elegido)}`, "Usa *.quien <frase>* para otra pregunta."), [elegido]);
+      await enviarTexto(sock, from, msg, bloque("¿QUIÉN?", "🎲", `*${frase}*\n\nLa persona elegida es @${numero(elegido)}`), [elegido]);
     }
   },
   {
@@ -144,7 +144,7 @@ export default [
       const pareja = mezclar(lista).slice(0, 2);
       const pct = porcentaje();
       const frases = ["Mejor que cada uno siga con su vida.", "Podrían ser buenos conocidos.", "Hay química, ¡quién sabe!", "El grupo ya está organizando la fiesta."];
-      const texto = bloque("PAREJA DEL GRUPO", "💞", `@${numero(pareja[0])} 💞 @${numero(pareja[1])}\n\n${barra(pct)}\n\n${tramo(pct, frases)}`, "Usa *.parejas* para formar otra pareja.");
+      const texto = bloque("PAREJA DEL GRUPO", "💞", `@${numero(pareja[0])} 💞 @${numero(pareja[1])}\n\n${barra(pct)}\n\n${tramo(pct, frases)}`);
       await enviarResultado(sock, from, msg, { clave: ".parejas", inicio: "*Buscando una pareja al azar...*", mentions: pareja, texto, etiqueta: ".parejas" });
     }
   },
@@ -156,7 +156,7 @@ export default [
     handler: async ({ sock, from, msg, cleanText, reply }) => {
       const pregunta = argumentos(cleanText).slice(0, 120);
       if (!pregunta) return reply({ text: bloque("BOLA MÁGICA", "🎱", "Hazle una pregunta a la bola.", "Usa *.bola8 ¿Aprobaré el examen?*") });
-      await enviarTexto(sock, from, msg, bloque("BOLA MÁGICA", "🎱", `*${pregunta}*\n\n${elegir(BOLA8)}`, "Usa *.bola8 <pregunta>* para otra consulta."));
+      await enviarTexto(sock, from, msg, bloque("BOLA MÁGICA", "🎱", `*${pregunta}*\n\n${elegir(BOLA8)}`));
     }
   },
   {
@@ -167,7 +167,7 @@ export default [
     handler: async ({ sock, from, msg, cleanText, reply }) => {
       const pregunta = argumentos(cleanText).slice(0, 100);
       if (!pregunta) return reply({ text: bloque("¿CUÁNDO?", "📅", "Dime qué quieres saber.", "Usa *.cuando me sale la lotería*.") });
-      await enviarTexto(sock, from, msg, bloque("¿CUÁNDO?", "📅", `*${pregunta}*\n\nPasará ${elegir(CUANDOS)}.`, "Usa *.cuando <pregunta>* para otra predicción."));
+      await enviarTexto(sock, from, msg, bloque("¿CUÁNDO?", "📅", `*${pregunta}*\n\nPasará ${elegir(CUANDOS)}.`));
     }
   },
   {
@@ -179,7 +179,7 @@ export default [
       const frase = argumentos(cleanText).slice(0, 100);
       if (!frase) return reply({ text: bloque("PROBABILIDAD", "📊", "Escribe qué quieres calcular.", "Usa *.porcentaje que mañana llueva*.") });
       const pct = porcentaje();
-      await enviarTexto(sock, from, msg, bloque("PROBABILIDAD", "📊", `*${frase}*\n\n${barra(pct)}`, "Usa *.porcentaje <frase>* para otro cálculo."));
+      await enviarTexto(sock, from, msg, bloque("PROBABILIDAD", "📊", `*${frase}*\n\n${barra(pct)}`));
     }
   },
   {
@@ -190,7 +190,7 @@ export default [
     handler: async ({ sock, from, msg, cleanText, reply }) => {
       const partes = argumentos(cleanText).split(/,|\s+o\s+|\|/i).map((s) => s.trim()).filter(Boolean).slice(0, 15);
       if (partes.length < 2) return reply({ text: bloque("DECISIÓN", "🧭", "Escribe al menos dos opciones separadas por comas.", "Usa *.elegir pizza, tacos, sushi*.") });
-      await enviarTexto(sock, from, msg, bloque("DECISIÓN", "🧭", `Entre ${partes.length} opciones, elijo:\n\n✅ *${elegir(partes)}*`, "Usa *.elegir a, b, c* para decidir otra cosa."));
+      await enviarTexto(sock, from, msg, bloque("DECISIÓN", "🧭", `Entre ${partes.length} opciones, elijo:\n\n✅ *${elegir(partes)}*`));
     }
   },
   {
@@ -203,7 +203,7 @@ export default [
       await enviarConEdicion(sock, from, msg, {
         inicio: "*Lanzando la moneda...*",
         mentions: [],
-        texto: bloque("MONEDA", "🪙", `Cayó: ${sale}`, "Usa *.caraocruz* para lanzar otra vez."),
+        texto: bloque("MONEDA", "🪙", `Cayó: ${sale}`),
         espera: 1200,
         etiqueta: ".caraocruz"
       });
@@ -216,7 +216,7 @@ export default [
     category: CAT,
     handler: async ({ sock, from, sender, msg }) => {
       const quien = objetivoDe(msg, sender);
-      await enviarConGif(sock, from, msg, { clave: ".verdad", texto: bloque("VERDAD", "🕵️", `Para @${numero(quien)}:\n\n${elegir(VERDADES)}`, "Usa *.verdad @usuario* para preguntarle a otra persona."), mentions: [quien] });
+      await enviarConGif(sock, from, msg, { clave: ".verdad", texto: bloque("VERDAD", "🕵️", `Para @${numero(quien)}:\n\n${elegir(VERDADES)}`), mentions: [quien] });
     }
   },
   {
@@ -226,7 +226,7 @@ export default [
     category: CAT,
     handler: async ({ sock, from, sender, msg }) => {
       const quien = objetivoDe(msg, sender);
-      await enviarTexto(sock, from, msg, bloque("RETO", "🎯", `Para @${numero(quien)}:\n\n${elegir(RETOS)}`, "Usa *.reto @usuario* para retar a otra persona."), [quien]);
+      await enviarTexto(sock, from, msg, bloque("RETO", "🎯", `Para @${numero(quien)}:\n\n${elegir(RETOS)}`), [quien]);
     }
   },
   {
@@ -237,7 +237,7 @@ export default [
     handler: async ({ sock, from, msg }) => {
       const quien = personasDe(msg)[0];
       const encabezado = quien ? `Para @${numero(quien)}:\n\n` : "";
-      await enviarConGif(sock, from, msg, { clave: ".piropo", texto: bloque("PIROPO", "🌹", `${encabezado}${elegir(PIROPOS)}`, "Usa *.piropo @usuario* para dedicarlo."), mentions: quien ? [quien] : [] });
+      await enviarConGif(sock, from, msg, { clave: ".piropo", texto: bloque("PIROPO", "🌹", `${encabezado}${elegir(PIROPOS)}`), mentions: quien ? [quien] : [] });
     }
   },
   {
@@ -246,7 +246,7 @@ export default [
     desc: "Cuenta un chiste (casi siempre malo).",
     category: CAT,
     handler: async ({ sock, from, msg }) => {
-      await enviarConGif(sock, from, msg, { clave: ".chiste", texto: bloque("CHISTE", "😂", elegir(CHISTES), "Usa *.chiste* para otro."), mentions: [] });
+      await enviarConGif(sock, from, msg, { clave: ".chiste", texto: bloque("CHISTE", "😂", elegir(CHISTES)), mentions: [] });
     }
   },
   {
@@ -255,7 +255,7 @@ export default [
     desc: "Un consejo de vida muy dudoso.",
     category: CAT,
     handler: async ({ sock, from, msg }) => {
-      await enviarTexto(sock, from, msg, bloque("CONSEJO", "📜", elegir(CONSEJOS), "Usa *.consejo* para otro consejo."));
+      await enviarTexto(sock, from, msg, bloque("CONSEJO", "📜", elegir(CONSEJOS)));
     }
   },
   {
@@ -265,7 +265,7 @@ export default [
     category: CAT,
     handler: async ({ sock, from, sender, msg }) => {
       const quien = objetivoDe(msg, sender);
-      await enviarConGif(sock, from, msg, { clave: ".roast", texto: bloque("ROAST SUAVE", "🔥", `@${numero(quien)} ${elegir(ROASTS)}`, "Usa *.roast @usuario* para otra persona."), mentions: [quien] });
+      await enviarConGif(sock, from, msg, { clave: ".roast", texto: bloque("ROAST SUAVE", "🔥", `@${numero(quien)} ${elegir(ROASTS)}`), mentions: [quien] });
     }
   },
   {
@@ -275,7 +275,7 @@ export default [
     category: CAT,
     handler: async ({ sock, from, sender, msg }) => {
       const quien = objetivoDe(msg, sender);
-      await enviarConGif(sock, from, msg, { clave: ".halago", texto: bloque("HALAGO", "💖", `@${numero(quien)} ${elegir(HALAGOS)}`, "Usa *.halago @usuario* para otra persona."), mentions: [quien] });
+      await enviarConGif(sock, from, msg, { clave: ".halago", texto: bloque("HALAGO", "💖", `@${numero(quien)} ${elegir(HALAGOS)}`), mentions: [quien] });
     }
   },
   {
@@ -286,7 +286,7 @@ export default [
     handler: async ({ sock, from, sender, msg }) => {
       const quien = objetivoDe(msg, sender);
       const apodo = azar(2) ? `${elegir(PREFIJOS)} ${elegir(CHISTOSOS)}` : `${elegir(CHISTOSOS)} ${elegir(SUFIJOS)}`;
-      await enviarTexto(sock, from, msg, bloque("APODO", "🏷️", `A partir de hoy, @${numero(quien)} será conocido/a como:\n\n*${apodo}*`, "Usa *.apodo @usuario* para otro apodo."), [quien]);
+      await enviarTexto(sock, from, msg, bloque("APODO", "🏷️", `A partir de hoy, @${numero(quien)} será conocido/a como:\n\n*${apodo}*`), [quien]);
     }
   },
   {
@@ -296,7 +296,7 @@ export default [
     category: CAT,
     handler: async ({ sock, from, sender, msg }) => {
       const quien = objetivoDe(msg, sender);
-      await enviarTexto(sock, from, msg, bloque("PROFESIÓN SECRETA", "💼", `@${numero(quien)} trabaja de *${elegir(PROFESIONES)}*.`, "Usa *.profesion @usuario* para otra persona."), [quien]);
+      await enviarTexto(sock, from, msg, bloque("PROFESIÓN SECRETA", "💼", `@${numero(quien)} trabaja de *${elegir(PROFESIONES)}*.`), [quien]);
     }
   },
   {
@@ -307,7 +307,7 @@ export default [
     handler: async ({ sock, from, sender, msg }) => {
       const quien = objetivoDe(msg, sender);
       const a = elegir(ANIMALES);
-      await enviarTexto(sock, from, msg, bloque("ANIMAL ESPIRITUAL", "🔮", `El animal espiritual de @${numero(quien)} es el *${a.n}*: ${a.d}`, "Usa *.animalespiritual @usuario* para otra persona."), [quien]);
+      await enviarTexto(sock, from, msg, bloque("ANIMAL ESPIRITUAL", "🔮", `El animal espiritual de @${numero(quien)} es el *${a.n}*: ${a.d}`), [quien]);
     }
   },
   {
@@ -317,7 +317,7 @@ export default [
     category: CAT,
     handler: async ({ sock, from, sender, msg }) => {
       const quien = objetivoDe(msg, sender);
-      await enviarTexto(sock, from, msg, bloque("SUPERPODER", "⚡", `El superpoder de @${numero(quien)} es:\n\n${elegir(PODERES)}`, "Usa *.superpoder @usuario* para otra persona."), [quien]);
+      await enviarTexto(sock, from, msg, bloque("SUPERPODER", "⚡", `El superpoder de @${numero(quien)} es:\n\n${elegir(PODERES)}`), [quien]);
     }
   },
   {
@@ -327,7 +327,7 @@ export default [
     category: CAT,
     handler: async ({ sock, from, sender, msg }) => {
       const quien = objetivoDe(msg, sender);
-      await enviarTexto(sock, from, msg, bloque("DESTINO", "🔮", `Para @${numero(quien)}:\n\n${elegir(DESTINOS)}`, "Usa *.destino @usuario* para otra predicción."), [quien]);
+      await enviarTexto(sock, from, msg, bloque("DESTINO", "🔮", `Para @${numero(quien)}:\n\n${elegir(DESTINOS)}`), [quien]);
     }
   },
   {
@@ -345,7 +345,7 @@ export default [
       const a = Math.round(Math.random() * 1000) / 10;
       const b = Math.round((100 - a) * 10) / 10;
       const ganador = a >= b ? par[0] : par[1];
-      const texto = bloque("DUELO", "⚔️", `@${numero(par[0])} *${a}%*  🆚  *${b}%* @${numero(par[1])}\n\n🏆 Gana @${numero(ganador)}`, "Usa *.vs @usuario @usuario* para otro duelo.");
+      const texto = bloque("DUELO", "⚔️", `@${numero(par[0])} *${a}%*  🆚  *${b}%* @${numero(par[1])}\n\n🏆 Gana @${numero(ganador)}`);
       await enviarResultado(sock, from, msg, { clave: ".vs", inicio: "*Preparando el duelo...*", mentions: par, texto, etiqueta: ".vs" });
     }
   },
@@ -363,7 +363,7 @@ export default [
       if (!lista.length) return reply({ text: "❌ No hay suficientes participantes." });
       const elegidos = mezclar(lista).slice(0, 3);
       const filas = elegidos.map((id, i) => `${MEDALLAS[i]} @${numero(id)}`).join("\n");
-      await enviarTexto(sock, from, msg, bloque(`PODIO • ${titulo.toUpperCase()}`, "🏅", filas, "Usa *.podio <título>* para otro podio."), elegidos);
+      await enviarTexto(sock, from, msg, bloque(`PODIO • ${titulo.toUpperCase()}`, "🏅", filas), elegidos);
     }
   }
 ];
