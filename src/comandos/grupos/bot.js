@@ -12,7 +12,7 @@ export default {
     const apagado = botApagado(from);
 
     if (opcion !== "on" && opcion !== "off") {
-      return avisar(`Estado actual: *${apagado ? "apagado" : "encendido"}* en este grupo.\n\n> Usa *.bot on* o *.bot off*.`);
+      return avisar(`Estado actual: *${apagado ? "apagado" : "encendido"}* en este grupo.\n\n> Usa *.mambo on* o *.mambo off*.`);
     }
 
     const apagar = opcion === "off";
