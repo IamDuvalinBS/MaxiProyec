@@ -27,7 +27,6 @@ const ESTILOS = {
     resultado: (n) => `🎲 *RESULTADO::* ${n}`,
     monedas: (acierto, n) => `${acierto ? "🪙" : "💸"} *MONEDAS::* ${montoConSigno(n)}`,
     experiencia: (n) => `✨ *EXPERIENCIA::* +${n}`,
-    tipFinal: "Usa *.dado* de nuevo para intentar otra vez.",
     cancelada: "⚠️ La apuesta fue cancelada porque ya no cuentas con fondos suficientes."
   },
    halloween: {
@@ -56,7 +55,6 @@ const ESTILOS = {
     resultado: (n) => `🦴 *NÚMERO DEL DESTINO::* ${n}`,
     monedas: (acierto, n) => `${acierto ? "🏵️" : "💀"} *MONEDAS DE LA OFRENDA::* ${montoConSigno(n)}`,
     experiencia: (n) => `🕯️ *SABIDURÍA ANCESTRAL::* +${n}`,
-    tipFinal: "Usa *.dado* para volver a desafiar al destino y probar tu fortuna en el Mictlán 🏵️.",
     cancelada: "⚠️ 💀 La ofrenda fue cancelada porque ya no tienes suficientes monedas."
    },
 };
@@ -100,8 +98,7 @@ export default {
               emoji: E.emoji,
               titulo: acierto ? E.tituloAcierto : E.tituloFallo,
               relato: elegir([].concat(acierto ? E.relatoAcierto : E.relatoFallo)),
-              lineas: [E.eleccion(elegido), E.resultado(resultado), E.monedas(acierto, neto), E.experiencia(cierre.xp)],
-              tip: E.tipFinal
+              lineas: [E.eleccion(elegido), E.resultado(resultado), E.monedas(acierto, neto), E.experiencia(cierre.xp)]
             })
           : E.cancelada;
 
