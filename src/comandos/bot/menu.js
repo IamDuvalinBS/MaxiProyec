@@ -86,6 +86,13 @@ const GRUPOS = [
     alias: ["reacciones", "reaccion", "diversion", "fun"]
   },
   {
+    titulo: "BROMAS",
+    icono: "🤡",
+    descripcion: "Medidores, duos y comandos de broma para el grupo.",
+    categorias: ["Bromas"],
+    alias: ["bromas", "broma", "jokes", "joke", "medidores", "medidor"]
+  },
+  {
     titulo: "STICKERS",
     icono: "🌱",
     descripcion: "Crea y personaliza tus stickers.",
