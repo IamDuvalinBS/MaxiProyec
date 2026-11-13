@@ -86,6 +86,14 @@ const GRUPOS = [
     alias: ["reacciones", "reaccion", "diversion", "fun"]
   },
   {
+    titulo: "BROMAS",
+    icono: "🃏",
+    descripcion: "Medidores, parejas y juegos al azar para bromear con el grupo.",
+    categorias: ["Bromas"],
+    soloSubmenu: true,
+    alias: ["bromas", "broma", "menubroma", "menubromas"]
+  },
+  {
     titulo: "STICKERS",
     icono: "🌱",
     descripcion: "Crea y personaliza tus stickers.",
@@ -146,6 +154,16 @@ function bloqueGrupo(grupo, comandos) {
   ].join("\n");
 }
 
+function resumenGrupo(grupo, total) {
+  return [
+    `╔≈≈≈⧼⨳˒˙ *${silabico(grupo.titulo)}* ˙˓⨳⧽≈≈≈⧽⧽`,
+    `> ⧼${grupo.icono}⧽ ${grupo.descripcion}`,
+    "︴",
+    `✿ *${total} comandos*\n> Usa *.menu ${grupo.alias[0]}* para ver la lista completa.`,
+    `╚≈≈⧼⨳˒˙ *𝙴𝙽𝙳 ${monoespaciado(grupo.titulo)}* ˙˓⨳⧽≈≈⧽⧽`
+  ].join("\n");
+}
+
 function textoMenuCompleto(categorias) {
   const total = new Set(commandRegistry.values()).size;
 
@@ -173,7 +191,8 @@ function textoMenuCompleto(categorias) {
   const bloques = [];
   for (const grupo of GRUPOS) {
     const comandos = comandosDe(grupo, categorias);
-    if (comandos.length) bloques.push(bloqueGrupo(grupo, comandos));
+    if (!comandos.length) continue;
+    bloques.push(grupo.soloSubmenu ? resumenGrupo(grupo, comandos.length) : bloqueGrupo(grupo, comandos));
   }
 
   return `${cabecera}\n\n\n${bloques.join("\n\n")}`;
