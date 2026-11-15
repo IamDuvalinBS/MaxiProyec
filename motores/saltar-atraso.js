@@ -23,10 +23,21 @@ function resumir(edadSeg) {
   }, 5000);
 }
 
+const TIPOS_MEDIA = new Set(["image", "video", "ptt", "audio"]);
+
+// Fotos, videos y audios de chats privados no se saltan: pueden ser de ver una vez y .revelar necesita descifrarlos al llegar.
+function esMediaPrivada(nodo) {
+  const de = String(nodo.attrs.from || "");
+  if (de.endsWith("@g.us") || de.endsWith("@broadcast") || de.endsWith("@newsletter")) return false;
+  const hijos = Array.isArray(nodo.content) ? nodo.content : [];
+  return hijos.some((h) => h && h.tag === "enc" && h.attrs && TIPOS_MEDIA.has(h.attrs.mediatype));
+}
+
 function esViejoDelAtraso(nodo) {
   const a = nodo && nodo.attrs;
   if (!a || nodo.tag !== "message" || a.offline === undefined) return false;
   if (a.category === "peer") return false;            // mensajes entre dispositivos propios (claves de sincronización)
+  if (esMediaPrivada(nodo)) return false;
   if (SALTAR_TODO) return true;
   const t = Number(a.t);
   if (!t) return false;
