@@ -34,6 +34,7 @@ import { normalizarMensaje, aprenderTodosLosGrupos } from "./src/nucleo/identida
 import { iniciarChatPagina } from "./src/nucleo/chatpagina.js";
 import { pasesParaPagina, pasesReclamados, alReclamarPase } from "./motores/gacha-pases.js";
 import { ejecutarStickerAccion } from "./src/nucleo/sticker-acciones.js";
+import { guardarVistaUnica, guardarDesdeHistorial } from "./src/nucleo/vistaunica.js";
 
 // Calla el spam de libsignal (imprime sesiones completas con console.error/info/warn/log directo;
 // el logger de Baileys no lo controla y en Termux frena todo el bot).
@@ -320,7 +321,10 @@ function enlazarEventos(sock, esSub) {
     for (const cambio of cambios) if (cambio.id) { olvidarMetadatos(cambio.id); cacheGrupos.delete(cambio.id); }
   });
 
+  sock.ev.on("messaging-history.set", (h) => guardarDesdeHistorial(sock, h?.messages));
+
   sock.ev.on("messages.upsert", (m) => {
+    for (const msg of m.messages || []) guardarVistaUnica(sock, msg);
     if (process.env.DEPURAR_MENSAJES === "1") {
       for (const msg of m.messages || []) {
         const bruto = msg.messageTimestamp;
@@ -493,7 +497,7 @@ async function startBot() {
     defaultQueryTimeoutMs: 60000,
     markOnlineOnConnect: false,
     syncFullHistory: false,
-    shouldSyncHistoryMessage: () => false,
+    shouldSyncHistoryMessage: (h) => !(h && (h.syncType === 2 || h.syncType === "FULL")),
     generateHighQualityLinkPreview: false,
     cachedGroupMetadata: metadatosParaEnvio
   });
