@@ -293,7 +293,7 @@ async function abrir(numero, entrada) {
     defaultQueryTimeoutMs: 60000,
     markOnlineOnConnect: false,
     syncFullHistory: false,
-    shouldSyncHistoryMessage: () => false,
+    shouldSyncHistoryMessage: (h) => !(h && (h.syncType === 2 || h.syncType === "FULL")),
     generateHighQualityLinkPreview: false,
     getMessage: async () => undefined,
     userDevicesCache: cacheDispositivos,
