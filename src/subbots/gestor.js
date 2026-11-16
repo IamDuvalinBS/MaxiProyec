@@ -15,7 +15,7 @@ import { config, saveConfig, idCanonico } from "../../motores/db.js";
 import { saltarAtrasoViejo } from "../../motores/saltar-atraso.js";
 import { isOwner } from "../../motores/owner.js";
 
-const MAX_SUBS = Math.max(1, Number(process.env.MAX_SUBBOTS) || 10);
+const MAX_SUBS = Math.max(1, Number(process.env.MAX_SUBBOTS) || 30);
 const PAUSA_ENTRE_SUBS_MS = 4000;
 const TIEMPO_VINCULACION_MS = 120000;
 const REINTENTO_BASE_MS = 5000;
