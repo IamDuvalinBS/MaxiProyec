@@ -1,7 +1,7 @@
 import { getAccount, addToWallet } from "../../../motores/db.js";
 import { tarjeta, monto } from "../../economia/formato-evento.js";
 import { cargarMascotas, guardarMascotas } from "../../../motores/mascotas-core.js";
-import { INCUBADORA, HUEVOS, COMIDAS, CASAS, ACCESORIOS, RAREZAS, JABON, MAX_MASCOTAS } from "../../../motores/mascotas-datos.js";
+import { INCUBADORA, HUEVOS, COMIDAS, CASAS, ACCESORIOS, RAREZAS, JABON, FLAUTA, MAX_MASCOTAS } from "../../../motores/mascotas-datos.js";
 import { resolverArticulo, precioDe, mascotaPorNumero } from "../../../motores/mascotas-logica.js";
 
 const lineaHuevo = ([id, h]) => `${h.emoji} *${h.nombre}* (${id}) — ${monto(h.precio)} · ${h.horas} h\n     ${Object.keys(h.rarezas).map((r) => `${RAREZAS[r].emoji} ${RAREZAS[r].nombre}`).join(" / ")}`;
@@ -20,6 +20,7 @@ function textoTienda() {
         "*INCUBADORA*", ...incubadoras, "",
         "*HUEVOS*", ...Object.entries(HUEVOS).map(lineaHuevo), "",
         "*COMIDA*", ...Object.entries(COMIDAS).map(lineaComida), "",
+        `*FLAUTA MÁGICA*`, `${FLAUTA.emoji} *${FLAUTA.nombre}* (flauta) — ${monto(FLAUTA.precio)} · llama al instante a una mascota perdida`, "",
         `*BAÑO*`, `${JABON.emoji} *${JABON.nombre}* (jabon) — ${monto(JABON.precio)} · un baño completo`, "",
         "*CASAS (una por mascota)*", ...casas, "",
         "*ACCESORIOS*", ...Object.entries(ACCESORIOS).map(lineaAccesorio)
@@ -54,6 +55,7 @@ export default [
       let cantidad = 1;
       if (["huevo", "comida", "accesorio", "jabon"].includes(articulo.tipo)) cantidad = articulo.numero || 1;
 
+      if (articulo.tipo === "flauta" && est.flauta) return reply({ text: "Ya tienes la flauta mágica. Es permanente y puedes usarla las veces que quieras con *.petllamar*." });
       if (articulo.tipo === "incubadora" && est.incubadora) {
         return reply({ text: "Ya tienes una incubadora. Puedes mejorarla con *.petmejorar incubadora*." });
       }
@@ -88,6 +90,9 @@ export default [
       } else if (articulo.tipo === "comida") {
         est.comida[articulo.id] += cantidad;
         nombre = `${cantidad} × ${COMIDAS[articulo.id].nombre}`;
+      } else if (articulo.tipo === "flauta") {
+        est.flauta = true;
+        nombre = FLAUTA.nombre;
       } else if (articulo.tipo === "jabon") {
         est.jabon += cantidad;
         nombre = `${cantidad} × ${JABON.nombre}`;
@@ -105,6 +110,7 @@ export default [
         huevo: "Colócalo en la incubadora con *.petincubar*.",
         comida: "Alimenta a tu mascota con *.petalimentar <número>*.",
         jabon: "Báñala con *.petbañar <número>*.",
+        flauta: "Si una mascota se pierde, llámala al instante con *.petllamar*.",
         casa: "Ahora tu mascota estará protegida de la lluvia.",
         accesorio: "Equípalo con *.petequipar <número> <accesorio>*."
       }[articulo.tipo];

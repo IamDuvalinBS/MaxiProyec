@@ -11,7 +11,7 @@ const FIRMA = "Powered By ItsDuva";
 
 function textoMascotas(est, clima) {
   const lineas = est.mascotas.map((m, i) => {
-    const estado = explorando(m, Date.now()) ? { emoji: "🔍", texto: `Investigando ${ZONAS[m.expedicion.zona].nombre}` } : estadoActual(m, clima.llueve);
+    const estado = m.perdida ? { emoji: "🌫️", texto: "Perdida (usa .petllamar)" } : explorando(m, Date.now()) ? { emoji: "🔍", texto: `Investigando ${ZONAS[m.expedicion.zona].nombre}` } : estadoActual(m, clima.llueve);
     return `*${i + 1}.* ${ESPECIES[m.especie].emoji} *${m.nombre}* — Nv ${nivelDe(m)} · ${etapaDe(m.crec).nombre} · ${estado.emoji} ${estado.texto}\n     🍖 ${Math.round(m.hambre)}  ⚡ ${Math.round(m.energia)}  🎾 ${Math.round(m.diversion)}  🫧 ${Math.round(m.limpieza)}`;
   });
   return tarjeta({ emoji: "🐾", titulo: "TUS MASCOTAS", lineas, tip: "Alimenta con *.petalimentar*, juega con *.petjugar* y descansa con *.petdormir*." });
@@ -42,7 +42,7 @@ export default [
       }
       try {
         const numero = parseInt(cleanText.trim().split(/\s+/)[1], 10);
-        const climaZonas = est.mascotas.some((m) => m.expedicion) ? await obtenerClimaZonas(ZONAS) : null;
+        const climaZonas = est.mascotas.some((m) => m.expedicion || m.perdida) ? await obtenerClimaZonas(ZONAS) : null;
         const html = htmlMascotas({
           nombre: msg?.pushName || getProfile(sender)?.name || "Entrenador",
           est,

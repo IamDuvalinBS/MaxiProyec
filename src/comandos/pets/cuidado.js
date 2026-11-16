@@ -1,6 +1,6 @@
 import { tarjeta, textoEspera } from "../../economia/formato-evento.js";
 import { cargarMascotas, guardarMascotas, elegirMascota } from "../../../motores/mascotas-core.js";
-import { COMIDAS, ACCESORIOS } from "../../../motores/mascotas-datos.js";
+import { COMIDAS, ACCESORIOS, PREP_MAX } from "../../../motores/mascotas-datos.js";
 import { explorando, banar, alimentar, jugar, dormir, despertar, equipar, quitar, resolverAccesorio, limpiarNombre, mascotaPorNumero } from "../../../motores/mascotas-logica.js";
 
 const sinTildes = (s) => String(s).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
@@ -21,6 +21,9 @@ async function conMascota(ctx, accion, { bloquear = true } = {}) {
   const datos = await cargarMascotas(sender);
   const elegido = elegirMascota(datos.est, cleanText);
   if (elegido.error) return reply({ text: elegido.error });
+  if (bloquear && elegido.m.perdida) {
+    return reply({ text: `🌫️ ${elegido.m.nombre} se perdió en una expedición. Llámala con *.petllamar*.` });
+  }
   if (bloquear && explorando(elegido.m, datos.ahora)) {
     const minutos = Math.ceil((elegido.m.expedicion.fin - datos.ahora) / 60000);
     return reply({ text: `🔍 ${elegido.m.nombre} está investigando una zona y volverá en *${minutos} min*. No puede hacer otras actividades mientras tanto.` });
@@ -38,10 +41,10 @@ export default [
     usage: ".petalimentar [número] [comida]",
     desc: "Alimenta a tu mascota con la comida que tengas en tu mochila",
     category: "Pets",
-    handler: async (ctx) => conMascota(ctx, async ({ est, m, resto }) => {
+    handler: async (ctx) => conMascota(ctx, async ({ est, m, resto, ahora }) => {
       const texto = sinTildes(resto.join(" "));
       const tipo = Object.keys(COMIDAS).find((k) => texto.includes(k)) || null;
-      const r = alimentar(est, m, tipo);
+      const r = alimentar(est, m, tipo, ahora);
       if (!r.ok) {
         await ctx.reply({ text: `⚠️ ${r.error}` });
         return false;
@@ -50,8 +53,11 @@ export default [
         text: tarjetaCuidado("🍖", "MASCOTA ALIMENTADA", `${m.nombre} comió *${r.comida.nombre}* con muchas ganas.`, [
           `${r.comida.emoji} *COMIDA RECUPERADA::* +${r.recuperado}`,
           `🍖 *COMIDA::* ${redondo(m.hambre)}/100`,
+          ...(r.energia ? [`⚡ *ENERGÍA::* +${r.energia}`] : []),
+          ...(r.diversion ? [`🎾 *DIVERSIÓN::* +${r.diversion}`] : []),
+          `🛡️ *PREPARACIÓN::* ${r.prep}/${PREP_MAX} durante ${r.horas} h`,
           `🎒 *RESTANTES::* ${est.comida[Object.keys(COMIDAS).find((k) => COMIDAS[k] === r.comida)]}`
-        ])
+        ], "Una mascota bien alimentada tiene menos riesgo de perderse al investigar.")
       });
     })
   },
