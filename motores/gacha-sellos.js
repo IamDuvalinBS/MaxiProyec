@@ -7,7 +7,7 @@ export const EMOJI_SELLO = "🔖";
 export const CATEGORIA_CON_SELLO = "waifu";
 export const SELLOS_INICIALES = 3;
 export const SELLOS_MAXIMOS = 50;
-export const PROBABILIDAD_SELLO = 0.25;
+export const PROBABILIDAD_SELLO = 0.35;
 export const VERSION_REINICIO_SELLOS = 2;
 
 const ITEM = "sello:reclamo";
