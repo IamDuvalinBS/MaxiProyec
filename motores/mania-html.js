@@ -7,6 +7,7 @@ const wrap = (g) => `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/sv
 
 const PAGE = String.raw`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>🐾 Pet Mania</title>
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
 body{margin:0;padding:8px;background:#0f1424;color:#eef1ff;font-family:system-ui,sans-serif}
