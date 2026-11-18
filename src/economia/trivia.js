@@ -71,6 +71,14 @@ function haExpirado(pendiente) {
   return Date.now() > expira;
 }
 
+export function hayTriviaEn(chat) {
+  const base = idBase(chat);
+  for (const [clave, datos] of pendientes) {
+    if (clave.startsWith(base + ":") && !haExpirado(datos)) return true;
+  }
+  return false;
+}
+
 export function setPendingTrivia(clave, datos) {
   pendientes.set(normalizarClave(clave), datos);
 }
