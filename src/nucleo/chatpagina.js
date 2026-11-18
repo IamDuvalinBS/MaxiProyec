@@ -360,7 +360,7 @@ export function iniciarChatPagina({ PAG, Timestamp, config, commandRegistry, get
     const k = new Map(), n = new Map(), l = [];
     try {
       for (const [jid, acc] of getAllAccounts()) {
-        const nombre = String(acc?.profile?.name || "").replace(/\s+/g, " ").trim().slice(0, 30);
+        const nombre = Array.from(String(acc?.profile?.name || "").replace(/\s+/g, " ").trim().replace(/[\uD800-\uDFFF]/g, (c, i, t) => /[\uD800-\uDBFF][\uDC00-\uDFFF]/.test(t.slice(i, i + 2)) || /[\uD800-\uDBFF][\uDC00-\uDFFF]/.test(t.slice(i - 1, i + 1)) ? c : "")).slice(0, 30).join("");
         if (!nombre) continue;
         k.set(clave(jid), jid); n.set(num(jid), nombre);
         if (l.length < 600) l.push({ n: nombre, k: clave(jid) });

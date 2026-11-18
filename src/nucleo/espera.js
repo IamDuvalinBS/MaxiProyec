@@ -1,5 +1,15 @@
 const esperas = new Map();
 
+// ¿Hay alguna espera viva (confirmación, propuesta, elegir de una lista...) en este chat? Las claves son "chat:usuario".
+export function hayEsperaEn(chat) {
+  const ahora = Date.now();
+  for (const [clave, grupo] of esperas) {
+    if (!clave.includes(chat)) continue;
+    for (const e of grupo.values()) if (e.vence > ahora) return true;
+  }
+  return false;
+}
+
 export function registrarEspera(clave, { duracionMs, alResponder, tipo = "general" }) {
   if (!esperas.has(clave)) esperas.set(clave, new Map());
   esperas.get(clave).set(tipo, { vence: Date.now() + duracionMs, alResponder });
