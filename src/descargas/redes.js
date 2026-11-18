@@ -65,15 +65,19 @@ function liberarTurno() {
 }
 
 let ytdlpDisponible = null;
+let ytdlpRevisadoEn = 0;
 export async function hayYtdlp() {
-  if (ytdlpDisponible !== null) return ytdlpDisponible;
+  if (ytdlpDisponible === true) return true;
+  // Si no estaba, se vuelve a revisar cada 30 s (así detecta la instalación sin reiniciar el bot).
+  if (ytdlpDisponible === false && Date.now() - ytdlpRevisadoEn < 30000) return false;
   try {
     await execFileAsync("yt-dlp", ["--version"], { timeout: 15000 });
     ytdlpDisponible = true;
   } catch (e) {
     if (e.code === "ENOENT") {
       ytdlpDisponible = false;
-      console.log('[redes] yt-dlp no está instalado (pip install -U "yt-dlp[default,curl-cffi]"); se usan los métodos de respaldo');
+      ytdlpRevisadoEn = Date.now();
+      console.log('[redes] yt-dlp no está instalado (corre: npm run setup); se usan los métodos de respaldo');
     }
     return false;
   }
