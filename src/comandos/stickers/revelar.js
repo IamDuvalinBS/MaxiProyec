@@ -1,8 +1,4 @@
-import { downloadMediaMessage } from "@fer2809fl/baileys";
-import { desenvolverVistaUnica } from "../../nucleo/sticker.js";
-import { buscarVistaUnica, recuperarVistaUnica } from "../../nucleo/vistaunica.js";
-
-const TIPOS = ["imageMessage", "videoMessage", "audioMessage"];
+import { obtenerVistaUnica } from "../../nucleo/vistaunica.js";
 
 export default {
   names: [".revelar", ".reveal"],
@@ -16,67 +12,26 @@ export default {
       return;
     }
 
-    let tipo = null;
-    let buffer = null;
-    let mimetype = null;
-    let caption = "";
-    let ptt = null;
+    // Solo ahora (y solo para este mensaje) se prueban las formas de recuperarlo.
+    const aviso = async () => {
+      await reply({ text: "🔎 Buscando ese archivo (servidor de WhatsApp, tu teléfono e historial). Puede tardar unos segundos..." });
+    };
+    const r = await obtenerVistaUnica(sock, msg, info, aviso);
 
-    let guardado = buscarVistaUnica(info.stanzaId);
-    if (!guardado) {
-      const citado0 = desenvolverVistaUnica(info.quotedMessage);
-      let directo = false;
-      if (TIPOS.find((t) => citado0?.[t])) {
-        try {
-          await downloadMediaMessage({ key: { remoteJid: from, id: info.stanzaId, participant: info.participant }, message: citado0 }, "buffer", {});
-          directo = true;
-        } catch {}
-      }
-      if (!directo) {
-        await reply({ text: "⏳ Ese mensaje no estaba guardado. Intentando recuperarlo desde tu teléfono, puede tardar unos segundos..." });
-        guardado = await recuperarVistaUnica(sock, msg, info);
-      }
-    }
-    if (guardado) {
-      tipo = guardado.tipo;
-      buffer = guardado.buffer;
-      mimetype = guardado.mimetype;
-      caption = guardado.caption || "";
-      ptt = guardado.ptt;
-    } else {
-      const citado = desenvolverVistaUnica(info.quotedMessage);
-      tipo = TIPOS.find((t) => citado?.[t]);
-      if (tipo) {
-        try {
-          buffer = await downloadMediaMessage(
-            { key: { remoteJid: from, id: info.stanzaId, participant: info.participant }, message: citado },
-            "buffer",
-            {}
-          );
-          const media = citado[tipo];
-          mimetype = media.mimetype || null;
-          caption = media.caption || "";
-          ptt = media.ptt ?? null;
-        } catch (e) {
-          console.log("❌ Error revelando mensaje: " + e.message);
-        }
-      }
-    }
-
-    if (!tipo || !buffer) {
-      await reply({ text: "❌ No se pudo descargar ese contenido. El bot no alcanzó a guardarlo (lo enviaron antes de que el bot estuviera conectado) o ya expiró en los servidores de WhatsApp." });
+    if (!r?.buffer) {
+      await reply({ text: "❌ No se pudo recuperar ese contenido. Ya no está en los servidores de WhatsApp y tu teléfono no lo pudo reenviar (suele pasar si ya lo abrieron o pasó mucho tiempo)." });
       return;
     }
 
-    const pie = `⧼👁️⧽ *REVELADO*\n\n${caption}`.trimEnd();
+    const pie = `⧼👁️⧽ *REVELADO*\n\n${r.caption || ""}`.trimEnd();
 
     try {
-      if (tipo === "imageMessage") {
-        await sock.sendMessage(from, { image: buffer, caption: pie }, { quoted: msg });
-      } else if (tipo === "videoMessage") {
-        await sock.sendMessage(from, { video: buffer, caption: pie, mimetype: mimetype || "video/mp4" }, { quoted: msg });
+      if (r.tipo === "imageMessage") {
+        await sock.sendMessage(from, { image: r.buffer, caption: pie }, { quoted: msg });
+      } else if (r.tipo === "videoMessage") {
+        await sock.sendMessage(from, { video: r.buffer, caption: pie, mimetype: r.mimetype || "video/mp4" }, { quoted: msg });
       } else {
-        await sock.sendMessage(from, { audio: buffer, mimetype: mimetype || "audio/ogg; codecs=opus", ptt: ptt ?? true }, { quoted: msg });
+        await sock.sendMessage(from, { audio: r.buffer, mimetype: r.mimetype || "audio/ogg; codecs=opus", ptt: r.ptt ?? true }, { quoted: msg });
       }
     } catch (e) {
       console.log("❌ Error enviando contenido revelado: " + e.message);
