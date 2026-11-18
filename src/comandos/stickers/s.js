@@ -9,7 +9,7 @@ import { subcomandoS } from "../../nucleo/sticker-acciones.js";
 
 export default {
   names: [".s", ".sticker"],
-  desc: "Convierte una imagen, GIF o video (citado) en sticker. Admins: .s cerrar / .s abrir registran stickers de acción",
+  desc: "Convierte una imagen, GIF o video (citado) en sticker. Admins: .s cerrar/abrir/tag/warn/kick/... registran stickers de acción",
   category: "Stickers",
   usage: ".s (respondiendo a una imagen, GIF o video) | .s ayuda",
   handler: async ({ msg, sender, from, sock, reply, cleanText }) => {
