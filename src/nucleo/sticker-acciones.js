@@ -5,7 +5,10 @@ import { fileURLToPath } from "url";
 import { downloadMediaMessage } from "@fer2809fl/baileys";
 import { obtenerBase } from "../../motores/db.js";
 import { isOwner } from "../../motores/owner.js";
-import { esGrupo, metadatos, buscarParticipante, buscarBot, numeroDe, ajustarMenciones, aviso } from "../grupos/nucleo.js";
+import { esGrupo, metadatos, buscarParticipante, buscarBot, numeroDe, ajustarMenciones, aviso, olvidarMetadatos, enlaceDeGrupo } from "../grupos/nucleo.js";
+import { tarjetaMarcada, mencion } from "../economia/estilo.js";
+import { sumarAdvertencia, limpiarAdvertencias } from "../../motores/db.js";
+import { LIMITE_ADVERTENCIAS } from "../comandos/grupos/warn.js";
 import { crearStickerConMetaFijo, desenvolverVistaUnica } from "./sticker.js";
 
 // ═══════════════ STICKERS DE ACCIÓN ═══════════════
@@ -17,18 +20,37 @@ const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
 const DIRECTORIO = path.join(RAIZ, "data");
 const ARCHIVO = path.join(DIRECTORIO, "stickers-acciones.json");
 const COLECCION = "stickers_acciones";
-const MAX_POR_GRUPO = 30;
+const MAX_POR_GRUPO = 50;
 const MAX_IMAGEN_BYTES = 15 * 1024 * 1024;
 const ESPERA_ACCION_MS = 3000;
 
+// tipo "ajuste": cambia un ajuste del grupo · "grupo": actúa sobre el grupo · "objetivo": actúa sobre la persona
+// a la que el admin le responde con el sticker (o menciona).
+// botAdmin: el bot necesita ser admin del grupo. verbo: cómo se dice en el aviso de registro.
 export const ACCIONES = {
-  cerrar: { emoji: "🔒", ajuste: "announcement", hecho: "Cerró el grupo (solo admins pueden escribir)." },
-  abrir: { emoji: "🔓", ajuste: "not_announcement", hecho: "Abrió el grupo (todos escriben)." }
+  cerrar: { emoji: "🔒", tipo: "ajuste", ajuste: "announcement", botAdmin: true, verbo: "cierra el grupo", hecho: "Cerró el grupo (solo admins pueden escribir)." },
+  abrir: { emoji: "🔓", tipo: "ajuste", ajuste: "not_announcement", botAdmin: true, verbo: "abre el grupo", hecho: "Abrió el grupo (todos escriben)." },
+  tag: { emoji: "📣", tipo: "grupo", botAdmin: false, verbo: "menciona a todos", hecho: "Mencionó a todos los miembros." },
+  link: { emoji: "🔗", tipo: "grupo", botAdmin: true, verbo: "manda el link del grupo", hecho: "Envió el link del grupo." },
+  delmsg: { emoji: "🗑️", tipo: "objetivo", mensaje: true, botAdmin: true, verbo: "borra el mensaje citado", hecho: "Eliminó un mensaje." },
+  warn: { emoji: "⚠️", tipo: "objetivo", botAdmin: false, verbo: "advierte al usuario citado", hecho: "Advirtió a un usuario." },
+  unwarn: { emoji: "🧹", tipo: "objetivo", botAdmin: false, verbo: "quita las advertencias del usuario citado", hecho: "Retiró las advertencias de un usuario." },
+  kick: { emoji: "😿", tipo: "objetivo", botAdmin: true, verbo: "expulsa al usuario citado", hecho: "Expulsó a un usuario." },
+  promote: { emoji: "🚂", tipo: "objetivo", botAdmin: true, verbo: "da admin al usuario citado", hecho: "Dio admin a un usuario." },
+  demote: { emoji: "🍂", tipo: "objetivo", botAdmin: true, verbo: "quita el admin al usuario citado", hecho: "Quitó el admin a un usuario." }
 };
 
 const SUBCOMANDOS = {
   cerrar: "cerrar", close: "cerrar",
   abrir: "abrir", open: "abrir",
+  tag: "tag", todos: "tag", hidetag: "tag", tagall: "tag",
+  link: "link", enlace: "link",
+  delmsg: "delmsg", borrarmsg: "delmsg", delmensaje: "delmsg",
+  warn: "warn", advertir: "warn",
+  unwarn: "unwarn", quitarwarn: "unwarn",
+  kick: "kick", expulsar: "kick", echar: "kick",
+  promote: "promote", promover: "promote", admin: "promote",
+  demote: "demote", degradar: "demote",
   lista: "lista", list: "lista",
   eliminar: "eliminar", borrar: "eliminar", del: "eliminar",
   ayuda: "ayuda", help: "ayuda"
@@ -266,42 +288,201 @@ export async function ejecutarStickerAccion({ sock, from, sender, msg, sticker }
     }
   };
 
-  if (!permisos.botEsAdmin) {
+  if (accion.botAdmin && !permisos.botEsAdmin) {
     await responder({ text: aviso("⚠️", "STICKER", "Necesito ser administrador del grupo para ejecutar esa acción.") });
     return true;
   }
 
   try {
-    await sock.groupSettingUpdate(from, accion.ajuste);
+    if (accion.tipo === "ajuste") await accionAjuste({ sock, from, sender, datos, accion, responder });
+    else if (accion.tipo === "grupo") await accionGrupo({ sock, from, sender, sticker, permisos, datos, accion, responder });
+    else await accionObjetivo({ sock, from, sender, sticker, permisos, datos, accion, responder });
   } catch (e) {
     console.log(`❌ Sticker de acción (${datos.accion}) falló en ${from}: ${e.message}`);
-    await responder({ text: aviso("❌", "STICKER", `No fue posible ${datos.accion} el grupo.`) });
-    return true;
+    await responder({ text: aviso("❌", "STICKER", `No fue posible ejecutar *${datos.accion}*.`) });
+  }
+  return true;
+}
+
+// ───────────── Acciones ─────────────
+const avisoHecho = (sender, accion) => ({ text: `» @${numeroDe(sender)} *realizó cambios:*\n> ${accion.hecho}`, mentions: [sender] });
+
+async function accionAjuste({ sock, from, sender, accion, responder }) {
+  await sock.groupSettingUpdate(from, accion.ajuste);
+  await responder(avisoHecho(sender, accion));
+}
+
+async function accionGrupo({ sock, from, sender, sticker, permisos, datos, accion, responder }) {
+  if (datos.accion === "tag") {
+    const citado = contenidoDe(sticker?.contextInfo?.quotedMessage);
+    const textoCitado = citado.conversation || citado.extendedTextMessage?.text || citado.imageMessage?.caption || citado.videoMessage?.caption || "";
+    const texto = textoCitado || "📣 Atención a todos los miembros del grupo.";
+    await sock.sendMessage(from, { text: texto, mentions: permisos.meta.participantes.map((p) => p.id) });
+    return;
+  }
+  if (datos.accion === "link") {
+    const enlace = await enlaceDeGrupo(sock, from);
+    if (!enlace) return responder({ text: aviso("❌", "STICKER", "No pude obtener el link del grupo.") });
+    return responder({ text: `🔗 *${permisos.meta.asunto || "Grupo"}*\n${enlace}` });
+  }
+  await responder(avisoHecho(sender, accion));
+}
+
+// Persona objetivo: a quien responde el sticker, o la primera mención.
+function objetivoDeSticker(sticker) {
+  const ctx = sticker?.contextInfo;
+  return ctx?.mentionedJid?.[0] || ctx?.participant || null;
+}
+
+async function accionObjetivo({ sock, from, sender, sticker, permisos, datos, accion, responder }) {
+  const { meta } = permisos;
+  const ctx = sticker?.contextInfo;
+  const dicho = (texto) => responder({ text: aviso(accion.emoji, datos.accion.toUpperCase(), texto) });
+
+  // Borrar un mensaje no necesita persona, solo el mensaje citado.
+  if (accion.mensaje) {
+    if (!ctx?.stanzaId) return dicho("Envía el sticker *respondiendo* al mensaje que quieres borrar.");
+    const autor = ctx.participant;
+    const bot = buscarBot(sock, meta);
+    const esDelBot = Boolean(bot && autor && buscarParticipante(meta, autor) === bot);
+    await sock.sendMessage(from, { delete: { remoteJid: from, fromMe: esDelBot, id: ctx.stanzaId, participant: autor } });
+    return;
   }
 
-  const texto = `» @${numeroDe(sender)} *realizó cambios:*\n> ${accion.hecho}`;
-  await responder({ text: texto, mentions: [sender] });
-  return true;
+  const usuario = objetivoDeSticker(sticker);
+  if (!usuario) return dicho(`Envía el sticker *respondiendo* al mensaje de la persona (o mencionándola) para *${datos.accion}*.`);
+
+  const objetivo = buscarParticipante(meta, usuario);
+  if (!objetivo) return dicho("Ese usuario no está en el grupo.");
+  const bot = buscarBot(sock, meta);
+  const quien = buscarParticipante(meta, sender);
+
+  if (datos.accion === "kick") {
+    if (objetivo.superadmin) return dicho("No es posible eliminar al creador del grupo.");
+    if (objetivo === bot) return dicho("No es posible eliminar al propio bot.");
+    if (objetivo === quien) return dicho("No puedes eliminarte a ti mismo.");
+    await sock.groupParticipantsUpdate(from, [objetivo.id], "remove");
+    olvidarMetadatos(from);
+    return responder({
+      text: tarjetaMarcada({
+        emoji: "😿",
+        titulo: "USUARIO ELIMINADO",
+        relato: "Un integrante menos en el grupo...",
+        lineas: ["⧼🦉⧽ *Usuario eliminado*::", `> ${mencion(objetivo.id)}`, "⧼🦖⧽ *Responsable*::", `> ${mencion(sender)} eliminó al usuario.`]
+      }),
+      mentions: [objetivo.id, sender]
+    });
+  }
+
+  if (datos.accion === "promote") {
+    if (objetivo.admin) return dicho("Ese usuario ya es administrador.");
+    await sock.groupParticipantsUpdate(from, [objetivo.id], "promote");
+    olvidarMetadatos(from);
+    return responder({
+      text: tarjetaMarcada({
+        emoji: "🚂",
+        titulo: "NUEVO ADMIN",
+        relato: "Un nuevo administrador ha llegado a este grupo.",
+        lineas: ["⧼🎲⧽ *Nuevo admin*::", `> ${mencion(objetivo.id)}`, "⧼🎯⧽ *Responsable*::", `> ${mencion(sender)} le otorgó admin.`]
+      }),
+      mentions: [objetivo.id, sender]
+    });
+  }
+
+  if (datos.accion === "demote") {
+    if (!objetivo.admin) return dicho("Ese usuario no es administrador.");
+    if (objetivo.superadmin) return dicho("No es posible retirar el rol al creador del grupo.");
+    if (objetivo === bot) return dicho("No es posible retirar el rol al propio bot.");
+    await sock.groupParticipantsUpdate(from, [objetivo.id], "demote");
+    olvidarMetadatos(from);
+    return responder({
+      text: tarjetaMarcada({
+        emoji: "🍂",
+        titulo: "ADMIN REMOVIDO",
+        relato: "Un administrador ha dejado de serlo en este grupo.",
+        lineas: ["⧼🥀⧽ *Admin removido*::", `> ${mencion(objetivo.id)}`, "⧼🎯⧽ *Responsable*::", `> ${mencion(sender)} le retiró el admin.`]
+      }),
+      mentions: [objetivo.id, sender]
+    });
+  }
+
+  if (datos.accion === "unwarn") {
+    const previas = await limpiarAdvertencias(from, numeroDe(objetivo.id));
+    if (previas === null) return dicho("La base de datos no está disponible en este momento.");
+    if (!previas) return dicho("Ese usuario no tiene advertencias registradas.");
+    return responder({
+      text: tarjetaMarcada({
+        emoji: "🧹",
+        titulo: "ADVERTENCIAS RETIRADAS",
+        relato: "Se han eliminado todas las advertencias del usuario.",
+        lineas: ["⧼🌿⧽ *Usuario*::", `> ${mencion(objetivo.id)}`, "⧼🫯⧽ *Responsable*::", `> ${mencion(sender)} retiró las advertencias.`]
+      }),
+      mentions: [objetivo.id, sender]
+    });
+  }
+
+  if (datos.accion === "warn") {
+    if (objetivo.admin) return dicho("No es posible advertir a un administrador.");
+    const total = await sumarAdvertencia(from, numeroDe(objetivo.id));
+    if (total === null) return dicho("La base de datos no está disponible en este momento.");
+
+    const alLimite = total >= LIMITE_ADVERTENCIAS;
+    let expulsado = false;
+    if (alLimite && bot && bot.admin) {
+      try {
+        await sock.groupParticipantsUpdate(from, [objetivo.id], "remove");
+        await limpiarAdvertencias(from, numeroDe(objetivo.id));
+        olvidarMetadatos(from);
+        expulsado = true;
+      } catch {}
+    }
+    const relato = expulsado
+      ? "El usuario alcanzó el límite de advertencias y fue expulsado del grupo."
+      : alLimite
+        ? "El usuario alcanzó el límite de advertencias, pero no fue posible expulsarlo."
+        : "Un integrante ha recibido una advertencia formal.";
+    return responder({
+      text: tarjetaMarcada({
+        emoji: "🦑",
+        titulo: "USUARIO ADVERTIDO",
+        relato,
+        lineas: [
+          "⧼🌻⧽ *Usuario advertido*::", `> ${mencion(objetivo.id)}`,
+          "⧼🫯⧽ *Responsable*::", `> ${mencion(sender)} advirtió al usuario.`,
+          "⧼📊⧽ *Advertencias*::", `> ${Math.min(total, LIMITE_ADVERTENCIAS)}/${LIMITE_ADVERTENCIAS}${expulsado ? " (usuario expulsado)" : ""}`
+        ]
+      }),
+      mentions: [objetivo.id, sender]
+    });
+  }
 }
 
 // ───────────── Subcomandos de ".s" ─────────────
 const AYUDA = [
   "⧼🧷⧽ *STICKERS DE ACCIÓN*",
   "",
-  "Convierte una imagen en sticker y úsalo como botón para abrir o cerrar el grupo.",
+  "Convierte una imagen en sticker y úsalo como botón. Cuando un admin lo envía, el bot hace la acción sin escribir nada.",
   "",
   "*Registrar (solo admins)*",
-  "• Envía una imagen con el texto *.s cerrar* o *.s abrir*",
-  "• O responde a una imagen (o a un sticker) con *.s cerrar* / *.s abrir*",
+  "Envía una imagen con el texto *.s <acción>*, o responde a una imagen (o sticker) con *.s <acción>*",
   "",
-  "*Usar*",
-  "Cualquier admin solo envía el sticker registrado y el bot abre o cierra el grupo. No hay que escribir nada.",
+  "*Acciones del grupo*",
+  "• *.s cerrar* / *.s abrir* → cierra o abre el grupo",
+  "• *.s tag* → menciona a todos (si respondes a un mensaje, usa su texto)",
+  "• *.s link* → manda el link del grupo",
+  "",
+  "*Acciones sobre alguien* (envía el sticker respondiendo a su mensaje)",
+  "• *.s warn* → le da una advertencia (3 lo expulsan)",
+  "• *.s unwarn* → le quita las advertencias",
+  "• *.s kick* → lo expulsa",
+  "• *.s promote* / *.s demote* → le da o quita el admin",
+  "• *.s delmsg* → borra el mensaje al que respondes",
   "",
   "*Administrar*",
   "• *.s lista* → ver los stickers registrados",
   "• *.s eliminar* respondiendo al sticker, o *.s eliminar 2* (número de la lista)",
   "",
-  "> Tip: mantén presionado el sticker y elige *Agregar a favoritos* para tenerlo a la mano."
+  "> Solo los admins pueden activarlos. Tip: mantén presionado el sticker y elige *Agregar a favoritos*."
 ].join("\n");
 
 const fechaCorta = (ms) => {
@@ -386,13 +567,13 @@ async function registrarDesdeMensaje({ sock, from, sender, msg, reply }, accion)
 function confirmarRegistro(reply, accion, config, resultado) {
   if (resultado.estado === "nuevo") {
     return reply({
-      text: aviso(config.emoji, "STICKER REGISTRADO", `Quedó guardado para *${accion}* el grupo. Cuando un admin lo envíe, el bot lo ${accion === "cerrar" ? "cierra" : "abre"} solo.`) +
+      text: aviso(config.emoji, "STICKER REGISTRADO", `Quedó guardado como *${accion}*. Cuando un admin lo envíe, el bot ${config.verbo} solo.${config.tipo === "objetivo" && !config.mensaje ? " (envíalo respondiendo al mensaje de la persona)" : ""}`) +
         "\n\n> Mantenlo presionado → *Agregar a favoritos* para tenerlo a la mano."
     });
   }
   if (resultado.estado === "igual") return reply({ text: aviso("ℹ️", "STICKER", `Ese sticker ya estaba registrado para *${accion}*.`) });
   if (resultado.estado === "distinto") {
-    return reply({ text: aviso("⚠️", "STICKER", `Ese sticker ya está registrado para *${resultado.existente.accion}*. Elimínalo con *.s eliminar* antes de usarlo para *${accion}*.`) });
+    return reply({ text: aviso("⚠️", "STICKER", `Ese sticker ya está registrado como *${resultado.existente.accion}*. Elimínalo con *.s eliminar* antes de usarlo para *${accion}*.`) });
   }
   return reply({ text: aviso("⚠️", "STICKER", `Este grupo ya tiene ${MAX_POR_GRUPO} stickers registrados. Elimina alguno con *.s eliminar*.`) });
 }
