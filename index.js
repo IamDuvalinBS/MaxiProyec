@@ -7,15 +7,15 @@ import pino from "pino";
 import http from "http";
 import { manejarApiJuegos } from "./motores/juegos-api.js";
 import { manejarComando } from "./src/nucleo/comandos.js";
-import { checkTriviaAnswer } from "./src/economia/trivia.js";
+import { checkTriviaAnswer, hayTriviaEn } from "./src/economia/trivia.js";
 import { iniciarSubbots, usarPagina, fijarSocketPrincipal } from "./src/subbots/gestor.js";
 import { reclamarMensaje, fijarPrincipal } from "./src/subbots/dedupe.js";
 import { sesionPrincipal, limpiarSesionesLocales, vigilarDescifrado } from "./motores/sesiones-mongo.js";
 import { iniciarCobranzaPrestamos } from "./src/economia/prestamos.js";
-import { procesarEspera } from "./src/nucleo/espera.js";
+import { procesarEspera, hayEsperaEn } from "./src/nucleo/espera.js";
 import { config, manejarCambioParticipantes, getAllAccounts, commandRegistry, startTime, CURRENCY } from "./core.js";
 import fs from "fs";
-import { intentarProcesarTexto } from "./motores/juegos-core.js";
+import { intentarProcesarTexto, hayPartidaEn } from "./motores/juegos-core.js";
 
 import readline from "readline";
 import cfonts from "cfonts";
@@ -25,7 +25,7 @@ import { enlazarSalidaAfk } from "./src/economia/afk-auto.js";
 import { idDeRespuestaInteractiva } from "./motores/respuestas-botones.js";
 import { manejarParticipantes } from "./src/eventos/participantes.js";
 import { antilinkActivo, botApagado, ajustesDe, cargarGruposMongo } from "./src/grupos/estado.js";
-import { eliminarEnlace } from "./src/grupos/enlaces.js";
+import { eliminarEnlace, tieneEnlace } from "./src/grupos/enlaces.js";
 import { olvidarMetadatos } from "./src/grupos/nucleo.js";
 import { recordarNombre } from "./motores/profile.js";
 import { saltarAtrasoViejo } from "./motores/saltar-atraso.js";
@@ -295,11 +295,40 @@ function registrarIgnorado(edadSeg, tipo) {
   if (edadSeg > ignoradosMaxEdad) ignoradosMaxEdad = edadSeg;
   if (ignoradosTimer) return;
   ignoradosTimer = setTimeout(() => {
-    console.log(`[ignorados] ${ignoradosViejos} mensajes viejos descartados (más antiguo: ${ignoradosMaxEdad}s, límite ${MAX_ANTIGUEDAD_MS / 1000}s, tipo ${tipo})`);
+    // Silencioso por defecto (era spam en Termux). Para verlo: LOG_IGNORADOS=1 en el .env
+    if (process.env.LOG_IGNORADOS === "1") console.log(`[ignorados] ${ignoradosViejos} mensajes viejos descartados (más antiguo: ${ignoradosMaxEdad}s, límite ${MAX_ANTIGUEDAD_MS / 1000}s, tipo ${tipo})`);
     ignoradosViejos = 0;
     ignoradosMaxEdad = 0;
     ignoradosTimer = null;
   }, 5000);
+}
+
+// Solo se procesa un mensaje si es un comando, si alguien está esperando una respuesta en ese chat (botones, trivia,
+// juegos, confirmaciones, listas...), si es un sticker de acción en un grupo, o si trae un enlace de invitación con el
+// antilink activo. Todo lo demás se descarta al instante, sin normalizar usuarios ni contar nada.
+// Apagado por defecto (se procesa todo, como siempre: estadísticas, nombres, etc.). SOLO_COMANDOS=1 en el .env lo activa.
+const SOLO_COMANDOS = process.env.SOLO_COMANDOS === "1";
+
+function mensajeRelevante(msg, from) {
+  if (!SOLO_COMANDOS) return true;
+  const mm = msg.message;
+  if (mm.buttonsResponseMessage || mm.templateButtonReplyMessage || mm.interactiveResponseMessage) return true;
+  const cont = desenvolverMensaje(mm);
+  const texto = (
+    cont.conversation ||
+    (cont.extendedTextMessage ? cont.extendedTextMessage.text : "") ||
+    (cont.imageMessage ? cont.imageMessage.caption : "") ||
+    (cont.videoMessage ? cont.videoMessage.caption : "") ||
+    (cont.documentMessage ? cont.documentMessage.caption : "") ||
+    ""
+  ).trim();
+  const prefijos = (config.prefixes && config.prefixes.length) ? config.prefixes : [config.prefix || "."];
+  if (prefijos.some((p) => texto.startsWith(p))) return true;
+  if (hayEsperaEn(from) || hayTriviaEn(from) || hayPartidaEn(from)) return true;
+  const esGrupo = from.endsWith("@g.us");
+  if (esGrupo && cont.stickerMessage) return true;
+  if (esGrupo && !msg.key.fromMe && tieneEnlace(texto) && antilinkActivo(from)) return true;
+  return false;
 }
 
 function puedeResponderEnGrupo(sock, grupo) {
@@ -370,6 +399,10 @@ function enlazarEventos(sock, esSub) {
       // Un bot silenciado (principal o subbot) deja pasar solo .setprimary/.botprincipal, así se puede cambiar o quitar el
       // bot principal desde cualquier bot del grupo. reclamarMensaje evita que más de un bot lo procese.
       if (!/^\s*\S{0,3}(setprimary|botprincipal)\b/i.test(crudo)) return;
+    }
+    if (!mensajeRelevante(msg, msg.key.remoteJid)) {
+      if (!esSub && m.type === "notify" && !msg.key.fromMe) PAG.msgsHoy++;
+      return;
     }
     if (!(await reclamarMensaje(msg, esSub))) return;
     if (m.type === "notify" && !msg.key.fromMe) PAG.msgsHoy++;
