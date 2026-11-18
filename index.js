@@ -30,12 +30,11 @@ import { olvidarMetadatos } from "./src/grupos/nucleo.js";
 import { recordarNombre } from "./motores/profile.js";
 import { saltarAtrasoViejo } from "./motores/saltar-atraso.js";
 import { esMensajeDePersona, contarMensajeGrupo } from "./motores/estadisticas.js";
-import { normalizarMensaje, aprenderTodosLosGrupos } from "./src/nucleo/identidad.js";
+import { normalizarMensaje, aprenderParticipantes } from "./src/nucleo/identidad.js";
 import { iniciarChatPagina } from "./src/nucleo/chatpagina.js";
 import { pasesParaPagina, pasesReclamados, alReclamarPase } from "./motores/gacha-pases.js";
 import { ejecutarStickerAccion } from "./src/nucleo/sticker-acciones.js";
-import { guardarVistaUnica, guardarDesdeHistorial } from "./src/nucleo/vistaunica.js";
-import { asegurarHerramientas } from "./src/nucleo/herramientas.js";
+import { vistaUnicaAlLlegar, vistaUnicaDesdeHistorial, segundosDe } from "./src/nucleo/vistaunica.js";
 
 // Calla el spam de libsignal (imprime sesiones completas con console.error/info/warn/log directo;
 // el logger de Baileys no lo controla y en Termux frena todo el bot).
@@ -175,9 +174,19 @@ function subirEstado() {
   }, { merge: true }).catch(logPag);
 }
 
+let contandoGrupos = false;
 async function contarGrupos() {
-  try { if (PAG.sock && PAG.enLinea) { PAG.grupos = Object.keys(await PAG.sock.groupFetchAllParticipating()).length; subirEstado(); } }
-  catch (e) { /* no pasa nada, se intenta después */ }
+  if (contandoGrupos) return;
+  contandoGrupos = true;
+  try {
+    if (PAG.sock && PAG.enLinea) {
+      const grupos = await PAG.sock.groupFetchAllParticipating();   // una sola consulta sirve para contar y para aprender los LID
+      PAG.grupos = Object.keys(grupos).length;
+      for (const g of Object.values(grupos)) aprenderParticipantes(g.participants);
+      subirEstado();
+    }
+  } catch (e) { /* no pasa nada, se intenta después */ }
+  finally { contandoGrupos = false; }
 }
 
 function subirComandos() {
@@ -272,8 +281,7 @@ function desenvolverMensaje(contenido) {
 const MAX_ANTIGUEDAD_MS = (Number(process.env.MAX_ANTIGUEDAD_MENSAJE_SEG) || 60) * 1000;
 
 function esMensajeViejo(msg) {
-  const bruto = msg?.messageTimestamp;
-  const seg = typeof bruto === "object" && bruto ? (bruto.toNumber ? bruto.toNumber() : Number(bruto.low)) : Number(bruto);
+  const seg = segundosDe(msg);
   if (!seg) return false;
   return Date.now() - seg * 1000 > MAX_ANTIGUEDAD_MS;
 }
@@ -322,14 +330,14 @@ function enlazarEventos(sock, esSub) {
     for (const cambio of cambios) if (cambio.id) { olvidarMetadatos(cambio.id); cacheGrupos.delete(cambio.id); }
   });
 
-  sock.ev.on("messaging-history.set", (h) => guardarDesdeHistorial(sock, h?.messages));
+  // Las vistas únicas ya NO se descargan solas: solo cuando .revelar las pide (ver src/nucleo/vistaunica.js).
+  sock.ev.on("messaging-history.set", (h) => vistaUnicaDesdeHistorial(sock, h?.messages));
 
   sock.ev.on("messages.upsert", (m) => {
-    for (const msg of m.messages || []) guardarVistaUnica(sock, msg);
+    vistaUnicaAlLlegar(sock, m.messages, m.type);
     if (process.env.DEPURAR_MENSAJES === "1") {
       for (const msg of m.messages || []) {
-        const bruto = msg.messageTimestamp;
-        const seg = typeof bruto === "object" && bruto ? (bruto.toNumber ? bruto.toNumber() : Number(bruto.low)) : Number(bruto);
+        const seg = segundosDe(msg);
         const c = msg.message ? desenvolverMensaje(msg.message) : null;
         const txt = c ? (c.conversation || (c.extendedTextMessage && c.extendedTextMessage.text) || "") : "";
         console.log(`[msg${esSub ? "-sub" : ""}] tipo=${m.type} edad=${seg ? Math.round(Date.now() / 1000 - seg) : "?"}s fromMe=${Boolean(msg.key.fromMe)} chat=${String(msg.key.remoteJid).slice(0, 14)} sinContenido=${!msg.message} stub=${msg.messageStubType ?? "-"} texto="${txt.slice(0, 20)}"`);
@@ -339,9 +347,7 @@ function enlazarEventos(sock, esSub) {
     // responder comandos de hace rato ni atrasar los nuevos (cada mensaje del lote espera 400 ms).
     const lote = (m.messages || []).filter((msg) => {
       if (!esMensajeViejo(msg)) return true;
-      const bruto = msg.messageTimestamp;
-      const seg = typeof bruto === "object" && bruto ? (bruto.toNumber ? bruto.toNumber() : Number(bruto.low)) : Number(bruto);
-      registrarIgnorado(Math.round(Date.now() / 1000 - seg), m.type);
+      registrarIgnorado(Math.round(Date.now() / 1000 - segundosDe(msg)), m.type);
       return false;
     });
     const manejar = (msg) => procesarMensaje(m, msg).catch((e) => console.log("Error procesando mensaje: " + e.message));
@@ -411,13 +417,6 @@ function enlazarEventos(sock, esSub) {
       if (await ejecutarStickerAccion({ sock, from, sender, msg, sticker: cont.stickerMessage })) return;
     }
 
-    if (!msg.key.fromMe && !apagadoAqui) {
-      sock.sendPresenceUpdate("composing", from)
-        .then(() => new Promise(r => setTimeout(r, 1500 + Math.floor(Math.random() * 1000))))
-        .then(() => sock.sendPresenceUpdate("paused", from))
-        .catch(() => {});
-    }
-
     const prefijosConfigurados = (config.prefixes && config.prefixes.length)
       ? config.prefixes
       : [config.prefix || "."];
@@ -431,6 +430,13 @@ function enlazarEventos(sock, esSub) {
     if (prefijoUsado && !msg.key.fromMe && !apagadoAqui && m.type === "notify" && await vincularPagina(sock, from, sender, text.slice(prefijoUsado.length), msg)) return;
 
     if (prefijoUsado) {
+      // "escribiendo..." solo cuando de verdad es un comando (antes se mandaba con CADA mensaje del chat).
+      if (!msg.key.fromMe) {
+        sock.sendPresenceUpdate("composing", from)
+          .then(() => new Promise(r => setTimeout(r, 1500 + Math.floor(Math.random() * 1000))))
+          .then(() => sock.sendPresenceUpdate("paused", from))
+          .catch(() => {});
+      }
       const resto = text.slice(prefijoUsado.length);
       const match = resto.match(/^\s*(\S+)([\s\S]*)$/);
       const textoTraducido = match
@@ -564,8 +570,8 @@ async function startBot() {
         subbotsIniciados = true;
         iniciarSubbots((subSock) => enlazarEventos(subSock, true)).catch((e) => console.log("Subbots: " + e.message));
       }
-      PAG.sock = sock; PAG.enLinea = true; contarGrupos(); subirEstado();
-      setTimeout(() => aprenderTodosLosGrupos(sock), 15000);
+      PAG.sock = sock; PAG.enLinea = true; subirEstado();
+      setTimeout(contarGrupos, 15000);   // con calma: no compite con el arranque
     }
   });
 
@@ -582,5 +588,6 @@ async function startBot() {
   });
 }
 
-asegurarHerramientas();
 startBot();
+
+                              

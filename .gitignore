@@ -13,3 +13,5 @@ bot.log
 firebase-key.json
 .env
 perfiles/
+
+datos/
