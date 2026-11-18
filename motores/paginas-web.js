@@ -50,14 +50,14 @@ export function htmlCompleto(t) {
   return /<html[\s>]/i.test(t) && /<\/html>\s*$/i.test(t) && /<\/body>/i.test(t);
 }
 
-export function prepararHtml(html) {
+export function prepararHtml(html, { marca = true } = {}) {
   let h = String(html);
   if (!/<meta[^>]+charset/i.test(h)) h = h.replace(/<head[^>]*>/i, (m) => m + '<meta charset="utf-8">');
   if (!/<meta[^>]+viewport/i.test(h)) {
     h = h.replace(/<head[^>]*>/i, (m) => m + '<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">');
   }
   h = /<head[^>]*>/i.test(h) ? h.replace(/<head[^>]*>/i, (m) => m + SHIM) : SHIM + h;
-  h = /<\/body>/i.test(h) ? h.replace(/<\/body>/i, () => MARCA + "</body>") : h + MARCA;
+  if (marca) h = /<\/body>/i.test(h) ? h.replace(/<\/body>/i, () => MARCA + "</body>") : h + MARCA;
   return h;
 }
 
@@ -83,8 +83,8 @@ try {
   setInterval(limpiar, 6 * 3600 * 1000).unref();
 } catch {}
 
-export function guardarPagina(html, meta = {}) {
-  const lista = prepararHtml(html);
+export function guardarPagina(html, meta = {}, opciones = {}) {
+  const lista = prepararHtml(html, opciones);
   if (Buffer.byteLength(lista) > MAX_BYTES) throw new Error("la página quedó demasiado pesada");
   fs.mkdirSync(DIR, { recursive: true });
   const id = crypto.randomBytes(6).toString("base64url");
