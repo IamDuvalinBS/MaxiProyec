@@ -35,6 +35,7 @@ import { iniciarChatPagina } from "./src/nucleo/chatpagina.js";
 import { pasesParaPagina, pasesReclamados, alReclamarPase } from "./motores/gacha-pases.js";
 import { ejecutarStickerAccion } from "./src/nucleo/sticker-acciones.js";
 import { guardarVistaUnica, guardarDesdeHistorial } from "./src/nucleo/vistaunica.js";
+import { asegurarHerramientas } from "./src/nucleo/herramientas.js";
 
 // Calla el spam de libsignal (imprime sesiones completas con console.error/info/warn/log directo;
 // el logger de Baileys no lo controla y en Termux frena todo el bot).
@@ -581,6 +582,5 @@ async function startBot() {
   });
 }
 
+asegurarHerramientas();
 startBot();
-
-                              

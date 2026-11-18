@@ -6,7 +6,10 @@
   "type": "module",
   "scripts": {
     "start": "node index.js",
-    "test": "node scripts/verificar.mjs"
+    "test": "node scripts/verificar.mjs",
+    "setup": "node scripts/instalar-herramientas.mjs",
+    "foro": "node scripts/probar-foro.mjs",
+    "postinstall": "node scripts/instalar-herramientas.mjs"
   },
   "dependencies": {
     "@libsql/client": "^0.15.0",
