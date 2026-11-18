@@ -2,6 +2,7 @@ import { aviso, metadatos, buscarParticipante, buscarBot, enlaceDeGrupo, codigoP
 import { isOwner } from "../../motores/owner.js";
 
 const PATRON_ENLACE = /chat\.whatsapp\.com\/([A-Za-z0-9]{20,24})/i;
+export const tieneEnlace = (texto) => PATRON_ENLACE.test(texto || "");
 const ESPERA_AVISO_MS = 15 * 1000;
 const ultimoAviso = new Map();
 
