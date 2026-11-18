@@ -213,7 +213,7 @@ const motorCaidoHasta = new Map(); // un motor que no trajo nada (captcha) o fal
 const ESPERA_MOTOR_CAIDO_MS = 10 * 60 * 1000;
 
 // consultas: una búsqueda o una lista de variantes (se prueban en orden hasta juntar suficientes enlaces).
-async function buscarEnlacesWeb(consultas, normalizar, maximo) {
+export async function buscarEnlacesWeb(consultas, normalizar, maximo) {
   const lista = Array.isArray(consultas) ? consultas : [consultas];
   const errores = [];
   const vistos = new Set();
