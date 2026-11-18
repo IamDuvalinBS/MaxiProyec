@@ -1,14 +1,28 @@
 import { setStickerMeta, getStickerMeta } from "../../../core.js";
 import { claveMeta, contextoMeta, metaPredeterminada } from "../../nucleo/sticker.js";
 
+// Tope de seguridad por campo (en caracteres). WhatsApp acepta textos larguísimos en el pack y el autor,
+// pero el meta viaja DENTRO del archivo del sticker y un sticker muy pesado lo rechaza WhatsApp.
+// 3000 caracteres por campo deja de sobra para decoraciones con saltos de línea, símbolos y emojis.
+const MAX_CAMPO = 3000;
+
+const cortar = (texto) => {
+  const letras = [...texto];
+  return letras.length > MAX_CAMPO ? letras.slice(0, MAX_CAMPO).join("") : texto;
+};
+
+// Quita SOLO el comando; lo que va después se conserva exacto (dobles espacios, espacios invisibles, saltos de línea).
+const textoCrudo = (cleanText) => String(cleanText || "").replace(/^\S+[ \t]*\r?\n?/, "");
+
 export default {
   names: [".setmeta", ".meta"],
   desc: "Cambia el pack y el autor de tus stickers (.s)",
   category: "Stickers",
-  usage: ".setmeta <pack> • <autor> | .setmeta reset",
+  usage: ".setmeta <pack> • <autor> | .setmeta reset  (respeta espacios y saltos de línea)",
   handler: async ({ sock, from, msg, cleanText, sender, reply }) => {
     const clave = claveMeta(sender);
-    const texto = cleanText.split(/\s+/).slice(1).join(" ").trim();
+    const crudo = textoCrudo(cleanText);
+    const texto = crudo.trim();
 
     if (["reset", "del", "delete", "borrar"].includes(texto.toLowerCase())) {
       const guardado = getStickerMeta(clave) || getStickerMeta(sender);
@@ -43,20 +57,30 @@ export default {
       return;
     }
 
-    const partes = texto.split("•").map((p) => p.trim()).filter(Boolean);
-    if (!partes.length) {
+    // El primer "•" separa pack y autor. Todo lo demás se guarda TAL CUAL (sin colapsar espacios ni saltos de línea).
+    const corte = crudo.indexOf("•");
+    let pack = corte === -1 ? crudo : crudo.slice(0, corte);
+    let author = corte === -1 ? "" : crudo.slice(corte + 1);
+
+    // Solo se quita UN espacio pegado al separador (el de " • "); lo demás queda intacto.
+    pack = pack.replace(/ $/, "");
+    author = author.replace(/^ /, "");
+
+    if (!pack.trim() && !author.trim()) {
       await reply({ text: "✏️ Usa: *.setmeta <pack> • <autor>* (ejemplo: .setmeta Stickers Goku • Atte: Duva)" });
       return;
     }
 
-    const pack = partes[0];
-    const author = partes[1] || "";
+    const excedido = [...pack].length > MAX_CAMPO || [...author].length > MAX_CAMPO;
+    pack = cortar(pack);
+    author = cortar(author);
 
     setStickerMeta(clave, pack, author);
     await reply({
       text:
         `✅ Meta actualizado:\n*Pack:* ${pack}\n*Autor:* ${author || "Predeterminado"}\n\n` +
-        `Se aplicará a todos los stickers que crees con *.s*, en cualquier chat.`
+        `Se aplicará a todos los stickers que crees con *.s*, en cualquier chat.` +
+        (excedido ? `\n\n⚠️ Se recortó a ${MAX_CAMPO} caracteres por campo para que WhatsApp acepte el sticker.` : "")
     });
   }
 };
