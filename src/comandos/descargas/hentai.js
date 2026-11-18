@@ -10,6 +10,7 @@ import { correrFfmpeg } from "../../nucleo/ffmpeg.js";
 import { descargarATemporal } from "../../descargas/core.js";
 import { descargarConYtdlp, hayYtdlp } from "../../descargas/redes.js";
 import { enviarLote } from "../../descargas/envio.js";
+import { medioForo } from "../../descargas/foro.js";
 import { tarjetaUso, tarjetaError, tarjetaAviso } from "../../descargas/tarjetas.js";
 import { encabezado } from "../../economia/estilo.js";
 
@@ -78,7 +79,7 @@ let EN_CURSO = false;
 export default [
   {
     names: [".hentai", ".h"],
-    usage: ".hentai [foto|video] [corto|largo] [cantidad]",
+    usage: ".hentai [foto|video|foro] [corto|largo] [cantidad]",
     desc: "Anime: manda fotos (1-5) o videos de hentai, cortos o largos. En grupos un admin lo activa con .animeon on",
     category: "Anime",
     handler: async ({ sock, from, sender, msg, cleanText, reply }) => {
@@ -88,15 +89,27 @@ export default [
       }
       const args = cleanText.toLowerCase().trim().split(/\s+/).slice(1);
       if (args.includes("ayuda")) {
-        return reply({ text: tarjetaUso({ comando: ".hentai [foto|video] [corto|largo] [n]", ejemplo: ".hentai\n.hentai foto 3\n.hentai video corto\n.hentai video largo", nota: "Sin opciones manda 1 foto." }), mentions: [sender] });
+        return reply({ text: tarjetaUso({ comando: ".hentai [foto|video] [corto|largo] [n]", ejemplo: ".hentai\n.hentai foto 3\n.hentai video corto\n.hentai video largo\n.hentai foro 5", nota: "Sin opciones manda 1 foto." }), mentions: [sender] });
       }
       const esVideo = args.some((a) => ["video", "videos", "vid"].includes(a));
+      const esForo = args.some((a) => ["foro", "forogore"].includes(a));
       const esLargo = args.some((a) => ["largo", "largos", "long"].includes(a));
       const n = Math.min(5, Math.max(1, Number(args.find((a) => /^\d$/.test(a))) || 1));
 
       if (EN_CURSO) return reply({ text: tarjetaAviso("EN CURSO", "Espera a que termine el envío anterior."), mentions: [sender] });
       EN_CURSO = true;
       try {
+        if (esForo) {
+          await reply({ text: `${encabezado("🌸", "ANIME")}\n\n> Abriendo publicaciones del foro, dame unos segundos.` }).catch(() => {});
+          let lote;
+          try { lote = await medioForo(/\d/.test(args.join("")) ? n : 5); }
+          catch (e) { return reply({ text: tarjetaError("No pude conseguir contenido del foro.", e.message) }); }
+          let enviados = 0;
+          if (lote.fotos.length) enviados += (await enviarLote(lote.fotos, reply, { sock, from, msg, objetivo: lote.fotos.length })).enviados;
+          for (const v of lote.videos) enviados += (await enviarLote([v], reply, { sock, from, msg, objetivo: 1 })).enviados; // los videos van aparte
+          if (!enviados) await reply({ text: tarjetaError("No se pudo enviar. Intenta otra vez.") });
+          return;
+        }
         let medias;
         try {
           if (!esVideo) {
