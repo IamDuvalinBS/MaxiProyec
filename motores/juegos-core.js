@@ -156,6 +156,8 @@ export async function procesarBoton(sock, from, sender, msg, juegoId, accionId) 
   await enviarFrame(sock, from, msg, def, partida.estado, extraFinal);
 }
 
+export const hayPartidaEn = (from) => partidasActivas.has(from);
+
 export async function intentarProcesarTexto(sock, from, sender, texto, msg) {
   const partida = partidasActivas.get(from);
   if (!partida) return false;

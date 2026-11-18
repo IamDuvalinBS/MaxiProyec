@@ -20,7 +20,7 @@ function resumir(edadSeg) {
     saltados = 0;
     maxEdad = 0;
     temporizador = null;
-  }, 5000);
+  }, 30000);
 }
 
 const TIPOS_MEDIA = new Set(["image", "video", "ptt", "audio"]);
