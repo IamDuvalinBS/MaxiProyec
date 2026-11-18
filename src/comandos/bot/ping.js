@@ -1,5 +1,3 @@
-const UMBRAL_ALTO_MS = 500;
-
 export default {
   names: [".p", ".ping"],
   desc: "Ver la latencia del bot",
@@ -10,9 +8,8 @@ export default {
     const inicio = Date.now();
     const enviado = await sock.sendMessage(from, { text: "📡 *Detectando latencia del bot...*" }, { quoted: msg });
     const ms = Date.now() - inicio;
-    const estado = ms < UMBRAL_ALTO_MS ? "Normal" : "Alto";
 
-    const texto = ["📡 *PING - ¡PONG! //Latencia*", `Ping:: *${ms}ms*`, `Estado:: *${estado}*`].join("\n");
+    const texto = ["✿ ```##``` *¡PONG!*", `> Latencia *${ms} ms*`].join("\n");
     await sock.sendMessage(from, { text: texto, edit: enviado.key });
   }
 };
