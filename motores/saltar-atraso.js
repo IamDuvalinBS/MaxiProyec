@@ -20,14 +20,14 @@ function resumir(edadSeg) {
     saltados = 0;
     maxEdad = 0;
     temporizador = null;
-  }, 30000);
+  }, 5000);
 }
 
 const TIPOS_MEDIA = new Set(["image", "video", "ptt", "audio"]);
 
-// Por defecto (VISTA_UNICA_CONSERVAR=0 lo apaga): las fotos, videos y audios privados atrasados no se saltan (podrían ser de ver una vez y
-// se guardan al llegar en datos/vistaunica).
-const CONSERVAR_MEDIA_PRIVADA = process.env.VISTA_UNICA_CONSERVAR !== "0";
+// Con el modo automático de vistas únicas (por defecto): las fotos, videos y audios privados atrasados no se saltan (podrían ser de ver una vez y
+// el modo automático los guarda al llegar). Por defecto .revelar trabaja bajo demanda, así que se saltan como todo lo demás.
+const CONSERVAR_MEDIA_PRIVADA = process.env.VISTA_UNICA_AUTO !== "0";
 function esMediaPrivada(nodo) {
   if (!CONSERVAR_MEDIA_PRIVADA) return false;
   const de = String(nodo.attrs.from || "");
