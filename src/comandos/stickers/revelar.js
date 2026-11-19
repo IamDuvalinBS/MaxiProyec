@@ -1,4 +1,4 @@
-import { buscarVistaUnica, desenvolver } from "../../nucleo/vistaunica.js";
+import { obtenerVistaUnica, desenvolver } from "../../nucleo/vistaunica.js";
 
 export default {
   names: [".revelar", ".reveal"],
@@ -12,11 +12,16 @@ export default {
       return;
     }
 
-    // Solo se busca en la carpeta local (las vistas únicas se guardan solas al llegar). No se lee el chat ni el historial.
-    const r = buscarVistaUnica(info.stanzaId);
+    // Busca en orden: copia en disco -> descarga directa -> reenvío del teléfono -> historial del chat.
+    let avisado = false;
+    const r = await obtenerVistaUnica(sock, msg, info, async () => {
+      if (avisado) return;
+      avisado = true;
+      try { await reply({ text: "⧼👁️⧽ Buscando el contenido, dame unos segundos..." }); } catch {}
+    });
 
     if (!r?.buffer) {
-      await reply({ text: "❌ No tengo guardado ese contenido. Solo puedo revelar vistas únicas que llegaron mientras el bot estaba encendido (y después de activar esta función)." });
+      await reply({ text: "❌ No pude recuperar ese contenido. Puede que ya lo hayan abierto, que haya expirado, o que el teléfono no lo tenga disponible." });
       return;
     }
 
