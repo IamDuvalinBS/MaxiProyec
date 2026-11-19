@@ -1,5 +1,9 @@
 // Vistas únicas (.revelar) — TODO BAJO DEMANDA.
 //
+// IMPORTANTE (arreglo): al citar una vista única, WhatsApp le quita la clave de descifrado al mensaje citado, así que
+// "descargar lo citado" casi nunca funciona. Por eso, cuando una vista única LLEGA, el bot guarda solo sus datos de
+// descarga (clave + ruta, ~1 KB, SIN bajar el archivo). Al usar .revelar se descarga recién entonces con esos datos.
+//
 // Antes el bot intentaba descargar cada mensaje que llegaba y todo el historial al reconectar. En Termux eso
 // ahogaba el bot (cientos de "Cannot derive from empty media key"). Ahora no se toca ningún mensaje hasta que
 // alguien usa .revelar, y entonces se prueban, en orden y con tiempo límite, las formas de conseguir el archivo:
@@ -24,6 +28,12 @@ const MAX_AUTO_SIMULTANEAS = 2;
 const FRESCO_AUTO_SEG = 60;
 const TIPOS = ["imageMessage", "videoMessage", "audioMessage"];
 const ENVOLTURAS = ["ephemeralMessage", "viewOnceMessage", "viewOnceMessageV2", "viewOnceMessageV2Extension", "deviceSentMessage", "documentWithCaptionMessage"];
+
+const ARCHIVO_INDICE = path.join(CARPETA, "indice.json");
+const VIDA_INDICE_MS = 3 * 24 * 60 * 60 * 1000;
+const MAX_INDICE = 300;
+// id -> { tipo, media, key, t }  (solo datos de descarga, nunca el archivo)
+const indice = new Map();
 
 const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
 const nombreSeguro = (id) => String(id).replace(/[^A-Za-z0-9_-]/g, "_");
@@ -132,6 +142,103 @@ function guardarEnDisco(id, buffer, meta) {
   limpiarLuego();
 }
 
+// ───────────── índice de vistas únicas vistas al llegar (solo datos de descarga) ─────────────
+
+const aTexto = (v) => {
+  if (v == null) return undefined;
+  if (typeof v === "string") return v;
+  try { return Buffer.from(v).toString("base64"); } catch { return undefined; }
+};
+const aBytes = (s) => (s ? new Uint8Array(Buffer.from(s, "base64")) : undefined);
+const aNumero = (v) => {
+  if (v == null) return undefined;
+  if (typeof v === "object") return v.toNumber ? v.toNumber() : Number(v.low);
+  return Number(v);
+};
+
+function aPlano(it) {
+  const m = it.media;
+  return {
+    tipo: it.tipo, key: it.key, t: it.t,
+    media: {
+      url: m.url, directPath: m.directPath, mimetype: m.mimetype, caption: m.caption, ptt: m.ptt,
+      mediaKey: aTexto(m.mediaKey), fileEncSha256: aTexto(m.fileEncSha256), fileSha256: aTexto(m.fileSha256),
+      mediaKeyTimestamp: aNumero(m.mediaKeyTimestamp)
+    }
+  };
+}
+
+function desdePlano(o) {
+  const m = o.media || {};
+  return {
+    tipo: o.tipo, key: o.key, t: o.t,
+    media: {
+      url: m.url, directPath: m.directPath, mimetype: m.mimetype, caption: m.caption, ptt: m.ptt,
+      mediaKey: aBytes(m.mediaKey), fileEncSha256: aBytes(m.fileEncSha256), fileSha256: aBytes(m.fileSha256),
+      mediaKeyTimestamp: m.mediaKeyTimestamp
+    }
+  };
+}
+
+let guardadoPendiente = false;
+function guardarIndiceLuego() {
+  if (guardadoPendiente) return;
+  guardadoPendiente = true;
+  setTimeout(() => {
+    guardadoPendiente = false;
+    try {
+      asegurarCarpeta();
+      const obj = {};
+      for (const [id, it] of indice) obj[id] = aPlano(it);
+      fs.writeFileSync(ARCHIVO_INDICE, JSON.stringify(obj));
+    } catch (e) {
+      console.log("👁️ No se pudo guardar el índice de vistas únicas: " + e.message);
+    }
+  }, 3000).unref?.();
+}
+
+function recortarIndice() {
+  const ahora = Date.now();
+  for (const [id, it] of indice) if (ahora - it.t > VIDA_INDICE_MS) indice.delete(id);
+  while (indice.size > MAX_INDICE) indice.delete(indice.keys().next().value);
+}
+
+function cargarIndice() {
+  try {
+    const obj = JSON.parse(fs.readFileSync(ARCHIVO_INDICE, "utf8"));
+    for (const [id, o] of Object.entries(obj)) indice.set(id, desdePlano(o));
+    recortarIndice();
+  } catch {}
+}
+cargarIndice();
+
+// Llamado con cada mensaje que llega en vivo. Es muy barato: si no es vista única, sale de inmediato.
+function registrarVistaUnica(msg) {
+  if (!msg?.message || !msg.key?.id) return;
+  if (!esVistaUnica(msg.message)) return;
+  const interno = desenvolver(msg.message);
+  const tipo = TIPOS.find((t) => interno?.[t]);
+  if (!tipo || !tieneClave(interno[tipo])) return;
+  const id = nombreSeguro(msg.key.id);
+  if (indice.has(id)) return;
+  indice.set(id, {
+    tipo,
+    media: interno[tipo],
+    key: { remoteJid: msg.key.remoteJid, id: msg.key.id, fromMe: Boolean(msg.key.fromMe), participant: msg.key.participant },
+    t: Date.now()
+  });
+  recortarIndice();
+  guardarIndiceLuego();
+  console.log(`👁️ Vista única detectada (${tipo}); lista para .revelar`);
+}
+
+async function descargarDelIndice(sock, id) {
+  const it = indice.get(id);
+  if (!it) throw new Error("no está en el índice");
+  const buffer = await downloadMediaMessage({ key: it.key, message: { [it.tipo]: it.media } }, "buffer", {}, contexto(sock));
+  return { tipo: it.tipo, buffer, mimetype: it.media.mimetype || null, caption: it.media.caption || "", ptt: it.media.ptt ?? null };
+}
+
 // ───────────── descarga de un mensaje concreto ─────────────
 
 // Devuelve { tipo, buffer, mimetype, caption, ptt } o lanza error. No hace nada si el mensaje no trae clave.
@@ -184,6 +291,9 @@ function alLlegarMensaje(sock, msg, { enVivo }) {
 }
 
 export function vistaUnicaAlLlegar(sock, lote, tipoLote) {
+  if (tipoLote === "notify" || tipoLote === "append") {
+    for (const msg of lote || []) { try { registrarVistaUnica(msg); } catch {} }
+  }
   if (!buscando.size && !AUTO) return;   // camino rápido: casi siempre termina aquí
   for (const msg of lote || []) alLlegarMensaje(sock, msg, { enVivo: tipoLote === "notify" });
 }
@@ -209,12 +319,27 @@ async function buscarPorPasos(sock, msg, info, avisar) {
   const esGrupo = from.endsWith("@g.us");
   const participante = info.participant || (esGrupo ? msg.key.participant : undefined);
   const bruto = desenvolver(info.quotedMessage);
-  const clave = { remoteJid: from, id, fromMe: false, participant: participante };
+  const mios = [sock.user?.id, sock.user?.lid].filter(Boolean).map((x) => String(x).split(":")[0].split("@")[0]);
+  const fromMeCitado = Boolean(info.participant) && mios.includes(String(info.participant).split(":")[0].split("@")[0]);
+  const clave = { remoteJid: from, id, fromMe: fromMeCitado, participant: participante };
   const motivos = [];
 
   // 1) copia en disco
   const guardada = buscarVistaUnica(id);
   if (guardada) return { ...guardada, via: "copia guardada" };
+
+  // 1b) datos de descarga guardados cuando la vista única llegó (la vía que sí funciona)
+  if (indice.has(idSeguro)) {
+    try {
+      const r = await conTiempo(descargarDelIndice(sock, idSeguro), 30000, "descarga guardada");
+      guardarResultado(idSeguro, r);
+      return { ...r, via: "datos guardados al llegar" };
+    } catch (e) {
+      motivos.push("descarga con datos guardados: " + e.message);
+    }
+  } else {
+    motivos.push("el bot no vio llegar ese mensaje (llegó antes de encenderse o no era vista única)");
+  }
 
   // 2) descarga directa (si el mensaje citado todavía trae la clave y sigue en el servidor)
   const tipoCitado = TIPOS.find((t) => bruto?.[t]);
@@ -230,7 +355,7 @@ async function buscarPorPasos(sock, msg, info, avisar) {
     motivos.push("el mensaje citado ya no trae la clave de descifrado");
   }
 
-  await avisar();
+  try { await avisar(); } catch {}
 
   // 3) pedirle al teléfono que reenvíe el mensaje
   if (typeof sock.requestPlaceholderResend === "function") {
