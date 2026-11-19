@@ -8,6 +8,7 @@ import { downloadMediaMessage } from "@fer2809fl/baileys";
 import { getStickerMeta, config } from "../../motores/db.js";
 import { getProfile } from "../../motores/profile.js";
 import { esGrupo, metadatos } from "../grupos/nucleo.js";
+import { exigirAccesoPremium } from "./premium.js";
 
 const META_PACK = "MaxiBots";
 const META_AUTOR_FIJO = "MaxiBot";
@@ -37,7 +38,7 @@ export function desenvolverVistaUnica(message) {
   return m || null;
 }
 
-export async function extraerMediaDeMensaje(msg) {
+export async function extraerMediaDeMensaje(msg, sender) {
   const m = desenvolverVistaUnica(msg.message) || {};
   const ctx = m.extendedTextMessage?.contextInfo || m.imageMessage?.contextInfo || m.videoMessage?.contextInfo;
   const citado = desenvolverVistaUnica(ctx?.quotedMessage);
@@ -56,12 +57,14 @@ export async function extraerMediaDeMensaje(msg) {
   }
   if (!objetivo) return null;
 
+  exigirAccesoPremium(citado?.stickerMessage, msg, sender);
+
   const buffer = await downloadMediaMessage(objetivo, "buffer", {});
   return { buffer, segundos: Number(contenido.seconds) || 0 };
 }
 
-export async function extraerImagenDeMensaje(msg) {
-  const media = await extraerMediaDeMensaje(msg);
+export async function extraerImagenDeMensaje(msg, sender) {
+  const media = await extraerMediaDeMensaje(msg, sender);
   return media ? media.buffer : null;
 }
 
