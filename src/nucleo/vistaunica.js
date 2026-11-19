@@ -23,7 +23,9 @@ const MAX_COLA = 50;
 const TIPOS = ["imageMessage", "videoMessage", "audioMessage"];
 const ENVOLTURAS = ["ephemeralMessage", "viewOnceMessage", "viewOnceMessageV2", "viewOnceMessageV2Extension", "deviceSentMessage", "documentWithCaptionMessage"];
 
-const DEPURAR = process.env.DEPURAR_VISTAUNICA === "1";
+// Diagnóstico: encendido por defecto, escribe solo en datos/vistaunica/debug.txt (DEPURAR_VISTAUNICA=1 además lo muestra en pantalla; =0 lo apaga).
+const DEPURAR = process.env.DEPURAR_VISTAUNICA !== "0";
+const DEPURAR_PANTALLA = process.env.DEPURAR_VISTAUNICA === "1";
 
 const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
 const nombreSeguro = (id) => String(id).replace(/[^A-Za-z0-9_-]/g, "_");
@@ -156,6 +158,16 @@ function bombear(sock) {
 // ───────────── evento (llamado desde index.js con cada mensaje que llega) ─────────────
 // Muy barato: si el mensaje no es de ver una vez, sale de inmediato sin tocar disco ni red.
 
+function escribir(texto) {
+  if (DEPURAR_PANTALLA) console.log(texto);
+  try {
+    asegurarCarpeta();
+    const ruta = path.join(CARPETA, "debug.txt");
+    if (fs.existsSync(ruta) && fs.statSync(ruta).size > 300 * 1024) return;   // tope para no llenar el disco
+    fs.appendFileSync(ruta, new Date().toISOString() + " " + texto + "\n");
+  } catch {}
+}
+
 function depurar(msg) {
   const m = msg.message;
   if (m.conversation || m.extendedTextMessage || m.reactionMessage || m.stickerMessage || m.protocolMessage || m.senderKeyDistributionMessage) return;   // ruido: no interesa
@@ -170,8 +182,8 @@ function depurar(msg) {
   }
   const raiz = Object.keys(msg).filter((k) => !["key", "message"].includes(k)).join(",");
   const ctxMsg = Object.keys(m.messageContextInfo || {}).join(",");
-  console.log(`[vu-debug] fromMe=${Boolean(msg.key.fromMe)} chat=${String(msg.key.remoteJid).slice(0, 12)} raiz=[${Object.keys(m).join(",")}] interno=[${Object.keys(interno || {}).join(",")}] viewOnce=${esVistaUnica(m)} clave=${tipo ? tieneClave(interno[tipo]) : "-"}`);
-  if (tipo) console.log(`[vu-debug]   ${tipo}: ${campos}\n[vu-debug]   msg=[${raiz}] ctxMsg=[${ctxMsg}] ctxMedia=[${Object.keys(interno[tipo].contextInfo || {}).join(",")}]`);
+  escribir(`[vu-debug] fromMe=${Boolean(msg.key.fromMe)} chat=${String(msg.key.remoteJid).slice(0, 12)} raiz=[${Object.keys(m).join(",")}] interno=[${Object.keys(interno || {}).join(",")}] viewOnce=${esVistaUnica(m)} clave=${tipo ? tieneClave(interno[tipo]) : "-"}`);
+  if (tipo) escribir(`[vu-debug]   ${tipo}: ${campos}\n[vu-debug]   msg=[${raiz}] ctxMsg=[${ctxMsg}] ctxMedia=[${Object.keys(interno[tipo].contextInfo || {}).join(",")}]`);
 }
 
 function alLlegar(sock, msg) {
