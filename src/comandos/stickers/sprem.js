@@ -7,7 +7,8 @@ import {
   esStickerAnimado,
   MAX_SEGUNDOS_STICKER
 } from "../../nucleo/sticker.js";
-import { ERROR_PREMIUM, MENSAJE_PREMIUM } from "../../nucleo/premium.js";
+
+import { registrarPremium } from "../../nucleo/sticker-premium.js";
 
 const VALOR_PREMIUM = 1;
 
@@ -50,12 +51,8 @@ export default {
     } else {
       let media = null;
       try {
-        media = await extraerMediaDeMensaje(msg, sender);
+        media = await extraerMediaDeMensaje(msg);
       } catch (e) {
-        if (e.message === ERROR_PREMIUM) {
-          await reply({ text: MENSAJE_PREMIUM });
-          return;
-        }
         console.log("❌ Error descargando el sticker para .sprem: " + e.message);
         await reply({ text: "❌ No se pudo descargar el sticker. Intenta nuevamente." });
         return;
@@ -92,6 +89,7 @@ export default {
         { userJid: sock.user?.id || sock.user?.jid, quoted: msg }
       );
       await sock.relayMessage(from, armado.message, { messageId: armado.key.id });
+      registrarPremium(contenido, sender);
     } catch (e) {
       console.log("❌ Error en .sprem: " + e.message);
       await reply({ text: "❌ No se pudo enviar el sticker premium." });
