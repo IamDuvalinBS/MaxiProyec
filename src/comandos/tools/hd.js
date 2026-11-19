@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import { loadImage } from "@napi-rs/canvas";
 import { extraerMediaDeMensaje } from "../../nucleo/sticker.js";
+import { ERROR_PREMIUM, MENSAJE_PREMIUM } from "../../nucleo/premium.js";
 import { correrFfmpeg, conTemporal } from "../../nucleo/ffmpeg.js";
 import { encabezado } from "../../economia/estilo.js";
 import { limitarEspera } from "../../../motores/herramientas-ui.js";
@@ -53,8 +54,12 @@ export default {
 
     let media = null;
     try {
-      media = await extraerMediaDeMensaje(msg);
+      media = await extraerMediaDeMensaje(msg, sender);
     } catch (e) {
+        if (e.message === ERROR_PREMIUM) {
+          await reply({ text: MENSAJE_PREMIUM });
+          return;
+        }
       console.log("❌ Error descargando la imagen para .hd: " + e.message);
       await reply({ text: "❌ No se pudo descargar la imagen. Intenta enviarla nuevamente." });
       return;
