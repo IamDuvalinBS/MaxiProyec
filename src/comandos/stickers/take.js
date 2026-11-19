@@ -7,6 +7,7 @@ import {
   esStickerAnimado,
   MAX_SEGUNDOS_STICKER
 } from "../../nucleo/sticker.js";
+import { ERROR_PREMIUM, MENSAJE_PREMIUM } from "../../nucleo/premium.js";
 
 export default {
   names: [".take", ".robar", ".wm"],
@@ -16,8 +17,12 @@ export default {
   handler: async ({ msg, sender, from, sock, cleanText, reply }) => {
     let media = null;
     try {
-      media = await extraerMediaDeMensaje(msg);
+      media = await extraerMediaDeMensaje(msg, sender);
     } catch (e) {
+        if (e.message === ERROR_PREMIUM) {
+          await reply({ text: MENSAJE_PREMIUM });
+          return;
+        }
       console.log("❌ Error descargando el sticker para .take: " + e.message);
       await reply({ text: "❌ No se pudo descargar el sticker. Intenta nuevamente." });
       return;
