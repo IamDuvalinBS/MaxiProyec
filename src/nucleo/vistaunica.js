@@ -23,6 +23,8 @@ const MAX_COLA = 50;
 const TIPOS = ["imageMessage", "videoMessage", "audioMessage"];
 const ENVOLTURAS = ["ephemeralMessage", "viewOnceMessage", "viewOnceMessageV2", "viewOnceMessageV2Extension", "deviceSentMessage", "documentWithCaptionMessage"];
 
+const DEPURAR = process.env.DEPURAR_VISTAUNICA === "1";
+
 const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
 const nombreSeguro = (id) => String(id).replace(/[^A-Za-z0-9_-]/g, "_");
 
@@ -154,8 +156,17 @@ function bombear(sock) {
 // ───────────── evento (llamado desde index.js con cada mensaje que llega) ─────────────
 // Muy barato: si el mensaje no es de ver una vez, sale de inmediato sin tocar disco ni red.
 
+function depurar(msg) {
+  const m = msg.message;
+  if (m.conversation || m.extendedTextMessage || m.reactionMessage) return;   // texto normal: no interesa
+  const interno = desenvolver(m);
+  const tipo = TIPOS.find((t) => interno?.[t]);
+  console.log(`[vu-debug] fromMe=${Boolean(msg.key.fromMe)} chat=${String(msg.key.remoteJid).slice(0, 12)} raiz=[${Object.keys(m).join(",")}] interno=[${Object.keys(interno || {}).join(",")}] viewOnce=${esVistaUnica(m)} clave=${tipo ? tieneClave(interno[tipo]) : "-"}`);
+}
+
 function alLlegar(sock, msg) {
   if (!msg?.message || !msg.key?.id) return;
+  if (DEPURAR) { try { depurar(msg); } catch {} }
   if (!esVistaUnica(msg.message)) return;
 
   const seg = segundosDe(msg);
