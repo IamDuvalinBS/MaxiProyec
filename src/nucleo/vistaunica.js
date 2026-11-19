@@ -218,7 +218,14 @@ function registrarVistaUnica(msg) {
   if (!esVistaUnica(msg.message)) return;
   const interno = desenvolver(msg.message);
   const tipo = TIPOS.find((t) => interno?.[t]);
-  if (!tipo || !tieneClave(interno[tipo])) return;
+  if (!tipo) {
+    console.log("👁️ Llegó una vista única de un tipo no soportado: " + Object.keys(interno || {}).join(","));
+    return;
+  }
+  if (!tieneClave(interno[tipo])) {
+    console.log(`👁️ Llegó una vista única (${tipo}) SIN clave de descifrado: no se puede guardar (el teléfono no la mandó completa).`);
+    return;
+  }
   const id = nombreSeguro(msg.key.id);
   if (indice.has(id)) return;
   indice.set(id, {
