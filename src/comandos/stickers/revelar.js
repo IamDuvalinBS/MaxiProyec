@@ -1,4 +1,4 @@
-import { obtenerVistaUnica, desenvolver } from "../../nucleo/vistaunica.js";
+import { buscarVistaUnica, desenvolver } from "../../nucleo/vistaunica.js";
 
 export default {
   names: [".revelar", ".reveal"],
@@ -12,14 +12,11 @@ export default {
       return;
     }
 
-    // Solo ahora (y solo para este mensaje) se prueban las formas de recuperarlo.
-    const aviso = async () => {
-      await reply({ text: "🔎 Buscando ese archivo (servidor de WhatsApp, tu teléfono e historial). Puede tardar unos segundos..." });
-    };
-    const r = await obtenerVistaUnica(sock, msg, info, aviso);
+    // Solo se busca en la carpeta local (las vistas únicas se guardan solas al llegar). No se lee el chat ni el historial.
+    const r = buscarVistaUnica(info.stanzaId);
 
     if (!r?.buffer) {
-      await reply({ text: "❌ No se pudo recuperar ese contenido. Ya no está en los servidores de WhatsApp o el bot no lo vio llegar (solo puede revelar vistas únicas que llegaron mientras estaba encendido)." });
+      await reply({ text: "❌ No tengo guardado ese contenido. Solo puedo revelar vistas únicas que llegaron mientras el bot estaba encendido (y después de activar esta función)." });
       return;
     }
 
