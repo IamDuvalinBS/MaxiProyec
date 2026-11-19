@@ -34,7 +34,7 @@ import { normalizarMensaje, aprenderParticipantes } from "./src/nucleo/identidad
 import { iniciarChatPagina } from "./src/nucleo/chatpagina.js";
 import { pasesParaPagina, pasesReclamados, alReclamarPase } from "./motores/gacha-pases.js";
 import { ejecutarStickerAccion } from "./src/nucleo/sticker-acciones.js";
-import { vistaUnicaAlLlegar, vistaUnicaDesdeHistorial, segundosDe } from "./src/nucleo/vistaunica.js";
+import { vistaUnicaAlLlegar, segundosDe } from "./src/nucleo/vistaunica.js";
 
 // Calla el spam de libsignal (imprime sesiones completas con console.error/info/warn/log directo;
 // el logger de Baileys no lo controla y en Termux frena todo el bot).
@@ -359,9 +359,8 @@ function enlazarEventos(sock, esSub) {
     for (const cambio of cambios) if (cambio.id) { olvidarMetadatos(cambio.id); cacheGrupos.delete(cambio.id); }
   });
 
-  // Las vistas únicas ya NO se descargan solas: solo cuando .revelar las pide (ver src/nucleo/vistaunica.js).
-  sock.ev.on("messaging-history.set", (h) => vistaUnicaDesdeHistorial(sock, h?.messages));
-
+  // Las vistas únicas se guardan al instante en datos/vistaunica cuando LLEGAN (solo ese mensaje, nunca el historial ni el chat).
+  // .revelar solo las busca en esa carpeta (ver src/nucleo/vistaunica.js).
   sock.ev.on("messages.upsert", (m) => {
     vistaUnicaAlLlegar(sock, m.messages, m.type);
     if (process.env.DEPURAR_MENSAJES === "1") {
