@@ -26,7 +26,7 @@ function resumir(edadSeg) {
 const TIPOS_MEDIA = new Set(["image", "video", "ptt", "audio"]);
 
 // Por defecto (VISTA_UNICA_CONSERVAR=0 lo apaga): las fotos, videos y audios privados atrasados no se saltan (podrían ser de ver una vez y
-// el modo automático los guarda al llegar). Por defecto .revelar trabaja bajo demanda, así que se saltan como todo lo demás.
+// se guardan al llegar en datos/vistaunica).
 const CONSERVAR_MEDIA_PRIVADA = process.env.VISTA_UNICA_CONSERVAR !== "0";
 function esMediaPrivada(nodo) {
   if (!CONSERVAR_MEDIA_PRIVADA) return false;
