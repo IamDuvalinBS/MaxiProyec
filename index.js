@@ -34,7 +34,7 @@ import { normalizarMensaje, aprenderParticipantes } from "./src/nucleo/identidad
 import { iniciarChatPagina } from "./src/nucleo/chatpagina.js";
 import { pasesParaPagina, pasesReclamados, alReclamarPase } from "./motores/gacha-pases.js";
 import { ejecutarStickerAccion } from "./src/nucleo/sticker-acciones.js";
-import { vistaUnicaAlLlegar, segundosDe } from "./src/nucleo/vistaunica.js";
+import { vistaUnicaAlLlegar, vistaUnicaDesdeHistorial, segundosDe } from "./src/nucleo/vistaunica.js";
 
 // Calla el spam de libsignal (imprime sesiones completas con console.error/info/warn/log directo;
 // el logger de Baileys no lo controla y en Termux frena todo el bot).
@@ -353,6 +353,11 @@ function enlazarEventos(sock, esSub) {
     } catch (e) {
       console.log("Error en eventos de grupo: " + e.message);
     }
+  });
+
+  // Historial pedido por .revelar (paso 4 de la búsqueda). Solo se procesa mientras .revelar está buscando algo.
+  sock.ev.on("messaging-history.set", (h) => {
+    vistaUnicaDesdeHistorial(sock, h?.messages);
   });
 
   sock.ev.on("groups.update", (cambios) => {
