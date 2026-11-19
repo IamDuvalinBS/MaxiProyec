@@ -218,10 +218,7 @@ function registrarVistaUnica(msg) {
   if (!esVistaUnica(msg.message)) return;
   const interno = desenvolver(msg.message);
   const tipo = TIPOS.find((t) => interno?.[t]);
-  if (!tipo) {
-    console.log("👁️ Llegó una vista única de un tipo no soportado: " + Object.keys(interno || {}).join(","));
-    return;
-  }
+  if (!tipo) return;   // botones/menús interactivos también vienen envueltos como "ver una vez": se ignoran
   if (!tieneClave(interno[tipo])) {
     console.log(`👁️ Llegó una vista única (${tipo}) SIN clave de descifrado: no se puede guardar (el teléfono no la mandó completa).`);
     return;
@@ -396,7 +393,7 @@ async function buscarPorPasos(sock, msg, info, avisar) {
     motivos.push("no apareció en el historial");
   }
 
-  console.log("👁️ .revelar sin resultado → " + motivos.join(" | "));
+  console.log(`👁️ .revelar sin resultado (id ${id}, guardadas: ${indice.size}) → ` + motivos.join(" | "));
   return null;
 }
 
