@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import { createCanvas, loadImage } from "@napi-rs/canvas";
 import { extraerMediaDeMensaje, esStickerAnimado } from "../../nucleo/sticker.js";
+import { ERROR_PREMIUM, MENSAJE_PREMIUM } from "../../nucleo/premium.js";
 import { correrFfmpeg, conTemporal } from "../../nucleo/ffmpeg.js";
 
 const esWebp = (b) => b.length > 12 && b.toString("ascii", 0, 4) === "RIFF" && b.toString("ascii", 8, 12) === "WEBP";
@@ -103,11 +104,15 @@ export default {
   desc: "Convierte un sticker en imagen (o en video si es animado)",
   category: "Stickers",
   usage: ".toimg (respondiendo a un sticker)",
-  handler: async ({ msg, from, sock, reply }) => {
+  handler: async ({ msg, sender, from, sock, reply }) => {
     let media = null;
     try {
-      media = await extraerMediaDeMensaje(msg);
+      media = await extraerMediaDeMensaje(msg, sender);
     } catch (e) {
+        if (e.message === ERROR_PREMIUM) {
+          await reply({ text: MENSAJE_PREMIUM });
+          return;
+        }
       console.log("❌ Error descargando el sticker para .toimg: " + e.message);
       await reply({ text: "❌ No se pudo descargar el sticker. Intenta nuevamente." });
       return;
