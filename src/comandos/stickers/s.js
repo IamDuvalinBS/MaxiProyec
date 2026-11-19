@@ -5,6 +5,7 @@ import {
   esStickerAnimado,
   MAX_SEGUNDOS_STICKER
 } from "../../nucleo/sticker.js";
+import { ERROR_PREMIUM, MENSAJE_PREMIUM } from "../../nucleo/premium.js";
 import { subcomandoS } from "../../nucleo/sticker-acciones.js";
 
 export default {
@@ -18,8 +19,12 @@ export default {
 
     let media = null;
     try {
-      media = await extraerMediaDeMensaje(msg);
+      media = await extraerMediaDeMensaje(msg, sender);
     } catch (e) {
+        if (e.message === ERROR_PREMIUM) {
+          await reply({ text: MENSAJE_PREMIUM });
+          return;
+        }
       console.log("❌ Error descargando el archivo para sticker: " + e.message);
       await reply({ text: "❌ No se pudo descargar el archivo. Intenta enviarlo nuevamente." });
       return;
