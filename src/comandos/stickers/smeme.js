@@ -1,5 +1,6 @@
 import { createCanvas, loadImage } from "@napi-rs/canvas";
 import { extraerMediaDeMensaje, crearSticker, contextoMeta } from "../../nucleo/sticker.js";
+import { ERROR_PREMIUM, MENSAJE_PREMIUM } from "../../nucleo/premium.js";
 import { envolver } from "../../nucleo/lienzo.js";
 
 const LADO = 512;
@@ -45,8 +46,12 @@ export default {
 
     let media = null;
     try {
-      media = await extraerMediaDeMensaje(msg);
+      media = await extraerMediaDeMensaje(msg, sender);
     } catch (e) {
+        if (e.message === ERROR_PREMIUM) {
+          await reply({ text: MENSAJE_PREMIUM });
+          return;
+        }
       console.log("❌ Error descargando la imagen para .smeme: " + e.message);
       await reply({ text: "❌ No se pudo descargar la imagen. Intenta nuevamente." });
       return;
