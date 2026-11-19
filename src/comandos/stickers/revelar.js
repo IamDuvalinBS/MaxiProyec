@@ -1,4 +1,4 @@
-import { obtenerVistaUnica } from "../../nucleo/vistaunica.js";
+import { obtenerVistaUnica, desenvolver } from "../../nucleo/vistaunica.js";
 
 export default {
   names: [".revelar", ".reveal"],
@@ -6,7 +6,7 @@ export default {
   category: "Utilidad",
   usage: ".revelar (respondiendo a un mensaje de ver una vez)",
   handler: async ({ msg, from, sock, reply }) => {
-    const info = msg.message?.extendedTextMessage?.contextInfo;
+    const info = desenvolver(msg.message)?.extendedTextMessage?.contextInfo;
     if (!info?.stanzaId) {
       await reply({ text: "⧼👁️⧽ *REVELAR*\n\nResponde a una foto, video o audio de ver una vez para mostrarlo normalmente.\n\n> Usa *.revelar* respondiendo al mensaje." });
       return;
@@ -19,7 +19,7 @@ export default {
     const r = await obtenerVistaUnica(sock, msg, info, aviso);
 
     if (!r?.buffer) {
-      await reply({ text: "❌ No se pudo recuperar ese contenido. Ya no está en los servidores de WhatsApp y tu teléfono no lo pudo reenviar (suele pasar si ya lo abrieron o pasó mucho tiempo)." });
+      await reply({ text: "❌ No se pudo recuperar ese contenido. Ya no está en los servidores de WhatsApp o el bot no lo vio llegar (solo puede revelar vistas únicas que llegaron mientras estaba encendido)." });
       return;
     }
 
