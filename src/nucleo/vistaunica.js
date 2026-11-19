@@ -158,10 +158,20 @@ function bombear(sock) {
 
 function depurar(msg) {
   const m = msg.message;
-  if (m.conversation || m.extendedTextMessage || m.reactionMessage) return;   // texto normal: no interesa
+  if (m.conversation || m.extendedTextMessage || m.reactionMessage || m.stickerMessage || m.protocolMessage || m.senderKeyDistributionMessage) return;   // ruido: no interesa
   const interno = desenvolver(m);
   const tipo = TIPOS.find((t) => interno?.[t]);
+  let campos = "-";
+  if (tipo) {
+    // Solo campos simples (sin claves, rutas ni miniaturas): sirven para ver qué marca trae el mensaje.
+    campos = Object.entries(interno[tipo])
+      .filter(([k, v]) => !/url|path|sha|key|thumb|enc|waveform|scan/i.test(k) && (v == null || ["string", "number", "boolean"].includes(typeof v)) && String(v).length < 40)
+      .map(([k, v]) => `${k}=${v}`).join(" ");
+  }
+  const raiz = Object.keys(msg).filter((k) => !["key", "message"].includes(k)).join(",");
+  const ctxMsg = Object.keys(m.messageContextInfo || {}).join(",");
   console.log(`[vu-debug] fromMe=${Boolean(msg.key.fromMe)} chat=${String(msg.key.remoteJid).slice(0, 12)} raiz=[${Object.keys(m).join(",")}] interno=[${Object.keys(interno || {}).join(",")}] viewOnce=${esVistaUnica(m)} clave=${tipo ? tieneClave(interno[tipo]) : "-"}`);
+  if (tipo) console.log(`[vu-debug]   ${tipo}: ${campos}\n[vu-debug]   msg=[${raiz}] ctxMsg=[${ctxMsg}] ctxMedia=[${Object.keys(interno[tipo].contextInfo || {}).join(",")}]`);
 }
 
 function alLlegar(sock, msg) {
