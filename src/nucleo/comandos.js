@@ -12,6 +12,7 @@ import { antesDeComando, despuesDeComando, COMANDOS_LOGROS } from "../economia/l
 import { avisarMuertos } from "../../motores/gacha-muertos.js";
 import { correrComoBot, botActual, baneadoEnBot, PRINCIPAL } from "../../motores/ajustes-bot.js";
 import { numeroSubbot } from "../subbots/gestor.js";
+import { stickerPremiumBloqueado } from "./sticker-premium.js";
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const CARPETAS_EXCLUIDAS = new Set([
@@ -139,6 +140,11 @@ await simularEscritura(sock, from, 300 + Math.floor(Math.random() * 400));
 
   if (!COMANDOS_PROTEGIDOS.has(comando) && baneadoEnBot(comando, categoriaDeComando.get(comando), botActual())) {
     await reply({ text: "🚫 Este comando fue desactivado por el dueño de este bot, intenta nuevamente mas después." });
+    return true;
+  }
+
+  if (stickerPremiumBloqueado({ msg, sender, comando, categoria: categoriaDeComando.get(comando) })) {
+    await reply({ text: "🔒 Ese sticker es premium: solo puede usarlo quien lo convirtió." });
     return true;
   }
 
