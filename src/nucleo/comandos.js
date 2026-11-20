@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { fileURLToPath, pathToFileURL } from "url";
-import { connectDB, commandRegistry, simularEscritura, delayAleatorio, comandoEstaBaneado } from "../../core.js";
+import { connectDB, commandRegistry, delayAleatorio, comandoEstaBaneado } from "../../core.js";
 import { soloAdminsActivo, botApagado } from "../grupos/estado.js";
 import { esAdminOOwner, ajustarMenciones } from "../grupos/nucleo.js";
 import { bloqueadoDelBot } from "../grupos/moderacion.js";
@@ -91,6 +91,8 @@ const COMANDOS_PROTEGIDOS = new Set([".banear", ".desbanear", ".baneos"]);
 const CATEGORIAS_LOGROS = new Set(["Economía", "Trabajos", "Apuestas", "Negocios"]);
 const COMANDOS_MUERTOS = new Set([".muertos", ".diademuertos", ".ofrenda", ".altar"]);
 
+const HUMANIZAR_MS = process.env.HUMANIZAR === "0" ? 0 : (Number(process.env.HUMANIZAR_MS) || 350);
+
 const historialComandos = new Map();
 
 function debeEsperarPorSpam(sender) {
@@ -98,6 +100,9 @@ function debeEsperarPorSpam(sender) {
   const historial = (historialComandos.get(sender) || []).filter((t) => ahora - t < 10000);
   historial.push(ahora);
   historialComandos.set(sender, historial);
+  if (historialComandos.size > 500) {
+    for (const [id, tiempos] of historialComandos) if (ahora - tiempos[tiempos.length - 1] >= 10000) historialComandos.delete(id);
+  }
   return historial.length > 10;
 }
 
@@ -123,11 +128,13 @@ async function ejecutarComando(sock, from, sender, text, msg) {
 
   let capturados = null;
 
+  let primeraRespuesta = true;
   const reply = async (contenido) => {
-    if (!msg.paginaChat) {
-      await delayAleatorio(100, 300);
-await simularEscritura(sock, from, 300 + Math.floor(Math.random() * 400));
+    if (!msg.paginaChat && primeraRespuesta && HUMANIZAR_MS > 0) {
+      primeraRespuesta = false;
+      await delayAleatorio(Math.floor(HUMANIZAR_MS / 3), HUMANIZAR_MS);
     }
+    primeraRespuesta = false;
     const enviado = await enviarConCache(sock, from, await ajustarMenciones(sock, from, contenido), msg);
     if (capturados) registrarMedio(capturados, enviado);
     return enviado;
