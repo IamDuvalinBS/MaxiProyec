@@ -9,7 +9,7 @@ import { manejarApiJuegos } from "./motores/juegos-api.js";
 import { manejarComando } from "./src/nucleo/comandos.js";
 import { checkTriviaAnswer, hayTriviaEn } from "./src/economia/trivia.js";
 import { iniciarSubbots, usarPagina, fijarSocketPrincipal } from "./src/subbots/gestor.js";
-import { reclamarMensaje, fijarPrincipal } from "./src/subbots/dedupe.js";
+import { reclamarMensaje, reclamarConteo, fijarPrincipal, fijarGruposPrincipal } from "./src/subbots/dedupe.js";
 import { sesionPrincipal, limpiarSesionesLocales, vigilarDescifrado } from "./motores/sesiones-mongo.js";
 import { iniciarCobranzaPrestamos } from "./src/economia/prestamos.js";
 import { procesarEspera, hayEsperaEn } from "./src/nucleo/espera.js";
@@ -30,7 +30,7 @@ import { olvidarMetadatos } from "./src/grupos/nucleo.js";
 import { recordarNombre } from "./motores/profile.js";
 import { saltarAtrasoViejo } from "./motores/saltar-atraso.js";
 import { esMensajeDePersona, contarMensajeGrupo } from "./motores/estadisticas.js";
-import { normalizarMensaje, aprenderParticipantes } from "./src/nucleo/identidad.js";
+import { normalizarMensaje, aprenderParticipantes, resolverUsuario, altDeClave } from "./src/nucleo/identidad.js";
 import { iniciarChatPagina } from "./src/nucleo/chatpagina.js";
 import { pasesParaPagina, pasesReclamados, alReclamarPase } from "./motores/gacha-pases.js";
 import { ejecutarStickerAccion } from "./src/nucleo/sticker-acciones.js";
@@ -182,6 +182,7 @@ async function contarGrupos() {
     if (PAG.sock && PAG.enLinea) {
       const grupos = await PAG.sock.groupFetchAllParticipating();   // una sola consulta sirve para contar y para aprender los LID
       PAG.grupos = Object.keys(grupos).length;
+      fijarGruposPrincipal(Object.keys(grupos));
       for (const g of Object.values(grupos)) aprenderParticipantes(g.participants);
       subirEstado();
     }
@@ -310,7 +311,10 @@ function registrarIgnorado(edadSeg, tipo) {
 const SOLO_COMANDOS = process.env.SOLO_COMANDOS === "1";
 
 function mensajeRelevante(msg, from) {
-  if (!SOLO_COMANDOS) return true;
+  return !SOLO_COMANDOS || esActivo(msg, from);
+}
+
+function esActivo(msg, from) {
   const mm = msg.message;
   if (mm.buttonsResponseMessage || mm.templateButtonReplyMessage || mm.interactiveResponseMessage) return true;
   const cont = desenvolverMensaje(mm);
@@ -396,6 +400,21 @@ function enlazarEventos(sock, esSub) {
     })();
   });
 
+  function registrarPasivo(m, msg) {
+    if (m.type !== "notify" || msg.key.fromMe) return;
+    if (!reclamarConteo(msg)) return;
+    PAG.msgsHoy++;
+    const persona = esMensajeDePersona(msg, m.type);
+    if (!persona && !msg.pushName) return;
+    const from = msg.key.remoteJid;
+    resolverUsuario(sock, msg.key.participant || from, { grupo: from, alt: altDeClave(msg.key) })
+      .then((sender) => {
+        if (msg.pushName) recordarNombre(sender, msg.pushName);
+        if (persona) contarMensajeGrupo(from, sender);
+      })
+      .catch(() => {});
+  }
+
   async function procesarMensaje(m, msg) {
     if (!msg.message) return;
     if (msg.key.remoteJid.endsWith("@g.us") && !puedeResponderEnGrupo(sock, msg.key.remoteJid)) {
@@ -406,6 +425,10 @@ function enlazarEventos(sock, esSub) {
     }
     if (!mensajeRelevante(msg, msg.key.remoteJid)) {
       if (!esSub && m.type === "notify" && !msg.key.fromMe) PAG.msgsHoy++;
+      return;
+    }
+    if (!esActivo(msg, msg.key.remoteJid)) {
+      registrarPasivo(m, msg);
       return;
     }
     if (!(await reclamarMensaje(msg, esSub))) return;
