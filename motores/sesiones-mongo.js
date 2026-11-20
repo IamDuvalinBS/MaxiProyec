@@ -5,8 +5,15 @@ import { obtenerBase } from "./db.js";
 
 const COLECCION_SUBS = "subbots";
 const COLECCION_CLAVES = "subbots_keys";
-const CACHE_MAX = 300;
+const CACHE_MAX = Number(process.env.CACHE_CLAVES_MAX) || 600;
 const CACHE_TTL_MS = 10 * 60000;
+const GUARDADO_DIFERIDO = process.env.GUARDADO_DIFERIDO !== "0";
+const VENTANA_VOLCADO_MS = Number(process.env.VENTANA_VOLCADO_MS) || 800;
+const vaciadores = new Map();
+
+export function vaciarSesionesSubs() {
+  return Promise.allSettled([...vaciadores.values()].map((v) => v()));
+}
 
 function serializar(valor) {
   return JSON.parse(JSON.stringify(valor, baileys.BufferJSON.replacer));
@@ -61,6 +68,7 @@ export async function cargarEstadoSub(numero, logger) {
   // seguidos ya no pueden llegar al revés y dejar una clave vieja encima de la nueva. Mientras tanto se lee de memoria.
   const pendientes = new Map();
   let volcando = Promise.resolve();
+  let temporizadorVolcado = null;
 
   const volcar = () => {
     if (!pendientes.size) return volcando;
@@ -106,7 +114,14 @@ export async function cargarEstadoSub(numero, logger) {
       for (const tipo of Object.keys(datos)) {
         for (const id of Object.keys(datos[tipo])) pendientes.set(`${prefijo}${tipo}-${id}`, datos[tipo][id] || null);
       }
-      await volcar();
+      if (!GUARDADO_DIFERIDO) return volcar();
+      if (!temporizadorVolcado) {
+        temporizadorVolcado = setTimeout(() => {
+          temporizadorVolcado = null;
+          volcar().catch((e) => console.log(`[subbot ${numero}] no se pudieron guardar las claves (se reintenta): ${e.message}`));
+        }, VENTANA_VOLCADO_MS);
+        temporizadorVolcado.unref?.();
+      }
     }
   };
 
@@ -121,7 +136,12 @@ export async function cargarEstadoSub(numero, logger) {
     );
   };
 
-  const vaciar = async () => { await volcar().catch(() => {}); await volcando; };
+  const vaciar = async () => {
+    if (temporizadorVolcado) { clearTimeout(temporizadorVolcado); temporizadorVolcado = null; }
+    await volcar().catch(() => {});
+    await volcando;
+  };
+  vaciadores.set(numero, vaciar);
   return { state: { creds, keys }, guardarCreds, vaciar };
 }
 

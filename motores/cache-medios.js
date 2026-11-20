@@ -53,7 +53,10 @@ export function rutaImagenCacheada(url) {
   return ruta;
 }
 
+let ultimaPoda = 0;
 function podarImagenes() {
+  if (Date.now() - ultimaPoda < 60000) return;
+  ultimaPoda = Date.now();
   try {
     const archivos = fs.readdirSync(DIR_IMAGENES).map((nombre) => {
       const ruta = path.join(DIR_IMAGENES, nombre);
@@ -96,16 +99,25 @@ try {
 
 let temporizador = null;
 
+let escribiendo = false;
 function programarGuardado() {
   if (temporizador) return;
-  temporizador = setTimeout(() => {
+  temporizador = setTimeout(async () => {
     temporizador = null;
+    if (escribiendo) return programarGuardado();
+    escribiendo = true;
     try {
-      fs.writeFileSync(ARCHIVO_RELAY, JSON.stringify(almacen, reemplazar));
+      const texto = JSON.stringify(almacen, reemplazar);
+      const temp = `${ARCHIVO_RELAY}.parcial`;
+      await fs.promises.writeFile(temp, texto);
+      await fs.promises.rename(temp, ARCHIVO_RELAY);
     } catch (e) {
       console.log(`❌ No se pudo guardar la caché de medios: ${e.message}`);
+    } finally {
+      escribiendo = false;
     }
-  }, 2000);
+  }, 8000);
+  temporizador.unref?.();
 }
 
 function podarRelay() {

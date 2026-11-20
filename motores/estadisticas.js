@@ -1,12 +1,13 @@
 import { obtenerBase } from "./db.js";
 import { guardarGachaPendiente } from "./gacha-db.js";
+import { vaciarSesionesSubs } from "./sesiones-mongo.js";
 
+const globales = new Map();
 export function contarComando(nombre) {
-  const base = obtenerBase();
-  if (!base || !nombre) return;
-  base.collection("estadisticas")
-    .updateOne({ _id: nombre.replace(/^[.!#]/, "") }, { $inc: { usos: 1 } }, { upsert: true })
-    .catch(() => {});
+  if (!nombre) return;
+  const k = nombre.replace(/^[.!#]/, "");
+  globales.set(k, (globales.get(k) || 0) + 1);
+  if (!temporizador) { temporizador = setInterval(guardarContadores, 15000); temporizador.unref?.(); }
 }
 
 export async function topComandos(limite = 10) {
@@ -70,11 +71,20 @@ export const contarComandoGrupo = (grupo, nombre, sender) => acumular(grupo, "c"
 
 export async function guardarContadores() {
   const base = obtenerBase();
-  if (guardando || !base || !pendientes.size) return;
+  if (guardando || !base || (!pendientes.size && !globales.size)) return;
   guardando = true;
   const lote = [...pendientes];
   pendientes.clear();
+  const lGlobal = [...globales];
+  globales.clear();
   try {
+    if (lGlobal.length) {
+      await base.collection("estadisticas").bulkWrite(
+        lGlobal.map(([_id, n]) => ({ updateOne: { filter: { _id }, update: { $inc: { usos: n } }, upsert: true } })),
+        { ordered: false }
+      ).catch(() => { for (const [k, n] of lGlobal) globales.set(k, (globales.get(k) || 0) + n); });
+    }
+    if (!lote.length) return;
     await base.collection("estadisticas_grupos").bulkWrite(lote.map(([grupo, p]) => {
       const inc = { mensajes: p.m, comandos: p.c };
       for (const [k, n] of Object.entries(p.cmds)) inc[`cmds.${k}`] = n;
@@ -113,6 +123,6 @@ export async function estadisticasGrupo(grupo, limite = 10) {
 for (const senal of ["SIGINT", "SIGTERM"]) {
   process.once(senal, () => {
     const tope = new Promise((r) => setTimeout(r, 6000).unref());
-    Promise.race([Promise.allSettled([guardarContadores(), guardarGachaPendiente()]), tope]).finally(() => process.exit(0));
+    Promise.race([Promise.allSettled([guardarContadores(), guardarGachaPendiente(), vaciarSesionesSubs()]), tope]).finally(() => process.exit(0));
   });
 }

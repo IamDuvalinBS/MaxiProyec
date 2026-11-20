@@ -127,7 +127,7 @@ async function abrirConexion() {
   let ultimoError = null;
   for (const uri of URIS_MONGO) {
     const client = new MongoClient(uri, {
-      maxPoolSize: 3,
+      maxPoolSize: Number(process.env.MONGO_POOL) || 6,
       compressors: ["zlib"],
       serverSelectionTimeoutMS: TIEMPO_ESPERA_MONGO_MS
     });

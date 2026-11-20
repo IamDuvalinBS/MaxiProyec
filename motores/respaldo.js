@@ -131,9 +131,11 @@ export async function respaldarAhora() {
     const ahora = Date.now();
 
     const nombres = await listarNombres(base);
+    let revisados = 0;
 
     for (const nombre of nombres) {
       for await (const doc of base.collection(nombre).find({})) {
+        if (++revisados % 200 === 0) await new Promise((r) => setImmediate(r));
         const id = String(doc._id);
         const clave = nombre + SEPARADOR + id;
         vistos.add(clave);
