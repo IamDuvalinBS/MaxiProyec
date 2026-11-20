@@ -40,7 +40,7 @@ export default {
     }
     const link = /^https?:\/\//i.test(enlace) ? enlace : `https://${enlace}`;
 
-    await reply({
+    const aviso = reply({
       text: tarjetaDescarga({ emoji: "🌐", titulo: "DESCARGA UNIVERSAL", sender, campos: [campo("🔗", "Enlace", link)], nota: "Descargando. Esto puede tardar un poco." }),
       mentions: [sender]
     }).catch(() => {});
@@ -49,6 +49,7 @@ export default {
     if (await hayYtdlp()) {
       try {
         const medias = await descargarConYtdlp(link, { playlist: false });
+        await aviso;
         const r = await enviarLote(medias, reply, { sock, from, msg });
         if (r.enviados > 0) return;
         errorYtdlp = new Error(r.omitidos ? "El archivo es demasiado pesado para WhatsApp." : (r.ultimoError || "No se pudo enviar."));
@@ -56,6 +57,7 @@ export default {
     }
 
     // Respaldo: archivo directo
+    await aviso;
     try {
       const info = await infoArchivoDirecto(link);
       if (info) {

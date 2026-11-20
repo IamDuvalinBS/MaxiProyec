@@ -107,7 +107,7 @@ export default {
       .filter(Boolean)
       .slice(0, 5);
 
-    await reply({
+    const aviso = reply({
       text: tarjetaDescarga({
         emoji: "📦",
         titulo: "APK DOWNLOAD",
@@ -128,6 +128,7 @@ export default {
 
     const nombreArchivo = `${nombreSeguro(app.nombre, app.paquete || "app")}${app.version ? ` v${app.version}` : ""}.${app.ext || "apk"}`;
     try {
+      await Promise.race([aviso, new Promise((r) => setTimeout(r, 4000))]);
       await enviarConReintento(reply, {
         document: { url: app.url },
         mimetype: app.ext === "apk" || !app.ext ? "application/vnd.android.package-archive" : "application/octet-stream",
