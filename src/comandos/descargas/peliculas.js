@@ -1,4 +1,4 @@
- import axios from "axios";
+import axios from "axios";
 import { execFile } from "child_process";
 import * as dns from "dns";
 import { createWriteStream, existsSync } from "fs";
