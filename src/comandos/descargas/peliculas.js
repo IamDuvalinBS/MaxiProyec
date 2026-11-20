@@ -1,672 +1,638 @@
+ import { capMap } from "../../core/memGuard.js";
 import axios from "axios";
-import * as cheerio from "cheerio";
-import fs from "node:fs/promises";
-import path from "node:path";
-import zlib from "node:zlib";
-import { promisify } from "node:util";
-import { tarjetaDescarga, tarjetaUso, tarjetaError, campo } from "../../descargas/tarjetas.js";
+import { execFile, execFileSync } from "child_process";
+import * as dns from "dns";
+import { createWriteStream, existsSync } from "fs";
+import { mkdir, stat, unlink } from "fs/promises";
+import { createRequire } from "module";
+import { tmpdir } from "os";
+import { join } from "path";
+import { pipeline } from "stream/promises";
+import { promisify } from "util";
 
-const gunzip = promisify(zlib.gunzip);
+const execFileAsync = promisify(execFile);
 
-/* ───────────────────────── CONFIG ───────────────────────── */
-const HOSTS = (process.env.FLIX_HOSTS || "ww1,ww2,ww3")
-  .split(",").map(h => h.trim()).filter(Boolean)
-  .map(h => `https://${h.replace(/^https?:\/\//, "").replace(/\.123flmsfree\.com$/, "")}.123flmsfree.com`);
+try {
+  dns.setDefaultResultOrder("ipv4first");
+  dns.setServers(["8.8.8.8", "8.8.4.4", "1.1.1.1", "1.0.0.1", "9.9.9.9"]);
+  console.log("[peli] DNS públicos configurados");
+} catch (e) {
+  console.warn("[peli] No se pudieron configurar DNS públicos:", e);
+}
 
-const LOCALE     = process.env.FLIX_LOCALE || "es";
-const CACHE_DIR  = process.env.FLIX_CACHE || path.join(process.cwd(), ".data", "flix");
-const CACHE_FILE = path.join(CACHE_DIR, "resolver.json");
-const INDEX_FILE = path.join(CACHE_DIR, "index.json");
-const SEED_FILE  = path.join(CACHE_DIR, "seeds.json");
-const FLARESOLVERR = process.env.FLARESOLVERR_URL || "";
-const INDEX_VERSION = 3;
+/* ───────────── CONFIG ───────────── */
+const BASE_URL = "https://pelis182.net";
+const API_BASE = `${BASE_URL}/wp-json/wp/v2`;
+const STV_API = "https://api.v02.savethevideo.com";
 
-const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+  "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
-const TTL_HIT   = 7 * 24 * 60 * 60 * 1000;
-const TTL_WEAK  = 60 * 60 * 1000;
-const TTL_INDEX = 24 * 60 * 60 * 1000;
-const TTL_BAN   = 10 * 60 * 1000;
-const MIN_SCORE = 0.62;
-const STRONG    = 0.85;
-const MAX_INDEX = Number(process.env.FLIX_MAX_INDEX || 120_000);
-const BUDGET    = Number(process.env.FLIX_CRAWL_BUDGET || 400);
-const QUICK     = Number(process.env.FLIX_QUICK_BUDGET || 12);
-const CONCURRENCY = Number(process.env.FLIX_CONCURRENCY || 2);
+const DEFAULT_HEADERS = { "User-Agent": UA, Accept: "application/json" };
 
-const HARD_TIMEOUT  = 30_000;   // tope duro por consulta
-const T_DIRECT      = 6_000;
-const T_PROXY       = 12_000;
-const MAX_ENDPOINTS = 3;
+const REQUEST_TIMEOUT = 20_000;
+const CREATE_TIMEOUT = 30_000;
+const POLL_TIMEOUT = 25_000;
+const TRANSCODE_TIMEOUT = 30 * 60 * 1000;
+const STV_MAX_WAIT = 25 * 60 * 1000;
+const STV_POLL = 5_000;
 
+const PER_PAGE = 100;
+const MAX_RESULTS = 8;
+
+const MAX_VIDEO_MB = 14;    // techo para enviar como video
+const MAX_DOC_MB = 64;      // techo para enviar como documento
+
+const IFRAME_RE = /<iframe[^>]+(?:src|data-src)=["']([^"']+)["']/i;
+const YEAR_RE = /\((\d{4})\)/;
+const IMG_RE = /<img[^>]+src=["']([^"']+)["']/i;
+const PLAYER_URL_RE = /https?:\/\/[^"'\s<>]+\/(?:player|embed)\/[a-zA-Z0-9_-]+\/?/i;
+
+const PELIS182_LINK_RE = /https?:\/\/(?:[a-z0-9-]+\.)*pelis182\.net[^\s"'<>)]*/gi;
+const PELIS182_TEST_RE = /https?:\/\/(?:[a-z0-9-]+\.)*pelis182\.net/i;
+
+const TMP_DIR = join(tmpdir(), "pelis-bot");
+const lastSearches = new Map();
+const inFlight = new Set();
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const log = (...a) => console.log("[peli]", ...a);
+const stripPelis182Links = (t) => String(t).replace(PELIS182_LINK_RE, "[enlace oculto]");
 
-/* ───────────────────────── HOST ACTIVO ───────────────────────── */
-let activeBase = null;
-const base = () => activeBase || HOSTS[0];
-
-async function getBase() {
-  if (activeBase) return activeBase;
-  if (process.env.FLIX_BASE) return (activeBase = process.env.FLIX_BASE.replace(/\/$/, ""));
-  for (const h of HOSTS) {
-    const r = await tryDirect(`${h}/robots.txt`, { timeout: 5000, quiet: true });
-    if (r.ok) return (activeBase = h);
-  }
-  return (activeBase = HOSTS[0]);
-}
-
-/* ───────────────────────── HTTP ───────────────────────── */
-const jar = new Map();
-const cookieHeader = () => [...jar].map(([k, v]) => `${k}=${v}`).join("; ");
-const sleep = ms => new Promise(r => setTimeout(r, ms));
-const jitter = (a = 300, b = 800) => sleep(a + Math.random() * (b - a));
-
-// transporte aprendido: si el directo está bloqueado, no se reintenta por 10 min
-let directBan = 0;
-let proxyIdx = 0;
-let lastVia = "—";
-
-function absorb(res) {
-  for (const c of res.headers?.["set-cookie"] || []) {
-    const kv = c.split(";")[0]; const i = kv.indexOf("=");
-    if (i > 0) jar.set(kv.slice(0, i), kv.slice(i + 1));
-  }
-}
-
-const CF_MARKS = ["just a moment", "attention required", "cf-browser-verification", "challenge-platform", "cf_chl_opt", "why have i been blocked"];
-const isChallenge = (html = "") => {
-  const h = String(html).slice(0, 4000).toLowerCase();
-  return CF_MARKS.some(m => h.includes(m));
-};
-
-const baseHeaders = (url) => ({
-  "User-Agent": UA,
-  "Accept": "text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8",
-  "Accept-Language": "es-MX,es;q=0.9,en;q=0.6",
-  "Referer": base() + "/",
-  "Sec-Fetch-Dest": "document", "Sec-Fetch-Mode": "navigate", "Sec-Fetch-Site": "same-origin",
-  ...(jar.size ? { Cookie: cookieHeader() } : {}),
-});
-
-async function tryDirect(url, { binary = false, timeout = T_DIRECT, quiet = false } = {}) {
-  if (Date.now() < directBan) return { ok: false, status: 403, body: "banned" };
+/* ───────────── FFMPEG ───────────── */
+let _ffmpeg;
+function ffmpegBin() {
+  if (_ffmpeg !== undefined) return _ffmpeg;
   try {
-    const res = await axios.get(url, {
-      timeout, validateStatus: () => true, headers: baseHeaders(url),
-      responseType: binary ? "arraybuffer" : "text", decompress: true,
-    });
-    absorb(res);
-    const raw = res.data;
-    const body = binary
-      ? (Buffer.isBuffer(raw) ? raw : Buffer.from(raw))
-      : (typeof raw === "string" ? raw : JSON.stringify(raw));
-    const head = binary ? body.subarray(0, 4000).toString("utf8") : body;
+    const req = createRequire(import.meta.url);
+    const stat = req("ffmpeg-static");
+    if (stat && existsSync(stat)) return (_ffmpeg = stat);
+  } catch { /* noop */ }
+  if (process.env.FFMPEG_PATH && existsSync(process.env.FFMPEG_PATH)) return (_ffmpeg = process.env.FFMPEG_PATH);
+  for (const p of ["/usr/bin/ffmpeg", "/usr/local/bin/ffmpeg", "/opt/homebrew/bin/ffmpeg", "/snap/bin/ffmpeg"]) {
+    if (existsSync(p)) return (_ffmpeg = p);
+  }
+  throw new Error("ffmpeg no disponible. Instala ffmpeg-static.");
+}
 
-    if (res.status === 200 && !isChallenge(head)) { lastVia = "directo"; return { ok: true, status: 200, body, via: "directo" }; }
-    if (res.status === 403 || res.status === 429 || res.status === 503 || isChallenge(head)) {
-      directBan = Date.now() + TTL_BAN;
-      if (!quiet) log("directo bloqueado, 10 min de castigo");
+const DUR_RE = /Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/;
+
+async function probeDurationSec(file) {
+  const parse = (txt) => {
+    const m = DUR_RE.exec(txt || "");
+    return m ? (+m[1]) * 3600 + (+m[2]) * 60 + parseFloat(m[3]) : null;
+  };
+  try {
+    const { stderr } = await execFileAsync(ffmpegBin(), ["-hide_banner", "-i", file]);
+    return parse(stderr);
+  } catch (e) {
+    return parse(e?.stderr);
+  }
+}
+
+/* ───────────── UTILIDADES ───────────── */
+function box(emoji, title, body = "", extra = []) {
+  const lines = [`${emoji} *${title}*`];
+  if (body) lines.push(body);
+  for (const e of extra) lines.push(e);
+  return lines.join("\n");
+}
+
+async function react(ctx, emoji) {
+  try {
+    if (ctx.sock?.sendMessage && ctx.msg?.key) {
+      await ctx.sock.sendMessage(ctx.sender, { react: { text: emoji, key: ctx.msg.key } });
     }
-    return { ok: false, status: res.status, body };
-  } catch (e) {
-    return { ok: false, status: 0, body: e.message };
-  }
+  } catch { /* noop */ }
 }
 
-async function tryFlare(url) {
-  if (!FLARESOLVERR) return { ok: false, status: 0, body: "no-flaresolverr" };
-  try {
-    const { data } = await axios.post(FLARESOLVERR, { cmd: "request.get", url, maxTimeout: 30000 }, { timeout: 40000 });
-    const sol = data?.solution;
-    if (!sol?.response) return { ok: false, status: 0, body: "flare-fail" };
-    for (const c of sol.cookies || []) jar.set(c.name, c.value);
-    lastVia = "flaresolverr";
-    return { ok: true, status: sol.status || 200, body: sol.response, via: "flaresolverr" };
-  } catch (e) {
-    return { ok: false, status: 0, body: e.message };
+/* ───────────── MODELO ───────────── */
+class Movie {
+  constructor(data) {
+    this.id = data.id;
+    this.title = data.title;
+    this.year = data.year;
+    this.slug = data.slug;
+    this.url = data.url;
+    this.playerUrl = data.playerUrl;
+    this.image = data.image;
+    this.categories = data.categories || [];
+    this.source = data.source || "pelis182";
   }
-}
 
-let puppeteerReady = null;
-async function tryPuppeteer(url) {
-  let browser = null;
-  try {
-    if (puppeteerReady === null) {
-      const mod = await import("puppeteer-extra");
-      const stealth = (await import("puppeteer-extra-plugin-stealth")).default;
-      mod.default.use(stealth());
-      puppeteerReady = mod.default;
+  get hasPlayer() {
+    return Boolean(this.playerUrl);
+  }
+
+  async download(outputPath, onProgress) {
+    if (!this.playerUrl) throw new Error("La película no tiene reproductor");
+
+    const stvHeaders = {
+      "User-Agent": UA,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      Origin: "https://www.savethevideo.com",
+      Referer: "https://www.savethevideo.com/",
+    };
+
+    onProgress?.("🔄 Enviando a procesar...");
+    log("creando task:", this.playerUrl);
+
+    const createRes = await axios.post(
+      `${STV_API}/tasks`,
+      { url: this.playerUrl, type: "download" },
+      { headers: stvHeaders, timeout: CREATE_TIMEOUT }
+    );
+
+    let task = createRes.data;
+    if (!task?.id || !task?.href) {
+      throw new Error(`Respuesta inesperada de savethevideo: ${JSON.stringify(task).slice(0, 200)}`);
     }
-    browser = await puppeteerReady.launch({
-      headless: true,
-      args: ["--no-sandbox", "--disable-blink-features=AutomationControlled"],
+    log("task creada:", task.id, task.state);
+
+    const start = Date.now();
+    let last = "";
+
+    while (task.state === "pending" || task.state === "progress") {
+      if (Date.now() - start > STV_MAX_WAIT) throw new Error("Timeout esperando a savethevideo (25 min)");
+      await sleep(STV_POLL);
+
+      const poll = await axios.get(`${STV_API}${task.href}`, { headers: stvHeaders, timeout: POLL_TIMEOUT });
+      task = poll.data;
+
+      const p = task.result?.progress;
+      if (p) {
+        const line = `⏳ ${p.percent} | ETA ${p.eta}`;
+        if (line !== last) { log(line); onProgress?.(line); last = line; }
+      }
+    }
+
+    if (task.state !== "completed") throw new Error(`savethevideo terminó en: ${task.state}`);
+
+    const files = (task.result?.files || []).filter((f) => f?.url);
+    if (!files.length) throw new Error("savethevideo no devolvió archivos");
+
+    for (const f of files) log(`  - ${f.filename} (${f.ext}, ${f.quality})`);
+    const chosen = files.find((f) => f.ext?.toLowerCase() === "mp4")
+      || files.find((f) => f.ext?.toLowerCase() === "mkv")
+      || files[0];
+
+    let outPath = outputPath;
+    if (!/\.(mp4|mkv)$/i.test(outPath)) outPath = `${outPath}.${chosen.ext.toLowerCase()}`;
+
+    onProgress?.(`⬇️ Descargando ${chosen.ext.toUpperCase()}...`);
+    log("descargando:", chosen.filename);
+
+    const res = await axios.get(chosen.url, {
+      responseType: "stream",
+      timeout: 0,                       // sin corte por socket en archivos grandes
+      headers: { "User-Agent": UA },
     });
-    const page = await browser.newPage();
-    await page.setUserAgent(UA);
-    await page.setExtraHTTPHeaders({ "Accept-Language": "es-MX,es;q=0.9" });
 
-    const resp = await page.goto(url, { waitUntil: "domcontentloaded", timeout: 35000 });
-    await sleep(1200 + Math.random() * 800);
+    const writer = createWriteStream(outPath);
+    let bytes = 0;
+    let lastLog = 0;
+    res.data.on("data", (c) => {
+      bytes += c.length;
+      if (Date.now() - lastLog > 5000) {
+        const mb = (bytes / 1048576).toFixed(1);
+        log("descargado:", mb, "MB");
+        onProgress?.(`⬇️ ${mb} MB...`);
+        lastLog = Date.now();
+      }
+    });
 
-    const html = await page.content();
-    const cookies = (await page.cookies?.()) ?? (await browser.cookies());
-    for (const c of cookies) jar.set(c.name, c.value);
-
-    if (isChallenge(html)) return { ok: false, status: 403, body: "challenge" };
-    lastVia = "puppeteer";
-    return { ok: true, status: resp?.status() || 200, body: html, via: "puppeteer" };
-  } catch (e) {
-    return { ok: false, status: 0, body: e.message };
-  } finally {
-    await browser?.close().catch(() => {});
+    await pipeline(res.data, writer);
+    const st = await stat(outPath);
+    log("archivo:", outPath, (st.size / 1048576).toFixed(1), "MB");
+    return outPath;
   }
 }
+
+/* ───────────── PELIS182 (WordPress REST) ───────────── */
+class Pelis182 {
+  constructor() {
+    this.axios = axios.create({ headers: DEFAULT_HEADERS, timeout: REQUEST_TIMEOUT });
+    this._cats = null;
+  }
+
+  async _json(url, params) {
+    try {
+      const r = await this.axios.get(url, {
+        params,
+        timeout: REQUEST_TIMEOUT,
+        transformResponse: (d) => { try { return JSON.parse(d); } catch { return d; } },
+      });
+      if (r.status === 404) return [];
+      if (r.status !== 200) throw new Error(`HTTP ${r.status} en ${url}`);
+      return Array.isArray(r.data) ? r.data : [r.data];
+    } catch (e) {
+      if (e?.response?.status === 404) return [];
+      throw new Error(`Fallo de red en ${url}: ${e?.message ?? String(e)}`);
+    }
+  }
+
+  async _one(url, params) {
+    const a = await this._json(url, params);
+    return a.length ? a[0] : null;
+  }
+
+  async _catMap() {
+    if (this._cats) return this._cats;
+    const data = await this._json(`${API_BASE}/categories`, { per_page: 100 });
+    const map = new Map();
+    for (const d of data) map.set(d.id, d.name);
+    this._cats = map;
+    return map;
+  }
+
+  async _toMovie(p) {
+    const raw = p?.title?.rendered ?? "";
+    const ym = YEAR_RE.exec(raw);
+    const title = raw.replace(YEAR_RE, "").trim();
+    const catMap = await this._catMap();
+    const categories = (p?.categories || []).map((id) => catMap.get(id)).filter(Boolean);
+
+    const html = p?.content?.rendered ?? "";
+    let playerUrl = null;
+    const iframe = IFRAME_RE.exec(html);
+    if (iframe) playerUrl = iframe[1];
+    if (!playerUrl) {
+      const direct = PLAYER_URL_RE.exec(html);
+      if (direct) playerUrl = direct[0];
+    }
+
+    let image = null;
+    const fm = p?._embedded?.["wp:featuredmedia"];
+    if (Array.isArray(fm) && fm[0]?.source_url) image = fm[0].source_url;
+    if (!image) {
+      const m = IMG_RE.exec(html);
+      if (m) image = m[1];
+    }
+
+    return new Movie({
+      id: p?.id, title, year: ym ? ym[1] : null, slug: p?.slug ?? "",
+      url: p?.link ?? "", playerUrl, image, categories, source: "pelis182",
+    });
+  }
+
+  async search(query, limit = MAX_RESULTS) {
+    const data = await this._json(`${API_BASE}/posts`, {
+      search: query, per_page: Math.min(limit, PER_PAGE), _embed: "true",
+    });
+    const out = [];
+    for (const p of data.slice(0, limit)) out.push(await this._toMovie(p));
+    return out;
+  }
+
+  async getMovie(slugOrUrl) {
+    let slug = "";
+    if (slugOrUrl.startsWith("http")) {
+      try {
+        const parts = new URL(slugOrUrl).pathname.replace(/^\/+|\/+$/g, "").split("/");
+        slug = parts[parts.length - 1] || "";
+      } catch { /* noop */ }
+    } else {
+      slug = slugOrUrl.replace(/^\/+|\/+$/g, "").split("/").pop() ?? "";
+    }
+    if (!slug) throw new Error(`No se pudo extraer slug de: ${slugOrUrl}`);
+
+    const post = await this._one(`${API_BASE}/posts`, { slug, _embed: "true" });
+    if (!post) throw new Error(`Película no encontrada: ${slug}`);
+    return this._toMovie(post);
+  }
+}
+
+/* ───────────── RESPALDO 123FLMSFREE ───────────── */
+const FLIX_HOSTS = (process.env.FLIX_HOSTS || "ww1,ww2,ww3")
+  .split(",").map((h) => h.trim()).filter(Boolean)
+  .map((h) => `https://${h.replace(/^https?:\/\//, "")}.123flmsfree.com`);
 
 const PROXIES = [
-  u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
-  u => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
-  u => `https://r.jina.ai/${u}`,
+  (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+  (u) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
 ];
 
-async function tryProxy(i, url) {
+const DETAIL_RE = /\/([a-z]{2})\/detail\/(movie|serie|tv)\/([A-Za-z0-9]{8,32})-([^"'\s?#<>/)]+)/g;
+
+async function flixFetch(url) {
   try {
-    const res = await axios.get(PROXIES[i](url), {
-      timeout: T_PROXY, validateStatus: () => true,
-      headers: { "User-Agent": UA }, responseType: "text",
+    const d = await axios.get(url, {
+      timeout: 6000, validateStatus: () => true, responseType: "text",
+      headers: {
+        "User-Agent": UA,
+        "Accept-Language": "es-MX,es;q=0.9",
+        Referer: `${FLIX_HOSTS[0]}/`,
+      },
     });
-    const body = typeof res.data === "string" ? res.data : JSON.stringify(res.data);
-    if (res.status === 200 && body.length > 300 && !isChallenge(body)) {
-      proxyIdx = i; lastVia = `proxy${i + 1}`;
-      return { ok: true, status: 200, body, via: `proxy${i + 1}` };
-    }
-    return { ok: false, status: res.status, body };
-  } catch (e) {
-    return { ok: false, status: 0, body: e.message };
+    if (d.status === 200 && d.data?.length > 300) return { ok: true, body: String(d.data) };
+  } catch { /* noop */ }
+
+  for (const p of PROXIES) {
+    try {
+      const r = await axios.get(p(url), { timeout: 12000, validateStatus: () => true, responseType: "text" });
+      if (r.status === 200 && typeof r.data === "string" && r.data.length > 300) return { ok: true, body: r.data };
+    } catch { /* noop */ }
   }
+  return { ok: false, body: "" };
 }
 
-async function fetchSmart(url, { allowHeavy = false } = {}) {
-  const direct = await tryDirect(url);
-  if (direct.ok || direct.status === 404) return direct;
+const flixNorm = (s = "") => String(s).normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+  .toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
 
-  // el proxy que funcionó la última vez va primero
-  const order = [proxyIdx, ...PROXIES.map((_, i) => i).filter(i => i !== proxyIdx)];
-  for (const i of order) {
-    const r = await tryProxy(i, url);
-    if (r.ok) return r;
-  }
-  if (!allowHeavy) return direct;
-
-  const flare = await tryFlare(url);
-  if (flare.ok) return flare;
-
-  const pup = await tryPuppeteer(url);
-  if (pup.ok) return pup;
-
-  return direct;
+function flixScore(a, b) {
+  if (!a || !b) return 0;
+  if (a === b) return 1;
+  const ta = new Set(a.split(" ")), tb = new Set(b.split(" "));
+  let i = 0;
+  for (const t of ta) if (tb.has(t)) i++;
+  const jac = i / new Set([...ta, ...tb]).size;
+  const inc = a.includes(b) || b.includes(a) ? 0.2 : 0;
+  return jac + inc;
 }
 
-/* ───────────────────────── TEXTO / SCORING ───────────────────────── */
-const NOISE = /\[(doblaje|castellano|latino|subtitulad[oa]|hd|4k|1080p|720p|cam|ts)[^\]]*\]/gi;
-
-const norm = (s = "") =>
-  String(s).normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
-
-const slugToTitle = (slug = "") => norm(String(slug).replace(/-/g, " ").replace(/\s\d{4}$/, ""));
-const cleanTitle = (t = "") => slugToTitle(String(t).replace(NOISE, " "));
-
-function lev(a, b) {
-  if (a === b) return 0;
-  const m = a.length, n = b.length;
-  if (!m || !n) return Math.max(m, n);
-  let prev = Array.from({ length: n + 1 }, (_, i) => i);
-  for (let i = 1; i <= m; i++) {
-    const cur = [i];
-    for (let j = 1; j <= n; j++)
-      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
-    prev = cur;
-  }
-  return prev[n];
-}
-
-function score(A, B) {
-  if (!A || !B) return 0;
-  if (A === B) return 1;
-  const ta = new Set(A.split(" ")), tb = new Set(B.split(" "));
-  let inter = 0;
-  for (const t of ta) if (tb.has(t)) inter++;
-  const jaccard = inter / new Set([...ta, ...tb]).size;
-  const dice = 1 - lev(A, B) / Math.max(A.length, B.length);
-  const contained = A.includes(B) || B.includes(A) ? 0.15 : 0;
-  return Math.min(1, jaccard * 0.55 + dice * 0.45 + contained);
-}
-
-/* ───────────────────────── CACHÉ ───────────────────────── */
-const hits = new Map();
-let endpoint = null;
-let saveTimer = null;
-
-async function ensureDir() { await fs.mkdir(CACHE_DIR, { recursive: true }).catch(() => {}); }
-async function readJson(file, def) { try { return JSON.parse(await fs.readFile(file, "utf8")); } catch { return def; } }
-
-async function writeJson(file, obj) {
-  await ensureDir();
-  const tmp = file + ".tmp";
-  await fs.writeFile(tmp, JSON.stringify(obj));
-  await fs.rename(tmp, file).catch(() => fs.writeFile(file, JSON.stringify(obj)).catch(() => {}));
-}
-
-async function loadHits() {
-  if (hits.size) return;
-  const raw = await readJson(CACHE_FILE, {});
-  const now = Date.now();
-  for (const [k, v] of Object.entries(raw)) {
-    if (now - v.ts < (v.weak ? TTL_WEAK : TTL_HIT)) hits.set(k, v);
-  }
-}
-
-function scheduleSave() {
-  clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
-    writeJson(CACHE_FILE, Object.fromEntries(hits)).catch(() => {});
-  }, 2000);
-  saveTimer.unref?.();
-}
-
-/* ───────────────────────── ÍNDICE ───────────────────────── */
-let index = null;
-let building = null;
-
-const DETAIL_RE = /\/([a-z]{2})\/detail\/(movie|serie|tv|anime|dorama|novela)\/([A-Za-z0-9]{8,32})-([^"'\s?#<>/)]+)/g;
-const LISTING_RE = /\/(pelicula|peliculas|movie|movies|serie|series|tv|estrenos|genero|generos|genre|categoria|categorias|explorar|browse|ver|page|pagina)(\/|$|\?)/i;
-
-function extractLinks(text = "") {
-  const out = new Map();
-  for (const m of String(text).matchAll(DETAIL_RE)) {
-    const id = m[3];
-    if (out.has(id)) continue;
-    out.set(id, {
-      seg: m[2],
-      tipo: m[2] === "movie" ? "pelicula" : "serie",
-      id,
-      slug: decodeURIComponent(m[4]).replace(/[).,;]+$/, ""),
-    });
-  }
-  return [...out.values()];
-}
-
-const link = (e) => `${base()}/${LOCALE}/detail/${e.seg}/${e.id}-${e.slug}`;
-
-function absorbLinks(list) {
-  if (!index) index = [];
-  const seen = new Set(index.map(e => e.id));
-  let added = 0;
-  for (const l of list) {
-    if (seen.has(l.id) || index.length >= MAX_INDEX) continue;
-    seen.add(l.id);
-    index.push({ ...l, n: slugToTitle(l.slug) });
-    added++;
-  }
-  return added;
-}
-
-async function loadIndex() {
-  if (index) return index;
-  const cached = await readJson(INDEX_FILE, null);
-  if (cached?.v === INDEX_VERSION && Date.now() - cached.ts < TTL_INDEX && Array.isArray(cached.entries)) {
-    index = cached.entries;
-  } else {
-    index = [];
-  }
-  return index;
-}
-
-async function saveIndex() {
-  await writeJson(INDEX_FILE, { v: INDEX_VERSION, ts: Date.now(), entries: index || [] });
-}
-
-async function fetchXml(url) {
-  const r = await tryDirect(url, { binary: true });
-  if (r.ok && Buffer.isBuffer(r.body)) {
-    const buf = r.body;
-    if (buf[0] === 0x1f && buf[1] === 0x8b) {
-      try { return (await gunzip(buf)).toString("utf8"); } catch { /* noop */ }
-    }
-    return buf.toString("utf8");
-  }
-  const txt = await fetchSmart(url);
-  if (!txt.ok) return null;
-  return String(txt.body).trim();
-}
-
-async function trySitemaps() {
-  const seeds = [
-    `${base()}/sitemap.xml`, `${base()}/sitemap_index.xml`,
-    `${base()}/sitemap-movies.xml`, `${base()}/${LOCALE}/sitemap.xml`,
+async function searchFlix(query) {
+  const q = flixNorm(query);
+  if (!q) return [];
+  const paths = [
+    (x) => `/es/search?keyword=${encodeURIComponent(x)}`,
+    (x) => `/es/search?q=${encodeURIComponent(x)}`,
+    (x) => `/es/buscar?q=${encodeURIComponent(x)}`,
   ];
-  for (const seed of seeds) {
-    const xml = await fetchXml(seed);
-    if (!xml || !xml.includes("<loc>")) continue;
 
-    if (/<sitemapindex/i.test(xml)) {
-      const kids = [...xml.matchAll(/<loc>\s*([^<\s]+)\s*<\/loc>/g)].map(m => m[1]);
-      for (const kid of kids) {
-        const sub = await fetchXml(kid);
-        if (sub) absorbLinks(extractLinks(sub));
-        if (index.length >= MAX_INDEX) break;
-      }
-    } else {
-      absorbLinks(extractLinks(xml));
-    }
-    if (index.length) { log("sitemap encontrado:", seed); return index.length; }
-  }
-  return 0;
-}
+  for (const build of paths) {
+    for (const host of FLIX_HOSTS) {
+      const r = await flixFetch(host + build(query));
+      if (!r.ok) continue;
 
-async function readSeeds() {
-  const raw = await readJson(SEED_FILE, []);
-  const list = Array.isArray(raw) ? raw : [];
-  return [...new Set([...list, ...[...hits.values()].map(h => h.id)])].filter(Boolean);
-}
-
-async function crawlFrom(seeds, budget) {
-  const queue = [`${base()}/${LOCALE}/`, `${base()}/${LOCALE}`];
-  for (const s of seeds) {
-    if (/^https?:/.test(s)) queue.push(s);
-    else if (s.includes("-")) queue.push(`${base()}/${LOCALE}/detail/movie/${s}`);
-  }
-
-  const seen = new Set(queue);
-  let done = 0;
-
-  while (queue.length && done < budget) {
-    const batch = queue.splice(0, CONCURRENCY);
-    await Promise.all(batch.map(async (url) => {
-      done++;
-      const r = await fetchSmart(url);
-      if (!r.ok || typeof r.body !== "string") return;
-
-      absorbLinks(extractLinks(r.body));
-
-      if (!url.includes("/detail/")) {
-        const $ = cheerio.load(r.body);
-        $("a[href]").each((_, el) => {
-          const href = $(el).attr("href");
-          if (!href) return;
-          let p; try { p = new URL(href, base()).pathname; } catch { return; }
-          if (!LISTING_RE.test(p)) return;
-          const full = base() + p;
-          if (seen.has(full) || seen.size > budget * 4) return;
-          seen.add(full);
-          queue.push(full);
+      const seen = new Map();
+      for (const m of r.body.matchAll(DETAIL_RE)) {
+        if (seen.has(m[3])) continue;
+        seen.set(m[3], {
+          id: m[3],
+          slug: decodeURIComponent(m[4]).replace(/[).,;]+$/, ""),
+          seg: m[2],
         });
       }
-      await jitter(150, 450);
-    }));
+      if (!seen.size) continue;
+
+      return [...seen.values()]
+        .map((e) => ({
+          e,
+          s: flixScore(q, flixNorm(e.slug.replace(/-/g, " "))),
+        }))
+        .filter((x) => x.s >= 0.5)
+        .sort((a, b) => b.s - a.s)
+        .slice(0, 4)
+        .map(({ e }) => new Movie({
+          title: e.slug.replace(/-/g, " "),
+          slug: e.slug,
+          url: `${host}/es/detail/${e.seg}/${e.id}-${e.slug}`,
+          playerUrl: `${host}/es/detail/${e.seg}/${e.id}-${e.slug}/0`,
+          categories: [],
+          source: "flix",
+        }));
+    }
   }
-  return done;
+  return [];
 }
 
-async function warmIndex(force = false) {
-  if (building) return building;
+/* ───────────── DESCARGA + TRANSCODE ───────────── */
+async function prepareForWhatsapp(src, onProgress) {
+  const sizeMb = (await stat(src)).size / 1048576;
+  if (sizeMb <= MAX_VIDEO_MB) return { path: src, sizeMb, mode: "video" };
 
-  building = (async () => {
-    await ensureDir();
-    await loadHits();
-    await loadIndex();
-    if (force) index = [];
+  const dur = (await probeDurationSec(src)) || 6000;
+  const budget = MAX_VIDEO_MB * 1048576 * 8 * 0.92;
+  let vK = Math.floor(budget / dur / 1000) - 48;
+  vK = Math.max(40, Math.min(vK, 2500));
 
-    const before = index.length;
-    const fromSitemap = await trySitemaps();
-    const pages = await crawlFrom(await readSeeds(), force ? BUDGET : QUICK);
+  const scale = vK < 120 ? "480:-2" : vK < 400 ? "640:-2" : "854:-2";
+  const fps = vK < 120 ? "15" : "24";
+  const out = src.replace(/\.[^.]+$/, "") + `-wa.mp4`;
 
-    if (index.length > before || force) await saveIndex();
-    log(`índice: ${index.length} (+${index.length - before}) páginas:${pages} sitemap:${fromSitemap}`);
-    return { total: index.length, added: index.length - before, pages, sitemap: fromSitemap };
-  })().finally(() => { building = null; });
+  log(`transcodificando ${sizeMb.toFixed(0)}MB -> ${vK}k (dur ${Math.round(dur)}s, escala ${scale})`);
+  onProgress?.(`📦 Comprimiendo a ~${MAX_VIDEO_MB}MB (${vK}k)...`);
 
-  return building;
+  try {
+    await execFileAsync(ffmpegBin(), [
+      "-y", "-i", src,
+      "-vf", `scale=${scale}`,
+      "-r", fps,
+      "-c:v", "libx264",
+      "-b:v", `${vK}k`, "-maxrate", `${vK}k`, "-bufsize", `${vK * 2}k`,
+      "-preset", "veryfast",
+      "-c:a", "aac", "-b:a", "48k", "-ac", "2",
+      "-movflags", "+faststart",
+      out,
+    ], { timeout: TRANSCODE_TIMEOUT, maxBuffer: 1024 * 1024 * 16 });
+  } catch (e) {
+    log("transcode falló:", e?.message);
+    return { path: src, sizeMb, mode: sizeMb <= MAX_DOC_MB ? "document" : "toolarge" };
+  }
+
+  const finalMb = (await stat(out)).size / 1048576;
+  await unlink(src).catch(() => {});
+  log("resultado:", finalMb.toFixed(1), "MB");
+
+  if (finalMb > MAX_DOC_MB) return { path: out, sizeMb: finalMb, mode: "toolarge" };
+  return { path: out, sizeMb: finalMb, mode: finalMb <= MAX_VIDEO_MB ? "video" : "document" };
 }
 
-function searchIndex(query, tipo) {
-  if (!index?.length) return [];
-  const q = cleanTitle(query);
-  if (!q) return [];
-  const toks = q.split(" ").filter(t => t.length > 2);
+async function sendMedia(ctx, file, caption) {
+  const name = `pelicula-${Date.now()}.mp4`;
+  try {
+    if (file.mode === "video" && ctx.sock?.sendMessage) {
+      await ctx.sock.sendMessage(ctx.sender, {
+        video: { url: file.path }, caption, mimetype: "video/mp4",
+      });
+      return true;
+    }
+    if (ctx.sock?.sendMessage) {
+      await ctx.sock.sendMessage(ctx.sender, {
+        document: { url: file.path }, caption, mimetype: "video/mp4", fileName: name,
+      });
+      return true;
+    }
+  } catch (e) {
+    log("envío falló:", e?.message);
+  }
+  return false;
+}
 
-  const pool = index.filter(e => {
-    if (tipo && e.tipo !== tipo) return false;
-    return toks.length ? toks.some(t => e.n.includes(t)) : true;
+/* ───────────── FORMATO ───────────── */
+function formatMenu(results) {
+  const lines = ["🎬 *Resultados*", ""];
+  results.forEach((m, i) => {
+    const year = m.year ? ` (${m.year})` : "";
+    const cats = m.categories.slice(0, 3).join(", ");
+    lines.push(`${i + 1}. *${m.title}*${year}${m.source === "flix" ? " · _flix_" : ""}`);
+    if (cats) lines.push(`   🎭 ${cats}`);
+    if (m.hasPlayer && !PELIS182_TEST_RE.test(m.playerUrl)) lines.push(`   🎥 ${m.playerUrl}`);
+    lines.push("");
   });
-
-  const source = pool.length ? pool : index.filter(e => !tipo || e.tipo === tipo);
-
-  return source.slice(0, 400)
-    .map(e => ({ ...e, s: score(q, e.n) }))
-    .filter(e => e.s >= MIN_SCORE)
-    .sort((a, b) => b.s - a.s)
-    .slice(0, 6);
+  lines.push("📥 `.peli dl <n>` para que te la mande");
+  lines.push("🔗 `.peli <n>` solo el enlace");
+  return lines.join("\n");
 }
 
-/* ───────────────────────── BÚSQUEDA EN EL SITIO ───────────────────────── */
-const SEARCH_PATHS = [
-  q => `/${LOCALE}/search?keyword=${encodeURIComponent(q)}`,
-  q => `/${LOCALE}/search?q=${encodeURIComponent(q)}`,
-  q => `/${LOCALE}/buscar?q=${encodeURIComponent(q)}`,
-  q => `/${LOCALE}/buscar?keyword=${encodeURIComponent(q)}`,
-  q => `/${LOCALE}/search/${encodeURIComponent(q)}`,
-  q => `/${LOCALE}/ajax/search?keyword=${encodeURIComponent(q)}`,
-  q => `/${LOCALE}/api/search?q=${encodeURIComponent(q)}`,
-];
-
-function linksFromBody(body) {
-  const text = String(body);
-  if (text.trim().startsWith("{") || text.trim().startsWith("[")) {
-    try { return extractLinks(JSON.stringify(JSON.parse(text))); } catch { /* noop */ }
+async function sendLink(ctx, movie) {
+  const hidden = !movie.playerUrl || PELIS182_TEST_RE.test(movie.playerUrl);
+  if (hidden) {
+    await ctx.reply(box("⚠️", "SIN ENLACE", `No hay reproductor para *${movie.title}*.`));
+    return react(ctx, "❌");
   }
-  const direct = extractLinks(text);
-  if (direct.length) return direct;
-
-  const $ = cheerio.load(text);
-  const hrefs = [];
-  $('a[href*="/detail/"]').each((_, el) => {
-    const h = $(el).attr("href");
-    if (!h) return;
-    try { hrefs.push(new URL(h, base()).pathname); } catch { /* noop */ }
-  });
-  return extractLinks(hrefs.join(" "));
+  const extra = [];
+  if (movie.year) extra.push(`📅 ${movie.year}`);
+  if (movie.categories.length) extra.push(`🎭 ${movie.categories.join(" | ")}`);
+  extra.push("", "🎥 *Míralo aquí:*", movie.playerUrl, "", "📥 `.peli dl <n>` para descargarla");
+  await ctx.reply(box("🎬", movie.title, "", extra));
+  return react(ctx, "✅");
 }
 
-/**
- * Devuelve candidatos SIN filtrar por umbral: si un endpoint responde con links,
- * se fija como endpoint y se corta la escalada aunque el score sea bajo.
- */
-async function searchSite(query, tipo) {
-  const ordered = endpoint ? [endpoint] : SEARCH_PATHS.slice(0, MAX_ENDPOINTS);
-  const q = cleanTitle(query);
-  let fallback = null;
-
-  for (const build of ordered) {
-    const url = base() + build(query);
-    let r = await fetchSmart(url);
-    if (!r.ok) r = await fetchSmart(url, { allowHeavy: true });
-    if (!r.ok) continue;
-
-    const raw = linksFromBody(r.body);
-    if (!raw.length) continue;
-
-    const scored = raw
-      .filter(e => !tipo || e.tipo === tipo)
-      .map(e => ({ ...e, n: slugToTitle(e.slug) }))
-      .map(e => ({ ...e, s: score(q, e.n) }))
-      .sort((a, b) => b.s - a.s);
-
-    if (!scored.length) continue;
-    endpoint = build;          // fijamos el endpoint desde el primer link recibido
-    log("endpoint fijado:", url, "candidatos:", scored.length);
-
-    const passed = scored.filter(e => e.s >= MIN_SCORE);
-    if (passed.length) return { list: passed, weak: false };
-    if (!fallback) fallback = { list: scored, weak: true };
-    break;                     // endpoint ya conocido: no seguir probando rutas
+async function downloadAndSend(ctx, movie, index) {
+  if (inFlight.has(ctx.sender)) {
+    return ctx.reply("⏳ Ya hay una descarga en curso en este chat.");
   }
-  return fallback || { list: [], weak: false };
-}
-
-/* ───────────────────────── RESOLUCIÓN ───────────────────────── */
-async function resolve(query, tipo) {
-  await loadHits();
-  const key = (tipo ? tipo + ":" : "") + cleanTitle(query);
-  if (!key.trim()) return { hit: null, alt: [], from: "none" };
-
-  const c = hits.get(key);
-  if (c) return { hit: c, alt: [], from: "caché" };
-
-  await loadIndex();
-  let best = searchIndex(query, tipo)[0];
-  if (best && best.s >= STRONG) return commit(key, best, [], "índice", false);
-
-  const { list, weak } = await searchSite(query, tipo);
-  if (list.length) return commit(key, list[0], list.slice(1, 4), "buscador", weak);
-
-  if (best) return commit(key, best, [], "índice parcial", true);
-
-  const { added } = await warmIndex();
-  if (added) {
-    best = searchIndex(query, tipo)[0];
-    if (best) return commit(key, best, [], "índice nuevo", best.s < STRONG);
+  if (!movie.hasPlayer) {
+    return ctx.reply(box("❌", "SIN REPRODUCTOR", `*${movie.title}* no tiene fuente descargable.`));
   }
-  return { hit: null, alt: [], from: "none" };
+
+  inFlight.add(ctx.sender);
+  const safe = (movie.slug || `peli-${Date.now()}`).replace(/[^a-z0-9-]/gi, "").slice(0, 60) || `peli-${Date.now()}`;
+  const raw = join(TMP_DIR, safe);
+  let current = "";
+
+  try {
+    await mkdir(TMP_DIR, { recursive: true });
+    await ctx.reply(box("📥", "DESCARGANDO", `*${movie.title}*${index ? ` (#${index})` : ""}\n\nEsto puede tardar varios minutos.`));
+    await react(ctx, "⏳");
+
+    const onProgress = (line) => { current = line; };
+    const downloaded = await movie.download(raw, onProgress);
+    const prepared = await prepareForWhatsapp(downloaded, onProgress);
+
+    if (prepared.mode === "toolarge") {
+      await ctx.reply(box("⚠️", "ARCHIVO MUY GRANDE",
+        `Pesa ${prepared.sizeMb.toFixed(1)} MB y no baja de ${MAX_DOC_MB} MB.\nRuta local: \`${prepared.path}\``));
+      await react(ctx, "⚠️");
+      return;
+    }
+
+    const caption = box("🎬", movie.title, movie.year ? `📅 ${movie.year}` : "",
+      [`📦 ${prepared.sizeMb.toFixed(1)} MB`, "", "🎥 *Míralo aquí:*", movie.playerUrl]);
+
+    const sent = await sendMedia(ctx, prepared, caption);
+    if (!sent) {
+      await ctx.reply(box("⚠️", "SIN CANAL DE ENVÍO",
+        `Listo en \`${prepared.path}\` (${prepared.sizeMb.toFixed(1)} MB), pero el bot no expone \`sock\`.`));
+      await react(ctx, "⚠️");
+      return;
+    }
+    await react(ctx, "✅");
+  } catch (e) {
+    log("error de descarga:", e?.message);
+    await ctx.reply(box("❌", "FALLÓ LA DESCARGA", stripPelis182Links(e?.message || "error").slice(0, 400)));
+    await react(ctx, "❌");
+  } finally {
+    inFlight.delete(ctx.sender);
+    setTimeout(() => { unlink(raw).catch(() => {}); unlink(`${raw}.mp4`).catch(() => {}); }, 5 * 60 * 1000).unref?.();
+  }
 }
 
-async function commit(key, e, alt, from, weak) {
-  hits.set(key, { ts: Date.now(), seg: e.seg, id: e.id, slug: e.slug, tipo: e.tipo, weak: !!weak });
-  scheduleSave();
-  return { hit: e, alt: alt.map(link), from };
-}
-
-/* ───────────────────────── COMANDO ───────────────────────── */
-const withDeadline = (p, ms) =>
-  Promise.race([p, sleep(ms).then(() => ({ __timeout: true }))]);
+/* ───────────── COMANDO ───────────── */
+const pelis = new Pelis182();
 
 export default {
-  names: [".pelicula", ".peliculas", ".peli", ".cine", ".movie", ".serie", ".series"],
-  usage: ".pelicula <título>",
-  desc: "Resuelve el link directo a la ficha, sin pasar por buscadores.",
+  names: [".peli", ".pelicula", ".pelicula", ".peliculas", ".pelis", ".cine", ".movie"],
+  usage: ".peli <título>",
+  desc: "Busca películas, te da el enlace o te la manda descargada.",
   category: "Descargas",
 
-  handler: async ({ sender, cleanText, reply }) => {
-    const first = norm(cleanText.trim().split(/\s+/)[0]);
+  handler: async (ctx) => {
+    const { sender, cleanText, reply } = ctx;
     const args = cleanText.trim().split(/\s+/).slice(1);
+    const say = (text) => reply({ text, mentions: [sender] });
+
+    const sub = args[0]?.toLowerCase();
+    const isDl = ["dl", "d", "descargar", "bajar"].includes(sub);
+    if (isDl) args.shift();
     const flag = args[0]?.startsWith("--") ? args.shift().toLowerCase() : null;
-    const tipo = first === "serie" || first === "series" ? "serie" : null;
-    const consulta = args.join(" ").trim();
+    const arg = args.join(" ").trim();
 
     if (flag === "--stats") {
-      await loadHits();
-      await loadIndex();
-      return reply({
-        text: tarjetaDescarga({
-          emoji: "📊", titulo: "ESTADO", sender,
-          campos: [
-            campo("🎯", "Links cacheados", String(hits.size)),
-            campo("🗂️", "Índice local", String(index?.length || 0)),
-            campo("🌐", "Host", base()),
-            campo("🚚", "Transporte", lastVia),
-            campo("🔌", "Endpoint", endpoint ? "fijado" : "sin detectar"),
-          ],
-          nota: "Usa .pelicula --index para reconstruir el índice.",
-        }),
-        mentions: [sender],
-      });
+      return say(box("📊", "ESTADO",
+        `Resultados en memoria: ${lastSearches.size} chats`,
+        [`Hosts flix: ${FLIX_HOSTS.length}`, `Descargas activas: ${inFlight.size}`]));
     }
 
     if (flag === "--clear") {
-      hits.clear(); index = null; endpoint = null; jar.clear();
-      activeBase = null; directBan = 0; proxyIdx = 0;
-      await fs.rm(CACHE_FILE, { force: true }).catch(() => {});
-      await fs.rm(INDEX_FILE, { force: true }).catch(() => {});
-      return reply({ text: "🧹 Caché, índice, cookies y transporte reiniciados.", mentions: [sender] });
+      lastSearches.clear();
+      return say("🧹 Memoria de búsquedas borrada.");
     }
 
-    if (flag === "--add") {
-      if (!consulta) return reply({ text: "Uso: .pelicula --add <url o id-slug>", mentions: [sender] });
-      await ensureDir();
-      const seeds = await readJson(SEED_FILE, []);
-      const list = Array.isArray(seeds) ? seeds : [];
-      const id = consulta.includes("/detail/") ? consulta.split("/detail/")[1] : consulta;
-      if (id && !list.includes(id)) list.push(id);
-      await writeJson(SEED_FILE, list);
-      return reply({ text: `🌱 Semilla guardada (${list.length}).`, mentions: [sender] });
+    if (!arg) {
+      return say(box("🎬", "PELÍCULAS",
+        "📌 Uso:",
+        [
+          "• `.peli <nombre>` → buscar",
+          "• `.peli <n>` → enlace del resultado N",
+          "• `.peli dl <n>` → descargar y enviar el N",
+          "• `.peli <url|slug>` → enlace directo",
+          "",
+          "Ejemplos: `.peli moana` · `.peli dl 1` · `.peli coco`",
+        ]));
     }
 
-    if (flag === "--index") {
-      await reply({ text: "🗂️ Construyendo índice. No lo repitas, corre en segundo plano.", mentions: [sender] });
-      const { total, added, pages } = await warmIndex(true);
-      return reply({
-        text: tarjetaDescarga({
-          emoji: "🗂️", titulo: "ÍNDICE", sender,
-          campos: [
-            campo("🎯", "Fichas", String(total)),
-            campo("➕", "Nuevas", String(added)),
-            campo("📄", "Páginas", String(pages)),
-          ],
-          nota: total ? "Listo." : "No se leyó nada. Revisa FLIX_HOSTS o levanta FlareSolverr.",
-        }),
-        mentions: [sender],
-      });
-    }
-
-    if (!consulta) {
-      return reply({
-        text: tarjetaUso({
-          comando: ".pelicula <título>",
-          ejemplo: ".peli La Venganza del Charro Negro\n.serie La Leyenda de los Chaneques\n.pelicula --index\n.pelicula --stats",
-          nota: "Devuelvo el link directo a la ficha. Sin buscadores de por medio.",
-        }),
-        mentions: [sender],
-      });
-    }
-
-    // feedback inmediato: nunca dejar el chat en silencio
-    await reply({ text: `🔎 Buscando "${consulta}"...`, mentions: [sender] }).catch(() => {});
+    await react(ctx, "⏳");
 
     try {
-      await getBase();
+      const n = parseInt(arg, 10);
 
-      const out = await withDeadline(resolve(consulta, tipo), HARD_TIMEOUT);
-
-      if (out.__timeout) {
-        log("timeout", consulta);
-        return reply({
-          text: tarjetaError(`"${consulta}" tardó demasiado. El sitio no responde por ninguna vía.`),
-          mentions: [sender],
-        });
+      if (!isNaN(n) && String(n) === arg) {
+        const last = lastSearches.get(sender);
+        if (!last?.length) return say("❌ No hay búsqueda previa. Usa `.peli <nombre>`.");
+        const movie = last[n - 1];
+        if (!movie) return say(`❌ Solo hay ${last.length} resultados.`);
+        if (isDl) return downloadAndSend(ctx, movie, n);
+        return sendLink(ctx, movie);
       }
 
-      const { hit, alt, from } = out;
-      if (!hit) {
-        return reply({
-          text: tarjetaError(`No encontré "${consulta}" en el catálogo.`),
-          mentions: [sender],
-        });
+      if (arg.startsWith("http") || /pelis182\.net/i.test(arg)) {
+        await say("🔍 Obteniendo...");
+        const movie = await pelis.getMovie(arg);
+        if (isDl) return downloadAndSend(ctx, movie);
+        return sendLink(ctx, movie);
       }
 
-      const campos = [campo("▶️", hit.tipo === "serie" ? "Serie" : "Película", link(hit))];
-      if (alt?.length) alt.forEach((u, i) => campos.push(campo("🔁", `Alternativa ${i + 1}`, u)));
+      await say(`🔍 Buscando: "${arg}"...`);
 
-      return reply({
-        text: tarjetaDescarga({
-          emoji: "🎬", titulo: consulta.toUpperCase(), sender,
-          campos,
-          nota: `Fuente: ${from}.`,
-        }),
-        mentions: [sender],
-      });
+      let results = [];
+      try {
+        results = await pelis.search(arg, MAX_RESULTS);
+      } catch (e) {
+        log("pelis182 falló:", e?.message);
+      }
+
+      if (!results.length) {
+        results = await searchFlix(arg);
+      }
+
+      if (!results.length) {
+        await react(ctx, "❌");
+        return say("❌ No encontré nada con ese nombre.");
+      }
+
+      lastSearches.set(sender, results);
+      capMap(lastSearches, 200);
+
+      if (isDl) return downloadAndSend(ctx, results[0], 1);
+
+      await ctx.reply(formatMenu(results));
+      await react(ctx, "✅");
     } catch (e) {
-      log("error", e.message);
-      return reply({ text: tarjetaError("Error al resolver el link."), mentions: [sender] });
+      await react(ctx, "❌");
+      await say(box("❌", "ERROR", stripPelis182Links(e?.message || "desconocido").slice(0, 400)));
     }
   },
 };
