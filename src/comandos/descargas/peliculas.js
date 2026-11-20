@@ -27,10 +27,12 @@ const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
   "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
 const DEFAULT_HEADERS = { "User-Agent": UA, Accept: "application/json" };
+const HTML_HEADERS = { "User-Agent": UA, Accept: "text/html,application/xhtml+xml" };
 
 const REQUEST_TIMEOUT = 20_000;
 const CREATE_TIMEOUT = 30_000;
 const POLL_TIMEOUT = 25_000;
+const RESOLVE_TIMEOUT = 12_000;
 const TRANSCODE_TIMEOUT = 30 * 60 * 1000;
 const STV_MAX_WAIT = 25 * 60 * 1000;
 const STV_POLL = 5_000;
@@ -47,8 +49,14 @@ const YEAR_RE = /\((\d{4})\)/;
 const IMG_RE = /<img[^>]+src=["']([^"']+)["']/i;
 const PLAYER_URL_RE = /https?:\/\/[^"'\s<>]+\/(?:player|embed)\/[a-zA-Z0-9_-]+\/?/i;
 
+const OG_TITLE_A = /<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i;
+const OG_TITLE_B = /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:title["']/i;
+const TITLE_TAG_RE = /<title[^>]*>([^<]+)<\/title>/i;
+const OG_IMAGE_RE = /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i;
+
 const PELIS182_LINK_RE = /https?:\/\/(?:[a-z0-9-]+\.)*pelis182\.net[^\s"'<>)]*/gi;
 const PELIS182_TEST_RE = /https?:\/\/(?:[a-z0-9-]+\.)*pelis182\.net/i;
+const PELIS182_HOST_RE = /(?:^|\.)pelis182\.net$/i;
 
 const TMP_DIR = process.env.PELIS_TMP || join(process.cwd(), ".tmp", "pelis");
 const lastSearches = new Map();
@@ -57,6 +65,17 @@ const inFlight = new Set();
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const log = (...a) => console.log("[peli]", ...a);
 const stripPelis182Links = (t) => String(t).replace(PELIS182_LINK_RE, "[enlace oculto]");
+
+const decodeEntities = (s = "") => String(s)
+  .replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#0?39;/g, "'")
+  .replace(/&apos;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+  .replace(/&nbsp;/g, " ");
+
+const cleanTitle = (s = "") => decodeEntities(s)
+  .replace(/\s+/g, " ")
+  .replace(/\s*[|·•–—]\s*(?:paulinito|pelis\w*|ver\s+online|pel[ií]cula\s+completa|online|gratis|hd|4k)\b.*$/i, "")
+  .replace(/^\s*ver\s+/i, "")
+  .trim();
 
 /* ───────────── capMap OPCIONAL ───────────── */
 let _capMap = null;
@@ -236,6 +255,69 @@ class Movie {
   }
 }
 
+/* ───────────── URL EXTERNA → PELÍCULA ───────────── */
+function slugFromUrl(url) {
+  try {
+    const parts = new URL(url).pathname.replace(/^\/+|\/+$/g, "").split("/").filter(Boolean);
+    const last = parts[parts.length - 1] || "";
+    return decodeURIComponent(last).replace(/\.(mp4|mkv|html?)$/i, "");
+  } catch {
+    return "";
+  }
+}
+
+async function resolveExternal(url) {
+  const fallback = slugFromUrl(url).replace(/[-_]+/g, " ").trim() || "video";
+  let title = fallback;
+  let year = null;
+  let image = null;
+  let playerUrl = url;
+
+  try {
+    const r = await axios.get(url, {
+      timeout: RESOLVE_TIMEOUT,
+      responseType: "text",
+      validateStatus: () => true,
+      headers: HTML_HEADERS,
+    });
+
+    if (r.status === 200 && typeof r.data === "string") {
+      const html = String(r.data).slice(0, 250_000);
+
+      const og = OG_TITLE_A.exec(html) || OG_TITLE_B.exec(html);
+      const tag = og ? og[1] : TITLE_TAG_RE.exec(html)?.[1];
+      if (tag) {
+        const t = cleanTitle(tag);
+        if (t) title = t;
+      }
+
+      const ogi = OG_IMAGE_RE.exec(html);
+      if (ogi) image = ogi[1];
+
+      const iframe = IFRAME_RE.exec(html);
+      if (iframe) {
+        try { playerUrl = new URL(decodeEntities(iframe[1]), url).toString(); } catch { /* noop */ }
+      }
+    }
+  } catch (e) {
+    log("no se pudo leer la página, uso la URL tal cual:", e?.message);
+  }
+
+  const ym = YEAR_RE.exec(title);
+  if (ym) { year = ym[1]; title = title.replace(YEAR_RE, "").trim(); }
+
+  return new Movie({
+    title: title || fallback,
+    year,
+    slug: slugFromUrl(url) || "video",
+    url,
+    playerUrl,
+    image,
+    categories: [],
+    source: "directo",
+  });
+}
+
 /* ───────────── PELIS182 (WordPress REST) ───────────── */
 class Pelis182 {
   constructor() {
@@ -313,15 +395,25 @@ class Pelis182 {
   }
 
   async getMovie(slugOrUrl) {
-    let slug = "";
-    if (slugOrUrl.startsWith("http")) {
-      try {
-        const parts = new URL(slugOrUrl).pathname.replace(/^\/+|\/+$/g, "").split("/");
-        slug = parts[parts.length - 1] || "";
-      } catch { /* noop */ }
-    } else {
-      slug = slugOrUrl.replace(/^\/+|\/+$/g, "").split("/").pop() ?? "";
+    const isUrl = /^https?:\/\//i.test(slugOrUrl);
+
+    if (isUrl) {
+      let host = "";
+      try { host = new URL(slugOrUrl).hostname; } catch { /* noop */ }
+
+      if (PELIS182_HOST_RE.test(host)) {
+        const slug = slugFromUrl(slugOrUrl);
+        if (slug) {
+          const post = await this._one(`${API_BASE}/posts`, { slug, _embed: "true" }).catch(() => null);
+          if (post) return this._toMovie(post);
+        }
+        log("sin coincidencia en la API, uso la URL directa:", slugOrUrl);
+      }
+
+      return resolveExternal(slugOrUrl);
     }
+
+    const slug = slugOrUrl.replace(/^\/+|\/+$/g, "").split("/").pop() ?? "";
     if (!slug) throw new Error(`No se pudo extraer slug de: ${slugOrUrl}`);
 
     const post = await this._one(`${API_BASE}/posts`, { slug, _embed: "true" });
@@ -489,7 +581,8 @@ function formatMenu(results) {
   results.forEach((m, i) => {
     const year = m.year ? ` (${m.year})` : "";
     const cats = m.categories.slice(0, 3).join(", ");
-    lines.push(`${i + 1}. *${m.title}*${year}${m.source === "flix" ? " · _flix_" : ""}`);
+    const tag = m.source === "flix" ? " · _flix_" : m.source === "directo" ? " · _directo_" : "";
+    lines.push(`${i + 1}. *${m.title}*${year}${tag}`);
     if (cats) lines.push(`   🎭 ${cats}`);
     if (m.hasPlayer && !PELIS182_TEST_RE.test(m.playerUrl)) lines.push(`   🎥 ${m.playerUrl}`);
     lines.push("");
@@ -584,7 +677,7 @@ const pelis = new Pelis182();
 
 export default {
   names: [".peli", ".pelicula", ".peliculas", ".pelis", ".cine", ".movie"],
-  usage: ".peli <título>",
+  usage: ".peli <título> | .peli dl <n|url>",
   desc: "Busca películas, te da el enlace o te la manda descargada.",
   category: "Descargas",
 
@@ -628,9 +721,10 @@ export default {
           "• `.peli <nombre>` → buscar",
           "• `.peli <n>` → enlace del resultado N",
           "• `.peli dl <n>` → descargar y enviar el N",
+          "• `.peli dl <url>` → descargar desde un enlace directo",
           "• `.peli <url|slug>` → enlace directo",
           "",
-          "Ejemplos: `.peli moana` · `.peli dl 1` · `.peli coco`",
+          "Ejemplos: `.peli moana` · `.peli dl 1` · `.peli dl https://...`",
         ]));
     }
 
@@ -648,9 +742,10 @@ export default {
         return sendLink(ctx, movie);
       }
 
-      if (arg.startsWith("http") || /pelis182\.net/i.test(arg)) {
+      if (/^https?:\/\//i.test(arg) || /pelis182\.net/i.test(arg)) {
+        const target = /^https?:\/\//i.test(arg) ? arg : `https://${arg.replace(/^\/+/, "")}`;
         await say("🔍 Obteniendo...");
-        const movie = await pelis.getMovie(arg);
+        const movie = await pelis.getMovie(target);
         if (isDl) return downloadAndSend(ctx, movie);
         return sendLink(ctx, movie);
       }
