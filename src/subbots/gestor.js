@@ -16,7 +16,7 @@ import { saltarAtrasoViejo } from "../../motores/saltar-atraso.js";
 import { isOwner } from "../../motores/owner.js";
 
 const MAX_SUBS = Math.max(1, Number(process.env.MAX_SUBBOTS) || 30);
-const PAUSA_ENTRE_SUBS_MS = 4000;
+const PAUSA_ENTRE_SUBS_MS = Number(process.env.PAUSA_ENTRE_SUBS_MS) || 2500;
 const TIEMPO_VINCULACION_MS = 120000;
 const REINTENTO_BASE_MS = 5000;
 const REINTENTO_MAX_MS = 60000;
@@ -172,6 +172,28 @@ const cacheDispositivos = {
   del: (k) => { dispositivos.delete(k); },
   flushAll: () => dispositivos.clear()
 };
+const META_TTL_MS = 5 * 60000;
+const META_MAX = 300;
+const metaGrupos = new Map();
+const metaPendientes = new Map();
+function metadatosGrupo(entrada, jid) {
+  const g = metaGrupos.get(jid);
+  if (g && g.vence > Date.now()) return Promise.resolve(g.meta);
+  if (metaPendientes.has(jid)) return metaPendientes.get(jid);
+  const sock = entrada.sock;
+  if (!sock) return Promise.resolve(g ? g.meta : undefined);
+  const promesa = sock.groupMetadata(jid)
+    .then((meta) => {
+      if (metaGrupos.size >= META_MAX) metaGrupos.delete(metaGrupos.keys().next().value);
+      metaGrupos.set(jid, { meta, vence: Date.now() + META_TTL_MS });
+      return meta;
+    })
+    .catch(() => (g ? g.meta : undefined))
+    .finally(() => metaPendientes.delete(jid));
+  metaPendientes.set(jid, promesa);
+  return promesa;
+}
+
 const subs = new Map();
 const fallosSeguidos = new Map();
 let enlazar = null;
@@ -297,28 +319,24 @@ async function abrir(numero, entrada) {
     generateHighQualityLinkPreview: false,
     getMessage: async () => undefined,
     userDevicesCache: cacheDispositivos,
-    cachedGroupMetadata: async (jid) => {   // evita pedir los datos del grupo a WhatsApp en cada mensaje
-      const g = entrada.grupos.get(jid);
-      if (g && g.vence > Date.now()) return g.meta;
-      try {
-        const meta = await entrada.sock.groupMetadata(jid);
-        if (entrada.grupos.size >= 25) entrada.grupos.delete(entrada.grupos.keys().next().value);   // poca memoria
-        entrada.grupos.set(jid, { meta, vence: Date.now() + 5 * 60000 });
-        return meta;
-      } catch {
-        return g ? g.meta : undefined;
-      }
-    },
+    cachedGroupMetadata: (jid) => metadatosGrupo(entrada, jid),
+    fireInitQueries: false,
     shouldIgnoreJid: (jid) => typeof jid === "string" && (jid === "status@broadcast" || jid.endsWith("@broadcast") || jid.endsWith("@newsletter"))
   });
   entrada.sock = sock;
-  sock.ev.on("groups.update", (c) => { for (const x of c) if (x.id) entrada.grupos.delete(x.id); });
-  sock.ev.on("group-participants.update", (u) => entrada.grupos.delete(u.id));
+  sock.ev.on("groups.update", (c) => { for (const x of c) if (x.id) metaGrupos.delete(x.id); });
+  sock.ev.on("group-participants.update", (u) => metaGrupos.delete(u.id));
 
-  sock.ev.on("creds.update", () => {   // en fila: evita que una escritura vieja pise a una nueva
+  sock.ev.on("creds.update", () => {
+    if (entrada.credsPendiente) return;
+    entrada.credsPendiente = true;
     entrada.guardando = (entrada.guardando || Promise.resolve())
-      .then(() => guardarCreds())
-      .catch((e) => console.log(`[subbot ${numero}] no se pudo guardar la sesión: ${e.message}`));
+      .then(async () => {
+        if (!entrada.vinculando) await dormir(600);
+        entrada.credsPendiente = false;
+        await guardarCreds();
+      })
+      .catch((e) => { entrada.credsPendiente = false; console.log(`[subbot ${numero}] no se pudo guardar la sesión: ${e.message}`); });
   });
 
   saltarAtrasoViejo(sock, `subbot ${numero}`);
