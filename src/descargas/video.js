@@ -44,6 +44,33 @@ function esCompatible(video, audio) {
   return audio.codec_name === "aac";
 }
 
+function mp4ListoParaStreaming(ruta) {
+  let fd;
+  try {
+    fd = fs.openSync(ruta, "r");
+    const total = fs.fstatSync(fd).size;
+    const cab = Buffer.alloc(16);
+    let pos = 0;
+    for (let i = 0; i < 24 && pos + 8 <= total; i++) {
+      fs.readSync(fd, cab, 0, 16, pos);
+      let tam = cab.readUInt32BE(0);
+      const tipo = cab.toString("latin1", 4, 8);
+      if (i === 0 && tipo !== "ftyp") return false;
+      if (tipo === "moov") return true;
+      if (tipo === "mdat") return false;
+      if (tam === 1) tam = Number(cab.readBigUInt64BE(8));
+      else if (tam === 0) return false;
+      if (tam < 8) return false;
+      pos += tam;
+    }
+    return false;
+  } catch (e) {
+    return false;
+  } finally {
+    if (fd !== undefined) try { fs.closeSync(fd); } catch (e) {}
+  }
+}
+
 // Deja el video como un MP4 real (H264 + AAC, "faststart") que WhatsApp sí abre. Trabaja siempre sobre el disco.
 // Antes, los videos grandes se mandaban tal cual salían del servicio de descarga (a veces WebM/AV1 con extensión .mp4)
 // y WhatsApp los marcaba como "formato inusual". Ahora siempre se revisan y, si hace falta, se arreglan.
@@ -60,6 +87,10 @@ export async function prepararVideoEnDisco(entrada) {
   try {
     const { video, audio } = await analizarPistas(entrada);
     if (!video) throw new Error("el archivo descargado no contiene video");
+
+    if (process.env.FORZAR_REMUX !== "1" && esCompatible(video, audio) && mp4ListoParaStreaming(entrada)) {
+      return { ruta: entrada, limpiar: () => borrar(entrada) };
+    }
 
     // 1) Ya es compatible: solo se reempaqueta como mp4 limpio (segundos, sin perder calidad).
     // 2) Video compatible pero audio no (opus, etc.): se copia el video y se convierte solo el audio.

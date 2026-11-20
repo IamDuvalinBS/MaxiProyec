@@ -458,7 +458,32 @@ export async function asegurarAudioCompatibleWhatsApp(entradaOriginal) {
   }
 }
 
+function esJpegDirecto(entrada) {
+  if (process.env.IMG_FFMPEG === "1") return false;
+  try {
+    if (Buffer.isBuffer(entrada)) return entrada.length > 3 && entrada[0] === 0xff && entrada[1] === 0xd8 && entrada[2] === 0xff;
+    const fd = fs.openSync(entrada, "r");
+    try {
+      const cab = Buffer.alloc(3);
+      fs.readSync(fd, cab, 0, 3, 0);
+      return cab[0] === 0xff && cab[1] === 0xd8 && cab[2] === 0xff;
+    } finally {
+      fs.closeSync(fd);
+    }
+  } catch (e) {
+    return false;
+  }
+}
+
 export async function asegurarImagenCompatibleWhatsApp(entradaOriginal) {
+  if (esJpegDirecto(entradaOriginal)) {
+    if (Buffer.isBuffer(entradaOriginal)) return entradaOriginal;
+    try {
+      return fs.readFileSync(entradaOriginal);
+    } finally {
+      try { fs.unlinkSync(entradaOriginal); } catch (e) {}
+    }
+  }
   const tmp = os.tmpdir();
   const sufijo = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
   const entrada = comoRutaTemporal(entradaOriginal, "img");

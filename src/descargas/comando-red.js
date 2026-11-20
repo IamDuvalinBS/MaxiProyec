@@ -6,8 +6,8 @@ import { reenviarCacheado, guardarMedioEnviado } from "../../motores/cache-medio
 const CANTIDAD_POR_DEFECTO = 5;
 const CANTIDAD_MAXIMA = 10;
 
-// Una sola búsqueda a la vez en todo el bot (cuida la RAM, el disco y los datos del teléfono).
-let BUSQUEDA_EN_CURSO = false;
+const MAX_BUSQUEDAS = Math.max(1, Number(process.env.BUSQUEDAS_SIMULTANEAS) || 2);
+let BUSQUEDAS_EN_CURSO = 0;
 
 const URL_GENERICA = /^https?:\/\//i;
 
@@ -146,14 +146,14 @@ export function crearComandoRed({
       }
       const consulta = args.join(" ");
 
-      if (BUSQUEDA_EN_CURSO) {
+      if (BUSQUEDAS_EN_CURSO >= MAX_BUSQUEDAS) {
         return reply({
           text: tarjetaAviso("BÚSQUEDA EN CURSO", "Ya hay una búsqueda enviándose. Espera a que termine e inténtalo de nuevo."),
           mentions: [sender]
         });
       }
 
-      BUSQUEDA_EN_CURSO = true;
+      BUSQUEDAS_EN_CURSO++;
       try {
         const aviso = reply({
           text: tarjetaDescarga({
@@ -200,7 +200,7 @@ export function crearComandoRed({
           }).catch(() => {});
         }
       } finally {
-        BUSQUEDA_EN_CURSO = false;
+        BUSQUEDAS_EN_CURSO--;
       }
     }
   };
