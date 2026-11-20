@@ -134,6 +134,56 @@ export function buscarParticipante(meta, jid) {
   return meta.participantes.find((p) => p.ids.includes(limpio)) || null;
 }
 
+// Igual que buscarParticipante, pero entiende que un mismo usuario puede llegar como número (@s.whatsapp.net) o como LID (@lid)
+// y que los metadatos del grupo a veces solo traen uno de los dos. Si no lo encuentra, vuelve a pedir los metadatos una vez.
+export async function buscarParticipanteResuelto(sock, grupo, meta, jid) {
+  if (!meta || !jid) return null;
+  let identidad = null;
+  try {
+    identidad = await import("../nucleo/identidad.js");
+  } catch (e) {}
+  const esLid = (id) => String(id).endsWith("@lid");
+
+  const intentar = async (m) => {
+    const directo = buscarParticipante(m, jid);
+    if (directo) return directo;
+    if (!identidad) return null;
+    const objetivo = limpiarJid(jid);
+
+    // El usuario llegó como LID: se pasa a número y se busca de nuevo.
+    if (esLid(objetivo)) {
+      const pn = await identidad.resolverUsuario(sock, objetivo, { grupo }).catch(() => objetivo);
+      const porPn = pn && pn !== objetivo ? buscarParticipante(m, pn) : null;
+      if (porPn) return porPn;
+    }
+
+    // El usuario llegó como número pero el grupo solo lo tiene como LID: se compara el número de cada LID del grupo.
+    const pendientes = [];
+    for (const p of m.participantes) {
+      for (const id of p.ids.filter(esLid)) {
+        const rapido = identidad.pnRapido(id);
+        if (rapido === objetivo) return p;
+        if (rapido === id) pendientes.push([p, id]);
+      }
+    }
+    const resueltos = await Promise.all(
+      pendientes.map(([p, id]) => identidad.resolverUsuario(sock, id, { grupo }).then((pn) => [p, pn]).catch(() => [p, id]))
+    );
+    for (const [p, pn] of resueltos) if (limpiarJid(pn) === objetivo) return p;
+    return null;
+  };
+
+  const primero = await intentar(meta);
+  if (primero) return primero;
+
+  const fresco = await metadatos(sock, grupo, true).catch(() => null);
+  const segundo = fresco && fresco !== meta ? await intentar(fresco) : null;
+  if (!segundo) {
+    console.log(`[grupos] No encontré a ${jid} en ${grupo}. Participantes: ${meta.participantes.slice(0, 6).map((p) => p.ids.join("/")).join(", ")}${meta.participantes.length > 6 ? ", …" : ""}`);
+  }
+  return segundo;
+}
+
 export function buscarBot(sock, meta) {
   if (!meta) return null;
   const propios = [sock.user?.id, sock.user?.lid].filter(Boolean).map(limpiarJid);
@@ -146,8 +196,22 @@ export async function esAdminOOwner(sock, grupo, sender) {
   return Boolean(participante && participante.admin);
 }
 
+function contextoDe(msg) {
+  let contenido = msg.message;
+  for (let i = 0; i < 4 && contenido; i++) {
+    const interno = contenido.ephemeralMessage?.message || contenido.viewOnceMessage?.message || contenido.viewOnceMessageV2?.message || contenido.documentWithCaptionMessage?.message;
+    if (!interno) break;
+    contenido = interno;
+  }
+  if (!contenido) return null;
+  for (const valor of Object.values(contenido)) {
+    if (valor && typeof valor === "object" && valor.contextInfo) return valor.contextInfo;
+  }
+  return null;
+}
+
 export function objetivoDe({ msg, cleanText }) {
-  const info = msg.message?.extendedTextMessage?.contextInfo;
+  const info = contextoDe(msg);
   const numero = (cleanText.split(/\s+/)[1] || "").replace(/\D/g, "");
   return info?.mentionedJid?.[0] || info?.participant || (numero.length >= 8 ? `${numero}@s.whatsapp.net` : null);
 }
