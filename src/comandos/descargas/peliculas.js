@@ -19,18 +19,27 @@ const CACHE_FILE = path.join(CACHE_DIR, "resolver.json");
 const INDEX_FILE = path.join(CACHE_DIR, "index.json");
 const SEED_FILE  = path.join(CACHE_DIR, "seeds.json");
 const FLARESOLVERR = process.env.FLARESOLVERR_URL || "";
-const INDEX_VERSION = 2;
+const INDEX_VERSION = 3;
 
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
 const TTL_HIT   = 7 * 24 * 60 * 60 * 1000;
 const TTL_WEAK  = 60 * 60 * 1000;
 const TTL_INDEX = 24 * 60 * 60 * 1000;
+const TTL_BAN   = 10 * 60 * 1000;
 const MIN_SCORE = 0.62;
 const STRONG    = 0.85;
 const MAX_INDEX = Number(process.env.FLIX_MAX_INDEX || 120_000);
 const BUDGET    = Number(process.env.FLIX_CRAWL_BUDGET || 400);
+const QUICK     = Number(process.env.FLIX_QUICK_BUDGET || 12);
 const CONCURRENCY = Number(process.env.FLIX_CONCURRENCY || 2);
+
+const HARD_TIMEOUT  = 30_000;   // tope duro por consulta
+const T_DIRECT      = 6_000;
+const T_PROXY       = 12_000;
+const MAX_ENDPOINTS = 3;
+
+const log = (...a) => console.log("[peli]", ...a);
 
 /* ───────────────────────── HOST ACTIVO ───────────────────────── */
 let activeBase = null;
@@ -40,7 +49,7 @@ async function getBase() {
   if (activeBase) return activeBase;
   if (process.env.FLIX_BASE) return (activeBase = process.env.FLIX_BASE.replace(/\/$/, ""));
   for (const h of HOSTS) {
-    const r = await tryDirect(`${h}/robots.txt`);
+    const r = await tryDirect(`${h}/robots.txt`, { timeout: 5000, quiet: true });
     if (r.ok) return (activeBase = h);
   }
   return (activeBase = HOSTS[0]);
@@ -50,7 +59,12 @@ async function getBase() {
 const jar = new Map();
 const cookieHeader = () => [...jar].map(([k, v]) => `${k}=${v}`).join("; ");
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-const jitter = (a = 400, b = 1100) => sleep(a + Math.random() * (b - a));
+const jitter = (a = 300, b = 800) => sleep(a + Math.random() * (b - a));
+
+// transporte aprendido: si el directo está bloqueado, no se reintenta por 10 min
+let directBan = 0;
+let proxyIdx = 0;
+let lastVia = "—";
 
 function absorb(res) {
   for (const c of res.headers?.["set-cookie"] || []) {
@@ -74,10 +88,11 @@ const baseHeaders = (url) => ({
   ...(jar.size ? { Cookie: cookieHeader() } : {}),
 });
 
-async function tryDirect(url, { binary = false } = {}) {
+async function tryDirect(url, { binary = false, timeout = T_DIRECT, quiet = false } = {}) {
+  if (Date.now() < directBan) return { ok: false, status: 403, body: "banned" };
   try {
     const res = await axios.get(url, {
-      timeout: 12000, validateStatus: () => true, headers: baseHeaders(url),
+      timeout, validateStatus: () => true, headers: baseHeaders(url),
       responseType: binary ? "arraybuffer" : "text", decompress: true,
     });
     absorb(res);
@@ -86,7 +101,12 @@ async function tryDirect(url, { binary = false } = {}) {
       ? (Buffer.isBuffer(raw) ? raw : Buffer.from(raw))
       : (typeof raw === "string" ? raw : JSON.stringify(raw));
     const head = binary ? body.subarray(0, 4000).toString("utf8") : body;
-    if (res.status === 200 && !isChallenge(head)) return { ok: true, status: 200, body, via: "direct" };
+
+    if (res.status === 200 && !isChallenge(head)) { lastVia = "directo"; return { ok: true, status: 200, body, via: "directo" }; }
+    if (res.status === 403 || res.status === 429 || res.status === 503 || isChallenge(head)) {
+      directBan = Date.now() + TTL_BAN;
+      if (!quiet) log("directo bloqueado, 10 min de castigo");
+    }
     return { ok: false, status: res.status, body };
   } catch (e) {
     return { ok: false, status: 0, body: e.message };
@@ -96,15 +116,12 @@ async function tryDirect(url, { binary = false } = {}) {
 async function tryFlare(url) {
   if (!FLARESOLVERR) return { ok: false, status: 0, body: "no-flaresolverr" };
   try {
-    const { data } = await axios.post(
-      FLARESOLVERR,
-      { cmd: "request.get", url, maxTimeout: 45000 },
-      { timeout: 60000 }
-    );
+    const { data } = await axios.post(FLARESOLVERR, { cmd: "request.get", url, maxTimeout: 30000 }, { timeout: 40000 });
     const sol = data?.solution;
     if (!sol?.response) return { ok: false, status: 0, body: "flare-fail" };
     for (const c of sol.cookies || []) jar.set(c.name, c.value);
-    return { ok: true, status: sol.status || 200, body: sol.response, via: "flare" };
+    lastVia = "flaresolverr";
+    return { ok: true, status: sol.status || 200, body: sol.response, via: "flaresolverr" };
   } catch (e) {
     return { ok: false, status: 0, body: e.message };
   }
@@ -128,7 +145,7 @@ async function tryPuppeteer(url) {
     await page.setUserAgent(UA);
     await page.setExtraHTTPHeaders({ "Accept-Language": "es-MX,es;q=0.9" });
 
-    const resp = await page.goto(url, { waitUntil: "domcontentloaded", timeout: 45000 });
+    const resp = await page.goto(url, { waitUntil: "domcontentloaded", timeout: 35000 });
     await sleep(1200 + Math.random() * 800);
 
     const html = await page.content();
@@ -136,6 +153,7 @@ async function tryPuppeteer(url) {
     for (const c of cookies) jar.set(c.name, c.value);
 
     if (isChallenge(html)) return { ok: false, status: 403, body: "challenge" };
+    lastVia = "puppeteer";
     return { ok: true, status: resp?.status() || 200, body: html, via: "puppeteer" };
   } catch (e) {
     return { ok: false, status: 0, body: e.message };
@@ -150,15 +168,16 @@ const PROXIES = [
   u => `https://r.jina.ai/${u}`,
 ];
 
-async function tryProxy(fn, url) {
+async function tryProxy(i, url) {
   try {
-    const res = await axios.get(fn(url), {
-      timeout: 22000, validateStatus: () => true,
+    const res = await axios.get(PROXIES[i](url), {
+      timeout: T_PROXY, validateStatus: () => true,
       headers: { "User-Agent": UA }, responseType: "text",
     });
     const body = typeof res.data === "string" ? res.data : JSON.stringify(res.data);
-    if (res.status === 200 && body.length > 400 && !isChallenge(body)) {
-      return { ok: true, status: 200, body, via: "proxy" };
+    if (res.status === 200 && body.length > 300 && !isChallenge(body)) {
+      proxyIdx = i; lastVia = `proxy${i + 1}`;
+      return { ok: true, status: 200, body, via: `proxy${i + 1}` };
     }
     return { ok: false, status: res.status, body };
   } catch (e) {
@@ -166,12 +185,14 @@ async function tryProxy(fn, url) {
   }
 }
 
-async function fetchSmart(url, { allowHeavy = true } = {}) {
+async function fetchSmart(url, { allowHeavy = false } = {}) {
   const direct = await tryDirect(url);
   if (direct.ok || direct.status === 404) return direct;
 
-  for (const p of PROXIES) {
-    const r = await tryProxy(p, url);
+  // el proxy que funcionó la última vez va primero
+  const order = [proxyIdx, ...PROXIES.map((_, i) => i).filter(i => i !== proxyIdx)];
+  for (const i of order) {
+    const r = await tryProxy(i, url);
     if (r.ok) return r;
   }
   if (!allowHeavy) return direct;
@@ -209,8 +230,7 @@ function lev(a, b) {
   return prev[n];
 }
 
-function score(qNorm, candNorm) {
-  const A = qNorm, B = candNorm;
+function score(A, B) {
   if (!A || !B) return 0;
   if (A === B) return 1;
   const ta = new Set(A.split(" ")), tb = new Set(B.split(" "));
@@ -249,8 +269,7 @@ async function loadHits() {
 function scheduleSave() {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
-    const obj = Object.fromEntries(hits);
-    writeJson(CACHE_FILE, obj).catch(() => {});
+    writeJson(CACHE_FILE, Object.fromEntries(hits)).catch(() => {});
   }, 2000);
   saveTimer.unref?.();
 }
@@ -316,11 +335,9 @@ async function fetchXml(url) {
     }
     return buf.toString("utf8");
   }
-  const txt = await fetchSmart(url, { allowHeavy: false });
+  const txt = await fetchSmart(url);
   if (!txt.ok) return null;
-  const body = String(txt.body).trim();
-  if (body.startsWith("<")) return body;
-  return body;
+  return String(txt.body).trim();
 }
 
 async function trySitemaps() {
@@ -336,14 +353,13 @@ async function trySitemaps() {
       const kids = [...xml.matchAll(/<loc>\s*([^<\s]+)\s*<\/loc>/g)].map(m => m[1]);
       for (const kid of kids) {
         const sub = await fetchXml(kid);
-        if (!sub) continue;
-        absorbLinks(extractLinks(sub));
+        if (sub) absorbLinks(extractLinks(sub));
         if (index.length >= MAX_INDEX) break;
       }
     } else {
       absorbLinks(extractLinks(xml));
     }
-    if (index.length) return index.length;
+    if (index.length) { log("sitemap encontrado:", seed); return index.length; }
   }
   return 0;
 }
@@ -351,11 +367,10 @@ async function trySitemaps() {
 async function readSeeds() {
   const raw = await readJson(SEED_FILE, []);
   const list = Array.isArray(raw) ? raw : [];
-  const fromHits = [...hits.values()].map(h => h.id);
-  return [...new Set([...list, ...fromHits])].filter(Boolean);
+  return [...new Set([...list, ...[...hits.values()].map(h => h.id)])].filter(Boolean);
 }
 
-async function crawlFrom(seeds) {
+async function crawlFrom(seeds, budget) {
   const queue = [`${base()}/${LOCALE}/`, `${base()}/${LOCALE}`];
   for (const s of seeds) {
     if (/^https?:/.test(s)) queue.push(s);
@@ -365,11 +380,11 @@ async function crawlFrom(seeds) {
   const seen = new Set(queue);
   let done = 0;
 
-  while (queue.length && done < BUDGET) {
+  while (queue.length && done < budget) {
     const batch = queue.splice(0, CONCURRENCY);
     await Promise.all(batch.map(async (url) => {
       done++;
-      const r = await fetchSmart(url, { allowHeavy: false });
+      const r = await fetchSmart(url);
       if (!r.ok || typeof r.body !== "string") return;
 
       absorbLinks(extractLinks(r.body));
@@ -379,16 +394,15 @@ async function crawlFrom(seeds) {
         $("a[href]").each((_, el) => {
           const href = $(el).attr("href");
           if (!href) return;
-          let p;
-          try { p = new URL(href, base()).pathname; } catch { return; }
+          let p; try { p = new URL(href, base()).pathname; } catch { return; }
           if (!LISTING_RE.test(p)) return;
           const full = base() + p;
-          if (seen.has(full) || seen.size > BUDGET * 4) return;
+          if (seen.has(full) || seen.size > budget * 4) return;
           seen.add(full);
           queue.push(full);
         });
       }
-      await jitter(200, 600);
+      await jitter(150, 450);
     }));
   }
   return done;
@@ -401,14 +415,14 @@ async function warmIndex(force = false) {
     await ensureDir();
     await loadHits();
     await loadIndex();
-
     if (force) index = [];
 
     const before = index.length;
     const fromSitemap = await trySitemaps();
-    const pages = await crawlFrom(await readSeeds());
+    const pages = await crawlFrom(await readSeeds(), force ? BUDGET : QUICK);
 
     if (index.length > before || force) await saveIndex();
+    log(`índice: ${index.length} (+${index.length - before}) páginas:${pages} sitemap:${fromSitemap}`);
     return { total: index.length, added: index.length - before, pages, sitemap: fromSitemap };
   })().finally(() => { building = null; });
 
@@ -426,8 +440,9 @@ function searchIndex(query, tipo) {
     return toks.length ? toks.some(t => e.n.includes(t)) : true;
   });
 
-  return (pool.length ? pool : index.filter(e => !tipo || e.tipo === tipo))
-    .slice(0, 400)
+  const source = pool.length ? pool : index.filter(e => !tipo || e.tipo === tipo);
+
+  return source.slice(0, 400)
     .map(e => ({ ...e, s: score(q, e.n) }))
     .filter(e => e.s >= MIN_SCORE)
     .sort((a, b) => b.s - a.s)
@@ -445,14 +460,13 @@ const SEARCH_PATHS = [
   q => `/${LOCALE}/api/search?q=${encodeURIComponent(q)}`,
 ];
 
-function linksFromBody(body, contentType = "") {
+function linksFromBody(body) {
   const text = String(body);
   if (text.trim().startsWith("{") || text.trim().startsWith("[")) {
     try { return extractLinks(JSON.stringify(JSON.parse(text))); } catch { /* noop */ }
   }
   const direct = extractLinks(text);
   if (direct.length) return direct;
-  if (/markdown/i.test(contentType)) return direct;
 
   const $ = cheerio.load(text);
   const hrefs = [];
@@ -464,27 +478,40 @@ function linksFromBody(body, contentType = "") {
   return extractLinks(hrefs.join(" "));
 }
 
+/**
+ * Devuelve candidatos SIN filtrar por umbral: si un endpoint responde con links,
+ * se fija como endpoint y se corta la escalada aunque el score sea bajo.
+ */
 async function searchSite(query, tipo) {
-  const ordered = endpoint ? [endpoint, ...SEARCH_PATHS.filter(p => p !== endpoint)] : SEARCH_PATHS;
+  const ordered = endpoint ? [endpoint] : SEARCH_PATHS.slice(0, MAX_ENDPOINTS);
   const q = cleanTitle(query);
+  let fallback = null;
 
   for (const build of ordered) {
-    const r = await fetchSmart(base() + build(query));
+    const url = base() + build(query);
+    let r = await fetchSmart(url);
+    if (!r.ok) r = await fetchSmart(url, { allowHeavy: true });
     if (!r.ok) continue;
 
-    const found = linksFromBody(r.body)
+    const raw = linksFromBody(r.body);
+    if (!raw.length) continue;
+
+    const scored = raw
       .filter(e => !tipo || e.tipo === tipo)
       .map(e => ({ ...e, n: slugToTitle(e.slug) }))
       .map(e => ({ ...e, s: score(q, e.n) }))
-      .filter(e => e.s >= MIN_SCORE)
       .sort((a, b) => b.s - a.s);
 
-    if (found.length) {
-      endpoint = build;
-      return found;
-    }
+    if (!scored.length) continue;
+    endpoint = build;          // fijamos el endpoint desde el primer link recibido
+    log("endpoint fijado:", url, "candidatos:", scored.length);
+
+    const passed = scored.filter(e => e.s >= MIN_SCORE);
+    if (passed.length) return { list: passed, weak: false };
+    if (!fallback) fallback = { list: scored, weak: true };
+    break;                     // endpoint ya conocido: no seguir probando rutas
   }
-  return [];
+  return fallback || { list: [], weak: false };
 }
 
 /* ───────────────────────── RESOLUCIÓN ───────────────────────── */
@@ -494,42 +521,46 @@ async function resolve(query, tipo) {
   if (!key.trim()) return { hit: null, alt: [], from: "none" };
 
   const c = hits.get(key);
-  if (c) return { hit: c, alt: [], from: "cache" };
+  if (c) return { hit: c, alt: [], from: "caché" };
 
   await loadIndex();
   let best = searchIndex(query, tipo)[0];
-  if (best && best.s >= STRONG) return commit(key, best, [], "indice", false);
+  if (best && best.s >= STRONG) return commit(key, best, [], "índice", false);
 
-  const res = await searchSite(query, tipo);
-  if (res.length) return commit(key, res[0], res.slice(1, 4), "buscador", false);
-  if (best) return commit(key, best, [], "indice-parcial", true);
+  const { list, weak } = await searchSite(query, tipo);
+  if (list.length) return commit(key, list[0], list.slice(1, 4), "buscador", weak);
+
+  if (best) return commit(key, best, [], "índice parcial", true);
 
   const { added } = await warmIndex();
   if (added) {
     best = searchIndex(query, tipo)[0];
-    if (best) return commit(key, best, [], "indice-nuevo", best.s < STRONG);
+    if (best) return commit(key, best, [], "índice nuevo", best.s < STRONG);
   }
   return { hit: null, alt: [], from: "none" };
 }
 
 async function commit(key, e, alt, from, weak) {
-  const rec = { ts: Date.now(), seg: e.seg, id: e.id, slug: e.slug, tipo: e.tipo, weak: !!weak };
-  hits.set(key, rec);
+  hits.set(key, { ts: Date.now(), seg: e.seg, id: e.id, slug: e.slug, tipo: e.tipo, weak: !!weak });
   scheduleSave();
-  return { hit: rec, alt: alt.map(link), from };
+  return { hit: e, alt: alt.map(link), from };
 }
 
 /* ───────────────────────── COMANDO ───────────────────────── */
+const withDeadline = (p, ms) =>
+  Promise.race([p, sleep(ms).then(() => ({ __timeout: true }))]);
+
 export default {
-  names: [".pelicula", ".peli", ".cine", ".movie", ".serie"],
+  names: [".pelicula", ".pelicula", ".peliculas", ".peli", ".cine", ".movie", ".serie", ".series"],
   usage: ".pelicula <título>",
-  desc: "Resuelve el link directo de la ficha, sin pasar por buscadores.",
+  desc: "Resuelve el link directo a la ficha, sin pasar por buscadores.",
   category: "Descargas",
 
   handler: async ({ sender, cleanText, reply }) => {
+    const first = norm(cleanText.trim().split(/\s+/)[0]);
     const args = cleanText.trim().split(/\s+/).slice(1);
     const flag = args[0]?.startsWith("--") ? args.shift().toLowerCase() : null;
-    const tipo = cleanText.trim().split(/\s+/)[0] === ".serie" ? "serie" : null;
+    const tipo = first === "serie" || first === "series" ? "serie" : null;
     const consulta = args.join(" ").trim();
 
     if (flag === "--stats") {
@@ -537,12 +568,13 @@ export default {
       await loadIndex();
       return reply({
         text: tarjetaDescarga({
-          emoji: "📊", titulo: "ÍNDICE DE FICHAS", sender,
+          emoji: "📊", titulo: "ESTADO", sender,
           campos: [
             campo("🎯", "Links cacheados", String(hits.size)),
             campo("🗂️", "Índice local", String(index?.length || 0)),
-            campo("🌐", "Host activo", base()),
-            campo("🔌", "Endpoint", endpoint ? "detectado" : "sin detectar"),
+            campo("🌐", "Host", base()),
+            campo("🚚", "Transporte", lastVia),
+            campo("🔌", "Endpoint", endpoint ? "fijado" : "sin detectar"),
           ],
           nota: "Usa .pelicula --index para reconstruir el índice.",
         }),
@@ -551,36 +583,36 @@ export default {
     }
 
     if (flag === "--clear") {
-      hits.clear(); index = null; endpoint = null; jar.clear(); activeBase = null;
+      hits.clear(); index = null; endpoint = null; jar.clear();
+      activeBase = null; directBan = 0; proxyIdx = 0;
       await fs.rm(CACHE_FILE, { force: true }).catch(() => {});
       await fs.rm(INDEX_FILE, { force: true }).catch(() => {});
-      return reply({ text: "🧹 Caché, índice y cookies borrados.", mentions: [sender] });
+      return reply({ text: "🧹 Caché, índice, cookies y transporte reiniciados.", mentions: [sender] });
     }
 
     if (flag === "--add") {
-      const raw = consulta;
-      if (!raw) return reply({ text: "Uso: .pelicula --add <url o id-slug>", mentions: [sender] });
+      if (!consulta) return reply({ text: "Uso: .pelicula --add <url o id-slug>", mentions: [sender] });
       await ensureDir();
       const seeds = await readJson(SEED_FILE, []);
       const list = Array.isArray(seeds) ? seeds : [];
-      const id = raw.includes("/detail/") ? raw.split("/detail/")[1] : raw;
+      const id = consulta.includes("/detail/") ? consulta.split("/detail/")[1] : consulta;
       if (id && !list.includes(id)) list.push(id);
       await writeJson(SEED_FILE, list);
-      return reply({ text: `🌱 Semilla guardada (${list.length} en total).`, mentions: [sender] });
+      return reply({ text: `🌱 Semilla guardada (${list.length}).`, mentions: [sender] });
     }
 
     if (flag === "--index") {
-      await reply({ text: "🗂️ Construyendo índice... esto tarda, no lo repitas.", mentions: [sender] });
+      await reply({ text: "🗂️ Construyendo índice. No lo repitas, corre en segundo plano.", mentions: [sender] });
       const { total, added, pages } = await warmIndex(true);
       return reply({
         text: tarjetaDescarga({
-          emoji: "🗂️", titulo: "ÍNDICE ACTUALIZADO", sender,
+          emoji: "🗂️", titulo: "ÍNDICE", sender,
           campos: [
-            campo("🎯", "Fichas indexadas", String(total)),
+            campo("🎯", "Fichas", String(total)),
             campo("➕", "Nuevas", String(added)),
-            campo("📄", "Páginas leídas", String(pages)),
+            campo("📄", "Páginas", String(pages)),
           ],
-          nota: total ? "Las búsquedas ya se resuelven sin red." : "No se pudo leer nada. Revisa FLIX_HOSTS o levanta FlareSolverr.",
+          nota: total ? "Listo." : "No se leyó nada. Revisa FLIX_HOSTS o levanta FlareSolverr.",
         }),
         mentions: [sender],
       });
@@ -597,10 +629,23 @@ export default {
       });
     }
 
+    // feedback inmediato: nunca dejar el chat en silencio
+    await reply({ text: `🔎 Buscando "${consulta}"...`, mentions: [sender] }).catch(() => {});
+
     try {
       await getBase();
-      const { hit, alt, from } = await resolve(consulta, tipo);
 
+      const out = await withDeadline(resolve(consulta, tipo), HARD_TIMEOUT);
+
+      if (out.__timeout) {
+        log("timeout", consulta);
+        return reply({
+          text: tarjetaError(`"${consulta}" tardó demasiado. El sitio no responde por ninguna vía.`),
+          mentions: [sender],
+        });
+      }
+
+      const { hit, alt, from } = out;
       if (!hit) {
         return reply({
           text: tarjetaError(`No encontré "${consulta}" en el catálogo.`),
@@ -615,13 +660,13 @@ export default {
         text: tarjetaDescarga({
           emoji: "🎬", titulo: consulta.toUpperCase(), sender,
           campos,
-          nota: `Link directo a la ficha (fuente: ${from}).`,
+          nota: `Fuente: ${from}.`,
         }),
         mentions: [sender],
       });
     } catch (e) {
-      console.error("[pelicula] Error:", e.message);
-      return reply({ text: tarjetaError("Ocurrió un error al resolver el link."), mentions: [sender] });
+      log("error", e.message);
+      return reply({ text: tarjetaError("Error al resolver el link."), mentions: [sender] });
     }
   },
 };
