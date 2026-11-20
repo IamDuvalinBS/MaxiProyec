@@ -1,83 +1,127 @@
 import { tarjetaDescarga, tarjetaUso, tarjetaError, campo } from "../../descargas/tarjetas.js";
+import { buscarWeb, recortar } from "../../../motores/google-buscador.js";
 
-// AQUÍ ESTÁ LA MAGIA: Tu lista de sitios actualizables.
-// Solo agrega o quita sitios de este arreglo si algún link se cae.
-const SITIOS = [
-  { nombre: "Cuevana 3", url: "https://cuevana3.ai/?s=" },
-  { nombre: "PelisPlus", url: "https://pelisplushd.nz/search?q=" },
-  { nombre: "Gnula", url: "https://gnula.nu/?s=" },
-  { nombre: "PelisPedia", url: "https://pelispedia.tv/?s=" },
-  { nombre: "Repelis", url: "https://repelis2.com/search?query=" },
-  { nombre: "Cinecalidad", url: "https://www.cinecalidad.ec/search?q=" },
-  { nombre: "Tubi (Gratis Legal)", url: "https://tubitv.com/search/" },
-  { nombre: "Pluto TV (Gratis Legal)", url: "https://pluto.tv/latam/on-demand/movies?q=" },
-  { nombre: "JustWatch (Dónde ver)", url: "https://www.justwatch.com/mx/buscar?q=" }
-];
+// Busca la película en la web (Bing / DuckDuckGo, el mismo motor del comando .google)
+// y manda las páginas donde se puede ver, igual que cuando la buscas tú en el navegador.
 
-// Función para limpiar el texto y que quede bonito (para títulos con acentos y espacios)
-const formatearQuery = (texto) => {
-  return encodeURIComponent(texto.trim());
+// Páginas que salen en la búsqueda pero NO sirven para ver la película.
+const NO_SIRVEN =
+  /(^|\.)(imdb\.com|themoviedb\.org|filmaffinity\.com|rottentomatoes\.com|letterboxd\.com|wikipedia\.org|wikiwand\.com|youtube\.com|youtu\.be|facebook\.com|instagram\.com|tiktok\.com|twitter\.com|x\.com|reddit\.com|pinterest\.[a-z.]+|bing\.com|google\.[a-z.]+|omelete\.com\.mx|infobae\.com|milenio\.com|eluniversal\.com\.mx|marca\.com|ign\.com|sensacine\.com|fandom\.com|justwatch\.com)$/i;
+
+const PALABRAS_VACIAS = new Set(["el", "la", "los", "las", "de", "del", "un", "una", "y", "en", "the", "of"]);
+
+const sinTildes = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+
+function tokens(t) {
+  return sinTildes(t).replace(/[^a-z0-9]+/g, " ").split(" ").filter((p) => p && !PALABRAS_VACIAS.has(p));
+}
+
+// Qué tanto del título buscado aparece en el resultado (0 a 1).
+function cobertura(consulta, texto) {
+  const q = tokens(consulta);
+  if (!q.length) return 0;
+  const t = new Set(tokens(texto));
+  return q.filter((p) => t.has(p)).length / q.length;
+}
+
+const PISTAS_VER = /\b(ver|online|completa|gratis|latino|castellano|doblaje|subtitulad[ao]|hd|1080|720|reproducir|streaming|descargar|pelicula)\b/;
+
+function puntaje(consulta, r) {
+  const base = cobertura(consulta, `${r.titulo} ${r.url}`) * 3;
+  const pistas = PISTAS_VER.test(sinTildes(`${r.titulo} ${r.texto} ${r.url}`)) ? 1 : 0;
+  return base + pistas;
+}
+
+const dominio = (url) => {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return url;
+  }
 };
 
 export default {
   names: [".pelicula", ".peli", ".cine", ".movie"],
   usage: ".pelicula <título>",
-  desc: "Genera enlaces directos a múltiples páginas para ver películas completas.",
+  desc: "Busca en la web dónde ver la película completa y manda los enlaces.",
   category: "Descargas",
 
   handler: async ({ sender, cleanText, reply }) => {
-    // Extraemos lo que el usuario escribió después del comando
     const consulta = cleanText.trim().split(/\s+/).slice(1).join(" ").trim();
 
-    // Si no escribió nada, mostramos cómo se usa
     if (!consulta) {
       return reply({
         text: tarjetaUso({
           comando: ".pelicula <título>",
           ejemplo: ".pelicula Interestelar\n.pelicula Son como niños",
-          nota: "Te daré los links directos para ver la película en varias páginas."
+          nota: "Busco en internet dónde ver la película y te paso los links."
         }),
         mentions: [sender]
       });
     }
 
     try {
-      const queryUrl = formatearQuery(consulta);
-      const campos = [];
+      await reply({ text: `🔎 Buscando "${consulta}"...`, mentions: [sender] });
 
-      // Recorremos la lista de sitios y armamos un campo por cada uno
-      SITIOS.forEach((sitio, i) => {
-        const enlaceFinal = `${sitio.url}${queryUrl}`;
-        
-        campos.push(
-          campo(
-            "🔗", // Emoji para cada campo
-            `${sitio.nombre}`,
-            `Buscar "${consulta}" aquí:\n${enlaceFinal}`
-          )
-        );
-      });
+      // Varias formas de preguntarlo, como lo haría una persona. Todas en paralelo.
+      const consultas = [
+        `${consulta} película completa online`,
+        `ver ${consulta} online gratis español latino`
+      ];
+      const respuestas = await Promise.allSettled(consultas.map((q) => buscarWeb(q)));
+
+      const vistos = new Set();
+      const candidatos = [];
+      for (const r of respuestas) {
+        if (r.status !== "fulfilled") {
+          console.log("[pelicula] búsqueda falló:", r.reason?.message);
+          continue;
+        }
+        for (const it of r.value.items || []) {
+          const host = dominio(it.url);
+          if (NO_SIRVEN.test(host) || vistos.has(it.url)) continue;
+          vistos.add(it.url);
+          candidatos.push({ ...it, p: puntaje(consulta, it) });
+        }
+      }
+
+      // Solo los que de verdad hablan de esa película, y máximo 2 por dominio.
+      const porDominio = new Map();
+      const elegidos = candidatos
+        .filter((c) => c.p >= 2)
+        .sort((a, b) => b.p - a.p)
+        .filter((c) => {
+          const d = dominio(c.url);
+          const n = porDominio.get(d) || 0;
+          porDominio.set(d, n + 1);
+          return n < 2;
+        })
+        .slice(0, 6);
+
+      const campos = elegidos.map((c) => campo("🎬", c.dominio || dominio(c.url), `${recortar(c.titulo, 70)}\n${c.url}`));
+
+      const q = encodeURIComponent(consulta);
+      campos.push(campo("🔗", "JustWatch (dónde verla legal)", `https://www.justwatch.com/mx/buscar?q=${q}`));
+
+      if (!elegidos.length) {
+        campos.push(campo("🔍", "Buscar en Google", `https://www.google.com/search?q=${encodeURIComponent(`ver ${consulta} online`)}`));
+      }
 
       const texto = tarjetaDescarga({
         emoji: "🍿",
         titulo: "BUSCADOR DE PELÍCULAS",
         sender,
         campos,
-        nota:
-          "Toca un enlace para buscar la película en ese sitio. " +
-          "Los primeros son para ver online, los últimos son de plataformas legales."
+        nota: elegidos.length
+          ? "Estas son las páginas donde la encontré. Si una no abre, prueba con otra."
+          : "No encontré páginas con esa película. Revisa el título o usa los enlaces de abajo."
       });
 
-      // Enviamos el mensaje con todos los links
-      return reply({
-        text: texto,
-        mentions: [sender]
-      });
-
+      return reply({ text: texto, mentions: [sender] });
     } catch (error) {
       console.error("[pelicula] Error:", error.message);
       return reply({
-        text: tarjetaError("Ocurrió un error al generar los enlaces."),
+        text: tarjetaError("Ocurrió un error al buscar la película."),
         mentions: [sender]
       });
     }
