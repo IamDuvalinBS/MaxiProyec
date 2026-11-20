@@ -384,7 +384,7 @@ async function enriquecer(items, { maxChars = 1800, conImagen = false } = {}) {
   );
 }
 
-async function buscarWeb(consulta) {
+export async function buscarWeb(consulta) {
   const r = (await primerNivel(WEB_NIVEL_1, consulta, "web")) || (await primerNivel(WEB_NIVEL_2, consulta, "web")) || (await wikiLista(consulta));
   if (!r) return { items: [], via: "" };
   const ordenados = ordenarPorRelevancia(r.items, consulta, 8);
