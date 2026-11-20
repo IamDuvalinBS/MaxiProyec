@@ -1,4 +1,4 @@
-import { comandoGrupo, objetivoDe, buscarParticipante, olvidarMetadatos, numeroDe } from "../../grupos/nucleo.js";
+import { comandoGrupo, objetivoDe, buscarParticipanteResuelto, olvidarMetadatos, numeroDe } from "../../grupos/nucleo.js";
 import { tarjetaMarcada, mencion } from "../../economia/estilo.js";
 import { sumarAdvertencia, limpiarAdvertencias } from "../../../motores/db.js";
 
@@ -14,7 +14,7 @@ export default {
     const usuario = objetivoDe(ctx);
     if (!usuario) return avisar("Menciona a un usuario o responde a su mensaje.\n\n> Usa *.warn @usuario*");
 
-    const objetivo = buscarParticipante(meta, usuario);
+    const objetivo = await buscarParticipanteResuelto(sock, from, meta, usuario);
     if (!objetivo) return avisar("Ese usuario no está en el grupo.");
     if (objetivo.admin) return avisar("No es posible advertir a un administrador.");
 
