@@ -551,7 +551,7 @@ const withDeadline = (p, ms) =>
   Promise.race([p, sleep(ms).then(() => ({ __timeout: true }))]);
 
 export default {
-  names: [".pelicula", ".pelicula", ".peliculas", ".peli", ".cine", ".movie", ".serie", ".series"],
+  names: [".pelicula", ".peliculas", ".peli", ".cine", ".movie", ".serie", ".series"],
   usage: ".pelicula <título>",
   desc: "Resuelve el link directo a la ficha, sin pasar por buscadores.",
   category: "Descargas",
