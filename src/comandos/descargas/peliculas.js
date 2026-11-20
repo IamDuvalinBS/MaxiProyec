@@ -1,27 +1,65 @@
 import axios from "axios";
+import * as cheerio from "cheerio";
 import { tarjetaDescarga, tarjetaUso, tarjetaError, campo } from "../../descargas/tarjetas.js";
 
-// API de TMDB (La usamos solo para saber el año exacto y el título correcto, no para links legales)
-const TMDB_KEY = process.env.TMDB_KEY || "";
+// Motor Axios con headers de navegador
+const http = axios.create({
+  timeout: 10000,
+  headers: {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Accept-Language": "es-MX,es;q=0.9"
+  }
+});
 
-// Sitios a los que les vamos a armar el link de búsqueda directo
-const SITIOS = [
-  { nombre: "123FilmsFree", url: "https://www1.123filmsfree.com/search?q=" },
-  { nombre: "Cuevana 3", url: "https://cuevana3.ai/?s=" },
-  { nombre: "PelisPlus", url: "https://pelisplushd.nz/search?q=" },
-  { nombre: "Gnula", url: "https://gnula.nu/?s=" },
-  { nombre: "PelisPedia", url: "https://pelispedia.tv/?s=" },
-  { nombre: "Cinecalidad", url: "https://www.cinecalidad.ec/search?q=" },
-  { nombre: "Repelis", url: "https://repelis2.com/search?query=" },
-  { nombre: "JustWatch (Legal)", url: "https://www.justwatch.com/mx/buscar?q=" }
-];
+// Scrapea JustWatch y devuelve el link directo de la película
+async function buscarEnJustWatch(titulo) {
+  try {
+    // JustWatch tiene un buscador que devuelve JSON puro (más fácil de scrapear)
+    const url = `https://www.justwatch.com/mx/buscar?q=${encodeURIComponent(titulo)}`;
+    const { data } = await http.get(url);
+    
+    // Extraemos el JSON que tiene los datos de la búsqueda (está incrustado en el HTML)
+    const $ = cheerio.load(data);
+    let scriptContent = "";
+    
+    $('script').each((i, el) => {
+      const text = $(el).html();
+      if (text && text.includes('window.__INITIAL_STATE__')) {
+        scriptContent = text;
+      }
+    });
 
-const http = axios.create({ timeout: 10000 });
+    if (!scriptContent) return null;
+
+    // Buscamos el ID de la película en el JSON (JustWatch usa un formato específico)
+    const jsonMatch = scriptContent.match(/window\.__INITIAL_STATE__ = ({.+});/);
+    if (!jsonMatch) return null;
+
+    const state = JSON.parse(jsonMatch[1]);
+    const items = state?.search?.results?.items || [];
+    
+    if (items.length === 0) return null;
+
+    // Tomamos el primer resultado (el más exacto)
+    const peli = items[0];
+    
+    // JustWatch usa un formato de URL: /mx/pelicula/El-Titulo
+    // El ID interno se puede usar, pero el slug es más limpio.
+    const tipo = peli.entity_type === "show" ? "serie" : "pelicula";
+    const slug = peli.full_path; // JustWatch ya nos da la ruta exacta
+
+    return `https://www.justwatch.com${slug}`;
+    
+  } catch (error) {
+    console.error("Error scrapeando JustWatch:", error.message);
+    return null;
+  }
+}
 
 export default {
   names: [".pelicula", ".peli", ".cine", ".movie"],
   usage: ".pelicula <título>",
-  desc: "Busca películas y te da los enlaces directos para verlas completas.",
+  desc: "Busca películas y te da el link directo a donde puedes verla.",
   category: "Descargas",
 
   handler: async ({ sender, cleanText, reply }) => {
@@ -31,57 +69,44 @@ export default {
       return reply({
         text: tarjetaUso({
           comando: ".pelicula <título>",
-          ejemplo: ".pelicula La Venganza del Charro Negro\n.pelicula Interestelar",
-          nota: "Te daré los links directos a las páginas donde puedes verla."
+          ejemplo: ".pelicula Interestelar\n.pelicula La Venganza del Charro Negro",
+          nota: "Busco la película y te paso el link directo."
         }),
         mentions: [sender]
       });
     }
 
     try {
-      // 1. Buscamos en TMDB para obtener el título exacto y el año (opcional)
-      let tituloExacto = consulta;
-      let anio = "";
+      await reply({ text: `🔎 Buscando "${consulta}"...`, mentions: [sender] });
+
+      // Scrapeamos JustWatch
+      const linkPelicula = await buscarEnJustWatch(consulta);
       
-      if (TMDB_KEY) {
-        try {
-          const { data } = await http.get(`https://api.themoviedb.org/3/search/movie`, {
-            params: { query: consulta, language: "es-MX", api_key: TMDB_KEY, page: 1 }
-          });
-          if (data.results && data.results.length > 0) {
-            // Tomamos el primer resultado como el más exacto
-            tituloExacto = data.results[0].title;
-            anio = data.results[0].release_date ? data.results[0].release_date.slice(0, 4) : "";
-          }
-        } catch (e) {
-          console.log("Error buscando en TMDB:", e.message);
-        }
-      }
-
-      // 2. Preparamos la búsqueda. Si hay año, lo incluimos para que la página pirata 
-      // no nos mande a la versión vieja de la película.
-      const queryBusqueda = anio ? `${tituloExacto} ${anio}` : tituloExacto;
-      const queryUrl = encodeURIComponent(queryBusqueda);
-
       const campos = [];
 
-      // 3. Armamos la lista de enlaces para el mensaje
-      SITIOS.forEach((sitio) => {
+      if (linkPelicula) {
         campos.push(
-          campo(
-            "🎬", 
-            sitio.nombre, 
-            `${sitio.url}${queryUrl}`
-          )
+          campo("🎬", "JustWatch (Link directo)", linkPelicula)
         );
-      });
+      }
+
+      // Links de búsqueda para que el usuario pueda intentar en otros sitios
+      const queryUrl = encodeURIComponent(consulta);
+      campos.push(
+        campo("🍿", "123FilmsFree", `https://123filmsfree.com/?s=${queryUrl}`),
+        campo("🍿", "PelisPlus", `https://pelisplushd.nz/search?q=${queryUrl}`),
+        campo("🍿", "Cinecalidad", `https://www.cinecalidad.ec/search?q=${queryUrl}`),
+        campo("🍿", "PelisPedia", `https://pelispedia.tv/?s=${queryUrl}`)
+      );
 
       const texto = tarjetaDescarga({
         emoji: "🍿",
-        titulo: `PELÍCULA: ${tituloExacto} ${anio ? `(${anio})` : ""}`,
+        titulo: `PELÍCULA: ${consulta}`,
         sender,
         campos,
-        nota: "Toca un enlace para ir directo a la página donde se reproduce. Si una página falla, prueba con otra de la lista."
+        nota: linkPelicula 
+          ? "El primer link te lleva directo a la película en JustWatch. Los demás son buscadores por si prefieres otra opción."
+          : "No encontré un link directo en JustWatch, pero puedes probar los buscadores de abajo."
       });
 
       return reply({ text: texto, mentions: [sender] });
@@ -89,7 +114,7 @@ export default {
     } catch (error) {
       console.error("[pelicula] Error:", error.message);
       return reply({
-        text: tarjetaError("Ocurrió un error al generar los enlaces."),
+        text: tarjetaError("Ocurrió un error al buscar la película."),
         mentions: [sender]
       });
     }
