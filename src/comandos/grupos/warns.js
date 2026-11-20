@@ -1,4 +1,4 @@
-import { comandoGrupo, objetivoDe, buscarParticipante, numeroDe } from "../../grupos/nucleo.js";
+import { comandoGrupo, objetivoDe, buscarParticipanteResuelto, numeroDe } from "../../grupos/nucleo.js";
 import { tarjetaMarcada, mencion } from "../../economia/estilo.js";
 import { obtenerAdvertencias } from "../../../motores/advertencias.js";
 import { LIMITE_ADVERTENCIAS } from "./warn.js";
@@ -9,11 +9,11 @@ export default {
   desc: "Ver cuántas advertencias tiene un usuario",
   category: "Grupos",
   handler: comandoGrupo({ emoji: "📊", titulo: "WARNS", admin: false }, async (ctx) => {
-    const { from, sender, meta, responder, avisar } = ctx;
+    const { sock, from, sender, meta, responder, avisar } = ctx;
     // Sin mención ni respuesta, muestra las advertencias de quien escribe el comando
     const usuario = objetivoDe(ctx) || sender;
 
-    const objetivo = buscarParticipante(meta, usuario);
+    const objetivo = await buscarParticipanteResuelto(sock, from, meta, usuario);
     if (!objetivo) return avisar("Ese usuario no está en el grupo.");
 
     let total;
