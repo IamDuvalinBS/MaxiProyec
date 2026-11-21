@@ -619,40 +619,10 @@ function claseDe(c, categoria, series) {
 }
 
 async function enviarColeccionHtml({ sock, from, msg, categoria, sender, pagina, todos, n, titulo, pista }) {
-  // ... igual hasta montar "datos" ...
-
-  const html = htmlColeccionGeneral(datos);
-  const encabezadoCol = `${cat.emoji} ${titulo || cat.tituloColeccion}`;
-
-  const url = publicarHtml(html);
-  if (url) {
-    const resumen = [
-      `*${encabezadoCol}*`,
-      `> ${n} ${n === 1 ? cat.unidad : cat.unidades} · ${monto(todos.reduce((a, c) => a + c.valor, 0))}`,
-      `> Página ${parte} de ${partes}`,
-      ...(pista ? [`> ${pista}`] : [])
-    ].join("\n");
-
-    const enviado = await enviarBotonHtml({
-      sock, from, msg,
-      texto: resumen,
-      footer: "Toca el botón para abrir tu colección",
-      titulo: encabezadoCol,
-      url,
-      siguiente: parte < partes ? `${cat.coleccionCmd} ${parte + 1}` : null
-    });
-    if (enviado) return;
-  }
-
-  const embebido = await enviarHtmlEmbebido({ sock, from, msg, titulo: encabezadoCol, html, pestana: "MI COLECCIÓN" });
-  if (embebido) return;
-
-  if (typeof sock?.sendHtml === "function") {
-    await sock.sendHtml(from, html, [], msg, {});
-    return;
-  }
-  throw new Error("El cliente no soporta botones, HTML embebido ni sendHtml");
-}
+  const cat = CAT[categoria];
+  const partes = Math.max(1, Math.ceil(todos.length / POR_PARTE_HTML));
+  const parte = Math.min(Math.max(1, Number(pagina) || 1), partes);
+  const trozo = todos.slice((parte - 1) * POR_PARTE_HTML, parte * POR_PARTE_HTML);
 
   const imagenes = new Array(trozo.length).fill("");
   const trabajos = trozo.map((c, i) => miniaturaDe(c).then((uri) => { imagenes[i] = uri; }, () => {}));
@@ -700,23 +670,51 @@ async function enviarColeccionHtml({ sock, from, msg, categoria, sender, pagina,
     })
   };
 
-  await sock.sendHtml(from, htmlColeccionGeneral(datos), [], msg, {});
+  const html = htmlColeccionGeneral(datos);
+  const encabezadoCol = `${cat.emoji} ${titulo || cat.tituloColeccion}`;
+
+  const url = publicarHtml(html);
+  if (url) {
+    const resumen = [
+      `*${encabezadoCol}*`,
+      `> ${n} ${n === 1 ? cat.unidad : cat.unidades} · ${monto(todos.reduce((a, c) => a + c.valor, 0))}`,
+      `> Página ${parte} de ${partes}`,
+      ...(pista ? [`> ${pista}`] : [])
+    ].join("\n");
+
+    const enviado = await enviarBotonHtml({
+      sock, from, msg,
+      texto: resumen,
+      footer: "Toca el botón para abrir tu colección",
+      titulo: encabezadoCol,
+      url,
+      siguiente: parte < partes ? `${cat.coleccionCmd} ${parte + 1}` : null
+    });
+    if (enviado) return;
+  }
+
+  const embebido = await enviarHtmlEmbebido({ sock, from, msg, titulo: encabezadoCol, html, pestana: "MI COLECCIÓN" });
+  if (embebido) return;
+
+  if (typeof sock?.sendHtml === "function") {
+    await sock.sendHtml(from, html, [], msg, {});
+    return;
+  }
+  throw new Error("El cliente no soporta botones, HTML embebido ni sendHtml");
 }
 
-export async function mostrarColeccion({ sock, from, msg, categoria, sender, cleanText, reply }) {
+export async function mostrarColeccion({ sock, from, msg, categoria, sender, cleanText, reply, titulo = "", pista = "" }) {
   await revisarMigracion({ sender, from, reply }).catch((e) => console.log("[gacha] migración: " + e.message));
   const cat = CAT[categoria];
   const pagina = Math.max(1, parseInt(cleanText.split(/\s+/)[1], 10) || 1);
   const POR_PAGINA = 15;
   const { n, total } = contarColeccion(sender, categoria);
   const tickets = ticketsDe(sender, categoria);
-  export async function mostrarColeccion({ sock, from, msg, categoria, sender, cleanText, reply, titulo = "", pista = "" }) {
-    await enviarColeccionHtml({ sock, from, msg, categoria, sender, pagina, todos, n, titulo, pista });
 
   if (n && sock && from && typeof sock.sendHtml === "function") {
     try {
       const todos = coleccionDe(sender, categoria, 100000, 0);
-      await enviarColeccionHtml({ sock, from, msg, categoria, sender, pagina, todos, n });
+      await enviarColeccionHtml({ sock, from, msg, categoria, sender, pagina, todos, n, titulo, pista });
       return;
     } catch (e) {
       console.log(`[gacha] La colección en HTML falló (${categoria}), se envía en texto: ${e.stack || e.message}`);
