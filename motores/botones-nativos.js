@@ -237,3 +237,17 @@ export async function enviarHtmlEmbebido({ sock, from, msg, titulo, html, pestan
     return false;
   }
 }
+/**
+ * Tarjeta con botón que abre un HTML publicado. Estilo Meta AI: texto corto + botón.
+ * siguiente: texto del comando de la página siguiente, o null.
+ */
+export async function enviarBotonHtml({ sock, from, msg, texto, footer, titulo, url, siguiente }) {
+  if (!url) return false;
+  const botones = [
+    { name: "cta_url", params: { display_text: "Abrir colección", url, merchant_url: url } }
+  ];
+  if (siguiente) {
+    botones.push({ name: "quick_reply", params: { display_text: "Siguiente ▶", id: siguiente } });
+  }
+  return enviarNativeFlow({ sock, from, msg, texto, footer: footer || titulo || "", botones });
+}
