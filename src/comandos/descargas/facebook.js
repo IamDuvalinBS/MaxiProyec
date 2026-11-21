@@ -1,4 +1,4 @@
-import { obtenerMediaFacebook } from "../../descargas/redes.js";
+import { obtenerMediaFacebookMejorado } from "../../descargas/facebook-extra.js";
 import { crearComandoRed } from "../../descargas/comando-red.js";
 
 export default crearComandoRed({
@@ -8,6 +8,6 @@ export default crearComandoRed({
   titulo: "FACEBOOK DOWNLOAD",
   regexLink: /facebook\.com|fb\.watch|fb\.com/i,
   ejemploLink: ".fb https://www.facebook.com/reel/123456789",
-  obtenerPorLink: obtenerMediaFacebook,
+  obtenerPorLink: obtenerMediaFacebookMejorado,
   notaSinBusqueda: "Facebook no permite buscar desde el bot. Envía el enlace del video o reel."
 });
