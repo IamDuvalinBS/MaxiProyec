@@ -7,15 +7,15 @@ import pino from "pino";
 import http from "http";
 import { manejarApiJuegos } from "./motores/juegos-api.js";
 import { manejarComando } from "./src/nucleo/comandos.js";
-import { checkTriviaAnswer } from "./src/economia/trivia.js";
+import { checkTriviaAnswer, hayTriviaEn } from "./src/economia/trivia.js";
 import { iniciarSubbots, usarPagina, fijarSocketPrincipal } from "./src/subbots/gestor.js";
-import { reclamarMensaje, fijarPrincipal } from "./src/subbots/dedupe.js";
+import { reclamarMensaje, reclamarConteo, fijarPrincipal, fijarGruposPrincipal } from "./src/subbots/dedupe.js";
 import { sesionPrincipal, limpiarSesionesLocales, vigilarDescifrado } from "./motores/sesiones-mongo.js";
 import { iniciarCobranzaPrestamos } from "./src/economia/prestamos.js";
-import { procesarEspera } from "./src/nucleo/espera.js";
+import { procesarEspera, hayEsperaEn } from "./src/nucleo/espera.js";
 import { config, manejarCambioParticipantes, getAllAccounts, commandRegistry, startTime, CURRENCY } from "./core.js";
 import fs from "fs";
-import { intentarProcesarTexto } from "./motores/juegos-core.js";
+import { intentarProcesarTexto, hayPartidaEn } from "./motores/juegos-core.js";
 
 import readline from "readline";
 import cfonts from "cfonts";
@@ -25,15 +25,16 @@ import { enlazarSalidaAfk } from "./src/economia/afk-auto.js";
 import { idDeRespuestaInteractiva } from "./motores/respuestas-botones.js";
 import { manejarParticipantes } from "./src/eventos/participantes.js";
 import { antilinkActivo, botApagado, ajustesDe, cargarGruposMongo } from "./src/grupos/estado.js";
-import { eliminarEnlace } from "./src/grupos/enlaces.js";
+import { eliminarEnlace, tieneEnlace } from "./src/grupos/enlaces.js";
 import { olvidarMetadatos } from "./src/grupos/nucleo.js";
 import { recordarNombre } from "./motores/profile.js";
 import { saltarAtrasoViejo } from "./motores/saltar-atraso.js";
 import { esMensajeDePersona, contarMensajeGrupo } from "./motores/estadisticas.js";
-import { normalizarMensaje, aprenderTodosLosGrupos } from "./src/nucleo/identidad.js";
+import { normalizarMensaje, aprenderParticipantes, resolverUsuario, altDeClave } from "./src/nucleo/identidad.js";
 import { iniciarChatPagina } from "./src/nucleo/chatpagina.js";
 import { pasesParaPagina, pasesReclamados, alReclamarPase } from "./motores/gacha-pases.js";
 import { ejecutarStickerAccion } from "./src/nucleo/sticker-acciones.js";
+import { vistaUnicaAlLlegar, vistaUnicaDesdeHistorial, segundosDe } from "./src/nucleo/vistaunica.js";
 
 // Calla el spam de libsignal (imprime sesiones completas con console.error/info/warn/log directo;
 // el logger de Baileys no lo controla y en Termux frena todo el bot).
@@ -173,9 +174,20 @@ function subirEstado() {
   }, { merge: true }).catch(logPag);
 }
 
+let contandoGrupos = false;
 async function contarGrupos() {
-  try { if (PAG.sock && PAG.enLinea) { PAG.grupos = Object.keys(await PAG.sock.groupFetchAllParticipating()).length; subirEstado(); } }
-  catch (e) { /* no pasa nada, se intenta después */ }
+  if (contandoGrupos) return;
+  contandoGrupos = true;
+  try {
+    if (PAG.sock && PAG.enLinea) {
+      const grupos = await PAG.sock.groupFetchAllParticipating();   // una sola consulta sirve para contar y para aprender los LID
+      PAG.grupos = Object.keys(grupos).length;
+      fijarGruposPrincipal(Object.keys(grupos));
+      for (const g of Object.values(grupos)) aprenderParticipantes(g.participants);
+      subirEstado();
+    }
+  } catch (e) { /* no pasa nada, se intenta después */ }
+  finally { contandoGrupos = false; }
 }
 
 function subirComandos() {
@@ -270,8 +282,7 @@ function desenvolverMensaje(contenido) {
 const MAX_ANTIGUEDAD_MS = (Number(process.env.MAX_ANTIGUEDAD_MENSAJE_SEG) || 60) * 1000;
 
 function esMensajeViejo(msg) {
-  const bruto = msg?.messageTimestamp;
-  const seg = typeof bruto === "object" && bruto ? (bruto.toNumber ? bruto.toNumber() : Number(bruto.low)) : Number(bruto);
+  const seg = segundosDe(msg);
   if (!seg) return false;
   return Date.now() - seg * 1000 > MAX_ANTIGUEDAD_MS;
 }
@@ -285,11 +296,43 @@ function registrarIgnorado(edadSeg, tipo) {
   if (edadSeg > ignoradosMaxEdad) ignoradosMaxEdad = edadSeg;
   if (ignoradosTimer) return;
   ignoradosTimer = setTimeout(() => {
-    console.log(`[ignorados] ${ignoradosViejos} mensajes viejos descartados (más antiguo: ${ignoradosMaxEdad}s, límite ${MAX_ANTIGUEDAD_MS / 1000}s, tipo ${tipo})`);
+    // Silencioso por defecto (era spam en Termux). Para verlo: LOG_IGNORADOS=1 en el .env
+    if (process.env.LOG_IGNORADOS === "1") console.log(`[ignorados] ${ignoradosViejos} mensajes viejos descartados (más antiguo: ${ignoradosMaxEdad}s, límite ${MAX_ANTIGUEDAD_MS / 1000}s, tipo ${tipo})`);
     ignoradosViejos = 0;
     ignoradosMaxEdad = 0;
     ignoradosTimer = null;
   }, 5000);
+}
+
+// Solo se procesa un mensaje si es un comando, si alguien está esperando una respuesta en ese chat (botones, trivia,
+// juegos, confirmaciones, listas...), si es un sticker de acción en un grupo, o si trae un enlace de invitación con el
+// antilink activo. Todo lo demás se descarta al instante, sin normalizar usuarios ni contar nada.
+// Apagado por defecto (se procesa todo, como siempre: estadísticas, nombres, etc.). SOLO_COMANDOS=1 en el .env lo activa.
+const SOLO_COMANDOS = process.env.SOLO_COMANDOS === "1";
+
+function mensajeRelevante(msg, from) {
+  return !SOLO_COMANDOS || esActivo(msg, from);
+}
+
+function esActivo(msg, from) {
+  const mm = msg.message;
+  if (mm.buttonsResponseMessage || mm.templateButtonReplyMessage || mm.interactiveResponseMessage) return true;
+  const cont = desenvolverMensaje(mm);
+  const texto = (
+    cont.conversation ||
+    (cont.extendedTextMessage ? cont.extendedTextMessage.text : "") ||
+    (cont.imageMessage ? cont.imageMessage.caption : "") ||
+    (cont.videoMessage ? cont.videoMessage.caption : "") ||
+    (cont.documentMessage ? cont.documentMessage.caption : "") ||
+    ""
+  ).trim();
+  const prefijos = (config.prefixes && config.prefixes.length) ? config.prefixes : [config.prefix || "."];
+  if (prefijos.some((p) => texto.startsWith(p))) return true;
+  if (hayEsperaEn(from) || hayTriviaEn(from) || hayPartidaEn(from)) return true;
+  const esGrupo = from.endsWith("@g.us");
+  if (esGrupo && cont.stickerMessage) return true;
+  if (esGrupo && !msg.key.fromMe && tieneEnlace(texto) && antilinkActivo(from)) return true;
+  return false;
 }
 
 function puedeResponderEnGrupo(sock, grupo) {
@@ -316,15 +359,22 @@ function enlazarEventos(sock, esSub) {
     }
   });
 
+  // Historial pedido por .revelar (paso 4 de la búsqueda). Solo se procesa mientras .revelar está buscando algo.
+  sock.ev.on("messaging-history.set", (h) => {
+    vistaUnicaDesdeHistorial(sock, h?.messages);
+  });
+
   sock.ev.on("groups.update", (cambios) => {
     for (const cambio of cambios) if (cambio.id) { olvidarMetadatos(cambio.id); cacheGrupos.delete(cambio.id); }
   });
 
+  // Las vistas únicas se guardan al instante en datos/vistaunica cuando LLEGAN (solo ese mensaje, nunca el historial ni el chat).
+  // .revelar solo las busca en esa carpeta (ver src/nucleo/vistaunica.js).
   sock.ev.on("messages.upsert", (m) => {
+    vistaUnicaAlLlegar(sock, m.messages, m.type);
     if (process.env.DEPURAR_MENSAJES === "1") {
       for (const msg of m.messages || []) {
-        const bruto = msg.messageTimestamp;
-        const seg = typeof bruto === "object" && bruto ? (bruto.toNumber ? bruto.toNumber() : Number(bruto.low)) : Number(bruto);
+        const seg = segundosDe(msg);
         const c = msg.message ? desenvolverMensaje(msg.message) : null;
         const txt = c ? (c.conversation || (c.extendedTextMessage && c.extendedTextMessage.text) || "") : "";
         console.log(`[msg${esSub ? "-sub" : ""}] tipo=${m.type} edad=${seg ? Math.round(Date.now() / 1000 - seg) : "?"}s fromMe=${Boolean(msg.key.fromMe)} chat=${String(msg.key.remoteJid).slice(0, 14)} sinContenido=${!msg.message} stub=${msg.messageStubType ?? "-"} texto="${txt.slice(0, 20)}"`);
@@ -334,9 +384,7 @@ function enlazarEventos(sock, esSub) {
     // responder comandos de hace rato ni atrasar los nuevos (cada mensaje del lote espera 400 ms).
     const lote = (m.messages || []).filter((msg) => {
       if (!esMensajeViejo(msg)) return true;
-      const bruto = msg.messageTimestamp;
-      const seg = typeof bruto === "object" && bruto ? (bruto.toNumber ? bruto.toNumber() : Number(bruto.low)) : Number(bruto);
-      registrarIgnorado(Math.round(Date.now() / 1000 - seg), m.type);
+      registrarIgnorado(Math.round(Date.now() / 1000 - segundosDe(msg)), m.type);
       return false;
     });
     const manejar = (msg) => procesarMensaje(m, msg).catch((e) => console.log("Error procesando mensaje: " + e.message));
@@ -352,6 +400,21 @@ function enlazarEventos(sock, esSub) {
     })();
   });
 
+  function registrarPasivo(m, msg) {
+    if (m.type !== "notify" || msg.key.fromMe) return;
+    if (!reclamarConteo(msg)) return;
+    PAG.msgsHoy++;
+    const persona = esMensajeDePersona(msg, m.type);
+    if (!persona && !msg.pushName) return;
+    const from = msg.key.remoteJid;
+    resolverUsuario(sock, msg.key.participant || from, { grupo: from, alt: altDeClave(msg.key) })
+      .then((sender) => {
+        if (msg.pushName) recordarNombre(sender, msg.pushName);
+        if (persona) contarMensajeGrupo(from, sender);
+      })
+      .catch(() => {});
+  }
+
   async function procesarMensaje(m, msg) {
     if (!msg.message) return;
     if (msg.key.remoteJid.endsWith("@g.us") && !puedeResponderEnGrupo(sock, msg.key.remoteJid)) {
@@ -359,6 +422,14 @@ function enlazarEventos(sock, esSub) {
       // Un bot silenciado (principal o subbot) deja pasar solo .setprimary/.botprincipal, así se puede cambiar o quitar el
       // bot principal desde cualquier bot del grupo. reclamarMensaje evita que más de un bot lo procese.
       if (!/^\s*\S{0,3}(setprimary|botprincipal)\b/i.test(crudo)) return;
+    }
+    if (!mensajeRelevante(msg, msg.key.remoteJid)) {
+      if (!esSub && m.type === "notify" && !msg.key.fromMe) PAG.msgsHoy++;
+      return;
+    }
+    if (!esActivo(msg, msg.key.remoteJid)) {
+      registrarPasivo(m, msg);
+      return;
     }
     if (!(await reclamarMensaje(msg, esSub))) return;
     if (m.type === "notify" && !msg.key.fromMe) PAG.msgsHoy++;
@@ -406,13 +477,6 @@ function enlazarEventos(sock, esSub) {
       if (await ejecutarStickerAccion({ sock, from, sender, msg, sticker: cont.stickerMessage })) return;
     }
 
-    if (!msg.key.fromMe && !apagadoAqui) {
-      sock.sendPresenceUpdate("composing", from)
-        .then(() => new Promise(r => setTimeout(r, 1500 + Math.floor(Math.random() * 1000))))
-        .then(() => sock.sendPresenceUpdate("paused", from))
-        .catch(() => {});
-    }
-
     const prefijosConfigurados = (config.prefixes && config.prefixes.length)
       ? config.prefixes
       : [config.prefix || "."];
@@ -426,6 +490,13 @@ function enlazarEventos(sock, esSub) {
     if (prefijoUsado && !msg.key.fromMe && !apagadoAqui && m.type === "notify" && await vincularPagina(sock, from, sender, text.slice(prefijoUsado.length), msg)) return;
 
     if (prefijoUsado) {
+      // "escribiendo..." solo cuando de verdad es un comando (antes se mandaba con CADA mensaje del chat).
+      if (!msg.key.fromMe) {
+        sock.sendPresenceUpdate("composing", from)
+          .then(() => new Promise(r => setTimeout(r, 1500 + Math.floor(Math.random() * 1000))))
+          .then(() => sock.sendPresenceUpdate("paused", from))
+          .catch(() => {});
+      }
       const resto = text.slice(prefijoUsado.length);
       const match = resto.match(/^\s*(\S+)([\s\S]*)$/);
       const textoTraducido = match
@@ -493,7 +564,7 @@ async function startBot() {
     defaultQueryTimeoutMs: 60000,
     markOnlineOnConnect: false,
     syncFullHistory: false,
-    shouldSyncHistoryMessage: () => false,
+    shouldSyncHistoryMessage: (h) => !(h && (h.syncType === 2 || h.syncType === "FULL")),
     generateHighQualityLinkPreview: false,
     cachedGroupMetadata: metadatosParaEnvio
   });
@@ -516,12 +587,7 @@ async function startBot() {
       pairingRequested = true;
       try {
         await esperarSilencio();
-        // En hosting sin teclado (Render, etc.) el número viene de la variable NUMERO_VINCULAR.
-        const numeroEnv = String(process.env.NUMERO_VINCULAR || "").replace(/\D/g, "");
-        if (!numeroEnv && !process.stdin.isTTY) {
-          throw new Error("no hay teclado: agrega la variable de entorno NUMERO_VINCULAR (número con código de país, sin +)");
-        }
-        const numero = numeroEnv || (await question("\n📱 Ingresá el número a vincular (con código de país, sin +, sin espacios): ")).trim();
+        const numero = (await question("\n📱 Ingresá el número a vincular (con código de país, sin +, sin espacios): ")).trim();
         const CODIGO_PERSONALIZADO = "MAXIBOTS";
         const code = await sock.requestPairingCode(numero, CODIGO_PERSONALIZADO);
         currentCode = code;
@@ -564,8 +630,8 @@ async function startBot() {
         subbotsIniciados = true;
         iniciarSubbots((subSock) => enlazarEventos(subSock, true)).catch((e) => console.log("Subbots: " + e.message));
       }
-      PAG.sock = sock; PAG.enLinea = true; contarGrupos(); subirEstado();
-      setTimeout(() => aprenderTodosLosGrupos(sock), 15000);
+      PAG.sock = sock; PAG.enLinea = true; subirEstado();
+      setTimeout(contarGrupos, 15000);   // con calma: no compite con el arranque
     }
   });
 
