@@ -5,7 +5,7 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "start": "node index.js",
+    "start": "node lanzador.js",
     "test": "node scripts/verificar.mjs",
     "setup": "node scripts/instalar-herramientas.mjs",
     "foro": "node scripts/probar-foro.mjs",
