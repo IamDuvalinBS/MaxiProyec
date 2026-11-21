@@ -37,7 +37,8 @@ import { rutaImagenCacheada, guardarImagenCacheada, hayRelay } from "./cache-med
 import { T } from "./gacha-tema.js";
 import { revisarMigracion } from "./gacha-migracion.js";
 import { leerMiniatura, guardarMiniatura } from "./gacha-miniaturas.js";
-
+import { enviarHtmlEmbebido, enviarBotonHtml } from "./botones-nativos.js";
+import { publicarHtml, crearServidorHtml, hayServidorHtml } from "./gacha-html-servidor.js";
 export { tarjeta, fmt, personajePorId, CAT, lineasPersonaje, textoStats };
 
 // El dinero se ve como calabazas en Halloween (el valor guardado es el mismo).
@@ -66,6 +67,7 @@ const PROXIES = (process.env.GACHA_PROXIES ?? "https://wsrv.nl/?url=,https://ima
 
 fs.mkdirSync(TMP_DIR, { recursive: true });
 for (const f of fs.readdirSync(TMP_DIR)) fs.rm(path.join(TMP_DIR, f), { force: true }, () => {});
+if (process.env.GACHA_HTML_SERVIDOR !== "0" && hayServidorHtml()) crearServidorHtml();
 
 let activas = 0;
 const cola = [];
