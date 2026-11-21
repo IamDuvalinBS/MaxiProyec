@@ -618,11 +618,41 @@ function claseDe(c, categoria, series) {
   return c.rareza;
 }
 
-async function enviarColeccionHtml({ sock, from, msg, categoria, sender, pagina, todos, n }) {
-  const cat = CAT[categoria];
-  const partes = Math.ceil(n / POR_PARTE_HTML);
-  const parte = Math.min(Math.max(1, pagina), partes);
-  const trozo = todos.slice((parte - 1) * POR_PARTE_HTML, parte * POR_PARTE_HTML);
+async function enviarColeccionHtml({ sock, from, msg, categoria, sender, pagina, todos, n, titulo, pista }) {
+  // ... igual hasta montar "datos" ...
+
+  const html = htmlColeccionGeneral(datos);
+  const encabezadoCol = `${cat.emoji} ${titulo || cat.tituloColeccion}`;
+
+  const url = publicarHtml(html);
+  if (url) {
+    const resumen = [
+      `*${encabezadoCol}*`,
+      `> ${n} ${n === 1 ? cat.unidad : cat.unidades} · ${monto(todos.reduce((a, c) => a + c.valor, 0))}`,
+      `> Página ${parte} de ${partes}`,
+      ...(pista ? [`> ${pista}`] : [])
+    ].join("\n");
+
+    const enviado = await enviarBotonHtml({
+      sock, from, msg,
+      texto: resumen,
+      footer: "Toca el botón para abrir tu colección",
+      titulo: encabezadoCol,
+      url,
+      siguiente: parte < partes ? `${cat.coleccionCmd} ${parte + 1}` : null
+    });
+    if (enviado) return;
+  }
+
+  const embebido = await enviarHtmlEmbebido({ sock, from, msg, titulo: encabezadoCol, html, pestana: "MI COLECCIÓN" });
+  if (embebido) return;
+
+  if (typeof sock?.sendHtml === "function") {
+    await sock.sendHtml(from, html, [], msg, {});
+    return;
+  }
+  throw new Error("El cliente no soporta botones, HTML embebido ni sendHtml");
+}
 
   const imagenes = new Array(trozo.length).fill("");
   const trabajos = trozo.map((c, i) => miniaturaDe(c).then((uri) => { imagenes[i] = uri; }, () => {}));
