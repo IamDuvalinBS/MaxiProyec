@@ -710,6 +710,7 @@ export async function mostrarColeccion({ sock, from, msg, categoria, sender, cle
   const POR_PAGINA = 15;
   const { n, total } = contarColeccion(sender, categoria);
   const tickets = ticketsDe(sender, categoria);
+  export async function mostrarColeccion({ sock, from, msg, categoria, sender, cleanText, reply, titulo = "", pista = "" }) {
 
   if (n && sock && from && typeof sock.sendHtml === "function") {
     try {
