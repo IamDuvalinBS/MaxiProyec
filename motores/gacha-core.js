@@ -711,6 +711,7 @@ export async function mostrarColeccion({ sock, from, msg, categoria, sender, cle
   const { n, total } = contarColeccion(sender, categoria);
   const tickets = ticketsDe(sender, categoria);
   export async function mostrarColeccion({ sock, from, msg, categoria, sender, cleanText, reply, titulo = "", pista = "" }) {
+    await enviarColeccionHtml({ sock, from, msg, categoria, sender, pagina, todos, n, titulo, pista });
 
   if (n && sock && from && typeof sock.sendHtml === "function") {
     try {
@@ -742,10 +743,10 @@ export async function mostrarColeccion({ sock, from, msg, categoria, sender, cle
   });
 
   const partes = [
-    encabezado(cat.emoji, cat.tituloColeccion),
+    encabezado(cat.emoji, titulo || cat.tituloColeccion),
     "",
     `> ${cat.descripcionColeccion}`,
-    "",
+    ...(pista ? ["", `> ${pista}`] : []),
     `⧼${cat.emojiTotal}⧽ *${cat.etiquetaTotal}* ››`,
     `> ${fmt(n)} ${n === 1 ? cat.unidad : cat.unidades} en tu cuenta.`,
     T(`⧼${cat.emojiValor}⧽ *Valor total* ››`, `⧼${cat.emojiValor}⧽ *Tesoro total* ››`),
