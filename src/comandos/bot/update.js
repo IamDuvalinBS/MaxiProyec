@@ -34,6 +34,24 @@ async function reiniciar() {
   } catch (e) {
     console.log(`❌ No se pudieron guardar las cuentas antes de reiniciar: ${e.message}`);
   }
+
+  if (!supervisado()) {
+    // El bot no se inició con npm start: se lanza una copia nueva (espera 3 s a que esta se cierre y libere el puerto).
+    try {
+      const hijo = spawn("sh", ["-c", "sleep 3; exec node index.js"], {
+        cwd: RAIZ,
+        detached: true,
+        stdio: "inherit",
+        env: process.env
+      });
+      hijo.unref();
+    } catch (e) {
+      console.log(`❌ No se pudo lanzar la copia nueva del bot: ${e.message}`);
+    }
+    setTimeout(() => process.exit(0), 1000);
+    return;
+  }
+
   setTimeout(() => process.exit(CODIGO_REINICIO), 1000);
 }
 
@@ -110,22 +128,6 @@ export default {
       }
 
       const archivos = `${cambios.length} ${cambios.length === 1 ? "archivo" : "archivos"}`;
-
-      if (!supervisado()) {
-        return reply({
-          text: tarjeta({
-            emoji: "✅",
-            titulo: "ACTUALIZADO",
-            relato: soloReiniciar
-              ? "El bot no puede reiniciarse solo porque no se inició con *npm start*."
-              : `Se actualizaron *${archivos}*, pero el bot no puede reiniciarse solo porque no se inició con *npm start*.`,
-            tip: [
-              "Reinícialo a mano con *Ctrl+C* y luego *npm start*.",
-              "Si lo inicias siempre con *npm start*, *.update* lo reinicia solo."
-            ]
-          })
-        });
-      }
 
       await reply({
         text: tarjeta({
