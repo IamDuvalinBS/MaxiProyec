@@ -19,7 +19,7 @@ export default {
     const consulta = limpias.join(" ");
 
     if (!consulta) {
-      return reply({ text: "📄 Uso: *.codigo <archivo>*\n> Ejemplos: *.codigo gacha-core*, *.codigo motores/owner.js*, *.codigo gacha-core 2* (parte 2), *.codigo gacha-core texto* (sin formato rico)." });
+      return reply({ text: "📄 Uso: *.codigo <archivo>*\n> Ejemplos: *.codigo gacha-core*, *.codigo motores/owner.js*, *.codigo gacha-core texto* (sin formato rico). Todo el archivo va en un solo mensaje." });
     }
 
     const hallados = buscarArchivos(consulta);
