@@ -12,7 +12,10 @@ export const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "
 const IGNORAR = new Set(["node_modules", ".git", "auth_info", "cache", "data", "database", "perfiles", "datos"]);
 const EXT_TEXTO = new Set([".js", ".mjs", ".cjs", ".json", ".html", ".css", ".md", ".txt", ".sh", ".env.example"]);
 const MAX_ARCHIVO = 600 * 1024;
-const MAX_CARACTERES = 6000;
+// Por defecto el archivo completo va en UN solo mensaje (WhatsApp admite ~65 000 caracteres por mensaje).
+// Si WhatsApp rechaza uno así de grande, se reintenta en trozos más chicos (ver TAMANOS_RESPALDO).
+const MAX_CARACTERES = Number(process.env.CODIGO_MAX_CARACTERES) || 60000;
+const TAMANOS_RESPALDO = [15000, 6000];
 
 // Tipos de color del bloque de código de WhatsApp
 const DEFAULT = 0, KEYWORD = 1, METHOD = 2, STRING = 3, NUMBER = 4, COMMENT = 5;
@@ -57,7 +60,7 @@ function colorear(codigo, lenguaje) {
 }
 
 // Corta el archivo por líneas en trozos de ~MAX_CARACTERES
-export function partirCodigo(texto) {
+export function partirCodigo(texto, maximo = MAX_CARACTERES) {
   const lineas = texto.replace(/\r\n/g, "\n").split("\n");
   const partes = [];
   let actual = [];
@@ -65,14 +68,14 @@ export function partirCodigo(texto) {
   let inicio = 1;
   lineas.forEach((linea, i) => {
     const largo = linea.length + 1;
-    if (tam + largo > MAX_CARACTERES && actual.length) {
+    if (tam + largo > maximo && actual.length) {
       partes.push({ desde: inicio, hasta: i, codigo: actual.join("\n") });
       actual = [];
       tam = 0;
       inicio = i + 1;
     }
-    actual.push(linea.length > MAX_CARACTERES ? linea.slice(0, MAX_CARACTERES) + " …" : linea);
-    tam += Math.min(largo, MAX_CARACTERES);
+    actual.push(linea.length > maximo ? linea.slice(0, maximo) + " …" : linea);
+    tam += Math.min(largo, maximo);
   });
   if (actual.length) partes.push({ desde: inicio, hasta: lineas.length, codigo: actual.join("\n") });
   return partes;
@@ -134,35 +137,48 @@ export function leerArchivoTexto(rutaAbs) {
 }
 
 /**
- * Envía el archivo (o sus partes) en estilo Meta AI.
- * desdeParte: parte inicial (1…); maxPartes: cuántas partes manda de una vez.
+ * Envía el archivo en estilo Meta AI. Normalmente completo y en un solo mensaje.
+ * desdeParte: parte inicial (1…); maxPartes: cuántas partes manda de una vez (solo importa en archivos enormes).
  */
 export async function enviarCodigo({ sock, from, reply, rutaRel, texto, desdeParte = 1, maxPartes = 3, forzarTexto = false, etiqueta = "" }) {
-  const partes = partirCodigo(texto);
-  const total = partes.length;
-  const inicio = Math.min(Math.max(1, desdeParte), total);
-  const fin = Math.min(total, inicio + maxPartes - 1);
   const lenguaje = lenguajeDe(rutaRel);
 
-  for (let n = inicio; n <= fin; n++) {
-    const p = partes[n - 1];
+  const mandarRico = (p, total, n) => {
     const titulo = `${rutaRel}${total > 1 ? ` — parte ${n}/${total}` : ""} (líneas ${p.desde}-${p.hasta})${etiqueta ? ` ${etiqueta}` : ""}`;
-    let enviado = false;
-    if (!forzarTexto) {
-      enviado = await enviarRespuestaRica({
-        sock,
-        from,
-        submensajes: [
-          { messageType: 2, messageText: titulo },
-          { messageType: 5, codeMetadata: { codeLanguage: lenguaje, codeBlocks: colorear(p.codigo, lenguaje) } }
-        ]
-      });
+    return enviarRespuestaRica({
+      sock,
+      from,
+      submensajes: [
+        { messageType: 2, messageText: titulo },
+        { messageType: 5, codeMetadata: { codeLanguage: lenguaje, codeBlocks: colorear(p.codigo, lenguaje) } }
+      ]
+    });
+  };
+
+  if (!forzarTexto) {
+    for (const tam of [MAX_CARACTERES, ...TAMANOS_RESPALDO]) {
+      const partes = partirCodigo(texto, tam);
+      const total = partes.length;
+      const inicio = Math.min(Math.max(1, desdeParte), total);
+      const fin = Math.min(total, inicio + maxPartes - 1);
+
+      // La primera parte decide: si WhatsApp la rechaza, se reintenta con trozos más chicos.
+      if (!(await mandarRico(partes[inicio - 1], total, inicio))) continue;
+      for (let n = inicio + 1; n <= fin; n++) await mandarRico(partes[n - 1], total, n);
+      if (fin < total) await reply({ text: `> Faltan ${total - fin} parte(s). Sigue con *.codigo ${rutaRel} ${fin + 1}*.` });
+      return { total, inicio, fin };
     }
-    if (!enviado) await reply({ text: `📄 *${titulo}*\n\`\`\`\n${p.codigo}\n\`\`\`` });
   }
 
-  if (fin < total) {
-    await reply({ text: `> Faltan ${total - fin} parte(s). Sigue con *.codigo ${rutaRel} ${fin + 1}*.` });
+  // Respaldo en texto normal (monoespaciado), en trozos que caben en un mensaje.
+  const partes = partirCodigo(texto, 3500);
+  const total = partes.length;
+  const inicio = Math.min(Math.max(1, desdeParte), total);
+  const fin = Math.min(total, inicio + 5);
+  for (let n = inicio; n <= fin; n++) {
+    const p = partes[n - 1];
+    await reply({ text: `📄 *${rutaRel}${total > 1 ? ` — parte ${n}/${total}` : ""}* (líneas ${p.desde}-${p.hasta})\n\`\`\`\n${p.codigo}\n\`\`\`` });
   }
+  if (fin < total) await reply({ text: `> Faltan ${total - fin} parte(s). Sigue con *.codigo ${rutaRel} ${fin + 1} texto*.` });
   return { total, inicio, fin };
 }
