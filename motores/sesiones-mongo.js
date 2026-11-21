@@ -5,15 +5,8 @@ import { obtenerBase } from "./db.js";
 
 const COLECCION_SUBS = "subbots";
 const COLECCION_CLAVES = "subbots_keys";
-const CACHE_MAX = Number(process.env.CACHE_CLAVES_MAX) || 600;
+const CACHE_MAX = 300;
 const CACHE_TTL_MS = 10 * 60000;
-const GUARDADO_DIFERIDO = process.env.GUARDADO_DIFERIDO !== "0";
-const VENTANA_VOLCADO_MS = Number(process.env.VENTANA_VOLCADO_MS) || 800;
-const vaciadores = new Map();
-
-export function vaciarSesionesSubs() {
-  return Promise.allSettled([...vaciadores.values()].map((v) => v()));
-}
 
 function serializar(valor) {
   return JSON.parse(JSON.stringify(valor, baileys.BufferJSON.replacer));
@@ -68,7 +61,6 @@ export async function cargarEstadoSub(numero, logger) {
   // seguidos ya no pueden llegar al revés y dejar una clave vieja encima de la nueva. Mientras tanto se lee de memoria.
   const pendientes = new Map();
   let volcando = Promise.resolve();
-  let temporizadorVolcado = null;
 
   const volcar = () => {
     if (!pendientes.size) return volcando;
@@ -114,14 +106,7 @@ export async function cargarEstadoSub(numero, logger) {
       for (const tipo of Object.keys(datos)) {
         for (const id of Object.keys(datos[tipo])) pendientes.set(`${prefijo}${tipo}-${id}`, datos[tipo][id] || null);
       }
-      if (!GUARDADO_DIFERIDO) return volcar();
-      if (!temporizadorVolcado) {
-        temporizadorVolcado = setTimeout(() => {
-          temporizadorVolcado = null;
-          volcar().catch((e) => console.log(`[subbot ${numero}] no se pudieron guardar las claves (se reintenta): ${e.message}`));
-        }, VENTANA_VOLCADO_MS);
-        temporizadorVolcado.unref?.();
-      }
+      await volcar();
     }
   };
 
@@ -136,12 +121,7 @@ export async function cargarEstadoSub(numero, logger) {
     );
   };
 
-  const vaciar = async () => {
-    if (temporizadorVolcado) { clearTimeout(temporizadorVolcado); temporizadorVolcado = null; }
-    await volcar().catch(() => {});
-    await volcando;
-  };
-  vaciadores.set(numero, vaciar);
+  const vaciar = async () => { await volcar().catch(() => {}); await volcando; };
   return { state: { creds, keys }, guardarCreds, vaciar };
 }
 
@@ -211,6 +191,55 @@ async function escribirAtomico(archivo, texto, sincronizar = true) {
   await fs.promises.rename(temporal, archivo);
 }
 
+// ───────────── Espejo en MongoDB de la sesión principal ─────────────
+// En hosting como Render el disco se borra en cada reinicio o deploy: sin esto habría que volver a vincular siempre.
+// Cada archivo de auth_info se copia a MongoDB y, si la carpeta está vacía, se restaura desde ahí al arrancar.
+const COLECCION_PRINCIPAL = "principal_auth";
+
+function coleccionEspejo() {
+  try {
+    const base = obtenerBase();
+    return base ? base.collection(COLECCION_PRINCIPAL) : null;
+  } catch {
+    return null;
+  }
+}
+
+function subirEspejo(carpeta, nombre, texto) {
+  const col = coleccionEspejo();
+  if (!col) return;
+  col.updateOne({ _id: `${carpeta}|${nombre}` }, { $set: { carpeta, nombre, texto, t: new Date() } }, { upsert: true }).catch(() => {});
+}
+
+function borrarEspejo(carpeta, nombre) {
+  const col = coleccionEspejo();
+  if (!col) return;
+  col.deleteOne({ _id: `${carpeta}|${nombre}` }).catch(() => {});
+}
+
+async function esperarMongo(maxMs = 45000) {
+  const inicio = Date.now();
+  while (!obtenerBase() && Date.now() - inicio < maxMs) await new Promise((r) => setTimeout(r, 500));
+  return Boolean(obtenerBase());
+}
+
+async function restaurarDesdeEspejo(carpeta, dir) {
+  if (!(await esperarMongo())) return 0;
+  const col = coleccionEspejo();
+  if (!col) return 0;
+  let n = 0;
+  try {
+    for await (const doc of col.find({ carpeta })) {
+      if (!doc.nombre || doc.nombre.includes("/") || doc.nombre.includes("\\")) continue;
+      await fs.promises.writeFile(path.join(dir, doc.nombre), doc.texto);
+      n++;
+    }
+  } catch (e) {
+    console.log("⚠️ No se pudo restaurar la sesión principal desde MongoDB: " + e.message);
+  }
+  return n;
+}
+
 export async function sesionPrincipal(carpeta, logger) {
   const dir = path.resolve(carpeta);
   await fs.promises.mkdir(dir, { recursive: true });
@@ -233,6 +262,10 @@ export async function sesionPrincipal(carpeta, logger) {
 
   const archivoCreds = ruta("creds.json");
   const archivoCopia = ruta("creds.json.bak");
+  if (!fs.existsSync(archivoCreds) && !fs.existsSync(archivoCopia)) {
+    const restaurados = await restaurarDesdeEspejo(carpeta, dir);
+    if (restaurados) console.log(`♻️ Sesión principal restaurada desde MongoDB (${restaurados} archivos): no hace falta vincular de nuevo.`);
+  }
   let creds = await leer(archivoCreds, false);
   if (!creds) {
     creds = await leer(archivoCopia, false);
@@ -251,7 +284,9 @@ export async function sesionPrincipal(carpeta, logger) {
           await escribirAtomico(archivoCopia, actual);
         } catch {}
       }
-      await escribirAtomico(archivoCreds, JSON.stringify(creds, baileys.BufferJSON.replacer));
+      const textoCreds = JSON.stringify(creds, baileys.BufferJSON.replacer);
+      await escribirAtomico(archivoCreds, textoCreds);
+      subirEspejo(carpeta, path.basename(archivoCreds), textoCreds);
     });
 
   const almacen = {
@@ -275,7 +310,16 @@ export async function sesionPrincipal(carpeta, logger) {
           const archivo = ruta(`${tipo}-${id}.json`);
           const valor = datos[tipo][id];
           tareas.push(
-            enFila(archivo, () => (valor ? escribirAtomico(archivo, JSON.stringify(valor, baileys.BufferJSON.replacer), false) : fs.promises.unlink(archivo).catch(() => {})))
+            enFila(archivo, async () => {
+              if (valor) {
+                const texto = JSON.stringify(valor, baileys.BufferJSON.replacer);
+                await escribirAtomico(archivo, texto, false);
+                subirEspejo(carpeta, path.basename(archivo), texto);
+              } else {
+                await fs.promises.unlink(archivo).catch(() => {});
+                borrarEspejo(carpeta, path.basename(archivo));
+              }
+            })
           );
         }
       }
