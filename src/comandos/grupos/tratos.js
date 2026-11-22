@@ -66,8 +66,8 @@ const otroDe = (trato, sender) => (esCreador(trato, sender) ? trato.destinoJid :
 
 const cmdTrato = {
   names: [".trato", ".tratos"],
-  usage: ".trato @usuario <lo que prometes>",
-  desc: "Deja un trato registrado con número, fecha y hora; la otra persona lo acepta con .aceptar",
+  usage: ".trato @usuario <promesa>",
+  desc: "Deja un trato registrado con otra persona",
   category: CAT,
   handler: async ({ sender, from, cleanText, msg, reply }) => {
     if (!(await listo(reply))) return;
@@ -294,7 +294,7 @@ const cmdReputacion = {
 const cmdPerdon = {
   names: [".perdon", ".perdón"],
   usage: ".perdon @usuario",
-  desc: "Pedirle perdón a alguien a quien le incumpliste un trato (si te perdona, +15 de karma)",
+  desc: "Pide perdón a quien le incumpliste un trato",
   category: CAT,
   handler: async ({ sender, msg, reply }) => {
     if (!(await listo(reply))) return;
@@ -393,8 +393,8 @@ const TIPOS_REPORTE = {
 
 const cmdReportar = {
   names: [".reportar"],
-  usage: ".reportar <número> mentira|estafa",
-  desc: "Reportar a la otra persona de un trato por mentir (-15) o intentar estafar (-30)",
+  usage: ".reportar <número> <mentira | estafa>",
+  desc: "Reporta a la otra persona de un trato por mentir o estafar",
   category: CAT,
   handler: async ({ sender, cleanText, reply }) => {
     if (!(await listo(reply))) return;

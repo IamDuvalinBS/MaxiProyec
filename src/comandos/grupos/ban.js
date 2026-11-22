@@ -68,7 +68,7 @@ function parDeLista({ clave, poner, quitar, emoji, tituloPoner, tituloQuitar, re
 
 const [ban, unban] = parDeLista({
   clave: "silenciados",
-  poner: { names: [".ban", ".silenciar", ".mute"], usage: ".ban @usuario | responder a un mensaje", desc: "Silenciar a un usuario: el bot borra todo lo que escriba en el grupo (admins)" },
+  poner: { names: [".ban", ".silenciar", ".mute"], usage: ".ban @usuario", desc: "Silencia a un usuario: se borra todo lo que escriba (admins)" },
   quitar: { names: [".unban", ".desilenciar", ".unmute"], usage: ".unban @usuario | responder a un mensaje", desc: "Quitar el silencio a un usuario (admins)" },
   emoji: "🔇",
   tituloPoner: "USUARIO SILENCIADO",

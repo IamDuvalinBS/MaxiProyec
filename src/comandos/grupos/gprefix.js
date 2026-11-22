@@ -11,8 +11,8 @@ const lista = (prefijos) => prefijos.map((p) => `*${p}*`).join("  ");
 
 export default {
   names: [".gprefix", ".setgprefix", ".addgprefix", ".delgprefix", ".resetgprefix"],
-  usage: ".gprefix | .setgprefix <p> [p2 p3] | .addgprefix <p> | .delgprefix <p> | .resetgprefix",
-  desc: "Prefijos propios del grupo: uno solo o varios (admins)",
+  usage: ".gprefix",
+  desc: "Ver o cambiar los prefijos del grupo (admins)",
   category: "Grupos",
   handler: comandoGrupo({ emoji: "🔧", titulo: "PREFIJOS" }, async ({ from, sender, cleanText, responder, avisar }) => {
     const [comando, ...valores] = cleanText.trim().split(/\s+/);

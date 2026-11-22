@@ -2,6 +2,7 @@ import { downloadMediaMessage } from "@fer2809fl/baileys";
 import { comandoGrupo } from "../../grupos/nucleo.js";
 import { cambiarFotoGrupo } from "../../grupos/foto.js";
 import { tarjetaMarcada, mencion } from "../../economia/estilo.js";
+import { contextoDe } from "../../nucleo/objetivo.js";
 
 export default {
   names: [".fotogp", ".photogp"],
@@ -9,7 +10,7 @@ export default {
   desc: "Cambiar la foto del grupo",
   category: "Grupos",
   handler: comandoGrupo({ emoji: "🖼️", titulo: "FOTOGP", botAdmin: true }, async ({ sock, from, sender, msg, responder, avisar }) => {
-    const info = msg.message?.extendedTextMessage?.contextInfo;
+    const info = contextoDe(msg);
     let objetivo = null;
     if (msg.message?.imageMessage) {
       objetivo = msg;

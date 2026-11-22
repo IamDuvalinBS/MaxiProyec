@@ -1,4 +1,5 @@
 import { comandoGrupo, buscarParticipante } from "../../grupos/nucleo.js";
+import { contextoDe } from "../../nucleo/objetivo.js";
 
 export default {
   names: [".del", ".eliminar"],
@@ -6,7 +7,7 @@ export default {
   desc: "Eliminar el mensaje al que respondes",
   category: "Grupos",
   handler: comandoGrupo({ emoji: "🗑️", titulo: "DEL" }, async ({ sock, from, msg, meta, bot, avisar }) => {
-    const info = msg.message?.extendedTextMessage?.contextInfo;
+    const info = contextoDe(msg);
     if (!info?.stanzaId) return avisar("Responde al mensaje que deseas eliminar.\n\n> Usa *.del* respondiendo a un mensaje.");
 
     const autor = info.participant;

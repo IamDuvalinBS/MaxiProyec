@@ -3,7 +3,7 @@ import { crearComandoMensaje } from "../../grupos/mensajes-editables.js";
 export default crearComandoMensaje({
   names: [".setwelcome"],
   uso: ".setwelcome <mensaje con broches> | .setwelcome reset",
-  desc: "Editar el mensaje de bienvenida con broches como {usuario}, {grupo}, {miembros}, {creacion} y {link} (máx. 1000 caracteres)",
+  desc: "Edita el mensaje de bienvenida del grupo",
   emoji: "🏰",
   titulo: "SETWELCOME",
   tituloGuardado: "BIENVENIDA ACTUALIZADA",

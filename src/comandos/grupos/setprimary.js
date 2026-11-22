@@ -1,6 +1,6 @@
 import { comandoGrupo, metadatos, buscarBot, buscarParticipante, limpiarJid, objetivoDe } from "../../grupos/nucleo.js";
 import { ajustesDe, definirAjuste } from "../../grupos/estado.js";
-import { socketsSubbots, socketPrincipal } from "../../subbots/gestor.js";
+import { socketPrincipal } from "../../subbots/gestor.js";
 import { tarjetaMarcada, mencion } from "../../economia/estilo.js";
 
 const OPCIONES_QUITAR = new Set(["off", "all", "todos", "reset", "quitar"]);
@@ -11,8 +11,8 @@ const numeroDeBot = (s) => limpiarJid(s.user.id).split("@")[0];
 
 export default {
   names: [".setprimary", ".botprincipal"],
-  usage: ".setprimary [@bot | responder a un bot | número | off]",
-  desc: "Elegir qué bot responde en el grupo cuando hay varios (bot principal y subbots)",
+  usage: ".setprimary [@bot | off]",
+  desc: "Elige qué bot responde en el grupo",
   category: "Grupos",
   handler: comandoGrupo({ emoji: "🎖️", titulo: "BOT PRINCIPAL" }, async ({ sock, from, sender, cleanText, msg, meta, responder, avisar }) => {
     const opcion = (cleanText.split(/\s+/)[1] || "").toLowerCase();
