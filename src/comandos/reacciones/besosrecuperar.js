@@ -1,5 +1,6 @@
 import { ownerCommand } from "../../../motores/owner.js";
 import { buscarBesos, unirBesos, fijarBesos } from "../../../motores/db.js";
+import { contextoDe } from "../../nucleo/objetivo.js";
 
 const ultimaBusqueda = new Map();
 
@@ -9,13 +10,13 @@ const mostrarClave = (clave) => clave.split("|").map((j) => `${numeroDe(j)}@${St
 
 export default {
   names: [".besosrecuperar"],
-  usage: ".besosrecuperar @pareja  |  .besosrecuperar <número de la lista>",
-  desc: "Busca y recupera el contador de besos de una pareja cuando cambió el identificador de alguno (solo owner)",
+  usage: ".besosrecuperar @pareja",
+  desc: "Recupera el contador de besos de una pareja (solo owner)",
   category: "Owner",
   handler: ownerCommand(async ({ sender, msg, cleanText, reply }) => {
     const partes = cleanText.trim().split(/\s+/);
     const arg = partes[1];
-    const info = msg.message?.extendedTextMessage?.contextInfo;
+    const info = contextoDe(msg);
     const target = info?.mentionedJid?.[0] || info?.participant || null;
 
     if (arg && arg.toLowerCase() === "todos") {

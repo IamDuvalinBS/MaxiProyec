@@ -1,6 +1,7 @@
 import { registrarBeso, config } from "../../../motores/db.js";
 import { createCanvas, loadImage } from "@napi-rs/canvas";
 import { enviarProducto } from "../../grupos/producto.js";
+import { contextoDe } from "../../nucleo/objetivo.js";
 
 const HEADERS = { "User-Agent": "MaxiProyecBot/1.0 (WhatsApp bot, contacto en GitHub IamDuvalinBS)" };
 const HEADERS_NAV = { "User-Agent": "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Mobile Safari/537.36", Accept: "application/json,image/*,*/*" };
@@ -240,7 +241,7 @@ export default {
   category: "Diversión",
   handler: async (ctx) => {
     const { sock, from, sender, msg } = ctx;
-    const info = msg.message?.extendedTextMessage?.contextInfo;
+    const info = contextoDe(msg);
     const target = info?.mentionedJid?.[0] || info?.participant || sender;
     const esASiMismo = target === sender;
 
