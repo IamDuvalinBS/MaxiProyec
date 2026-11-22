@@ -267,7 +267,7 @@ export default [
         const r = venderTodo(est);
         addToWallet(sender, r.total);
         guardarMascotas(sender, cuenta, est);
-        return reply({ text: tarjeta({ emoji: "💰", titulo: "VENTA REALIZADA", relato: `Vendiste *${r.cantidad}* ítems.`, lineas: [`💵 *GANANCIA::* +${monto(r.total)}`, `⛁ *CARTERA::* ${monto(getAccount(sender).wallet)}`] }) });
+        return reply({ text: tarjeta({ emoji: "💰", titulo: "VENTA REALIZADA", relato: `Vendiste *${r.cantidad}* ítems.`, lineas: [`💵 *GANANCIA::* +${monto(r.total)}`] }) });
       }
 
       let cantidad = null;
@@ -293,7 +293,7 @@ export default [
           emoji: "💰",
           titulo: "VENTA REALIZADA",
           relato: `Vendiste ${elegido.emoji} *${elegido.nombre}* ×${r.cantidad}.`,
-          lineas: [`💵 *GANANCIA::* +${monto(r.total)}`, `⛁ *CARTERA::* ${monto(getAccount(sender).wallet)}`]
+          lineas: [`💵 *GANANCIA::* +${monto(r.total)}`]
         })
       });
     }
