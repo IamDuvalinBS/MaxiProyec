@@ -301,8 +301,8 @@ export default [
   },
   {
     names: [".animalespiritual", ".espiritu", ".espíritu", ".animal"],
-    usage: ".animalespiritual @mencion",
-    desc: "Descubre qué animal espiritual es tu amigue.",
+    usage: ".animalespiritual @usuario",
+    desc: "Descubre qué animal espiritual es tu amigue",
     category: CAT,
     handler: async ({ sock, from, sender, msg }) => {
       const quien = objetivoDe(msg, sender);
