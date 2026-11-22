@@ -16,8 +16,8 @@ function objetivo(msg, cleanText) {
 
 export default {
   names: [".permitircode", ".quitarcode", ".listacode"],
-  usage: ".permitircode <@usuario | número> | .quitarcode <@usuario | número> | .listacode",
-  desc: "Dar o quitar permiso para pedir .code (solo ese comando, no es owner)",
+  usage: ".permitircode <@usuario>",
+  desc: "Da o quita permiso para usar .code",
   category: "Owner",
   handler: ownerCommand(async ({ cleanText, msg, reply }) => {
     const comando = cleanText.toLowerCase().split(/\s+/)[0];

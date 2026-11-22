@@ -37,7 +37,7 @@ function textoCodigo(codigo) {
 export default {
   names: [".code", ".subbot"],
   usage: ".code <tu número>",
-  desc: "Genera un código para convertir tu número en un subbot (libre, sin requisitos)",
+  desc: "Genera un código para convertir tu número en subbot",
   category: "Subbots",
   handler: async ({ sock, from, sender, cleanText, msg, reply }) => {
     // Acepta "+52 1 55 1234 5678", "(55) 1234-5678", 5215512345678, 525512345678, etc.

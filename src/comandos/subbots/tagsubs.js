@@ -1,13 +1,14 @@
 import { ownerCommand } from "../../../motores/owner.js";
 import { textoTrasComando } from "../../grupos/nucleo.js";
 import { difundirSubbots, difusionActiva, cancelarDifusion, estadoDifusion } from "../../subbots/difusion.js";
+import { contextoDe } from "../../nucleo/objetivo.js";
 
 const textoDe = (m) => m?.conversation || m?.extendedTextMessage?.text || m?.imageMessage?.caption || m?.videoMessage?.caption || "";
 
 export default {
   names: [".tagsubs", ".avisosubs", ".tagallsubs"],
-  usage: ".tagsubs <mensaje> | .tagsubs -v <mensaje> | .tagsubs estado | .tagsubs stop | responder a un mensaje",
-  desc: "Todos los subbots mandan un mensaje (mencionando a todos) en todos los grupos donde estén",
+  usage: ".tagsubs <mensaje>",
+  desc: "Los subbots mencionan a todos en sus grupos",
   category: "Owner",
   handler: ownerCommand(async ({ cleanText, msg, reply }) => {
     let resto = textoTrasComando(cleanText);
@@ -23,7 +24,7 @@ export default {
     const visible = /^-v\b/i.test(resto);   // -v: además de notificar a todos, lista las menciones a la vista
     if (visible) resto = resto.replace(/^-v\s*/i, "");
 
-    const citado = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+    const citado = contextoDe(msg)?.quotedMessage;
     const texto = resto || textoDe(citado);
     if (!texto) return reply({ text: "⚙️ Uso: *.tagsubs <mensaje>* (o responde a un mensaje de texto).\nAñade *-v* para mostrar la lista de menciones." });
     if (difusionActiva()) return reply({ text: "⏳ Ya hay un envío en curso. Usa *.tagsubs estado* o *.tagsubs stop*." });
