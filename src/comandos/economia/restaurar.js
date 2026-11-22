@@ -5,7 +5,7 @@ import { tarjeta } from "../../economia/formato.js";
 export default {
   names: [".restaurar", ".restore"],
   usage: ".restaurar confirmar",
-  desc: "Restaurar en MongoDB los datos guardados en la base de respaldo de Turso (solo owner)",
+  desc: "Restaura MongoDB desde el respaldo de Turso (solo owner)",
   category: "Owner",
   handler: ownerCommand(async ({ cleanText, reply }) => {
     if (!respaldoConfigurado()) {

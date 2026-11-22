@@ -91,8 +91,8 @@ async function responder({ sock, from, sender, msg, texto }) {
 
 export default {
   names: [".calculo", ".cálculo"],
-  usage: ".calculo | .calculo <resultado>",
-  desc: "Reto de matemáticas (medio, difícil e imposible): el primero en acertar gana monedas y experiencia",
+  usage: ".calculo [resultado]",
+  desc: "Reto de matemáticas: el primero en acertar gana",
   category: "Economía",
   handler: async ({ sock, from, sender, msg, cleanText, reply }) => {
     const arg = cleanText.split(/\s+/).slice(1).join(" ").trim();

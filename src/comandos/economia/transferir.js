@@ -1,15 +1,16 @@
 import { getAccount, saveAccount } from "../../../motores/db.js";
-import { tarjeta, monto, leerMonto, jidMencionado } from "../../economia/formato.js";
+import { tarjeta, monto, leerMonto, jidObjetivo } from "../../economia/formato.js";
 
 export default {
   names: [".transferir", ".pay", ".dar"],
-  usage: ".transferir <cantidad> @usuario",
+  usage: ".transferir <cantidad> @usuario | responder",
   desc: "Enviar dinero de tu mano a otro usuario",
   category: "Economía",
   handler: async ({ sender, cleanText, msg, reply }) => {
-    const destino = jidMencionado(msg);
+    const destino = jidObjetivo(msg);
     const cuenta = getAccount(sender);
-    const cantidad = leerMonto(cleanText.split(/\s+/)[1], cuenta.wallet);
+    const palabras = cleanText.split(/\s+/).slice(1).filter((p) => !p.startsWith("@"));
+    const cantidad = leerMonto(palabras[0], cuenta.wallet);
 
     if (!destino || !cantidad) {
       return reply({ text: "⚠️ Uso correcto: *.transferir <cantidad> @usuario*" });

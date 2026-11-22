@@ -2,9 +2,7 @@ import { formatTime } from "../../../motores/ui.js";
 import { T } from "../../../motores/gacha-tema.js";
 import { fmt } from "../../economia/formato-evento.js";
 import { tarjetaMarcada, mencion } from "../../economia/estilo-evento.js";
-import {
-  misionesDiarias, cadenasDe, cobrarTodo, lineasDeEntrega, premioEnTexto, bonoTexto
-} from "../../economia/logros.js";
+import { misionesDiarias, cadenasDe, cobrarTodo, premioEnTexto, bonoTexto } from "../../economia/logros.js";
 
 function barra(avance, meta) {
   const llenos = Math.max(0, Math.min(10, Math.floor((avance / meta) * 10)));

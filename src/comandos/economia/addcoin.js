@@ -25,7 +25,7 @@ const ESTILOS = {
 export default {
   names: [".addcoin", ".addcoins", ".agregarcoins"],
   usage: ".addcoin <cantidad> @usuario",
-  desc: "Otorgar dinero a un usuario, acreditado en su cartera (solo owner)",
+  desc: "Da dinero a un usuario (solo owner)",
   category: "Owner",
   handler: ownerCommand(async ({ msg, cleanText, reply }) => {
     const E = estilo(ESTILOS);

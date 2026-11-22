@@ -38,8 +38,8 @@ const ESTILOS = {
 
 export default {
   names: [".banco", ".bal", ".bank"],
-  usage: ".banco [@usuario | responder a un mensaje]",
-  desc: "Consultar tu saldo o el de otro usuario (etiquetándolo o respondiendo a su mensaje)",
+  usage: ".banco [@usuario]",
+  desc: "Consulta tu saldo o el de otro usuario",
   category: "Economía",
   handler: async ({ sender, msg, reply }) => {
     const E = esHalloween() ? { ...ESTILOS.normal, ...ESTILOS.halloween } : ESTILOS.normal;

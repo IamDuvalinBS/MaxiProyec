@@ -1,5 +1,5 @@
 import { getAccount } from "../../../motores/db.js";
-import { tarjeta, monto, fmt } from "../../economia/formato-evento.js";
+import { tarjeta, monto } from "../../economia/formato-evento.js";
 import {
   resumenCarrera, cobrarSueldo, bonoRacha, descuentoFaltas,
   DIAS_POR_SEMANA, TOPE_TRABAJOS_DIA, BONO_RACHA_MAX, DESCUENTO_POR_FALTA, DESCUENTO_MAX

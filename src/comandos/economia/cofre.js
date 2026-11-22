@@ -1,4 +1,4 @@
-import { addToWallet, getAccount, checkCooldown } from "../../../motores/db.js";
+import { addToWallet, checkCooldown } from "../../../motores/db.js";
 import { tarjeta, monto, elegir, entre, textoEspera } from "../../economia/formato-evento.js";
 import { estilo } from "../../economia/temas.js";
 

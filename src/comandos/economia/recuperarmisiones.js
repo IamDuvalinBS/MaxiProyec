@@ -4,7 +4,7 @@ import { recuperarMisionesDiarias } from "../../economia/logros.js";
 export default {
   names: [".recuperarmisiones"],
   usage: ".recuperarmisiones",
-  desc: "Cuenta las misiones diarias de economía que se hicieron antes de corregir el registro",
+  desc: "Cuenta las misiones hechas antes de corregir el registro",
   category: "Owner",
   handler: ownerCommand(async ({ reply }) => {
     const r = recuperarMisionesDiarias();

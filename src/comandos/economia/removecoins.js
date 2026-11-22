@@ -32,8 +32,8 @@ const ESTILOS = {
 
 export default {
   names: [".removecoins", ".removecoin", ".removercoins"],
-  usage: ".removecoins <cantidad|all> @usuario",
-  desc: "Quitar dinero a un usuario, o todo su dinero con all (solo owner)",
+  usage: ".removecoins <cantidad | all> @usuario",
+  desc: "Quita dinero a un usuario (solo owner)",
   category: "Owner",
   handler: ownerCommand(async ({ msg, cleanText, reply }) => {
     const E = estilo(ESTILOS);

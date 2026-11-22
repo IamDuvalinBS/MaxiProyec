@@ -48,8 +48,8 @@ function formatearFecha(marca) {
 
 export default {
   names: [".respaldo", ".respaldar", ".backup"],
-  usage: ".respaldo | .respaldo estado",
-  desc: "Copiar los datos de MongoDB a la base de respaldo en Turso, o ver el estado del último respaldo (solo owner)",
+  usage: ".respaldo [estado]",
+  desc: "Copia MongoDB a Turso o muestra el estado (solo owner)",
   category: "Owner",
   handler: ownerCommand(async ({ cleanText, reply }) => {
     if (!respaldoConfigurado()) {

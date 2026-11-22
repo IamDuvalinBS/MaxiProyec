@@ -1,4 +1,4 @@
-import { tarjeta, fmt } from "../../economia/formato-evento.js";
+import { tarjeta, fmt, jidObjetivo } from "../../economia/formato-evento.js";
 import { trabajosRegistrados } from "../../economia/trabajos.js";
 import {
   resumenOficios, rachasDeVictorias, bonoVictorias, nivelOficio, bonoOficioPct,
@@ -12,12 +12,14 @@ const nombreDe = (trabajo) => {
 
 export default {
   names: [".oficios", ".maestria", ".oficio"],
-  usage: ".oficios",
-  desc: "Tu maestría en cada trabajo: cuanto más lo repites, más paga",
+  usage: ".oficios [@usuario]",
+  desc: "Tu maestría en cada trabajo o la de otra persona",
   category: "Economía",
-  handler: async ({ sender, reply }) => {
-    const reps = resumenOficios(sender);
-    const rachas = rachasDeVictorias(sender);
+  handler: async ({ sender, msg, reply }) => {
+    const objetivo = jidObjetivo(msg) || sender;
+    const propio = objetivo === sender;
+    const reps = resumenOficios(objetivo);
+    const rachas = rachasDeVictorias(objetivo);
     const lista = [...trabajosRegistrados.values()]
       .map((t) => ({ t, n: reps[t.clave] || 0 }))
       .sort((a, b) => b.n - a.n);
@@ -35,11 +37,12 @@ export default {
     await reply({
       text: tarjeta({
         emoji: "🔁",
-        titulo: "TUS OFICIOS",
+        titulo: propio ? "TUS OFICIOS" : `OFICIOS DE @${objetivo.split("@")[0]}`,
         relato: `Cada ${REPS_POR_NIVEL} veces que repites un trabajo, subes su nivel y paga +${BONO_OFICIO_POR_NIVEL}% más (hasta Nv ${NIVEL_OFICIO_MAX}). Si ganas ${VICTORIAS_PARA_RACHA} veces seguidas el mismo trabajo, empieza una racha de victorias con ganancia extra.`,
         lineas,
         tip: ["La racha de victorias solo sube con el comando individual (no con *.allw*).", "Tu sueldo semanal y tus faltas están en *.sueldo*."]
-      })
+      }),
+      ...(propio ? {} : { mentions: [objetivo] })
     });
   }
 };
