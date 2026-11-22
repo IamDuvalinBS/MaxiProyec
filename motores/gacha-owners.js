@@ -2,7 +2,6 @@ import fs from "fs";
 import path from "path";
 import { isOwner, normalizarNumero } from "./owner.js";
 
-const NUMEROS_FIJOS = ["529613345733", "529613627169", "528719632704", "155345393565872"];
 const ARCHIVO = path.resolve("./data/owners-gacha.txt");
 
 export const numeroDe = (jid) => String(jid || "").split("@")[0].split(":")[0].replace(/\D/g, "");
@@ -19,7 +18,7 @@ function numerosExtra() {
 export function esOwnerGacha(sender) {
   try { if (isOwner(sender)) return true; } catch {}
   const n = normalizarNumero(numeroDe(sender));
-  return !!n && (NUMEROS_FIJOS.map(normalizarNumero).includes(n) || numerosExtra().includes(n));
+  return !!n && numerosExtra().includes(n);
 }
 
 export function ownerGacha(handler) {

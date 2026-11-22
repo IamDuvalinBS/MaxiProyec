@@ -1,15 +1,31 @@
 import fs from "fs";
 import path from "path";
-import { config, saveConfig, idCanonico } from "./db.js";
+import { idCanonico } from "./db.js";
 
-const OWNERS_INICIALES = [
-  "529613345733@s.whatsapp.net",
-  "529613627169@s.whatsapp.net",
-  "528719632704@s.whatsapp.net",
-  "155345393565872@lid"
+// ════════════════════════════════════════════════════════════════════════════
+//  QUIÉN ES QUIÉN
+//  • DUEÑOS: el rango más alto. Pueden usar TODO (comandos de dueños y de owners).
+//  • OWNERS: rango medio. Pueden usar los comandos de owners, no los exclusivos de dueños.
+//  Qué comandos son de dueños y cuáles de owners se elige en: src/comandos/bot/ownermenu.js
+//
+//  Cada persona se escribe con su ID (el que te muestra .miid). Da igual si lo pones como número
+//  (@s.whatsapp.net) o como ID interno (@lid). Los números de México se reconocen con o sin el "1" (521… / 52…).
+//  También se pueden agregar sin tocar el código con las líneas de data/duenos.txt, data/owners.txt,
+//  o las variables de entorno DUENOS_EXTRA y OWNERS_EXTRA (números separados por coma).
+// ════════════════════════════════════════════════════════════════════════════
+export const DUENOS = [
+  "529613627169@s.whatsapp.net", // Dueño (tú)
+  "155345393565872@lid",         // Dueño (tu ID interno)
+  "528719632704@s.whatsapp.net", // Dueño (Amorchito)
+  "529613345733@s.whatsapp.net"  // Antiguo owner (¿número del bot?). Bórrala si no debe ser dueño
 ];
 
-const ARCHIVOS_EXTRA = [path.resolve("./data/owners.txt"), path.resolve("./data/owners-gacha.txt")];
+export const OWNERS = [
+  // "5210000000000@s.whatsapp.net", // ← aquí van los owners
+];
+
+const ARCHIVOS_DUENOS = [path.resolve("./data/duenos.txt")];
+const ARCHIVOS_OWNERS = [path.resolve("./data/owners.txt"), path.resolve("./data/owners-gacha.txt")];
 
 // Un mismo número de México llega como 5219611234567 (con el 1 de celular) o como 529611234567 (sin el 1),
 // según el chat. Se compara siempre sin ese 1 para que ambos cuenten como la misma persona.
@@ -20,46 +36,58 @@ export function normalizarNumero(texto) {
 
 const soloNumero = (jid) => normalizarNumero(String(jid || "").split("@")[0].split(":")[0]);
 
-function numerosExtra() {
+function numerosExtra(archivos, variable) {
   const nums = [];
-  for (const archivo of ARCHIVOS_EXTRA) {
+  for (const archivo of archivos) {
     try {
       if (fs.existsSync(archivo)) nums.push(...fs.readFileSync(archivo, "utf8").split(/\r?\n/));
     } catch {}
   }
-  nums.push(...String(process.env.OWNERS_EXTRA || "").split(","));
+  nums.push(...String(process.env[variable] || "").split(","));
   return nums.map(normalizarNumero).filter(Boolean);
 }
 
-if (!config.owners) config.owners = [];
-for (const jid of OWNERS_INICIALES) {
-  if (!config.owners.includes(jid)) config.owners.push(jid);
-}
-
-export function isOwner(sender) {
-  const lista = [...OWNERS_INICIALES, ...(config.owners || [])];
-  if (lista.includes(sender)) return true;
+function coincide(sender, jids, extras) {
+  if (!sender) return false;
+  if (jids.includes(sender)) return true;
   const canonico = idCanonico(sender);
-  if (lista.some((jid) => idCanonico(jid) === canonico)) return true;
+  if (jids.some((jid) => idCanonico(jid) === canonico)) return true;
   const n = soloNumero(sender);
   if (!n) return false;
-  if (lista.some((jid) => soloNumero(jid) === n)) return true;
-  return numerosExtra().includes(n);
+  return jids.some((jid) => soloNumero(jid) === n) || extras.includes(n);
 }
 
-export async function addOwner(nuevoJid) {
-  if (!config.owners) config.owners = [];
-  if (config.owners.includes(nuevoJid)) return false;
-  config.owners.push(nuevoJid);
-  await saveConfig();
-  return true;
+export function isDueno(sender) {
+  return coincide(sender, DUENOS, numerosExtra(ARCHIVOS_DUENOS, "DUENOS_EXTRA"));
 }
 
-// Envuelve un handler para que SOLO los owners puedan usarlo.
+// Owner = tiene rango de owner O de dueño (un dueño siempre puede lo que puede un owner).
+export function isOwner(sender) {
+  return isDueno(sender) || coincide(sender, OWNERS, numerosExtra(ARCHIVOS_OWNERS, "OWNERS_EXTRA"));
+}
+
+// "dueno" | "owner" | null
+export function rangoDe(sender) {
+  if (isDueno(sender)) return "dueno";
+  return isOwner(sender) ? "owner" : null;
+}
+
+// Envuelve un handler para que SOLO los owners (y dueños) puedan usarlo.
 export function ownerCommand(handler) {
   return async (ctx) => {
     if (!isOwner(ctx.sender)) {
       await ctx.reply({ text: "🚫 Este comando solo puede ser utilizado por owners." });
+      return;
+    }
+    return handler(ctx);
+  };
+}
+
+// Envuelve un handler para que SOLO los dueños puedan usarlo.
+export function duenoCommand(handler) {
+  return async (ctx) => {
+    if (!isDueno(ctx.sender)) {
+      await ctx.reply({ text: "🚫 Este comando solo puede ser utilizado por dueños." });
       return;
     }
     return handler(ctx);

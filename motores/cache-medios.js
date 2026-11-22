@@ -231,5 +231,5 @@ export function claveDeDescarga(categoria, comando, texto) {
   if (categoria !== "Descargas" || COMANDOS_SIN_CACHE.has(comando)) return null;
   if (!/https?:\/\//i.test(texto)) return null;
   const resto = texto.trim().split(/\s+/).slice(1).join(" ");
-  return `dl:${comando} ${resto}`;
+  return `dl2:${comando} ${resto}`;
 }
