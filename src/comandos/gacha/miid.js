@@ -1,6 +1,7 @@
 import { esOwnerGacha, numeroDe } from "../../../motores/gacha-owners.js";
 import { tarjeta } from "../../../motores/gacha-core.js";
 import { candidatosDeUsuario } from "../../../motores/gacha-usuario.js";
+import { rangoDe } from "../../../motores/owner.js";
 import { resolverUsuario, lidsDe, lidDeNumero } from "../../nucleo/identidad.js";
 import { metadatos, buscarParticipanteResuelto, limpiarJid } from "../../grupos/nucleo.js";
 
@@ -64,6 +65,7 @@ export default {
     const todos = [...numeros, ...lids, ...otros];
     const num = numeroDe(numeros[0] || base);
     const owner = todos.some((id) => esOwnerGacha(id));
+    const rango = todos.some((id) => rangoDe(id) === "dueno") ? "Dueño 💎" : todos.some((id) => rangoDe(id) === "owner") ? "Owner 👑" : "Usuario";
 
     const lineas = [`🆔 *${esPropio ? "Tu ID" : "ID"}* ›› ${numeros[0] || base}`];
     if (numeros.length > 1) lineas.push(`🆔 *Otros números* ›› ${numeros.slice(1).join(", ")}`);
@@ -73,7 +75,7 @@ export default {
         : "🧬 *ID interno (@lid)* ›› no lo conozco todavía"
     );
     if (otros.length) lineas.push(`🔗 *Otros IDs* ›› ${otros.join(", ")}`);
-    lineas.push(`🔢 *Número* ›› ${num}`, `👑 *Owner del gacha* ›› ${owner ? "Sí ✅" : "No ❌"}`);
+    lineas.push(`🔢 *Número* ›› ${num}`, `🏅 *Rango* ›› ${rango}`, `👑 *Owner del gacha* ›› ${owner ? "Sí ✅" : "No ❌"}`);
 
     if (esPropio && !owner) {
       lineas.push("", "Si eres owner, en Termux (dentro de la carpeta del bot) ejecuta:", `echo "${num}" >> data/owners-gacha.txt`, "y ya funciona, sin reiniciar.");
