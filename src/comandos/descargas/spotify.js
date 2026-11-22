@@ -169,7 +169,8 @@ async function enviarCancion(sock, from, msg, resultado) {
     audio: resultado.audio,
     mimetype: "audio/mpeg",
     fileName: `${nombre || "cancion"}.mp3`,
-    ptt: false
+    ptt: false,
+    seconds: resultado.audio?.duracionSeg || undefined
   }, { quoted: msg });
 }
 

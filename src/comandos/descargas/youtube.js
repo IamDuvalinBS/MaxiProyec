@@ -87,7 +87,7 @@ async function enviarVideoDeDisco({ video, responder, titulo }) {
 export async function enviarDescarga({ sock, from, msg, link, esAudio }) {
   // mediaUploadTimeoutMs: da más tiempo a Baileys para subir archivos grandes (evita el 408 "Timed Out" al subir).
   const responder = (contenido) => sock.sendMessage(from, contenido, { quoted: msg, mediaUploadTimeoutMs: 10 * 60 * 1000 });
-  const claveCache = `yt:${esAudio ? "audio" : "video"}:${link}`;
+  const claveCache = `yt2:${esAudio ? "audio" : "video"}:${link}`;
 
   if (await reenviarCacheado(sock, from, claveCache, msg)) return;
 
@@ -104,12 +104,12 @@ export async function enviarDescarga({ sock, from, msg, link, esAudio }) {
     const titulo = info?.titulo || "";
 
     if (esAudio) {
-      const audio = await descargarAudioConProveedores(link);
+      const audio = await descargarAudioConProveedores(link, { titulo, artista: info?.canal });
       await aviso;
       const pesoMB = audio.length / MB;
       const contenido = pesoMB > LIMITE_VIDEO_WHATSAPP_MB
         ? { document: audio, mimetype: "audio/mpeg", fileName: `${nombreSeguro(titulo, "audio")}.mp3` } // audio larguísimo: como archivo
-        : { audio, mimetype: "audio/mpeg", ptt: false };
+        : { audio, mimetype: "audio/mpeg", ptt: false, fileName: `${nombreSeguro(titulo, "audio")}.mp3`, seconds: audio.duracionSeg || Math.round(info?.duracionSeg || 0) || undefined };
       guardarMedioEnviado(claveCache, await enviarConReintento(responder, contenido));
     } else {
       const video = await descargarVideoConProveedores(link);
