@@ -146,7 +146,7 @@ async function enviarEstado(sock, from, msg, estado) {
 
 export default {
   names: [".gatoreal"],
-  desc: "[PRUEBA] Gato con botones reales y render HTML - no afecta a .gato/.gatopremio",
+  desc: "[PRUEBA] Gato con botones reales y render HTML",
   category: "Juegos (prueba)",
   usage: ".gatoreal",
   handler: async ({ sock, from, sender, msg }) => {

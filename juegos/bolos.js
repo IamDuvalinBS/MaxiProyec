@@ -409,7 +409,7 @@ requestAnimationFrame(loop);
 
 export default {
   names: [".bolos", ".boliche"],
-  desc: "Bolos en primera persona: 2, 4 o 6 jugadores con bots, strikes, spares y puntuación",
+  desc: "Bolos en primera persona con 2, 4 o 6 jugadores",
   category: "Juegos",
   usage: ".bolos",
   handler: async ({ sock, from, msg, sender }) => {

@@ -289,7 +289,7 @@ requestAnimationFrame(loop);
 
 export default {
   names: [".snakefruits", ".serpiente"],
-  desc: "Snake Fruits: modos, dificultades, colores y frutas; guarda tu récord por modo",
+  desc: "Snake con modos, dificultades y récords",
   category: "Juegos",
   usage: ".snakefruits",
   handler: async ({ sock, from, msg, sender }) => {

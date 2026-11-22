@@ -361,7 +361,7 @@ requestAnimationFrame(loop);
 
 export default {
   names: [".snakefruits2", ".snakefrutis2", ".serpientes2"],
-  desc: "Gusanos estilo io: come puntos, crece, acelera y haz chocar a los bots; elige color, dificultad y mapa",
+  desc: "Gusanos estilo io: come, crece y choca a los bots",
   category: "Juegos",
   usage: ".snakefruits2",
   handler: async ({ sock, from, msg, sender }) => {

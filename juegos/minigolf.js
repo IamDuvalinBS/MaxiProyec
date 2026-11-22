@@ -358,7 +358,7 @@ hd=mk(HL[0]);hx=hd.h[0];hy=hd.h[1];bx=hd.s[0];by=hd.s[1];toMenu();requestAnimati
 
 export default {
   names: [".minigolf", ".golf"],
-  desc: "Mini Golf de 18 hoyos, hoyos aleatorios y circuito completo; tu mejor circuito se guarda en el bot",
+  desc: "Mini Golf de 18 hoyos con circuito completo",
   category: "Juegos",
   usage: ".minigolf",
   handler: async ({ sock, from, msg, sender }) => {

@@ -3,6 +3,7 @@ import { registrarJuego, iniciarJuego, FUENTE } from "../motores/juegos-core.js"
 import { addToWallet, CURRENCY } from "../motores/db.js";
 import { ajusteBot } from "../motores/ajustes-bot.js";
 import { addXp } from "../motores/profile.js";
+import { contextoDe } from "../src/nucleo/objetivo.js";
 
 const LINEAS = [
   [0, 1, 2], [3, 4, 5], [6, 7, 8],
@@ -215,11 +216,11 @@ registrarJuego({
 
 export default {
   names: [".gato", ".gatobot"],
-  desc: "Gato: solo (.gato) juega contra el bot, o .gato @persona para desafiarla directo",
+  desc: "Gato contra el bot o desafiando a otra persona",
   category: "Juegos",
   usage: ".gato [@persona]",
   handler: async ({ sock, from, sender, msg }) => {
-    const mencionado = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
+    const mencionado = contextoDe(msg)?.mentionedJid?.[0];
     await iniciarJuego(sock, from, sender, msg, "gato", { oponente: mencionado || null });
   },
 };

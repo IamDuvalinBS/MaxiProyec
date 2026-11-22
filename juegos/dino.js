@@ -323,7 +323,7 @@ hud();requestAnimationFrame(loop);
 
 export default {
   names: [".dino", ".dinosaurio"],
-  desc: "Dino Runner (salta cactus y agáchate ante los pájaros); guarda tu mejor puntaje",
+  desc: "Dino Runner: salta cactus y agáchate ante los pájaros",
   category: "Juegos",
   usage: ".dino",
   handler: async ({ sock, from, msg, sender }) => {

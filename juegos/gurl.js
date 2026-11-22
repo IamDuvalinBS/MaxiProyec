@@ -3,9 +3,9 @@ import { fijarUrl, urlPublica, origenUrl } from "../motores/juegos-api.js";
 
 export default {
   names: [".gurl"],
-  desc: "(Owner) Fija la URL pública del bot para que los juegos guarden los récords solos",
+  desc: "(Owner) Fija la URL pública para guardar los récords",
   category: "Juegos",
-  usage: ".gurl https://tu-url-publica   |   .gurl borrar",
+  usage: ".gurl <url | borrar>",
   handler: ownerCommand(async ({ cleanText, reply }) => {
     const arg = String(cleanText || "").trim().split(/\s+/)[1];
     if (!arg) {

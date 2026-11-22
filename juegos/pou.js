@@ -387,7 +387,7 @@ requestAnimationFrame(loop);
 
 export default {
   names: [".pou", ".penales"],
-  desc: "Penales: patea la pelota y Pou intenta atajarla; elige ambiente, pelota y estilo",
+  desc: "Penales: patea y Pou intenta atajar",
   category: "Juegos",
   usage: ".pou",
   handler: async ({ sock, from, msg, sender }) => {

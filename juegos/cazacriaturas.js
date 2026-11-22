@@ -267,7 +267,7 @@ requestAnimationFrame(loop);
 
 export default {
   names: [".pokemongo", ".cazacriaturas"],
-  desc: "Caza de criaturas estilo Pokémon GO: camina por el mapa, lanza pelotas y completa tu colección",
+  desc: "Caza criaturas estilo Pokémon GO",
   category: "Juegos",
   usage: ".cazacriaturas",
   handler: async ({ sock, from, msg }) => {
