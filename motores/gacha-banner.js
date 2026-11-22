@@ -8,6 +8,7 @@ import {
 } from "./gacha-config.js";
 
 import { pityMaximoDe, probBannerDe } from "./gacha-reliquias.js";
+import { nivelDe } from "./karma.js";
 
 const cache = new Map();
 
@@ -80,7 +81,10 @@ export async function elegirConGarantia({ categoria, sender, obtener, previo = n
     }
   }
 
-  if (Math.random() < probBannerDe(sender)) {
+  // El karma cambia la suerte del gacha (la garantía de arriba nunca se pierde).
+  const nivelKarma = nivelDe(sender);
+
+  if (Math.random() < Math.min(0.9, probBannerDe(sender) * nivelKarma.banner)) {
     try {
       const destacado = await destacadoDe(categoria);
       if (elegibleParaUsuario(destacado, sender, categoria)) return { personaje: destacado, via: "banner" };
@@ -89,5 +93,25 @@ export async function elegirConGarantia({ categoria, sender, obtener, previo = n
     }
   }
 
-  return { personaje: previo || (await obtener()), via: "normal" };
+  // LEYENDA y CONFIABLE: probabilidad extra de que la tirada sea Legendaria o mejor.
+  if (nivelKarma.legendario && Math.random() < nivelKarma.legendario) {
+    const legendario = personajeAleatorioMinRareza(categoria, 7, { soloLibres: categoria === "waifu", excluirDe: sender });
+    if (legendario) return { personaje: legendario, via: "normal" };
+  }
+
+  let personaje = previo || (await obtener());
+
+  // POCO CONFIABLE y TRAIDOR: la tirada se repite en secreto buscando una rareza más baja (casi siempre común).
+  const reintento = nivelKarma.rerollComun;
+  if (reintento && personaje && Math.random() < reintento[0]) {
+    const intentos = categoria === "pokemon" ? Math.min(reintento[1], 3) : reintento[1];
+    for (let i = 0; i < intentos && rangoDeRareza(personaje.rareza) > reintento[2]; i++) {
+      try {
+        const otro = await obtener();
+        if (otro && rangoDeRareza(otro.rareza) < rangoDeRareza(personaje.rareza)) personaje = otro;
+      } catch {}
+    }
+  }
+
+  return { personaje, via: "normal" };
 }
