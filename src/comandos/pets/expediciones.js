@@ -4,7 +4,7 @@ import { getProfile } from "../../../motores/profile.js";
 import { cargarMascotas, guardarMascotas } from "../../../motores/mascotas-core.js";
 import { obtenerClimaZonas } from "../../../motores/mascotas-clima.js";
 import { htmlZonas, htmlArbol } from "../../../motores/mascotas-html.js";
-import { ESPECIES, RAREZAS, HABILIDADES, NIVEL_HABILIDAD, ARBOL, FLAUTA, PERDIDA_HORAS } from "../../../motores/mascotas-datos.js";
+import { ESPECIES, RAREZAS, HABILIDADES, NIVEL_HABILIDAD, ARBOL, FLAUTA, PERDIDA_HORAS, BONOS_NIVEL } from "../../../motores/mascotas-datos.js";
 import { ZONAS, ITEMS, ORDEN_RAREZA, buscarZona, buscarItem } from "../../../motores/mascotas-zonas.js";
 import { mascotaPorNumero, nivelDe, explorando, xpParaNivel } from "../../../motores/mascotas-logica.js";
 import { iniciarExpedicion, reclamarExpedicion, devolverPerdida, probPerdida, mejorarArbol, parsearTiempo, textoDuracion, vender, venderTodo } from "../../../motores/mascotas-expedicion.js";
