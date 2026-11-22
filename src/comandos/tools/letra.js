@@ -93,7 +93,7 @@ async function enviarAudio(sock, from, msg, c) {
     const responder = (contenido) => sock.sendMessage(from, contenido, { quoted: msg, mediaUploadTimeoutMs: 10 * 60 * 1000 });
     const contenido = audio.length / MB > LIMITE_VIDEO_WHATSAPP_MB
       ? { document: audio, mimetype: "audio/mpeg", fileName: `${nombreSeguro(`${c.artista} - ${c.titulo}`, "cancion")}.mp3` }
-      : { audio, mimetype: "audio/mpeg", ptt: false };
+      : { audio, mimetype: "audio/mpeg", ptt: false, fileName: `${nombreSeguro(`${c.artista} - ${c.titulo}`, "cancion")}.mp3`, seconds: audio.duracionSeg || undefined };
     return await enviarConReintento(responder, contenido);
   } catch (e) {
     console.log(`[LETRA] audio no disponible: ${String(e.message).split("\n")[0]}`);
