@@ -5,6 +5,7 @@ import { htmlMascotas } from "../../../motores/mascotas-html.js";
 import { obtenerClimaZonas } from "../../../motores/mascotas-clima.js";
 import { ZONAS } from "../../../motores/mascotas-zonas.js";
 import { ESPECIES, RAREZAS, HUEVOS, CIUDAD } from "../../../motores/mascotas-datos.js";
+import { jidObjetivo } from "../../nucleo/objetivo.js";
 import { etapaDe, estadoActual, nivelDe, explorando } from "../../../motores/mascotas-logica.js";
 
 const FIRMA = "Powered By ItsDuva";
@@ -20,12 +21,15 @@ function textoMascotas(est, clima) {
 export default [
   {
     names: [".mispets", ".mismascotas", ".mascotas", ".pets"],
-    usage: ".mispets [número]",
-    desc: "Muestra tus mascotas, su crecimiento, su casa, sus accesorios y tu incubadora",
+    usage: ".mispets [número | @usuario]",
+    desc: "Muestra tus mascotas o las de otra persona",
     category: "Pets",
     handler: async ({ sock, from, sender, msg, cleanText, reply }) => {
-      const { est, clima, ahora } = await cargarMascotas(sender);
+      const objetivo = jidObjetivo(msg) || sender;
+      const propio = objetivo === sender;
+      const { est, clima, ahora } = await cargarMascotas(objetivo);
       const sinNada = !est.mascotas.length && !est.incubadora && !Object.values(est.huevos).some((n) => n > 0);
+      if (sinNada && !propio) return reply({ text: `🥚 @${objetivo.split("@")[0]} todavía no tiene mascotas.`, mentions: [objetivo] });
       if (sinNada) {
         return reply({
           text: tarjeta({
@@ -44,7 +48,7 @@ export default [
         const numero = parseInt(cleanText.trim().split(/\s+/)[1], 10);
         const climaZonas = est.mascotas.some((m) => m.expedicion || m.perdida) ? await obtenerClimaZonas(ZONAS) : null;
         const html = htmlMascotas({
-          nombre: msg?.pushName || getProfile(sender)?.name || "Entrenador",
+          nombre: (propio && msg?.pushName) || getProfile(objetivo)?.name || "Entrenador",
           est,
           ahora,
           clima,

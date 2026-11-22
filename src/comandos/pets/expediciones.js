@@ -4,10 +4,10 @@ import { getProfile } from "../../../motores/profile.js";
 import { cargarMascotas, guardarMascotas } from "../../../motores/mascotas-core.js";
 import { obtenerClimaZonas } from "../../../motores/mascotas-clima.js";
 import { htmlZonas, htmlArbol } from "../../../motores/mascotas-html.js";
-import { ESPECIES, RAREZAS, BONOS_NIVEL, HABILIDADES, NIVEL_HABILIDAD, ARBOL, FLAUTA, PERDIDA_HORAS } from "../../../motores/mascotas-datos.js";
-import { ZONAS, ITEMS, ORDEN_RAREZA, MAX_MINUTOS_EXPEDICION, buscarZona, buscarItem } from "../../../motores/mascotas-zonas.js";
+import { ESPECIES, RAREZAS, HABILIDADES, NIVEL_HABILIDAD, ARBOL, FLAUTA, PERDIDA_HORAS } from "../../../motores/mascotas-datos.js";
+import { ZONAS, ITEMS, ORDEN_RAREZA, buscarZona, buscarItem } from "../../../motores/mascotas-zonas.js";
 import { mascotaPorNumero, nivelDe, explorando, xpParaNivel } from "../../../motores/mascotas-logica.js";
-import { iniciarExpedicion, reclamarExpedicion, devolverPerdida, probPerdida, costeArbol, mejorarArbol, parsearTiempo, textoDuracion, vender, venderTodo } from "../../../motores/mascotas-expedicion.js";
+import { iniciarExpedicion, reclamarExpedicion, devolverPerdida, probPerdida, mejorarArbol, parsearTiempo, textoDuracion, vender, venderTodo } from "../../../motores/mascotas-expedicion.js";
 
 const FIRMA = "Powered By ItsDuva";
 const TIEMPO_CON_UNIDAD = /^\d+([.,]\d+)?(m|min|mins|h|hr|hrs)$/i;
@@ -91,8 +91,8 @@ export default [
   },
   {
     names: [".petinvestigar", ".petexplorar", ".petexpedicion"],
-    usage: ".petinvestigar <zona> [tiempo] [mascota]",
-    desc: "Envía a una mascota a investigar una zona; mientras más tiempo busque, más ítems encontrará",
+    usage: ".petinvestigar <zona> [tiempo]",
+    desc: "Envía una mascota a investigar una zona",
     category: "Pets",
     handler: async ({ sender, cleanText, reply }) => {
       const tokens = cleanText.trim().split(/\s+/).slice(1);
@@ -218,7 +218,7 @@ export default [
   {
     names: [".petniveles", ".petnivel"],
     usage: ".petniveles",
-    desc: "Muestra los bonos por nivel, las habilidades especiales y el nivel de tus mascotas",
+    desc: "Bonos y habilidades por nivel de tus mascotas",
     category: "Pets",
     handler: async ({ sender, reply }) => {
       const { est } = await cargarMascotas(sender);
@@ -254,8 +254,8 @@ export default [
   },
   {
     names: [".petvender", ".petsell"],
-    usage: ".petvender <ítem> [cantidad|todo] | .petvender todo",
-    desc: "Vende los ítems que encontraron tus mascotas para ganar ¥enes",
+    usage: ".petvender <ítem | todo>",
+    desc: "Vende los ítems que encontraron tus mascotas",
     category: "Pets",
     handler: async ({ sender, cleanText, reply }) => {
       const tokens = cleanText.trim().split(/\s+/).slice(1);
@@ -327,7 +327,7 @@ export default [
   {
     names: [".petarbolmejorar", ".petcocinar"],
     usage: ".petarbolmejorar <rama>",
-    desc: "Mejora una rama del árbol de comida gastando materiales de tus expediciones y ¥enes",
+    desc: "Mejora el árbol de comida con materiales y ¥enes",
     category: "Pets",
     handler: async ({ sender, cleanText, reply }) => {
       const texto = cleanText.trim().split(/\s+/).slice(1).join(" ");

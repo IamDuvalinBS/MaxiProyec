@@ -1,6 +1,6 @@
 import { tarjeta, textoEspera } from "../../economia/formato-evento.js";
 import { cargarMascotas, guardarMascotas, elegirMascota } from "../../../motores/mascotas-core.js";
-import { COMIDAS, ACCESORIOS, PREP_MAX } from "../../../motores/mascotas-datos.js";
+import { COMIDAS, PREP_MAX } from "../../../motores/mascotas-datos.js";
 import { explorando, banar, alimentar, jugar, dormir, despertar, equipar, quitar, resolverAccesorio, limpiarNombre, mascotaPorNumero } from "../../../motores/mascotas-logica.js";
 
 const sinTildes = (s) => String(s).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
@@ -84,7 +84,7 @@ export default [
   {
     names: [".petbañar", ".petbanar", ".petbano", ".petbath"],
     usage: ".petbañar [número]",
-    desc: "Baña a tu mascota con jabón para dejarla limpia (a algunas les encanta y a otras no)",
+    desc: "Baña a tu mascota para dejarla limpia",
     category: "Pets",
     handler: async (ctx) => conMascota(ctx, async ({ est, m }) => {
       const r = banar(est, m);

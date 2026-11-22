@@ -127,7 +127,7 @@ export default [
   },
   {
     names: [".petmejorar", ".petupgrade"],
-    usage: ".petmejorar incubadora | .petmejorar casa <número>",
+    usage: ".petmejorar <incubadora | casa>",
     desc: "Mejora tu incubadora o la casa de una mascota",
     category: "Pets",
     handler: async ({ sender, cleanText, reply }) => {
