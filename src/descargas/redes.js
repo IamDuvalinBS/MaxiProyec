@@ -5,6 +5,7 @@ import { promisify } from "util";
 import fs from "fs";
 import os from "os";
 import path from "path";
+import { pipeline } from "stream/promises";
 import { descargarBuffer, asegurarVideoCompatibleWhatsApp, asegurarImagenCompatibleWhatsApp, LIMITE_VIDEO_WHATSAPP_MB, AGENTES, esErrorTransitorio, errorAmigable } from "./core.js";
 
 export { descargarBuffer, asegurarVideoCompatibleWhatsApp, asegurarImagenCompatibleWhatsApp, LIMITE_VIDEO_WHATSAPP_MB };
@@ -457,6 +458,74 @@ async function tiktokConBtch(link) {
 }
 
 // Acepta videos, fotos (slideshows) e historias. Prefiere "play" (H264, más ligero) antes que "hdplay" (suele ser HEVC y pesa más).
+// Lee la página del video directamente desde TikTok (sin servicios de terceros): saca el enlace del video del JSON de la página
+// y lo baja a un archivo temporal con las cookies y el Referer que pide el CDN. Sirve cuando tikwm y compañía bloquean la conexión.
+async function tiktokDesdePagina(link) {
+  const pagina = await axios.get(link, {
+    ...AGENTES,
+    headers: {
+      ...HEADERS,
+      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      "Accept-Language": "es-MX,es;q=0.9,en;q=0.8"
+    },
+    maxRedirects: 5,
+    timeout: 20000
+  });
+  const html = String(pagina.data || "");
+  const crudo = html.match(/<script id="__UNIVERSAL_DATA_FOR_REHYDRATION__"[^>]*>([\s\S]*?)<\/script>/)?.[1];
+  if (!crudo) throw new Error("TikTok no entregó la página del video (posible bloqueo o captcha)");
+
+  let detalle;
+  try {
+    detalle = JSON.parse(crudo)?.__DEFAULT_SCOPE__?.["webapp.video-detail"];
+  } catch (e) {
+    throw new Error("La página de TikTok llegó dañada");
+  }
+  const item = detalle?.itemInfo?.itemStruct;
+  if (!item?.video) throw new Error(detalle?.statusMsg ? `TikTok dice: ${detalle.statusMsg}` : "TikTok no incluyó el video en la página");
+  if (item.imagePost?.images?.length) throw new Error("Es una publicación de fotos"); // las fotos las resuelven los otros métodos
+
+  const v = item.video;
+  const urlVideo = v.playAddr || v.downloadAddr || v.bitrateInfo?.find((b) => b?.PlayAddr?.UrlList?.length)?.PlayAddr?.UrlList?.[0];
+  if (!urlVideo) throw new Error("TikTok no dio enlace de descarga del video");
+
+  const cookies = []
+    .concat(pagina.headers?.["set-cookie"] || [])
+    .map((c) => String(c).split(";")[0])
+    .filter(Boolean)
+    .join("; ");
+
+  const destino = path.join(os.tmpdir(), `tt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.mp4`);
+  try {
+    const r = await axios.get(urlVideo, {
+      ...AGENTES,
+      responseType: "stream",
+      headers: { "User-Agent": HEADERS["User-Agent"], Referer: "https://www.tiktok.com/", Accept: "*/*", ...(cookies ? { Cookie: cookies } : {}) },
+      maxRedirects: 5,
+      timeout: 30000
+    });
+    await pipeline(r.data, fs.createWriteStream(destino));
+    if (fs.statSync(destino).size < 10 * 1024) throw new Error("El archivo descargado está vacío");
+  } catch (e) {
+    try { fs.unlinkSync(destino); } catch (err) { /* no se llegó a crear */ }
+    throw e;
+  }
+
+  anotar("página de TikTok");
+  const campos = camposTikTok(
+    {
+      title: item.desc,
+      author: { unique_id: item.author?.uniqueId, nickname: item.author?.nickname },
+      duration: v.duration,
+      play_count: item.stats?.playCount,
+      digg_count: item.stats?.diggCount,
+      create_time: item.createTime
+    },
+    link
+  );
+  return [{ type: "video", ruta: destino, titulo: recortar(item.desc, 50) || "tiktok", campos }];
+}
+
 async function _obtenerMediaTikTok(link) {
   let errorApi = null;
 
@@ -477,7 +546,14 @@ async function _obtenerMediaTikTok(link) {
     }
   }
 
-  // 2) btch-downloader
+  // 2) La página del propio TikTok (no depende de terceros)
+  try {
+    return await tiktokDesdePagina(link);
+  } catch (e) {
+    console.log(`[redes] Página de TikTok falló para ${link}: ${String(e.message).replace("Request failed with status code ", "HTTP ").split("\n")[0]}`);
+  }
+
+  // 3) btch-downloader
   try {
     const r = await tiktokConBtch(link);
     anotar("btch-downloader");
@@ -486,7 +562,7 @@ async function _obtenerMediaTikTok(link) {
     console.log(`[redes] btch-downloader falló: ${String(e.message).split("\n")[0]}`);
   }
 
-  // 3) yt-dlp
+  // 4) yt-dlp
   if (await hayYtdlp()) {
     try { return await ytdlpMedias(link); } catch (e) { /* se informa el error de la API */ }
   }

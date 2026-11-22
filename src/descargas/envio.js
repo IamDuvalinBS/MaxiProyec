@@ -280,6 +280,7 @@ async function enviarSecuencial(medias, reply, objetivo, limiteMB, res, ctx) {
     } catch (e) {
       res.fallidos++;
       seguidos++;
+      res.ultimoError = errorAmigable(e).message;
       console.log(`[envio] No se pudo resolver un resultado: ${String(e.message).split("\n")[0]}`);
       continue;
     }
