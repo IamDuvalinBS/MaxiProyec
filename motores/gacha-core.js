@@ -1,6 +1,8 @@
 import axios from "axios";
 import fs from "fs";
 import os from "os";
+import http from "http";
+import https from "https";
 import path from "path";
 import crypto from "crypto";
 import { Transform } from "stream";
@@ -54,7 +56,11 @@ gachaListo.catch(() => {});
 const UA = "Mozilla/5.0 (compatible; MaxiBot/1.0)";
 const TMP_DIR = path.join(os.tmpdir(), "maxibot-gacha");
 const LIMITE_BYTES = 15 * 1024 * 1024;
-const MAX_DESCARGAS_SIMULTANEAS = 3;
+const MAX_DESCARGAS_SIMULTANEAS = Number(process.env.GACHA_DESCARGAS_SIMULTANEAS) || 5;
+// Si una fuente no ha terminado en este tiempo, se prueba la siguiente en paralelo (gana la que termine primero).
+const ESCALONADO_MS = Number(process.env.GACHA_T_ESCALONADO_MS) || 2500;
+const AGENTE_HTTP = new http.Agent({ keepAlive: true, maxSockets: 16 });
+const AGENTE_HTTPS = new https.Agent({ keepAlive: true, maxSockets: 16 });
 const TIEMPO_RESPUESTA_MS = Number(process.env.GACHA_T_RESPUESTA_MS) || 12000;
 const TIEMPO_INACTIVIDAD_MS = Number(process.env.GACHA_T_INACTIVIDAD_MS) || 15000;
 const PRESUPUESTO_IMAGEN_MS = Number(process.env.GACHA_T_PRESUPUESTO_MS) || 75000;
@@ -122,9 +128,14 @@ function cabeceras(fuente, desde) {
   return h;
 }
 
-async function pedir(fuente, desde) {
+async function pedir(fuente, desde, senal) {
   const controlador = new AbortController();
-  const temporizador = setTimeout(() => controlador.abort(), TIEMPO_RESPUESTA_MS);
+  const cancelar = () => controlador.abort();
+  if (senal) {
+    if (senal.aborted) throw new Error("descarga cancelada");
+    senal.addEventListener("abort", cancelar, { once: true });
+  }
+  const temporizador = setTimeout(cancelar, TIEMPO_RESPUESTA_MS);
   try {
     return await axios.get(fuente, {
       responseType: "stream",
@@ -132,14 +143,17 @@ async function pedir(fuente, desde) {
       timeout: 0,
       signal: controlador.signal,
       maxRedirects: 3,
+      httpAgent: AGENTE_HTTP,
+      httpsAgent: AGENTE_HTTPS,
       headers: cabeceras(fuente, desde),
       validateStatus: (estado) => estado === 200 || estado === 206
     });
   } catch (e) {
-    if (axios.isCancel(e)) throw new Error("el servidor no respondió a tiempo");
+    if (axios.isCancel(e)) throw new Error(senal?.aborted ? "descarga cancelada" : "el servidor no respondió a tiempo");
     throw e;
   } finally {
     clearTimeout(temporizador);
+    senal?.removeEventListener("abort", cancelar);
   }
 }
 
@@ -150,8 +164,10 @@ function tamanoTotal(res, desde) {
   return largo ? largo + (res.status === 206 ? desde : 0) : 0;
 }
 
-async function volcar(res, ruta, anexar) {
+async function volcar(res, ruta, anexar, senal) {
   let inactividad = null;
+  const cortar = () => res.data.destroy(new Error("descarga cancelada"));
+  senal?.addEventListener("abort", cortar, { once: true });
   const vigilar = () => {
     clearTimeout(inactividad);
     inactividad = setTimeout(() => res.data.destroy(new Error("la descarga se quedó sin datos")), TIEMPO_INACTIVIDAD_MS);
@@ -167,16 +183,18 @@ async function volcar(res, ruta, anexar) {
     await pipeline(res.data, medidor, fs.createWriteStream(ruta, { flags: anexar ? "a" : "w" }));
   } finally {
     clearTimeout(inactividad);
+    senal?.removeEventListener("abort", cortar);
   }
 }
 
-async function descargarConReanudacion(fuente, limite) {
+async function descargarConReanudacion(fuente, limite, senal) {
   const ruta = rutaTemporal();
   let recibidos = 0;
   try {
     for (let pasada = 0; pasada <= REANUDACIONES_MAX; pasada++) {
+      if (senal?.aborted) throw new Error("descarga cancelada");
       if (Date.now() > limite) throw new Error("se agotó el tiempo disponible para la imagen");
-      const res = await pedir(fuente, recibidos);
+      const res = await pedir(fuente, recibidos, senal);
       if (recibidos > 0 && res.status === 200) {
         fs.truncateSync(ruta, 0);
         recibidos = 0;
@@ -187,7 +205,7 @@ async function descargarConReanudacion(fuente, limite) {
         throw new Error("imagen demasiado pesada");
       }
       try {
-        await volcar(res, ruta, recibidos > 0);
+        await volcar(res, ruta, recibidos > 0, senal);
       } catch (e) {
         recibidos = fs.existsSync(ruta) ? fs.statSync(ruta).size : 0;
         if (recibidos > 0) continue;
@@ -204,6 +222,70 @@ async function descargarConReanudacion(fuente, limite) {
     borrar(ruta);
     throw e;
   }
+}
+
+// Lanza la primera fuente y, si tarda más de ESCALONADO_MS (o falla), arranca la siguiente sin cancelar la anterior.
+// La primera que termine gana y las demás se cancelan. Así una fuente lenta o caída ya no frena la imagen.
+function descargarEnCarrera(fuentes, limite) {
+  return new Promise((resolve, reject) => {
+    const controles = [];
+    let terminado = false;
+    let siguiente = 0;
+    let pendientes = fuentes.length;
+    let ultimoError = new Error("sin fuentes de descarga");
+    let temporizador = null;
+
+    const lanzar = () => {
+      clearTimeout(temporizador);
+      if (terminado || siguiente >= fuentes.length) return;
+      const fuente = fuentes[siguiente++];
+      const control = new AbortController();
+      controles.push(control);
+      if (siguiente < fuentes.length) temporizador = setTimeout(lanzar, ESCALONADO_MS);
+
+      descargarConReanudacion(fuente.url, limite, control.signal).then(
+        (ruta) => {
+          if (terminado) return borrar(ruta);
+          terminado = true;
+          clearTimeout(temporizador);
+          controles.forEach((c) => c !== control && c.abort());
+          recordarFuente(fuente.indice);
+          resolve(ruta);
+        },
+        (e) => {
+          if (terminado) return;
+          ultimoError = e;
+          pendientes--;
+          console.log(`[gacha] Falló la descarga (${fuente.nombre}): ${e.message}`);
+          if (siguiente < fuentes.length) return lanzar();
+          if (pendientes <= 0) {
+            terminado = true;
+            reject(ultimoError);
+          }
+        }
+      );
+    };
+    lanzar();
+  });
+}
+
+// Varias peticiones de la misma imagen a la vez (ej. precarga + tirada) comparten una sola descarga.
+const enVuelo = new Map();
+
+function descargaCompartida(url, limite) {
+  if (enVuelo.has(url)) return enVuelo.get(url);
+  const promesa = (async () => {
+    const temporal = await descargarEnCarrera(fuentesDeDescarga(url), limite);
+    guardarImagenCacheada(url, temporal);
+    const cacheada = rutaImagenCacheada(url);
+    if (cacheada) {
+      borrar(temporal);
+      return cacheada;
+    }
+    return temporal;
+  })().finally(() => enVuelo.delete(url));
+  enVuelo.set(url, promesa);
+  return promesa;
 }
 
 async function dibujarSnake(clave) {
@@ -235,17 +317,11 @@ export async function prepararImagen(urls) {
       const enCache = rutaImagenCacheada(url);
       if (enCache) return { ruta: enCache, limpiar: () => {} };
 
-      for (const fuente of fuentesDeDescarga(url)) {
-        if (Date.now() > limite) break;
-        try {
-          const ruta = await descargarConReanudacion(fuente.url, limite);
-          recordarFuente(fuente.indice);
-          guardarImagenCacheada(url, ruta);
-          return { ruta, limpiar: () => borrar(ruta) };
-        } catch (e) {
-          ultimoError = e;
-          console.log(`[gacha] Falló la descarga (${fuente.nombre}): ${e.message}`);
-        }
+      try {
+        const ruta = await descargaCompartida(url, limite);
+        return { ruta, limpiar: () => {} };
+      } catch (e) {
+        ultimoError = e;
       }
     }
     throw ultimoError;

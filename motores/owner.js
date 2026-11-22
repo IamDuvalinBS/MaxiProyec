@@ -11,7 +11,14 @@ const OWNERS_INICIALES = [
 
 const ARCHIVOS_EXTRA = [path.resolve("./data/owners.txt"), path.resolve("./data/owners-gacha.txt")];
 
-const soloNumero = (jid) => String(jid || "").split("@")[0].split(":")[0].replace(/\D/g, "");
+// Un mismo número de México llega como 5219611234567 (con el 1 de celular) o como 529611234567 (sin el 1),
+// según el chat. Se compara siempre sin ese 1 para que ambos cuenten como la misma persona.
+export function normalizarNumero(texto) {
+  const n = String(texto || "").replace(/\D/g, "");
+  return /^521\d{10}$/.test(n) ? `52${n.slice(3)}` : n;
+}
+
+const soloNumero = (jid) => normalizarNumero(String(jid || "").split("@")[0].split(":")[0]);
 
 function numerosExtra() {
   const nums = [];
@@ -21,7 +28,7 @@ function numerosExtra() {
     } catch {}
   }
   nums.push(...String(process.env.OWNERS_EXTRA || "").split(","));
-  return nums.map((x) => x.replace(/\D/g, "")).filter(Boolean);
+  return nums.map(normalizarNumero).filter(Boolean);
 }
 
 if (!config.owners) config.owners = [];
