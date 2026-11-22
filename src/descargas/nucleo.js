@@ -1,4 +1,5 @@
 import { isOwner } from "../../motores/owner.js";
+import { contextoDe } from "../nucleo/objetivo.js";
 
 const VIGENCIA_METADATOS_MS = 60 * 1000;
 const VIGENCIA_ENLACE_MS = 10 * 60 * 1000;
@@ -133,7 +134,7 @@ export async function esAdminOOwner(sock, grupo, sender) {
 }
 
 export function objetivoDe({ msg, cleanText }) {
-  const info = msg.message?.extendedTextMessage?.contextInfo;
+  const info = contextoDe(msg);
   const numero = (cleanText.split(/\s+/)[1] || "").replace(/\D/g, "");
   return info?.mentionedJid?.[0] || info?.participant || (numero.length >= 8 ? `${numero}@s.whatsapp.net` : null);
 }
