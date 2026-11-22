@@ -1,4 +1,3 @@
-
 import { config } from "../../../motores/db.js";
 import { tarjetaUso, tarjetaAviso } from "../../descargas/tarjetas.js";
 import { obtenerCliente, buscarVideosYoutube } from "../../descargas/youtube-engine.js";
