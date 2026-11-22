@@ -1,5 +1,6 @@
 import { getAccount, saveAccount } from "../../../motores/db.js";
 import { tarjeta, monto, leerMonto, jidObjetivo } from "../../economia/formato.js";
+import { asegurarFiados, tieneDeudaFiado } from "../../../motores/fiados.js";
 
 export default {
   names: [".transferir", ".pay", ".dar"],
@@ -7,6 +8,11 @@ export default {
   desc: "Enviar dinero de tu mano a otro usuario",
   category: "Economía",
   handler: async ({ sender, cleanText, msg, reply }) => {
+    await asegurarFiados();
+    // Con un fiado sin pagar no se puede sacar dinero (así Mambo siempre puede cobrar).
+    if (tieneDeudaFiado(sender)) {
+      return reply({ text: "🚫 Tienes un fiado sin pagar: Mambo no te deja transferir hasta que pagues con *.pagarfiado*." });
+    }
     const destino = jidObjetivo(msg);
     const cuenta = getAccount(sender);
     const palabras = cleanText.split(/\s+/).slice(1).filter((p) => !p.startsWith("@"));
