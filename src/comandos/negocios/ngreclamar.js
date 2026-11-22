@@ -47,7 +47,7 @@ export default {
     }
 
     const lineas = detalle.map(({ def, monto: ganado }) => `${def.emoji} *${def.nombre}* ›› +${monto(ganado)}`);
-    lineas.push("", E.total(total), E.cartera(getAccount(sender).wallet));
+    lineas.push("", E.total(total));
 
     const tip = [E.tipBase];
     if (vencidos.length) tip.push(E.tipVencido);
