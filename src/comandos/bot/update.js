@@ -6,6 +6,8 @@ import { fileURLToPath } from "url";
 import { ownerCommand } from "../../../motores/owner.js";
 import { guardarCuentasPendientes } from "../../../motores/db.js";
 import { tarjeta } from "../../economia/formato.js";
+import { enviarNativeFlow } from "../../../motores/botones-nativos.js";
+import { ajusteBot } from "../../../motores/ajustes-bot.js";
 
 const execFileAsync = promisify(execFile);
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
@@ -23,6 +25,27 @@ async function correr(comando, args, tiempoMs = 120000) {
   });
   return `${stdout}${stderr}`.trim();
 }
+
+const MAX_LISTA = 12;
+
+const lista = (items) => {
+  if (!items.length) return ["• Ninguno"];
+  const visibles = items.slice(0, MAX_LISTA).map((i) => `> 📄 [${i}]`);
+  if (items.length > MAX_LISTA) visibles.push(`> … y ${items.length - MAX_LISTA} más`);
+  return visibles;
+};
+
+// Saca el nombre del comando (".algo") de un archivo de src/comandos; si no lo encuentra usa el nombre del archivo.
+function nombreComando(archivo) {
+  try {
+    const codigo = fs.readFileSync(path.join(RAIZ, archivo), "utf8");
+    const m = codigo.match(/names:\s*\[\s*["'`]([^"'`]+)["'`]/);
+    if (m) return m[1];
+  } catch {}
+  return path.basename(archivo, path.extname(archivo));
+}
+
+const esComando = (f) => /^src\/comandos\/.+\.js$/.test(f) && !path.basename(f).startsWith("_") && !f.includes("/_lib/");
 
 const recortar = (texto) => (texto.length > LIMITE_SALIDA ? `…${texto.slice(-LIMITE_SALIDA)}` : texto);
 
@@ -60,7 +83,7 @@ export default {
   usage: ".update | .update reiniciar",
   desc: "Actualizar el bot desde GitHub (git pull) y reiniciarlo (solo owner)",
   category: "Utilidad",
-  handler: ownerCommand(async ({ cleanText, reply }) => {
+  handler: ownerCommand(async ({ sock, from, msg, cleanText, reply }) => {
     if (enCurso) return reply({ text: "⏳ Ya hay una actualización en curso." });
     enCurso = true;
 
@@ -99,7 +122,14 @@ export default {
           });
         }
 
-        cambios = (await correr("git", ["diff", "--name-only", antes, despues])).split("\n").filter(Boolean);
+        const filas = (await correr("git", ["diff", "--name-status", "--no-renames", antes, despues])).split("\n").filter(Boolean);
+        const eliminados = [];
+        for (const fila of filas) {
+          const [estado, ...resto] = fila.split("\t");
+          const archivo = resto.join("\t");
+          if (estado === "D") eliminados.push(archivo);
+          else cambios.push(archivo);
+        }
 
         for (const archivo of cambios.filter((f) => f.endsWith(".js") && fs.existsSync(path.join(RAIZ, f)))) {
           try {
@@ -125,17 +155,43 @@ export default {
             return reply({ text: `❌ Falló *npm install*:\n\`\`\`${recortar(String(e.stderr || e.message))}\`\`\`` });
           }
         }
-      }
 
-      const archivos = `${cambios.length} ${cambios.length === 1 ? "archivo" : "archivos"}`;
+        const comandos =[...new Set(cambios.filter(esComando).map(nombreComando))];
+        const texto = tarjeta({
+          emoji: "✅",
+          titulo: "UPDATE COMPLETADO",
+          lineas: [
+            `🛠️ *${cambios.length}* ${cambios.length === 1 ? "archivo nuevo/actualizado" : "archivos nuevos/actualizados"}`,
+            `🗑️ *${eliminados.length}* ${eliminados.length === 1 ? "archivo eliminado" : "archivos eliminados"}`,
+            "",
+            "📄 *DOCUMENTOS EDITADOS:*",
+            ...lista(cambios),
+            "",
+            "🗑️ *DOCUMENTOS ELIMINADOS:*",
+            ...lista(eliminados),
+            "",
+            "🧩 *COMANDOS EDITADOS:*",
+            ...(comandos.length ? comandos.map((c) => `• ${c}`) : ["• Ninguno"])
+          ]
+        });
+
+        const enviado = await enviarNativeFlow({
+          sock,
+          from,
+          msg,
+          texto,
+          footer: ajusteBot("botNameShort"),
+          botones: [{ name: "quick_reply", params: { display_text: "🔄 Reiniciar", id: ".update reiniciar" } }]
+        });
+        if (!enviado) await reply({ text: `${texto}\n\n> Usa *.update reiniciar* para aplicar los cambios.` });
+        return;
+      }
 
       await reply({
         text: tarjeta({
           emoji: "🔁",
           titulo: "REINICIANDO BOT",
-          relato: soloReiniciar
-            ? "Reiniciando el bot, vuelvo en unos segundos."
-            : `Se actualizaron *${archivos}*. Reiniciando el bot, vuelvo en unos segundos.`
+          relato: "Reiniciando el bot, vuelvo en unos segundos."
         })
       });
       await reiniciar();
@@ -168,4 +224,4 @@ if (esLanzador) {
     });
   };
   lanzar();
-}
+      }
