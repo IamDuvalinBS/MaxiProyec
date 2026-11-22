@@ -95,7 +95,7 @@ const [banbot, unbanbot] = parDeLista({
 const [vetar, unvetar] = parDeLista({
   clave: "vetados",
   poner: { names: [".vetar", ".banpermanente"], usage: ".vetar @usuario | responder a un mensaje", desc: "Expulsar a un usuario y sacarlo de nuevo si vuelve a entrar (admins)" },
-  quitar: { names: [".unvetar", ".perdonar"], usage: ".unvetar @usuario | responder a un mensaje", desc: "Quitar el veto: ya puede volver a entrar al grupo (admins)" },
+  quitar: { names: [".unvetar"], usage: ".unvetar @usuario | responder a un mensaje", desc: "Quitar el veto: ya puede volver a entrar al grupo (admins)" },
   emoji: "⛔",
   tituloPoner: "USUARIO VETADO",
   tituloQuitar: "VETO RETIRADO",
