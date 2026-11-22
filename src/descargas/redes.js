@@ -458,19 +458,47 @@ async function tiktokConBtch(link) {
 }
 
 // Acepta videos, fotos (slideshows) e historias. Prefiere "play" (H264, más ligero) antes que "hdplay" (suele ser HEVC y pesa más).
-// Lee la página del video directamente desde TikTok (sin servicios de terceros): saca el enlace del video del JSON de la página
-// y lo baja a un archivo temporal con las cookies y el Referer que pide el CDN. Sirve cuando tikwm y compañía bloquean la conexión.
+const CABECERAS_PAGINA_TIKTOK = {
+  ...HEADERS,
+  Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+  "Accept-Language": "es-MX,es;q=0.9,en;q=0.8",
+  "Upgrade-Insecure-Requests": "1",
+  "Sec-Fetch-Dest": "document",
+  "Sec-Fetch-Mode": "navigate",
+  "Sec-Fetch-Site": "none",
+  "Sec-Fetch-User": "?1"
+};
+const cookiesDe = (respuesta) =>
+  []
+    .concat(respuesta?.headers?.["set-cookie"] || [])
+    .map((c) => String(c).split(";")[0])
+    .filter(Boolean)
+    .join("; ");
+
+// Baja el video a un archivo temporal con el Referer y las cookies que pide el CDN de TikTok.
+async function bajarVideoTikTok(urlVideo, cookies) {
+  const destino = path.join(os.tmpdir(), `tt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.mp4`);
+  try {
+    const r = await axios.get(urlVideo, {
+      ...AGENTES,
+      responseType: "stream",
+      headers: { "User-Agent": HEADERS["User-Agent"], Referer: "https://www.tiktok.com/", Accept: "*/*", ...(cookies ? { Cookie: cookies } : {}) },
+      maxRedirects: 5,
+      timeout: 30000
+    });
+    await pipeline(r.data, fs.createWriteStream(destino));
+    if (fs.statSync(destino).size < 10 * 1024) throw new Error("El archivo descargado está vacío");
+  } catch (e) {
+    try { fs.unlinkSync(destino); } catch (err) { /* no se llegó a crear */ }
+    throw e;
+  }
+  return destino;
+}
+
+// Lee la página del video directamente desde TikTok (sin servicios de terceros): saca el enlace del video del JSON de la página.
+// Si TikTok muestra un captcha a esta conexión, falla y se pasa al siguiente método.
 async function tiktokDesdePagina(link) {
-  const pagina = await axios.get(link, {
-    ...AGENTES,
-    headers: {
-      ...HEADERS,
-      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-      "Accept-Language": "es-MX,es;q=0.9,en;q=0.8"
-    },
-    maxRedirects: 5,
-    timeout: 20000
-  });
+  const pagina = await axios.get(link, { ...AGENTES, headers: CABECERAS_PAGINA_TIKTOK, maxRedirects: 5, timeout: 20000 });
   const html = String(pagina.data || "");
   const crudo = html.match(/<script id="__UNIVERSAL_DATA_FOR_REHYDRATION__"[^>]*>([\s\S]*?)<\/script>/)?.[1];
   if (!crudo) throw new Error("TikTok no entregó la página del video (posible bloqueo o captcha)");
@@ -489,28 +517,7 @@ async function tiktokDesdePagina(link) {
   const urlVideo = v.playAddr || v.downloadAddr || v.bitrateInfo?.find((b) => b?.PlayAddr?.UrlList?.length)?.PlayAddr?.UrlList?.[0];
   if (!urlVideo) throw new Error("TikTok no dio enlace de descarga del video");
 
-  const cookies = []
-    .concat(pagina.headers?.["set-cookie"] || [])
-    .map((c) => String(c).split(";")[0])
-    .filter(Boolean)
-    .join("; ");
-
-  const destino = path.join(os.tmpdir(), `tt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.mp4`);
-  try {
-    const r = await axios.get(urlVideo, {
-      ...AGENTES,
-      responseType: "stream",
-      headers: { "User-Agent": HEADERS["User-Agent"], Referer: "https://www.tiktok.com/", Accept: "*/*", ...(cookies ? { Cookie: cookies } : {}) },
-      maxRedirects: 5,
-      timeout: 30000
-    });
-    await pipeline(r.data, fs.createWriteStream(destino));
-    if (fs.statSync(destino).size < 10 * 1024) throw new Error("El archivo descargado está vacío");
-  } catch (e) {
-    try { fs.unlinkSync(destino); } catch (err) { /* no se llegó a crear */ }
-    throw e;
-  }
-
+  const ruta = await bajarVideoTikTok(urlVideo, cookiesDe(pagina));
   anotar("página de TikTok");
   const campos = camposTikTok(
     {
@@ -523,7 +530,62 @@ async function tiktokDesdePagina(link) {
     },
     link
   );
-  return [{ type: "video", ruta: destino, titulo: recortar(item.desc, 50) || "tiktok", campos }];
+  return [{ type: "video", ruta, titulo: recortar(item.desc, 50) || "tiktok", campos }];
+}
+
+// Busca una clave en cualquier parte de un JSON (devuelve el primer valor que encuentre).
+function buscarClaveJson(nodo, clave, profundidad = 0) {
+  if (!nodo || typeof nodo !== "object" || profundidad > 10) return undefined;
+  if (Object.prototype.hasOwnProperty.call(nodo, clave)) return nodo[clave];
+  for (const v of Object.values(nodo)) {
+    const hallado = buscarClaveJson(v, clave, profundidad + 1);
+    if (hallado !== undefined) return hallado;
+  }
+  return undefined;
+}
+
+// El reproductor incrustado de TikTok (/embed/v2/<id>) suele dejar pasar donde la página normal pide captcha.
+async function tiktokDesdeEmbed(link) {
+  let id = String(link).match(/\/video\/(\d+)/)?.[1];
+  if (!id) {
+    // enlace corto (vm./vt.tiktok.com): se sigue la redirección para saber el id
+    const r = await axios.get(link, { ...AGENTES, headers: CABECERAS_PAGINA_TIKTOK, maxRedirects: 5, timeout: 20000 });
+    id = String(r.request?.res?.responseUrl || r.request?.path || "").match(/\/video\/(\d+)/)?.[1];
+  }
+  if (!id) throw new Error("No pude sacar el número del video de ese enlace");
+
+  const pagina = await axios.get(`https://www.tiktok.com/embed/v2/${id}`, { ...AGENTES, headers: CABECERAS_PAGINA_TIKTOK, maxRedirects: 5, timeout: 20000 });
+  const crudo = String(pagina.data || "").match(/<script id="__FRONTITY_CONNECT_STATE__"[^>]*>([\s\S]*?)<\/script>/)?.[1];
+  if (!crudo) throw new Error("TikTok no entregó el reproductor incrustado");
+
+  let estado;
+  try {
+    estado = JSON.parse(crudo);
+  } catch (e) {
+    throw new Error("El reproductor de TikTok llegó dañado");
+  }
+  const datos = buscarClaveJson(estado, "videoData");
+  const info = datos?.itemInfos || datos;
+  const video = info?.video || buscarClaveJson(datos, "video");
+  const urls = [video?.urls, video?.playAddr?.urlList, video?.play_addr?.url_list].flat().concat([video?.playAddr, video?.downloadAddr]).filter((u) => typeof u === "string" && /^https?:\/\//.test(u));
+  if (!urls.length) throw new Error("El reproductor de TikTok no incluyó el video");
+
+  let ultimo = null;
+  for (const url of urls.slice(0, 3)) {
+    try {
+      const ruta = await bajarVideoTikTok(url, cookiesDe(pagina));
+      anotar("reproductor incrustado de TikTok");
+      const usuario = datos?.authorInfos?.uniqueId || String(link).match(/@([\w.\-]+)/)?.[1] || "";
+      const campos = camposTikTok(
+        { title: info?.text || info?.desc, author: { unique_id: usuario }, duration: video?.videoMeta?.duration || video?.duration, play_count: info?.stats?.playCount, digg_count: info?.stats?.diggCount, create_time: info?.createTime },
+        link
+      );
+      return [{ type: "video", ruta, titulo: recortar(info?.text || info?.desc, 50) || "tiktok", campos }];
+    } catch (e) {
+      ultimo = e;
+    }
+  }
+  throw ultimo || new Error("No se pudo bajar el video del reproductor de TikTok");
 }
 
 async function _obtenerMediaTikTok(link) {
@@ -553,7 +615,14 @@ async function _obtenerMediaTikTok(link) {
     console.log(`[redes] Página de TikTok falló para ${link}: ${String(e.message).replace("Request failed with status code ", "HTTP ").split("\n")[0]}`);
   }
 
-  // 3) btch-downloader
+  // 3) El reproductor incrustado de TikTok
+  try {
+    return await tiktokDesdeEmbed(link);
+  } catch (e) {
+    console.log(`[redes] Reproductor incrustado falló para ${link}: ${String(e.message).replace("Request failed with status code ", "HTTP ").split("\n")[0]}`);
+  }
+
+  // 4) btch-downloader
   try {
     const r = await tiktokConBtch(link);
     anotar("btch-downloader");
@@ -562,7 +631,7 @@ async function _obtenerMediaTikTok(link) {
     console.log(`[redes] btch-downloader falló: ${String(e.message).split("\n")[0]}`);
   }
 
-  // 4) yt-dlp
+  // 5) yt-dlp
   if (await hayYtdlp()) {
     try { return await ytdlpMedias(link); } catch (e) { /* se informa el error de la API */ }
   }
