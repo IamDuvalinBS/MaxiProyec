@@ -87,8 +87,6 @@ async function allwMuertos({ sender, reply }) {
     E.balance(balance),
     E.experiencia(xpTotal),
     "",
-    `> ${E.tip(getAccount(sender).wallet)}`,
-    "",
     azar(CIERRES)
   ].join("\n");
 
@@ -132,8 +130,7 @@ export default {
         emoji: E.emoji,
         titulo: E.titulo,
         relato: E.relato(realizados),
-        lineas: [...lineas, "", E.balance(balance), E.experiencia(xpTotal)],
-        tip: E.tip(getAccount(sender).wallet)
+        lineas: [...lineas, "", E.balance(balance), E.experiencia(xpTotal)]
       })
     });
     if (nivel) await reply({ text: avisoNivel(nivel) });
