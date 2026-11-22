@@ -2,6 +2,7 @@ import { commandRegistry } from "../../../core.js";
 import { ajusteBot, fotoBot } from "../../../motores/ajustes-bot.js";
 import { enviarConBoton } from "../../../motores/botones.js";
 import { isOwner, isDueno } from "../../../motores/owner.js";
+import { etiquetaDe, resumirDesc } from "../../nucleo/menu-texto.js";
 
 // ════════════════════════════════════════════════════════════════════════════
 //  PERMISOS POR COMANDO — aquí eliges qué archivo es de quién.
@@ -63,14 +64,6 @@ function nivelParaMenu(info) {
   return ["Owner", "Subbots"].includes(info.category) ? "owner" : null;
 }
 
-function etiquetaDe(info) {
-  const principal = info.names[0];
-  const usage = info.usage || principal;
-  const argumentos = usage.startsWith(principal) ? usage.slice(principal.length).trim() : "";
-  const nombres = info.names.join(" / ");
-  return argumentos ? `${nombres} ${argumentos}` : nombres;
-}
-
 function comandosDeNivel(nivel, excluir) {
   const vistos = new Set();
   const lista = [];
@@ -83,7 +76,7 @@ function comandosDeNivel(nivel, excluir) {
 }
 
 async function enviarMenu({ sock, from, sender, msg }, { titulo, cabecera, nivel, excluir, vacio, pie }) {
-  const bloques = comandosDeNivel(nivel, excluir).map((info) => `✿ *${etiquetaDe(info)}*\n> ${info.desc}`);
+  const bloques = comandosDeNivel(nivel, excluir).map((info) => `✿ *${etiquetaDe(info)}*\n> ${resumirDesc(info.desc)}`);
   const usuario = `@${sender.split("@")[0]}`;
   const texto =
     `✿ *${titulo}* — 『 *${ajusteBot("botNameLong")}* 』\n\n` +

@@ -2,6 +2,7 @@ import { estadisticasGrupo } from "../../../motores/estadisticas.js";
 import { getAllAccounts } from "../../../core.js";
 import { metadatos, limpiarJid } from "../../grupos/nucleo.js";
 import { resolverUsuario } from "../../nucleo/identidad.js";
+import { contextoDe } from "../../nucleo/objetivo.js";
 
 const MEDALLAS = ["🥇", "🥈", "🥉"];
 const POR_PAGINA = 15;
@@ -39,9 +40,9 @@ async function cargarMiembros(sock, from, usuarios) {
 
 export default {
   names: [".contador", ".statsgrupo", ".actividad"],
-  desc: "Ver mensajes y comandos del grupo y de cada usuario (.contador, .contador 2 o respondiendo/mencionando a alguien)",
+  desc: "Mensajes y comandos del grupo o de un usuario",
   category: "General",
-  usage: ".contador [página] [@usuario]",
+  usage: ".contador [@usuario]",
   handler: async ({ sock, from, msg, cleanText, reply }) => {
     if (!from.endsWith("@g.us")) return reply({ text: "⚠️ Este comando solo funciona en grupos." });
     const d = await estadisticasGrupo(from);
@@ -50,7 +51,7 @@ export default {
     if (!miembros) return reply({ text: "⚠️ No pude leer los miembros del grupo, intenta de nuevo." });
 
     // ¿preguntan por alguien en concreto? (mención o respuesta a su mensaje)
-    const ci = msg.message?.extendedTextMessage?.contextInfo;
+    const ci = contextoDe(msg);
     const objetivo = ci?.mentionedJid?.[0] || ci?.participant;
     if (objetivo) {
       const pos = miembros.findIndex((u) => u.jid === objetivo);

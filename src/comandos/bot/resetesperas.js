@@ -34,8 +34,8 @@ const CLAVES_ECONOMIA = ["daily", "semanal", "cofre", "trivia"];
 
 export default {
   names: [".resetesperas", ".resetcd"],
-  usage: ".resetesperas [@usuario | responder a su mensaje | número]",
-  desc: "Reiniciar las esperas de economía y las tiradas de todos los gachas, de todos o de un usuario (solo owner)",
+  usage: ".resetesperas [@usuario]",
+  desc: "Reinicia esperas y tiradas (solo owner)",
   category: "Owner",
     handler: ownerCommand(async ({ reply, msg, cleanText }) => {
     const E = estilo(ESTILOS);

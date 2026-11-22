@@ -6,8 +6,8 @@ const marca = (propio) => (propio ? "✏️ personalizado" : "predeterminado");
 
 export default {
   names: [".configbot", ".mibot"],
-  usage: ".configbot | .configbot reset",
-  desc: "Ver lo que tienes personalizado en tu bot (menú, moneda, enlaces, baneos). Con reset lo restablece todo en tu subbot",
+  usage: ".configbot [reset]",
+  desc: "Ver o reiniciar la personalización de tu bot",
   category: "Subbots",
   handler: comandoDeBot(async ({ cleanText, reply, objetivo }) => {
     const { botId, esPrincipal } = objetivo;

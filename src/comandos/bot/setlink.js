@@ -9,8 +9,8 @@ const ENLACES = {
 
 export default {
   names: [".setlink"],
-  usage: ".setlink <canal|grupo|web> <enlace> | .setlink <canal|grupo|web> reset",
-  desc: "Cambiar los botones de enlaces del menú de tu bot (owners y dueños de subbot)",
+  usage: ".setlink <canal|grupo|web> <enlace>",
+  desc: "Cambia los enlaces del menú de tu bot",
   category: "Subbots",
   handler: comandoDeBot(async ({ cleanText, reply, objetivo }) => {
     const [tipoCrudo, ...resto] = cleanText.split(/\s+/).slice(1);

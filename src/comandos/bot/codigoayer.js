@@ -9,8 +9,8 @@ const MIME = { ".js": "text/javascript", ".mjs": "text/javascript", ".cjs": "tex
 
 export default {
   names: [".ayer", ".codigoayer", ".backupcodigo"],
-  usage: ".ayer <archivo> [días] | .ayer lista",
-  desc: "Te manda el archivo tal como estaba hace 1 día (o los días que digas), por si algo se rompe al editar",
+  usage: ".ayer <archivo> [días]",
+  desc: "Te manda un archivo como estaba hace 1 día o más",
   category: "Owner",
   handler: async ({ sock, from, msg, sender, cleanText, reply }) => {
     if (!isOwner(sender)) return reply({ text: "🚫 Este comando solo puede ser utilizado por owners." });

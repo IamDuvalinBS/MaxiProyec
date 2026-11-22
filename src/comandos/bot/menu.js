@@ -4,6 +4,7 @@ import { fileURLToPath } from "url";
 import { formatUptime, commandRegistry } from "../../../core.js";
 import { ajusteBot, fotoBot } from "../../../motores/ajustes-bot.js";
 import crypto from "crypto";
+import { etiquetaDe, resumirDesc } from "../../nucleo/menu-texto.js";
 
 // "categorias" son los nombres reales que usan los archivos de comandos (no se tocan).
 // "titulo" es lo único que se muestra en el menú. El orden de esta lista es el orden del menú.
@@ -121,14 +122,6 @@ function buscarGrupo(palabra) {
   return GRUPOS.find((g) => g.titulo.toLowerCase() === w || g.alias.includes(w)) || null;
 }
 
-function etiquetaDe(info) {
-  const principal = info.names[0];
-  const usage = info.usage || principal;
-  const argumentos = usage.startsWith(principal) ? usage.slice(principal.length).trim() : "";
-  const nombres = info.names.join(" / ");
-  return argumentos ? `${nombres} ${argumentos}` : nombres;
-}
-
 function agruparComandos() {
   const categorias = {};
   const vistos = new Set();
@@ -136,7 +129,7 @@ function agruparComandos() {
     if (vistos.has(info)) continue;
     vistos.add(info);
     if (!categorias[info.category]) categorias[info.category] = [];
-    categorias[info.category].push(`✿ *${etiquetaDe(info)}*\n> ${info.desc}`);
+    categorias[info.category].push(`✿ *${etiquetaDe(info)}*\n> ${resumirDesc(info.desc)}`);
   }
   return categorias;
 }

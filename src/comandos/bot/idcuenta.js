@@ -1,5 +1,6 @@
 import { ownerCommand } from "../../../motores/owner.js";
 import { getAccount } from "../../../motores/db.js";
+import { contextoDe } from "../../nucleo/objetivo.js";
 
 const ver = (v) => (v === undefined || v === null || v === "" ? "—" : String(v));
 
@@ -12,11 +13,11 @@ function resumenCuenta(jid) {
 
 export default {
   names: [".idcuenta"],
-  usage: ".idcuenta [@usuario | responder a su mensaje]",
-  desc: "Muestra los IDs que el bot ve de ti y de otra persona (para depurar cuentas duplicadas)",
+  usage: ".idcuenta [@usuario]",
+  desc: "Muestra los IDs que el bot ve de ti u otra persona",
   category: "Owner",
   handler: ownerCommand(async ({ sender, msg, reply }) => {
-    const ctx = msg.message?.extendedTextMessage?.contextInfo || {};
+    const ctx = contextoDe(msg) || {};
     const mencionado = ctx.mentionedJid && ctx.mentionedJid[0];
     const citado = ctx.participant;
     const lineas = [
