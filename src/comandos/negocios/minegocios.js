@@ -1,4 +1,4 @@
-import { monto } from "../../economia/formato-evento.js";
+import { monto, jidObjetivo } from "../../economia/formato-evento.js";
 import { tarjetaMarcada, tiempoLargo } from "../../economia/estilo-evento.js";
 import { estilo } from "../../economia/temas.js";
 import { CATALOGO, maximoDe, pagoSemanalDe, pendienteDe, estaVencido, negociosDe } from "../../economia/negocios.js";
@@ -26,12 +26,14 @@ const ESTILOS = {
 
 export default {
   names: [".minegocios", ".misnegocios", ".ngmis"],
-  usage: ".minegocios",
-  desc: "Ver el estado de tus negocios",
+  usage: ".minegocios [@usuario]",
+  desc: "Ver el estado de tus negocios o los de otra persona",
   category: "Economía",
-  handler: async ({ sender, reply }) => {
+  handler: async ({ sender, msg, reply }) => {
     const E = estilo(ESTILOS);
-    const poseidos = negociosDe(sender);
+    const objetivo = jidObjetivo(msg) || sender;
+    const propio = objetivo === sender;
+    const poseidos = negociosDe(objetivo);
     const ahora = Date.now();
     const lineas = [];
 
@@ -50,16 +52,17 @@ export default {
     }
 
     if (!lineas.length) {
-      return reply({ text: E.sinNegocios });
+      return reply(propio ? { text: E.sinNegocios } : { text: `🏪 @${objetivo.split("@")[0]} no posee ningún negocio.`, mentions: [objetivo] });
     }
 
     await reply({
       text: tarjetaMarcada({
         emoji: E.emoji,
-        titulo: E.titulo,
+        titulo: propio ? E.titulo : `${E.titulo.replace(/^MIS /, "")} DE @${objetivo.split("@")[0]}`,
         lineas,
-        tip: E.tip
-      })
+        tip: propio ? E.tip : undefined
+      }),
+      ...(propio ? {} : { mentions: [objetivo] })
     });
   }
 };
