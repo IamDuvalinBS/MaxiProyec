@@ -139,6 +139,32 @@ function htmlMusica({ consulta, firma, pistas, nota }) {
 </body></html>`;
 }
 
+function htmlMusicaYT({ consulta, firma, pistas }) {
+  const filas = pistas.map((p, i) => {
+    const miniatura = p.img ? `<img src="${p.img}" alt="">` : "<span>🎵</span>";
+    return `<div class="r" data-i="${i}"><div class="rt">${miniatura}<em>${esc(p.duracion)}</em></div><div class="ri"><b>${esc(p.titulo)}</b><small>${esc(p.canal)}</small></div><div class="eq"><i></i><i></i><i></i></div></div>`;
+  }).join("");
+  const ids = JSON.stringify(pistas.map((p) => p.id));
+  const css = CSS + `.vd{position:relative;width:100%;aspect-ratio:16/9;border-radius:16px;overflow:hidden;background:#000}.vd iframe{position:absolute;inset:0;width:100%;height:100%;border:0}.av{margin:8px 2px 0;text-align:center;color:var(--su);font-size:11.5px}`;
+  const js = `var I=${ids};
+function u(i,a){var r=[];for(var k=1;k<I.length;k++)r.push(I[(i+k)%I.length]);return "https://www.youtube-nocookie.com/embed/"+I[i]+"?playsinline=1&rel=0&playlist="+r.join(",")+(a?"&autoplay=1":"")}
+var fr=document.getElementById("fr"),rs=document.querySelectorAll(".r");
+function ir(i,a){fr.src=u(i,a);for(var k=0;k<rs.length;k++)rs[k].classList.toggle("on",k===i);document.getElementById("n").textContent=(i+1)+" / "+I.length}
+for(var k=0;k<rs.length;k++){(function(i){rs[i].addEventListener("click",function(){ir(i,true)})})(k)}
+ir(0,false);`;
+  return `<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<style>${css}</style></head><body>
+<div class="cab"><div class="ic">▶️</div><div class="tt"><b>Mi YouTube</b><small>Mix de ${esc(consulta)}</small></div></div>
+<div class="pl pa"><div class="vd"><iframe id="fr" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe></div>
+<div class="av">¿Pantalla negra? Aquí WhatsApp no deja cargar YouTube: usa .musica sin "yt"</div></div>
+<div class="sec"><span>A continuación</span><small id="n"></small></div>
+<div class="ls">${filas}</div>
+<div class="pie">ⓘ Powered by <b>${esc(firma)}</b></div>
+<script>${js}</script>
+</body></html>`;
+}
+
 const ESPERA_MS = 20000;
 const MAX_SIMULTANEOS = 2;
 const PISTAS_OBJETIVO = 6;
@@ -317,12 +343,15 @@ export default {
   category: "Tools",
   usage: ".musica <canción o artista>",
   handler: async ({ sock, from, sender, msg, cleanText, reply }) => {
-    const consulta = cleanText.split(/\s+/).slice(1).join(" ").trim();
+    let palabras = cleanText.split(/\s+/).slice(1);
+    const directo = palabras.length > 1 && ["yt", "directo", "youtube"].includes(palabras[0].toLowerCase());
+    if (directo) palabras = palabras.slice(1);
+    const consulta = palabras.join(" ").trim();
     if (!consulta) {
       return reply({
         text: tarjetaUso({
           comando: ".musica <canción o artista>",
-          ejemplo: ".musica bad bunny   |   .musica rock en español   |   .mix lofi para estudiar",
+          ejemplo: ".musica bad bunny   |   .musica rock en español   |   .musica yt bad bunny (directo con YouTube)",
           nota: "Armo una lista de canciones parecidas con vista previa de 1 minuto por tema, con adelantar, siguiente, aleatorio y repetir."
         })
       });
@@ -346,7 +375,7 @@ export default {
       try {
         await sock.sendMessage(from, { react: { text: "🎧", key: msg.key } });
       } catch {}
-      await reply({ text: [encabezado("🎧", "REPRODUCTOR"), "", `> Armando tu mix de *${recortar(consulta, 40)}*, tarda cerca de 1 minuto.`].join("\n") });
+      if (!directo) await reply({ text: [encabezado("🎧", "REPRODUCTOR"), "", `> Armando tu mix de *${recortar(consulta, 40)}*, tarda cerca de 1 minuto.`].join("\n") });
 
       let candidatas = [];
       try {
@@ -356,6 +385,17 @@ export default {
       }
       if (!candidatas.length) {
         return reply({ text: tarjetaAviso("REPRODUCTOR", "No encontré canciones con esa búsqueda. Prueba con otro nombre.") });
+      }
+
+      if (directo) {
+        const lista8 = await conMiniaturas(candidatas.slice(0, 8).map((p) => ({ ...p, duracion: textoDuracion(p.segundos) })));
+        try {
+          if (typeof sock.sendHtml !== "function") throw new Error("sin sendHtml");
+          return await sock.sendHtml(from, htmlMusicaYT({ consulta, firma, pistas: lista8 }), [], msg, {});
+        } catch (e) {
+          console.log("[MUSICA] HTML directo falló: " + e.message);
+          return sock.sendMessage(from, { text: textoRespaldo(consulta, candidatas) }, { quoted: msg });
+        }
       }
 
       const pistas = await conMiniaturas(await prepararPistas(candidatas));
