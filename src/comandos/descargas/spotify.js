@@ -216,8 +216,8 @@ async function procesarEleccion(sock, from, msg, tipo, id) {
 
 export default {
   names: [".spotify", ".sp", ".spdl"],
-  usage: ".spotify <nombre o enlace de Spotify>",
-  desc: "Buscar una canción o álbum por nombre (lista con botones) o descargar por enlace de Spotify",
+  usage: ".spotify <nombre o enlace>",
+  desc: "Busca o descarga canciones de Spotify",
   category: "Descargas",
 
   handler: async ({ sock, from, sender, msg, cleanText }) => {

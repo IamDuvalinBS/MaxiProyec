@@ -7,7 +7,7 @@ let ultimaVez = 0;
 export default {
   names: [".diagred"],
   usage: ".diagred",
-  desc: "Diagnóstico: prueba cada servicio de descargas (TikTok, Instagram, Pinterest…) y muestra cuál falla",
+  desc: "Prueba cada servicio de descargas y muestra cuál falla",
   category: "Descargas",
   handler: async ({ reply }) => {
     if (Date.now() - ultimaVez < 30000) {

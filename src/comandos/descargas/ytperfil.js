@@ -444,8 +444,8 @@ async function enviarConBotones({ sock, from, msg, sender, texto, imagen, perfil
 // ───────────────────────── Comando ─────────────────────────
 export default {
   names: [".ytperfil", ".ytcanal", ".canalyt"],
-  usage: ".ytperfil <nombre, @usuario o enlace del canal>",
-  desc: "Muestra el perfil de un youtuber con botones para descargar su último short y su último video, y te da ¥enes",
+  usage: ".ytperfil <canal>",
+  desc: "Perfil de un canal de YouTube con su último video",
   category: "Descargas",
 
   handler: async ({ sock, from, sender, msg, cleanText, reply }) => {

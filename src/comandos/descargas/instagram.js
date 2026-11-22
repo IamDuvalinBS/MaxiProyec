@@ -3,7 +3,7 @@ import { crearComandoRed } from "../../descargas/comando-red.js";
 
 export default crearComandoRed({
   names: [".ig", ".instagram"],
-  desc: "Descarga reels, fotos y carruseles de Instagram por enlace, o envía los últimos reels de una cuenta (.ig 8 usuario)",
+  desc: "Descarga reels, fotos y carruseles de Instagram",
   emoji: "📸",
   titulo: "INSTAGRAM DOWNLOAD",
   regexLink: /instagr(?:\.am|am\.com)\/(?:share\/)?(?:p|reel|reels|tv)\//i,

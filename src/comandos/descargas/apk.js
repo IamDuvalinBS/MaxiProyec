@@ -48,8 +48,8 @@ const compacto = (n) => new Intl.NumberFormat("en", { notation: "compact" }).for
 
 export default {
   names: [".apk", ".app", ".apkdl"],
-  usage: ".apk <nombre o paquete> | .apk <n> <nombre>",
-  desc: "Busca la app en MediaFire (respaldo Aptoide) y te manda el .apk, o pega un enlace de MediaFire. Con .apk 2 <nombre> eliges el resultado #2",
+  usage: ".apk <nombre>",
+  desc: "Busca y descarga un APK",
   category: "Descargas",
   handler: async ({ from, sender, cleanText, reply }) => {
     const args = cleanText.trim().split(/\s+/).slice(1);

@@ -77,19 +77,8 @@ const cleanTitle = (s = "") => decodeEntities(s)
   .replace(/^\s*ver\s+/i, "")
   .trim();
 
-/* ───────────── capMap OPCIONAL ───────────── */
-let _capMap = null;
+/* ───────────── límite de tamaño de caché ───────────── */
 async function capMap(map, max) {
-  if (_capMap === null) {
-    try {
-      const m = await import("../../core/memGuard.js");
-      _capMap = typeof m.capMap === "function" ? m.capMap : false;
-    } catch {
-      log("memGuard.js no encontrado, uso recorte local");
-      _capMap = false;
-    }
-  }
-  if (_capMap) return _capMap(map, max);
   while (map.size > max) map.delete(map.keys().next().value);
   return map;
 }
@@ -677,8 +666,8 @@ const pelis = new Pelis182();
 
 export default {
   names: [".peli", ".pelicula", ".peliculas", ".pelis", ".cine", ".movie"],
-  usage: ".peli <título> | .peli dl <n|url>",
-  desc: "Busca películas, te da el enlace o te la manda descargada.",
+  usage: ".peli <título>",
+  desc: "Busca películas y te da el enlace o la descarga",
   category: "Descargas",
 
   handler: async (raw) => {

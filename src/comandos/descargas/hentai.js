@@ -79,8 +79,8 @@ let EN_CURSO = false;
 export default [
   {
     names: [".hentai", ".h"],
-    usage: ".hentai [foto|video|foro] [corto|largo] [cantidad]",
-    desc: "Anime: manda fotos (1-5) o videos de hentai, cortos o largos. En grupos un admin lo activa con .animeon on",
+    usage: ".hentai [foto | video]",
+    desc: "Fotos o videos de anime +18, cortos o largos",
     category: "Anime",
     handler: async ({ sock, from, sender, msg, cleanText, reply }) => {
       const esGrupo = from.endsWith("@g.us");
@@ -133,7 +133,7 @@ export default [
   {
     names: [".animeon", ".anime18"],
     usage: ".animeon on|off",
-    desc: "Activa o desactiva el contenido de anime (.hentai) en el grupo (solo admins)",
+    desc: "Activa o desactiva el anime +18 en el grupo (admins)",
     category: "Anime",
     handler: async ({ sock, from, sender, cleanText, reply }) => {
       if (!from.endsWith("@g.us")) return reply({ text: "🌸 En privado .hentai ya está disponible." });

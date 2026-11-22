@@ -27,8 +27,8 @@ async function infoArchivoDirecto(url) {
 
 export default {
   names: [".dl", ".descargar", ".bajar"],
-  usage: ".dl <enlace de cualquier página>",
-  desc: "Descarga el contenido de cualquier enlace: videos, audios, fotos o archivos directos",
+  usage: ".dl <enlace>",
+  desc: "Descarga videos, audios, fotos o archivos de un enlace",
   category: "Descargas",
   handler: async ({ sock, from, sender, msg, cleanText, reply }) => {
     const enlace = cleanText.trim().split(/\s+/)[1];

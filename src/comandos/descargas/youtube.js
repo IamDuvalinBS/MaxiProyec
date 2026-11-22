@@ -301,8 +301,8 @@ async function enviarTarjetaConBotones({ sock, from, msg, sender, link, texto, m
 
 export default {
   names: [".play", ".yt", ".ytsearch", ".buscaryt"],
-  usage: ".play <enlace o nombre> | .ytsearch <búsqueda>",
-  desc: "'.play' busca un video y permite elegir audio o video con botones; '.ytsearch' lista los primeros 10 resultados",
+  usage: ".play <nombre o enlace>",
+  desc: "Busca en YouTube y descarga audio o video",
   category: "Descargas",
 
   handler: async ({ sock, from, sender, msg, cleanText, reply }) => {

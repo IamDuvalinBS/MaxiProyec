@@ -3,7 +3,7 @@ import { crearComandoRed } from "../../descargas/comando-red.js";
 
 export default crearComandoRed({
   names: [".pin", ".pinterest"],
-  desc: "Descarga la imagen o el video de un pin de Pinterest, o busca y envía 5 resultados (hasta 10: .pin 8 búsqueda)",
+  desc: "Descarga un pin o busca imágenes en Pinterest",
   emoji: "📌",
   titulo: "PINTEREST DOWNLOAD",
   regexLink: /pinterest\.[a-z.]+\/pin|pin\.it/i,

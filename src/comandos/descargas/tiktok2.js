@@ -3,7 +3,7 @@ import { crearComandoRed } from "../../descargas/comando-red.js";
 
 export default crearComandoRed({
   names: [".tt2", ".tiktok2"],
-  desc: "Descarga los últimos videos de una cuenta de TikTok (5 por defecto, hasta 10: .tt2 8 usuario)",
+  desc: "Descarga los últimos videos de una cuenta de TikTok",
   emoji: "🎵",
   titulo: "TIKTOK 2 DOWNLOAD",
   regexLink: /tiktok\.com\/@[\w.\-]+\/?(?:\?.*)?$/i,

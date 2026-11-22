@@ -102,8 +102,8 @@ async function resolverPdf(libro) {
 
 export default {
   names: [".libro", ".libros", ".book", ".pdf"],
-  usage: ".libro <nombre del libro> | .libro <n> <nombre>",
-  desc: "Busca un libro en línea (Internet Archive / Google Libros) y te manda el PDF. Con .libro 2 <nombre> eliges el resultado #2",
+  usage: ".libro <nombre>",
+  desc: "Busca un libro y te manda el PDF",
   category: "Descargas",
   handler: async ({ sock, from, sender, msg, cleanText, reply }) => {
     const args = cleanText.trim().split(/\s+/).slice(1);

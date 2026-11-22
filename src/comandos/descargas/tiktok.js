@@ -7,7 +7,7 @@ const REGEX_LINK_NUEVO = /(^|\/\/|\.)tt\.site\//i;
 
 export default crearComandoRed({
   names: [".tiktok", ".tt"],
-  desc: "Descarga videos, fotos e historias de TikTok sin marca de agua, o busca y envía 5 videos (hasta 10: .tt 8 búsqueda)",
+  desc: "Descarga videos, fotos e historias de TikTok sin marca",
   emoji: "🎵",
   titulo: "TIKTOK DOWNLOAD",
   regexLink: { test: (s) => REGEX_LINK_ANTIGUO.test(s) || REGEX_LINK_NUEVO.test(s) },

@@ -243,7 +243,7 @@ function tarjetaAlbumes(albumes, sender) {
 export default {
   names: [".play2", ".album"],
   usage: ".play2 <álbum> [artista]",
-  desc: "Busca álbumes en YouTube Music, te deja elegir con botones y envía todas las canciones en un solo archivo ZIP",
+  desc: "Busca un álbum en YouTube Music y lo manda en ZIP",
   category: "Descargas",
 
   handler: async ({ sock, from, sender, msg, cleanText, reply }) => {

@@ -3,8 +3,8 @@ import { tarjetaUso } from "../../descargas/tarjetas.js";
 
 export default {
   names: [".ytaudio", ".ytvideo"],
-  usage: ".ytaudio <enlace> | .ytvideo <enlace>",
-  desc: "Descarga el audio o el video de un enlace de YouTube (lo usan los botones de .play)",
+  usage: ".ytaudio <enlace>",
+  desc: "Descarga el audio o video de un enlace de YouTube",
   category: "Descargas",
   handler: async ({ sock, from, sender, msg, cleanText, reply }) => {
     const partes = cleanText.trim().split(/\s+/);
