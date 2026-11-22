@@ -204,7 +204,49 @@ async function motorBing(consulta) {
   return urls;
 }
 
-const MOTORES_WEB = [["DuckDuckGo", motorDuckDuckGo], ["Bing", motorBing]];
+// Yahoo, Brave y Mojeek: más buscadores para cuando DuckDuckGo y Bing piden captcha o bloquean esta conexión.
+function urlsDeHtml(html) {
+  const urls = [];
+  for (const m of String(html).matchAll(/href="(https?:\/\/[^"]+)"/g)) {
+    let url = decodificarEntidades(m[1]);
+    // Yahoo esconde el destino real en ".../RU=<enlace codificado>/RK=...".
+    const yahoo = url.match(/\/RU=([^/]+)\/RK=/);
+    if (yahoo) {
+      try { url = decodeURIComponent(yahoo[1]); } catch (e) { continue; }
+    }
+    urls.push(url);
+  }
+  return urls;
+}
+
+async function motorBrave(consulta) {
+  const { data: html } = await axios.get("https://search.brave.com/search", {
+    params: { q: consulta, source: "web" },
+    headers: { ...HEADERS, "Accept-Language": "es-MX,es;q=0.9" },
+    timeout: 15000
+  });
+  return urlsDeHtml(html);
+}
+
+async function motorMojeek(consulta) {
+  const { data: html } = await axios.get("https://www.mojeek.com/search", {
+    params: { q: consulta },
+    headers: { ...HEADERS, "Accept-Language": "es-MX,es;q=0.9" },
+    timeout: 15000
+  });
+  return urlsDeHtml(html);
+}
+
+async function motorYahoo(consulta) {
+  const { data: html } = await axios.get("https://search.yahoo.com/search", {
+    params: { p: consulta, n: 30, ei: "UTF-8" },
+    headers: { ...HEADERS, "Accept-Language": "es-MX,es;q=0.9" },
+    timeout: 15000
+  });
+  return urlsDeHtml(html);
+}
+
+const MOTORES_WEB = [["DuckDuckGo", motorDuckDuckGo], ["Bing", motorBing], ["Brave", motorBrave], ["Mojeek", motorMojeek], ["Yahoo", motorYahoo]];
 const motorCaidoHasta = new Map(); // un motor que no trajo nada (captcha) o falló se salta 10 minutos
 const ESPERA_MOTOR_CAIDO_MS = 10 * 60 * 1000;
 
@@ -512,23 +554,46 @@ const API_FAA = "https://api-faa.my.id";
 const KEY_STELLAR = process.env.STELLARWA_KEY || "api-7dSKm";
 const KEY_CAUSAS = process.env.APICAUSAS_KEY || "oboe";
 
+// Saca los enlaces de videos de TikTok de cualquier respuesta JSON, sin importar cómo la arme cada API.
+function enlacesTikTokDeJson(nodo, salida = new Set(), profundidad = 0) {
+  if (nodo == null || profundidad > 8) return salida;
+  if (typeof nodo === "string") {
+    for (const m of nodo.matchAll(/tiktok\.com\/(@[\w.\-]+)\/video\/(\d+)/gi)) salida.add(`https://www.tiktok.com/${m[1]}/video/${m[2]}`);
+    return salida;
+  }
+  if (Array.isArray(nodo)) {
+    for (const x of nodo) enlacesTikTokDeJson(x, salida, profundidad + 1);
+    return salida;
+  }
+  if (typeof nodo === "object") {
+    const autor = typeof nodo.author === "string" ? nodo.author : nodo.author?.unique_id || nodo.author?.username || nodo.author?.uniqueId;
+    const usuario = String(autor || nodo.unique_id || nodo.username || "").replace(/^@/, "");
+    const id = nodo.video_id || nodo.aweme_id || nodo.id;
+    if (usuario && /^[\w.\-]+$/.test(usuario) && /^\d{8,}$/.test(String(id))) salida.add(`https://www.tiktok.com/@${usuario}/video/${id}`);
+    for (const v of Object.values(nodo)) enlacesTikTokDeJson(v, salida, profundidad + 1);
+  }
+  return salida;
+}
+
 async function buscarEnlacesTikTokApis(consulta, maximo) {
   const intentos = [
-    ["FAA", async () => {
-      const { data } = await axios.get(`${API_FAA}/faa/tiktok-search`, { params: { q: consulta }, headers: HEADERS, timeout: 20000 });
-      return (data?.result || []).map((v) => (v.author?.username && v.id ? `https://www.tiktok.com/@${v.author.username}/video/${v.id}` : null));
-    }]
+    ["FAA", () => axios.get(`${API_FAA}/faa/tiktok-search`, { params: { q: consulta }, headers: HEADERS, timeout: 15000 })],
+    ["Delirius", () => axios.get("https://api.delirius.online/search/tiktoksearch", { params: { query: consulta }, headers: HEADERS, timeout: 15000 })]
   ];
-  for (const [nombre, intento] of intentos) {
-    try {
-      const enlaces = (await intento()).filter((u) => typeof u === "string" && /tiktok\.com/i.test(u));
-      if (enlaces.length) return enlaces.slice(0, maximo);
-      console.log(`[redes] ${nombre} (búsqueda TikTok): sin resultados`);
-    } catch (e) {
-      console.log(`[redes] ${nombre} (búsqueda TikTok) falló: ${String(e.message).replace("Request failed with status code ", "HTTP ")}`);
+  // Todas a la vez: gana el tiempo de la más lenta en vez de la suma de todas.
+  const resultados = await Promise.allSettled(intentos.map(([, pedir]) => pedir()));
+  const enlaces = new Set();
+  resultados.forEach((r, i) => {
+    const nombre = intentos[i][0];
+    if (r.status === "rejected") {
+      console.log(`[redes] ${nombre} (búsqueda TikTok) falló: ${String(r.reason?.message).replace("Request failed with status code ", "HTTP ")}`);
+      return;
     }
-  }
-  return [];
+    const nuevos = [...enlacesTikTokDeJson(r.value?.data)];
+    if (!nuevos.length) console.log(`[redes] ${nombre} (búsqueda TikTok): sin resultados`);
+    nuevos.forEach((u) => enlaces.add(u));
+  });
+  return [...enlaces].slice(0, maximo);
 }
 
 export async function buscarTikTok(consulta, cantidad) {
@@ -547,7 +612,7 @@ export async function buscarTikTok(consulta, cantidad) {
 
   // Respaldo: buscar enlaces de TikTok (APIs de terceros, luego buscadores web) y bajar cada uno (tikwm, y yt-dlp si tikwm falla).
   let enlaces = await buscarEnlacesTikTokApis(consulta, cantidad * 2);
-  if (!enlaces.length) enlaces = await buscarEnlacesWeb([`${consulta} site:tiktok.com/@ video`, `${consulta} tiktok site:tiktok.com`], normalizarTikTok, cantidad * 2).catch(() => []);
+  if (!enlaces.length) enlaces = await buscarEnlacesWeb([`${consulta} site:tiktok.com/@ video`, `${consulta} tiktok site:tiktok.com`, `${consulta} tiktok video`], normalizarTikTok, cantidad * 2).catch(() => []);
   if (!enlaces.length) {
     throw new Error(errorApi
       ? "TikTok bloqueó la búsqueda desde esta conexión (HTTP 403). Envía el enlace del video con .tt <enlace>."
