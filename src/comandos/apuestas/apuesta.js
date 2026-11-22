@@ -1,4 +1,5 @@
 import { getAccount } from "../../../motores/db.js";
+import { asegurarKarma, probVictoria } from "../../../motores/karma.js";
 import { resolverApuesta, chequearEnfriamiento, liquidar } from "../../economia/apuestas.js";
 import { tarjeta, montoConSigno, monto, elegir, enviarYEditar, avisoNivel } from "../../economia/formato-evento.js";
 import { estilo } from "../../economia/temas.js";
@@ -76,6 +77,7 @@ export default {
   desc: "Apuesta en el casino: si ganas recibes lo apostado más un porcentaje, si pierdes solo pierdes una parte",
   category: "Apuestas",
   handler: async ({ sock, from, sender, cleanText, reply }) => {
+    await asegurarKarma();
     const E = estilo(ESTILOS);
     const apuesta = resolverApuesta(cleanText.split(/\s+/)[1], getAccount(sender).wallet, APUESTA_MIN, APUESTA_MAX);
     if (apuesta.error) {
@@ -88,7 +90,8 @@ export default {
     if (espera) return reply({ text: espera });
 
     const stake = apuesta.stake;
-    const gana = Math.random() < PROBABILIDAD;
+    // La suerte del karma cambia la probabilidad de ganar (ver motores/karma.js).
+    const gana = Math.random() < probVictoria(PROBABILIDAD, sender);
     const rango = gana ? [GANANCIA_MIN, GANANCIA_MAX] : [PERDIDA_MIN, PERDIDA_MAX];
     const factor = rango[0] + Math.random() * (rango[1] - rango[0]);
     const variacion = Math.min(stake, Math.max(1, Math.round(stake * factor)));
