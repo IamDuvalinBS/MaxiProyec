@@ -269,7 +269,7 @@ export default [
     }
   },
   {
-    names: [".halago", ".cumplido"],
+    names: [".halago"],
     usage: ".halago @mencion",
     desc: "Un halago sincero para tu amigue.",
     category: CAT,
