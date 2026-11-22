@@ -101,6 +101,7 @@ export async function resolverLinkYoutube(consulta) {
   const videos = resultados.videos ?? (resultados.results || []).filter((r) => r.type === "Video");
   const video = videos[0];
   if (!video) throw new Error("No encontre ningun video con esa busqueda.");
+  guardarDatosDeBusqueda(video);
   const link = `https://www.youtube.com/watch?v=${video.id}`;
   cacheBusquedas.set(clave, link);
   return link;
@@ -113,16 +114,102 @@ function formatearDuracion(segundos) {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
+// Datos del video que YouTube ya entregó en la búsqueda: sirven de respaldo cuando la ficha completa del video no se puede leer.
+const datosDeBusqueda = crearCache();
+
+function guardarDatosDeBusqueda(v) {
+  if (!v?.id) return;
+  const segundos = Number(v.duration?.seconds) || 0;
+  datosDeBusqueda.set(v.id, {
+    titulo: textoDe(v.title),
+    canal: v.author?.name || "Desconocido",
+    duracionSeg: segundos,
+    duracionTexto: formatearDuracion(segundos),
+    vistas: textoDe(v.view_count) || textoDe(v.short_view_count) || "No disponible",
+    miniatura: v.thumbnails?.[0]?.url || null,
+    fecha: textoDe(v.published) || null,
+    etiquetas: [],
+    enlace: `https://www.youtube.com/watch?v=${v.id}`
+  });
+}
+
+// Último recurso para videos que YouTube no deja leer: título, canal y miniatura por oEmbed (no necesita sesión).
+async function infoPorOembed(idVideo) {
+  const { data } = await axios.get("https://www.youtube.com/oembed", {
+    params: { url: `https://www.youtube.com/watch?v=${idVideo}`, format: "json" },
+    headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" },
+    timeout: 15000
+  });
+  if (!data?.title) throw new Error("oEmbed sin título");
+  return {
+    titulo: data.title,
+    canal: data.author_name || "Desconocido",
+    duracionSeg: 0,
+    duracionTexto: formatearDuracion(0),
+    vistas: "No disponible",
+    miniatura: data.thumbnail_url || null,
+    fecha: null,
+    etiquetas: [],
+    enlace: `https://www.youtube.com/watch?v=${idVideo}`
+  };
+}
+
+// El cliente WEB de youtubei.js suele responder "This video is unavailable" aunque el video exista (YouTube le exige un PO token).
+// Por eso se prueban varios clientes, empezando por el que ya funcionó en la última descarga.
+const CLIENTES_PARA_INFO = ["TV", "WEB_EMBEDDED", "MWEB", "WEB"];
+
+async function leerFichaConClientes(yt, idVideo) {
+  let primerError = null;
+  const orden = clienteBueno ? [clienteBueno, ...CLIENTES_PARA_INFO.filter((c) => c !== clienteBueno)] : CLIENTES_PARA_INFO;
+  for (const cliente of orden) {
+    try {
+      const info = await conTiempoLimite(yt.getBasicInfo(idVideo, { client: cliente }), 12000);
+      if (info?.basic_info?.title) {
+        clienteBueno = cliente;
+        return info.basic_info;
+      }
+    } catch (e) {
+      if (/invalid client/i.test(e.message)) continue; // esa versión de youtubei.js no conoce ese cliente
+      primerError = primerError || e;
+      console.log(`[youtube] Ficha con cliente ${cliente} falló: ${String(e.message).split("\n")[0]}`);
+    }
+  }
+  if (primerError) throw primerError;
+  throw new Error("This video is unavailable");
+}
+
 export async function obtenerInfoYoutube(link) {
   const idVideo = extraerIdDeLink(link);
   const guardada = cacheInfo.get(idVideo);
   if (guardada) return guardada;
 
   const yt = await obtenerCliente();
-  const info = await yt.getBasicInfo(idVideo);
-  const basico = info.basic_info;
-  const segundos = basico.duration || 0;
+  let basico = null;
+  let errorFicha = null;
+  try {
+    basico = await leerFichaConClientes(yt, idVideo);
+  } catch (e) {
+    errorFicha = e;
+  }
 
+  if (!basico) {
+    const deBusqueda = datosDeBusqueda.get(idVideo);
+    if (deBusqueda) {
+      console.log(`[youtube] Ficha de ${idVideo} no disponible (${String(errorFicha?.message).split("\n")[0]}); se usan los datos de la búsqueda`);
+      cacheInfo.set(idVideo, deBusqueda);
+      return deBusqueda;
+    }
+    try {
+      const porOembed = await infoPorOembed(idVideo);
+      console.log(`[youtube] Ficha de ${idVideo} no disponible (${String(errorFicha?.message).split("\n")[0]}); se usa oEmbed`);
+      cacheInfo.set(idVideo, porOembed);
+      return porOembed;
+    } catch (e) {
+      throw errorFicha || e; // el video de verdad no existe o es privado
+    }
+  }
+
+  const segundos = basico.duration || 0;
   const fechaCruda = basico.publish_date || basico.upload_date || null;
 
   const resultado = {
@@ -145,7 +232,10 @@ export async function buscarVideosYoutube(consulta, limite = 10, opciones = {}) 
   const resultados = await yt.search(consulta, { type: "video", ...opciones });
   const videos = resultados.videos ?? (resultados.results || []).filter((r) => r.type === "Video");
 
-  return videos.slice(0, limite).map((v) => ({
+  return videos.slice(0, limite).map((v) => {
+    guardarDatosDeBusqueda(v);
+    return v;
+  }).map((v) => ({
     titulo: textoDe(v.title),
     url: `https://www.youtube.com/watch?v=${v.id}`,
     duracion: textoDe(v.duration) || "??:??",
