@@ -2,9 +2,10 @@ import { ownerGacha, numeroDe } from "../../../motores/gacha-owners.js";
 import { encabezado } from "../../../src/economia/estilo.js";
 import { gachaListo, arroba, fmt } from "../../../motores/gacha-core.js";
 import { registroNivelesDe, restaurarNivelesDesdeRegistro } from "../../../motores/gacha-db.js";
+import { contextoDe } from "../../nucleo/objetivo.js";
 
 function usuarioDe(msg, partes) {
-  const ctx = msg.message?.extendedTextMessage?.contextInfo;
+  const ctx = contextoDe(msg);
   const directo = ctx?.mentionedJid?.[0] || ctx?.participant || null;
   if (directo) return directo;
   const numero = partes.find((x) => /^\d{6,20}$/.test(x));
@@ -20,9 +21,9 @@ const fecha = (s) => new Date(s * 1000).toLocaleString("es-MX", { timeZone: "Ame
 export default [
   {
     names: [".nivelog", ".registroniveles"],
-    desc: "Owner: muestra el registro de niveles guardado en MongoDB de un usuario: .nivelog @usuario (o su número)",
+    desc: "Muestra el registro de niveles de un usuario (solo owners)",
     category: "Owner",
-    usage: ".nivelog <@usuario|número>",
+    usage: ".nivelog <@usuario>",
     handler: ownerGacha(async ({ cleanText, msg, reply }) => {
       await gachaListo;
       const partes = cleanText.split(/\s+/).slice(1);
@@ -50,9 +51,9 @@ export default [
   },
   {
     names: [".restaurarniveles"],
-    desc: "Owner: devuelve los niveles perdidos usando el registro de MongoDB: .restaurarniveles @usuario|todos [confirmar]",
+    desc: "Devuelve los niveles perdidos desde el registro (solo owners)",
     category: "Owner",
-    usage: ".restaurarniveles <@usuario|todos> [confirmar]",
+    usage: ".restaurarniveles <@usuario | todos>",
     handler: ownerGacha(async ({ cleanText, msg, reply }) => {
       await gachaListo;
       const partes = cleanText.split(/\s+/).slice(1).map((x) => x.toLowerCase());

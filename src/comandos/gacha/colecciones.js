@@ -1,5 +1,6 @@
 import { gachaListo, mostrarColeccion } from "../../../motores/gacha-core.js";
 import { crearComandoColeccion } from "../../../motores/gacha-comandos.js";
+import { jidObjetivo } from "../../nucleo/objetivo.js";
 
 // ── harem.js ──
 const cmd_harem = (() => {
@@ -7,10 +8,10 @@ const cmd_harem = (() => {
     names: [".harem", ".miswaifus"],
     desc: "Muestra tu colección de waifus",
     category: "Waifu",
-    usage: ".harem [página]",
+    usage: ".harem [@usuario]",
     handler: async ({ sock, from, msg, sender, cleanText, reply }) => {
       await gachaListo;
-      await mostrarColeccion({ sock, from, msg, categoria: "waifu", titulo: "Tu harem", sender, cleanText, reply });
+      await mostrarColeccion({ sock, from, msg, objetivo: jidObjetivo(msg), categoria: "waifu", titulo: "Tu harem", sender, cleanText, reply });
     }
   };
 })();
@@ -21,11 +22,11 @@ const cmd_misbrawlers = (() => {
     names: [".misbrawlers"],
     desc: "Muestra tus Brawlers con su nivel",
     category: "Gacha",
-    usage: ".misbrawlers [página]",
+    usage: ".misbrawlers [@usuario]",
     handler: async ({ sock, from, msg, sender, cleanText, reply }) => {
       await gachaListo;
       await mostrarColeccion({
-        sock, from, msg, categoria: "brawler", titulo: "Tus Brawlers", sender, cleanText, reply,
+        sock, from, msg, objetivo: jidObjetivo(msg), categoria: "brawler", titulo: "Tus Brawlers", sender, cleanText, reply,
         pista: "⚡ Súbelos de nivel con *.cubitos* y *.subirbrawler* (usa #id para elegir cuál)."
       });
     }
@@ -38,11 +39,11 @@ const cmd_missnakes = (() => {
     names: [".missnakes", ".misgusanitos"],
     desc: "Muestra tus Snakes",
     category: "Gacha",
-    usage: ".missnakes [página]",
+    usage: ".missnakes [@usuario]",
     handler: async ({ sock, from, msg, sender, cleanText, reply }) => {
       await gachaListo;
       await mostrarColeccion({
-        sock, from, msg, categoria: "snake", titulo: "Tus Snakes", sender, cleanText, reply,
+        sock, from, msg, objetivo: jidObjetivo(msg), categoria: "snake", titulo: "Tus Snakes", sender, cleanText, reply,
         pista: "🔮 Súbelos de nivel con *.orbes* (usa #id para elegir cuál)."
       });
     }

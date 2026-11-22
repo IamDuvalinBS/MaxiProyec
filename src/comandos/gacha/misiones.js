@@ -22,7 +22,7 @@ function lineasDeMisiones(lista) {
 
 export default {
   names: [".misiones", ".misionesgacha", ".quests"],
-  desc: "Muestra tus misiones diarias del gacha y cobra las completadas: .misiones [cobrar]",
+  desc: "Muestra tus misiones diarias del gacha y cobra",
   category: "Gacha",
   usage: ".misiones [cobrar]",
   handler: async ({ sender, cleanText, reply }) => {

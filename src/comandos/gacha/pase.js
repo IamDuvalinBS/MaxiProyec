@@ -3,9 +3,9 @@ import { PASES, reclamarPase, paseReclamado } from "../../../motores/gacha-pases
 
 export default {
   names: [".pase", ".pases", ".reclamarpase"],
-  desc: "Reclama un pase de gacha con su código: .pase CÓDIGO (los códigos están en la sección Pases de la página)",
+  desc: "Reclama un pase de gacha con su código",
   category: "Gacha",
-  usage: ".pase CÓDIGO",
+  usage: ".pase <código>",
   handler: async ({ cleanText, sender, reply }) => {
     await gachaListo;
     const codigo = String(cleanText || "").trim().split(/\s+/).slice(1).join("");

@@ -6,7 +6,7 @@ import { encabezado, mencion, tiempoLargo } from "../../economia/estilo.js";
 
 export default {
   names: [".rwinfo", ".gachacd", ".cooldownsgacha"],
-  desc: "Muestra el tiempo de espera de las tiradas de todos los gachas: .rwinfo [@usuario]",
+  desc: "Muestra la espera de las tiradas de todos los gachas",
   category: "Gacha",
   usage: ".rwinfo [@usuario]",
   handler: async ({ sender, msg, reply }) => {

@@ -9,15 +9,16 @@ import { filasUsuario } from "../../../motores/gacha-db.js";
 import { revisarInsigniasHalloween } from "../../../motores/gacha-halloween-misiones.js";
 import { construirDatosLogros } from "../../../motores/logros-datos.js";
 import { htmlLogros } from "../../../motores/logros-html.js";
+import { contextoDe } from "../../nucleo/objetivo.js";
 
 const insignias = {
   names: [".insignias", ".badges"],
-  desc: "Muestra tus insignias del gacha o las de otra persona: .insignias [@usuario]",
+  desc: "Muestra tus insignias o las de otra persona",
   category: "Gacha",
   usage: ".insignias [@usuario]",
   handler: async ({ sock, from, sender, msg, reply }) => {
     await gachaListo;
-    const contexto = msg.message?.extendedTextMessage?.contextInfo;
+    const contexto = contextoDe(msg);
     const mencionado = contexto?.mentionedJid?.[0] || contexto?.participant || null;
     const propio = !mencionado || mencionado === sender;
     const objetivo = propio
@@ -74,13 +75,13 @@ const insignias = {
 
 const logros = {
   names: [".logros", ".achievements"],
-  desc: "Tu panel de logros: misiones de Halloween, insignias de temporada y progreso de cada logro: .logros [@usuario]",
+  desc: "Tu panel de logros e insignias de temporada",
   category: "Gacha",
   usage: ".logros [@usuario]",
   handler: async (ctx) => {
     const { sock, from, sender, msg, reply } = ctx;
     await gachaListo;
-    const contexto = msg.message?.extendedTextMessage?.contextInfo;
+    const contexto = contextoDe(msg);
     const mencionado = contexto?.mentionedJid?.[0] || contexto?.participant || null;
     const propio = !mencionado || mencionado === sender;
     const objetivo = propio

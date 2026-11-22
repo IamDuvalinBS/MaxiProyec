@@ -29,7 +29,7 @@ function ayuda(sender) {
 
 export default {
   names: [".ascender", ".ascension", ".estrella"],
-  desc: "Asciende un personaje en nivel máximo para extender su nivel: .ascender <categoría> <ID>",
+  desc: "Asciende un personaje de nivel máximo para extender su nivel",
   category: "Gacha",
   usage: ".ascender <categoría> <ID>",
   handler: async ({ sender, cleanText, reply }) => {

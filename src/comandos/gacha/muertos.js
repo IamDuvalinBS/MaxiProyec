@@ -5,14 +5,12 @@ import { agregarPorLink } from "../../../motores/gacha-yandere.js";
 import { getProfile } from "../../../motores/profile.js";
 import { esOwnerGacha } from "../../../motores/gacha-owners.js";
 import { encabezado } from "../../economia/estilo.js";
-import {
-  construirDatosMuertos, textoEstado, entregarPendientes, sumarComunidad, totalComunidad, ETIQUETA_WAIFU, META_COMUNIDAD, NOMBRE_EVENTO
-} from "../../../motores/gacha-muertos.js";
+import { construirDatosMuertos, entregarPendientes, sumarComunidad, totalComunidad, ETIQUETA_WAIFU, META_COMUNIDAD, NOMBRE_EVENTO } from "../../../motores/gacha-muertos.js";
 import { htmlMuertos } from "../../../motores/muertos-html.js";
 
 const muertos = {
   names: [".muertos", ".diademuertos", ".ofrenda", ".altar"],
-  desc: "Altar de Día de Muertos y barra del evento comunitario de 10,000 comandos de economía",
+  desc: "Altar de Día de Muertos y evento comunitario",
   category: "Gacha",
   usage: ".muertos",
   handler: async ({ sock, from, sender, cleanText, msg, reply }) => {
@@ -49,9 +47,9 @@ const muertos = {
 
 const waifusevento = {
   names: [".waifusevento", ".waifusmuertos", ".waifuevento"],
-  desc: "Gestiona las waifus que se entregan como premio del evento (solo owners)",
+  desc: "Gestiona las waifus de premio del evento (solo owners)",
   category: "Owner",
-  usage: ".waifusevento [<link de danbooru> | ultimas <n> | marcar <id> <id>... | quitar <id>...]",
+  usage: ".waifusevento",
   handler: ownerGacha(async ({ cleanText, reply }) => {
     await gachaListo;
     const argumentos = cleanText.split(/\s+/).slice(1);

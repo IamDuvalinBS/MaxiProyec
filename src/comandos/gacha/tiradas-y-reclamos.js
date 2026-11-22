@@ -14,7 +14,7 @@ const cmd_rw = (() => {
 
   return {
     names: [".rw", ".rollwaifu"],
-    desc: "Genera una waifu al azar para reclamar con .claim (cada 20 minutos)",
+    desc: "Genera una waifu al azar para reclamar con .claim",
     category: "Waifu",
     handler: async ({ from, sender, reply }) => {
       await gachaListo;
@@ -44,7 +44,7 @@ const cmd_pokemon = (() => {
 
   return {
     names: [".pokemon"],
-    desc: "Genera un Pokémon al azar para reclamar con .atrapar (cada 20 minutos)",
+    desc: "Genera un Pokémon al azar para reclamar con .atrapar",
     category: "Gacha",
     handler: async ({ from, sender, reply }) => {
       await gachaListo;
@@ -74,7 +74,7 @@ const cmd_brawlstars = (() => {
 
   return {
     names: [".brawlstars", ".brawl"],
-    desc: "Genera un Brawler al azar para reclamar con .drop (cada 20 minutos)",
+    desc: "Genera un Brawler al azar para reclamar con .drop",
     category: "Gacha",
     usage: ".brawlstars",
     handler: async ({ from, sender, cleanText, reply }) => {
@@ -124,7 +124,7 @@ const cmd_snake = (() => {
 
   return {
     names: [".snake", ".gusanito"],
-    desc: "Genera un gusanito (skin de Snake) al azar para adoptar con .adoptar (cada 20 minutos)",
+    desc: "Genera un gusanito al azar para adoptar",
     category: "Gacha",
     handler: async ({ from, sender, reply }) => {
       await gachaListo;
@@ -165,7 +165,7 @@ const cmd_desbloquear = (() => {
   return crearComandoClaim({
     categoria: "clash",
     names: [".desbloquear"],
-    desc: "Reclama el personaje que apareció en la última tirada de este gacha"
+    desc: "Reclama el personaje de tu última tirada"
   });
 })();
 
@@ -183,7 +183,7 @@ const cmd_equipar = (() => {
   return crearComandoClaim({
     categoria: "cod",
     names: [".equipar"],
-    desc: "Reclama el personaje que apareció en la última tirada de este gacha"
+    desc: "Reclama el personaje de tu última tirada"
   });
 })();
 
@@ -201,7 +201,7 @@ const cmd_criar = (() => {
   return crearComandoClaim({
     categoria: "dragon",
     names: [".criar"],
-    desc: "Reclama el personaje que apareció en la última tirada de este gacha"
+    desc: "Reclama el personaje de tu última tirada"
   });
 })();
 

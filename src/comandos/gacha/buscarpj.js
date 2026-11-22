@@ -1,5 +1,5 @@
 import fs from "fs";
-import { gachaListo, CAT, lineasPersonaje, prepararImagen } from "../../../motores/gacha-core.js";
+import { gachaListo, CAT, prepararImagen } from "../../../motores/gacha-core.js";
 import { personajesDeCategoria, propietarios } from "../../../motores/gacha-db.js";
 import { resolverVariante, listaVariantes, FIRMA_CLAIM } from "../../../motores/gacha-claim.js";
 import { enviarConBoton } from "../../../motores/botones.js";
@@ -68,7 +68,7 @@ async function fotoDe(p) {
 
 export default {
   names: [".buscarpj", ".buscarpersonaje", ".pj"],
-  desc: "Busca un personaje por nombre en cualquier categoría del gacha: .buscarpj [categoría] <nombre>",
+  desc: "Busca un personaje por nombre en el gacha",
   category: "Gacha",
   usage: ".buscarpj [categoría] <nombre>",
   handler: async ({ sock, from, msg, cleanText, reply }) => {

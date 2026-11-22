@@ -40,9 +40,9 @@ function textoResultado(r, categoria) {
 
 export default {
   names: [".cargardragones", ".importardragones"],
-  desc: "Importa los dragones de Dragon Mania Legends desde un archivo local o desde su wiki (solo owners)",
+  desc: "Importa dragones de Dragon Mania Legends (solo owners)",
   category: "Gacha",
-  usage: ".cargardragones | .cargardragones wiki [categoría] | .cargardragones buscar <texto>",
+  usage: ".cargardragones [wiki | buscar]",
   handler: ownerGacha(async ({ cleanText, reply }) => {
     await gachaListo;
     const argumentos = cleanText.split(/\s+/).slice(1).join(" ").trim();

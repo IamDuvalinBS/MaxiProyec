@@ -5,9 +5,9 @@ import { registrarActividad } from "../../../motores/gacha-misiones.js";
 
 export default {
   names: [".subirbrawler", ".levelupbrawler"],
-  desc: "Gasta cubitos de fuerza para subir de nivel a un Brawler: .subirbrawler [ID] [cantidad|max]",
+  desc: "Sube de nivel a un Brawler con cubitos de fuerza",
   category: "Gacha",
-  usage: ".subirbrawler [ID] [cantidad|max]",
+  usage: ".subirbrawler [ID] [cantidad]",
   handler: async ({ sender, cleanText, reply }) => {
     await gachaListo;
     const partes = cleanText.split(/\s+/).slice(1);

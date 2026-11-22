@@ -86,9 +86,9 @@ async function importarTodo(reply) {
 
 export default {
   names: [".cargarcod", ".importarcod"],
-  desc: "Importa personajes, skins o armas de Call of Duty desde su wiki (solo owners)",
+  desc: "Importa personajes, skins o armas de Call of Duty (solo owners)",
   category: "Gacha",
-  usage: ".cargarcod todo | .cargarcod buscar <texto> | .cargarcod <categoría> | <tipo>",
+  usage: ".cargarcod <categoría>",
   handler: ownerGacha(async ({ cleanText, reply }) => {
     await gachaListo;
     const argumentos = cleanText.split(/\s+/).slice(1).join(" ").trim();

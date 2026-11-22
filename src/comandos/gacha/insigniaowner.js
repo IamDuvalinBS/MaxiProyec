@@ -2,6 +2,7 @@ import { ownerGacha } from "../../../motores/gacha-owners.js";
 import { gachaListo, arroba } from "../../../motores/gacha-core.js";
 import { crearExclusiva, borrarExclusiva, listaExclusivas, definicion, otorgar, retirar, TEMPORADA, TEMPORADA_HALLOWEEN } from "../../../motores/gacha-insignias.js";
 import { encabezado } from "../../../src/economia/estilo.js";
+import { contextoDe } from "../../nucleo/objetivo.js";
 
 const AYUDA = [
   encabezado("💠", "INSIGNIAS EXCLUSIVAS"),
@@ -20,15 +21,15 @@ const AYUDA = [
 
 export default {
   names: [".insigniaowner", ".insigniaex", ".darinsignia"],
-  desc: "Crea y entrega insignias exclusivas del gacha (solo owners)",
+  desc: "Crea y entrega insignias del gacha (solo owners)",
   category: "Owner",
-  usage: ".insigniaowner crear | dar | quitar | borrar | lista",
+  usage: ".insigniaowner <crear | dar | lista>",
   handler: ownerGacha(async ({ cleanText, msg, reply }) => {
     await gachaListo;
     const argumentos = cleanText.split(/\s+/).slice(1).join(" ").trim();
     const accion = (argumentos.split(/\s+/)[0] || "").toLowerCase();
     const resto = argumentos.replace(/^\S+\s*/, "");
-    const contexto = msg.message?.extendedTextMessage?.contextInfo;
+    const contexto = contextoDe(msg);
     const destino = contexto?.mentionedJid?.[0] || contexto?.participant || null;
 
     if (accion === "temporada") {

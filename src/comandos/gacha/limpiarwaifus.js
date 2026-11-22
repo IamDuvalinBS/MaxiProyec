@@ -7,9 +7,9 @@ const NIVEL_POR_DEFECTO = 10;
 
 export default {
   names: [".limpiarwaifus", ".borrarwaifus"],
-  desc: "Borra los waifus anteriores (no Danbooru) salvo los que algún usuario tenga por encima de cierto nivel (solo owners)",
+  desc: "Borra waifus antiguas sin uso (solo owners)",
   category: "Owner",
-  usage: ".limpiarwaifus [nivel] | .limpiarwaifus confirmar [nivel]",
+  usage: ".limpiarwaifus [nivel]",
   handler: ownerGacha(async ({ cleanText, reply }) => {
     await gachaListo;
     const partes = cleanText.split(/\s+/).slice(1).map((p) => p.toLowerCase());

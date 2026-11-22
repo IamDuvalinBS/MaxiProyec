@@ -1,11 +1,11 @@
 import { gachaListo } from "../../../motores/gacha-core.js";
-import { revisarMigracion, avisarMigracion, resolverMigracion } from "../../../motores/gacha-migracion.js";
+import { revisarMigracion, resolverMigracion } from "../../../motores/gacha-migracion.js";
 
 export default {
   names: [".migrar", ".ajusteniveles"],
-  desc: "Elige qué hacer con los niveles que bajaron en el ajuste (monedas o niveles)",
+  desc: "Elige qué hacer con los niveles que bajaron",
   category: "Gacha",
-  usage: ".migrar <monedas|niveles>",
+  usage: ".migrar <monedas | niveles>",
   handler: async ({ from, sender, cleanText, reply }) => {
     await gachaListo;
     const arg = String(cleanText.split(/\s+/)[1] || "").toLowerCase();

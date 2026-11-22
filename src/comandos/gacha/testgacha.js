@@ -7,9 +7,9 @@ const POR_PAGINA = 20;
 
 export default {
   names: [".testgacha", ".gachatext", ".wainfo"],
-  desc: "Lista los ID de todos los personajes de cada categoría del gacha (solo owners)",
+  desc: "Lista los ID de los personajes de cada categoría (solo owners)",
   category: "Owner",
-  usage: ".testgacha [categoría] [página]",
+  usage: ".testgacha [categoría]",
   handler: ownerGacha(async ({ cleanText, reply }) => {
     await gachaListo;
     const partes = cleanText.split(/\s+/).slice(1).map((x) => x.toLowerCase());

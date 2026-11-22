@@ -12,15 +12,16 @@ import { T } from "../../../motores/gacha-tema.js";
 import { getProfile } from "../../../motores/profile.js";
 import { htmlPerfilDe } from "../../../motores/perfil-gacha-datos.js";
 import { candidatosDeUsuario, buscarUsuarioConDatos } from "../../../motores/gacha-usuario.js";
+import { contextoDe } from "../../nucleo/objetivo.js";
 
 export default {
   names: [".perfilgacha", ".gachaperfil", ".micolecciongacha"],
-  desc: "Muestra el perfil de coleccionista de una persona: .perfilgacha [@usuario]",
+  desc: "Perfil de coleccionista de una persona",
   category: "Gacha",
   usage: ".perfilgacha [@usuario]",
   handler: async ({ sock, from, sender, msg, reply }) => {
     await gachaListo;
-    const contexto = msg.message?.extendedTextMessage?.contextInfo;
+    const contexto = contextoDe(msg);
     const mencionado = contexto?.mentionedJid?.[0] || contexto?.participant || null;
     const propio = !mencionado || mencionado === sender;
     const objetivo = propio

@@ -4,6 +4,7 @@ import { candidatosDeUsuario } from "../../../motores/gacha-usuario.js";
 import { rangoDe } from "../../../motores/owner.js";
 import { resolverUsuario, lidsDe, lidDeNumero } from "../../nucleo/identidad.js";
 import { metadatos, buscarParticipanteResuelto, limpiarJid } from "../../grupos/nucleo.js";
+import { contextoDe } from "../../nucleo/objetivo.js";
 
 const PN = "@s.whatsapp.net";
 const esLid = (jid) => String(jid).endsWith("@lid");
@@ -47,11 +48,11 @@ async function juntarIds({ sock, from, base, extra = [] }) {
 
 export default {
   names: [".miid", ".whoami"],
-  usage: ".miid [@usuario | responder a su mensaje | número]",
-  desc: "Muestra tu ID de WhatsApp (o el de otra persona) con todos sus IDs y si el gacha lo reconoce como owner",
+  usage: ".miid [@usuario]",
+  desc: "Muestra tu ID de WhatsApp o el de otra persona",
   category: "Gacha",
   handler: async ({ sock, from, sender, msg, cleanText, reply }) => {
-    const ctx = msg.message?.extendedTextMessage?.contextInfo || {};
+    const ctx = contextoDe(msg) || {};
     const arg = String(cleanText || "").trim().split(/\s+/).slice(1).join("").replace(/\D/g, "");
     const mencionado = ctx.mentionedJid?.[0];
     const citado = ctx.participant;

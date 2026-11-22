@@ -3,12 +3,13 @@ import { encabezado } from "../../../src/economia/estilo.js";
 import { gachaListo, arroba, CAT } from "../../../motores/gacha-core.js";
 import { categoriaPorAlias } from "../../../motores/gacha-categorias.js";
 import { darTickets } from "../../../motores/gacha-tickets.js";
+import { contextoDe } from "../../nucleo/objetivo.js";
 
 const MAXIMO_POR_ENTREGA = 1000;
 
 export default {
   names: [".darticket", ".dartickets"],
-  desc: "Entrega tickets de una categoría a un usuario: .darticket <categoría> <cantidad> @usuario (solo owners)",
+  desc: "Da tickets de una categoría a un usuario (solo owners)",
   category: "Owner",
   usage: ".darticket <categoría> <cantidad> @usuario",
   handler: ownerGacha(async ({ cleanText, msg, reply }) => {
@@ -16,7 +17,7 @@ export default {
     const partes = cleanText.split(/\s+/).slice(1);
     const categoria = categoriaPorAlias(partes[0]);
     const cantidad = parseInt(partes[1], 10);
-    const destino = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0] || msg.message?.extendedTextMessage?.contextInfo?.participant;
+    const destino = contextoDe(msg)?.mentionedJid?.[0] || contextoDe(msg)?.participant;
 
     if (!categoria || !cantidad || cantidad < 1 || !destino) {
       return reply({

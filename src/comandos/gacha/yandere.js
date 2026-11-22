@@ -16,9 +16,9 @@ const USO = [
 
 export default {
   names: [".yandere", ".danbooru"],
-  desc: "Agrega waifus desde un link de Danbooru: post, búsqueda, pool o wiki de una serie completa (solo owners)",
+  desc: "Agrega waifus desde un link de Danbooru (solo owners)",
   category: "Owner",
-  usage: ".yandere <link> [máximo de posts]",
+  usage: ".yandere <link>",
   handler: ownerGacha(async ({ from, sender, cleanText, reply }) => {
     await gachaListo;
     const [, link, maxTexto] = cleanText.split(/\s+/);

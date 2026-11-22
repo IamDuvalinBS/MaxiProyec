@@ -7,7 +7,7 @@ const cmd_waifupvp = (() => {
 
   return {
     names: [".waifupvp"],
-    desc: "Desafía a otro usuario con tu waifu: .waifupvp <@usuario> <apuesta> <ID> (también por equipos)",
+    desc: "Desafía a otro usuario con tu waifu",
     category: "Waifu",
     usage: ".waifupvp <@usuario> <apuesta> <ID>",
     handler: async (ctx) => {
@@ -23,7 +23,7 @@ const cmd_pokemonpvp = (() => {
 
   return {
     names: [".pokemonpvp"],
-    desc: "Desafía a otro usuario con tu Pokémon: .pokemonpvp <@usuario> <apuesta> <ID> (el combate se juega por rondas)",
+    desc: "Desafía a otro usuario con tu Pokémon",
     category: "Gacha",
     usage: ".pokemonpvp <@usuario> <apuesta> <ID>",
     handler: async (ctx) => {
@@ -39,7 +39,7 @@ const cmd_brawlstarspvp = (() => {
 
   return {
     names: [".brawlstarspvp", ".brawlpvp"],
-    desc: "Desafía a otro usuario con tu Brawler: .brawlstarspvp <@usuario> <apuesta> <ID> (el combate se juega por rondas)",
+    desc: "Desafía a otro usuario con tu Brawler",
     category: "Gacha",
     usage: ".brawlstarspvp <@usuario> <apuesta> <ID>",
     handler: async (ctx) => {
@@ -55,7 +55,7 @@ const cmd_snakepvp = (() => {
 
   return {
     names: [".snakepvp"],
-    desc: "Desafía a otro usuario con tu Snake: .snakepvp <@usuario> <apuesta> <ID> (el combate se juega por rondas)",
+    desc: "Desafía a otro usuario con tu Snake",
     category: "Gacha",
     usage: ".snakepvp <@usuario> <apuesta> <ID>",
     handler: async (ctx) => {
@@ -69,7 +69,7 @@ const cmd_snakepvp = (() => {
 const cmd_clashpvp = (() => {
   return {
     names: [".clashpvp"],
-    desc: "Desafía a otro usuario con tu carta: .clashpvp <@usuario> <apuesta> <ID> (el combate se juega por rondas)",
+    desc: "Desafía a otro usuario con tu carta",
     category: "Gacha",
     usage: ".clashpvp <@usuario> <apuesta> <ID>",
     handler: crearHandlerPvp({ categoria: "clash", comando: "clashpvp", nombreLuchador: "carta" })
@@ -80,7 +80,7 @@ const cmd_clashpvp = (() => {
 const cmd_codpvp = (() => {
   return {
     names: [".codpvp"],
-    desc: "Desafía a otro usuario con tu ítem de COD: .codpvp <@usuario> <apuesta> <ID> (el combate se juega por rondas)",
+    desc: "Desafía a otro usuario con tu ítem de COD",
     category: "Gacha",
     usage: ".codpvp <@usuario> <apuesta> <ID>",
     handler: crearHandlerPvp({ categoria: "cod", comando: "codpvp", nombreLuchador: "ítem de COD" })
@@ -91,7 +91,7 @@ const cmd_codpvp = (() => {
 const cmd_dragonpvp = (() => {
   return {
     names: [".dragonpvp"],
-    desc: "Desafía a otro usuario con tu dragón: .dragonpvp <@usuario> <apuesta> <ID> (el combate se juega por rondas)",
+    desc: "Desafía a otro usuario con tu dragón",
     category: "Gacha",
     usage: ".dragonpvp <@usuario> <apuesta> <ID>",
     handler: crearHandlerPvp({ categoria: "dragon", comando: "dragonpvp", nombreLuchador: "dragón" })

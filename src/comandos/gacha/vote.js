@@ -21,7 +21,7 @@ const esperaRestante = (cuenta) => Math.max(0, (Number(cuenta.cooldowns?.[CLAVE_
 
 export default {
   names: [".vote", ".votar"],
-  desc: "Vota por una waifu para subir su valor, una vez cada 5 horas: .vote <nombre o ID>",
+  desc: "Vota por una waifu para subir su valor (cada 5 horas)",
   category: "Waifu",
   usage: ".vote <nombre o ID>",
   handler: async ({ sender, cleanText, reply }) => {

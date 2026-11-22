@@ -14,9 +14,9 @@ const aleatorio = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
 export default {
   names: [".cimage", ".cimg", ".fotowaifu"],
-  desc: "Busca una waifu por su nombre y muestra una de sus fotos: .cimage <nombre> [número de foto]",
+  desc: "Muestra una foto de una waifu por su nombre",
   category: "Waifu",
-  usage: ".cimage <nombre> [número de foto]",
+  usage: ".cimage <nombre> [foto]",
   handler: async ({ cleanText, reply }) => {
     await gachaListo;
     const fichas = cleanText.trim().split(/\s+/).slice(1);

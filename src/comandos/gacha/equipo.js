@@ -6,6 +6,7 @@ import { poderesActivos } from "../../../motores/gacha-poderes.js";
 import { TAMANO_EQUIPO, equipoDe, guardarEquipo } from "../../../motores/gacha-equipos.js";
 import { encabezado } from "../../../src/economia/estilo.js";
 import { T } from "../../../motores/gacha-tema.js";
+import { jidObjetivo } from "../../nucleo/objetivo.js";
 
 const identificador = (texto) => (/^#?\d+$/.test(texto || "") ? parseInt(String(texto).replace("#", ""), 10) : null);
 
@@ -44,12 +45,19 @@ function tarjeta(categoria, personajes, automatico) {
 
 export default {
   names: [".equipo", ".team", ".miequipo"],
-  desc: "Arma o muestra tu equipo de batalla: .equipo <categoría> [ID ID ID]",
+  desc: "Arma o muestra tu equipo de batalla",
   category: "Gacha",
-  usage: ".equipo <categoría> [ID ID ID]",
-  handler: async ({ sender, cleanText, reply }) => {
+  usage: ".equipo <categoría> [ID ID ID | @usuario]",
+  handler: async ({ sender, msg, cleanText, reply }) => {
     await gachaListo;
-    const partes = cleanText.split(/\s+/).slice(1);
+    const partes = cleanText.split(/\s+/).slice(1).filter((p) => !p.startsWith("@"));
+    const otro = jidObjetivo(msg);
+    if (otro && otro !== sender) {
+      const categoriaVista = categoriaPorAlias(partes[0]);
+      if (!categoriaVista) return reply({ text: ayuda() });
+      const { personajes, automatico } = equipoDe(otro, categoriaVista);
+      return reply({ text: `> Equipo de @${otro.split("@")[0]}\n\n${tarjeta(categoriaVista, personajes, automatico)}`, mentions: [otro] });
+    }
     const categoria = categoriaPorAlias(partes[0]);
     if (!categoria) return reply({ text: ayuda() });
 

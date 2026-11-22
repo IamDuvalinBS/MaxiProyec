@@ -3,6 +3,7 @@ import { encabezado } from "../../../src/economia/estilo.js";
 import { gachaListo, arroba, fmt, CAT } from "../../../motores/gacha-core.js";
 import { categoriaPorAlias } from "../../../motores/gacha-categorias.js";
 import { reiniciarNivelesExcepto } from "../../../motores/gacha-db.js";
+import { contextoDe } from "../../nucleo/objetivo.js";
 
 const PALABRAS_EXCEPTO = ["excepto", "excepcion", "excepción", "menos", "salvo"];
 
@@ -22,13 +23,13 @@ function leerIds(partes) {
 
 export default {
   names: [".resetniveles", ".reiniciarniveles"],
-  desc: "Reinicia a nivel 0 los personajes de un usuario, salvo los que él mismo subió: .resetniveles todos excepto <ID>, <ID> @usuario (solo owners)",
+  desc: "Reinicia a nivel 0 los personajes de un usuario (solo owners)",
   category: "Owner",
-  usage: ".resetniveles <todos|categorías> excepto <ID>, <ID> @usuario [confirmar]",
+  usage: ".resetniveles <categoría|todos> @usuario",
   handler: ownerGacha(async ({ cleanText, msg, reply }) => {
     await gachaListo;
     const partes = cleanText.split(/\s+/).slice(1).map((x) => x.toLowerCase());
-    const contexto = msg.message?.extendedTextMessage?.contextInfo;
+    const contexto = contextoDe(msg);
     const usuario = contexto?.mentionedJid?.[0] || contexto?.participant || null;
     const confirmado = partes.includes("confirmar");
     const antesDeExcepto = partes.findIndex((x) => PALABRAS_EXCEPTO.includes(x));

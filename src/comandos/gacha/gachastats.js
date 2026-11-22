@@ -1,5 +1,5 @@
 import { ownerGacha } from "../../../motores/gacha-owners.js";
-import { gachaListo, tarjeta, monto, fmt, CAT } from "../../../motores/gacha-core.js";
+import { gachaListo, monto, fmt, CAT } from "../../../motores/gacha-core.js";
 import { categoriaPorAlias } from "../../../motores/gacha-categorias.js";
 import { resumenGacha, listarPersonajes, contarPersonajes } from "../../../motores/gacha-db.js";
 import { encabezado } from "../../../src/economia/estilo.js";
@@ -8,9 +8,9 @@ const POR_PAGINA = 20;
 
 export default {
   names: [".gachastats", ".statsgacha", ".gachainfo"],
-  desc: "Muestra cuántos personajes hay en cada sistema del gacha y permite listarlos (solo owners)",
+  desc: "Cuenta los personajes de cada gacha (solo owners)",
   category: "Gacha",
-  usage: ".gachastats [waifu|pokemon|brawl|snake] [página]",
+  usage: ".gachastats [categoría]",
   handler: ownerGacha(async ({ cleanText, reply }) => {
     await gachaListo;
     const partes = cleanText.split(/\s+/).slice(1).map((x) => x.toLowerCase());
