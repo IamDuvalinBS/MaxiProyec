@@ -128,6 +128,21 @@ export async function resolverUsuario(sock, jid, { grupo = null, alt = null } = 
   return limpio;
 }
 
+// Todos los LID que el bot ya sabe que pertenecen a este número.
+export function lidsDe(jid) {
+  const pn = limpiarJid(jid);
+  return [...alias].filter(([, v]) => v === pn).map(([k]) => k);
+}
+
+export async function lidDeNumero(sock, jid) {
+  try {
+    const lid = await sock.signalRepository?.lidMapping?.getLIDForPN?.(limpiarJid(jid));
+    return esLid(lid) ? limpiarJid(lid) : null;
+  } catch {
+    return null;
+  }
+}
+
 export function altDeClave(key) {
   if (!key) return null;
   const alt = key.participant ? key.participantAlt || key.participantPn : key.remoteJidAlt || key.senderPn;
