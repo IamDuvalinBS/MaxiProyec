@@ -13,6 +13,8 @@ import { avisarMuertos } from "../../motores/gacha-muertos.js";
 import { correrComoBot, botActual, baneadoEnBot, PRINCIPAL } from "../../motores/ajustes-bot.js";
 import { numeroSubbot } from "../subbots/gestor.js";
 import { stickerPremiumBloqueado } from "./sticker-premium.js";
+import { isOwner, isDueno } from "../../motores/owner.js";
+import { permisoDeArchivo } from "../comandos/bot/ownermenu.js";
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const CARPETAS_EXCLUIDAS = new Set([
@@ -22,6 +24,7 @@ const CARPETAS_EXCLUIDAS = new Set([
 const comandos = new Map();
 const categoriaDeComando = new Map();
 const principalDeComando = new Map();
+const archivoDeComando = new Map();
 
 function descubrirCarpetas() {
   const carpetas = [];
@@ -66,12 +69,14 @@ async function cargarComandos() {
             comandos.set(nombre, cmd.handler);
             categoriaDeComando.set(nombre, categoria);
             principalDeComando.set(nombre, cmd.names[0]);
+            archivoDeComando.set(nombre, relativa);
           }
           commandRegistry.set(cmd.names[0], {
             names: cmd.names,
             desc: cmd.desc || "",
             category: cmd.category || "General",
-            usage: cmd.usage || cmd.names[0]
+            usage: cmd.usage || cmd.names[0],
+            archivo: relativa
           });
         }
         total++;
@@ -139,6 +144,21 @@ async function ejecutarComando(sock, from, sender, text, msg) {
     if (capturados) registrarMedio(capturados, enviado);
     return enviado;
   };
+
+  // Permisos por archivo (listas de src/comandos/bot/ownermenu.js). Los dueños siempre pueden lo de owners.
+  const permiso = permisoDeArchivo(archivoDeComando.get(comando));
+  if (permiso === "nadie") {
+    await reply({ text: "🚫 Este comando está desactivado para todos." });
+    return true;
+  }
+  if (permiso === "dueno" && !isDueno(sender)) {
+    await reply({ text: "🚫 Este comando solo puede ser utilizado por los dueños del bot." });
+    return true;
+  }
+  if (permiso === "owner" && !isOwner(sender)) {
+    await reply({ text: "🚫 Este comando solo puede ser utilizado por owners." });
+    return true;
+  }
 
   if (!COMANDOS_PROTEGIDOS.has(comando) && comandoEstaBaneado(comando, categoriaDeComando.get(comando))) {
     await reply({ text: "🚫 Este comando fue desactivado por mi Owner, intenta nuevamente mas después." });
