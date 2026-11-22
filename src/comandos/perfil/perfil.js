@@ -6,6 +6,7 @@ import { getAccount } from "../../../motores/db.js";
 import { resumenPerfil } from "../../economia/logros.js";
 import { enviarConBoton } from "../../../motores/botones.js";
 import { FOTO_PATH } from "../../../core.js";
+import { jidObjetivo } from "../../nucleo/objetivo.js";
 
 const FIRMA = "Estilo de Bardera ✿";
 const NOMBRE_BOT = "𝑀𝑎𝑚𝑏𝑜 - 𝑃𝑟𝑜𝑦𝑒𝑐";
@@ -42,12 +43,11 @@ async function obtenerMedia(sock, target) {
 
 export default {
   names: [".perfil", ".profile"],
-  desc: "Ver tu perfil o el de alguien mencionado",
+  desc: "Ver tu perfil o el de otra persona",
   category: "Perfil",
-  usage: ".perfil [@usuario]",
+  usage: ".perfil [@usuario | responder]",
   handler: async ({ sock, from, sender, msg, reply }) => {
-    const mentioned = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid;
-    const target = (mentioned && mentioned[0]) || sender;
+    const target = jidObjetivo(msg) || sender;
     const conyuge = getConyuge(target);
     const p = getProfile(target);
     const acc = getAccount(target);

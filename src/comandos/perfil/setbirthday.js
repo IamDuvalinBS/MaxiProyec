@@ -4,9 +4,9 @@ import { leerCumple, guardarCumple, textoCumple } from "../../../motores/cumple.
 
 export default {
   names: [".setbirthday", ".setbirth", ".setcumple"],
-  desc: "Establecer tu fecha de cumpleaños en el perfil",
+  desc: "Establece tu cumpleaños en el perfil",
   category: "Perfil",
-  usage: ".setbirthday <DD/MM> o <DD/MM/AA>",
+  usage: ".setbirthday <DD/MM>",
   handler: async ({ sender, cleanText, reply }) => {
     const entrada = cleanText.split(/\s+/)[1];
     const fecha = leerCumple(entrada);

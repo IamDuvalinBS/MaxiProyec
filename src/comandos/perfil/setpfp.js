@@ -1,17 +1,18 @@
 import { downloadMediaMessage } from "@fer2809fl/baileys";
 import fs from "fs";
 import { pfpPath } from "../../../motores/profile.js";
+import { contextoDe } from "../../nucleo/objetivo.js";
 
 const MAX_SEGUNDOS = 30;
 const MAX_BYTES = 16 * 1024 * 1024;
 
 export default {
   names: [".setpfp"],
-  desc: "Cambiar tu perfil con una foto, video o GIF (adjunto o respondiendo a uno)",
+  desc: "Cambia tu perfil con una foto, video o GIF",
   category: "Perfil",
-  usage: ".setpfp (con foto/video/GIF adjunto, o respondiendo a uno)",
+  usage: ".setpfp",
   handler: async ({ from, sender, msg, reply }) => {
-    const ctx = msg.message?.extendedTextMessage?.contextInfo;
+    const ctx = contextoDe(msg);
     const directo = msg.message?.imageMessage || msg.message?.videoMessage;
     const citado = ctx?.quotedMessage?.imageMessage || ctx?.quotedMessage?.videoMessage;
     const media = directo || citado;

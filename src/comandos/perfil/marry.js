@@ -3,6 +3,7 @@ import { saveAccount } from "../../../motores/db.js";
 import { registrarEspera } from "../../nucleo/espera.js";
 import { encabezado, mencion } from "../../economia/estilo.js";
 import { anunciarBoda } from "../../economia/avisos.js";
+import { jidObjetivo } from "../../nucleo/objetivo.js";
 
 const PROPUESTA_MS = 2 * 60 * 1000;
 const RESPUESTA = /^(aceptarmarry|rechazarmarry|rechamarry|recharmarry)$/;
@@ -62,14 +63,13 @@ async function responderPropuesta(texto, ctx, clave) {
 
 export default {
   names: [".marry", ".casar"],
-  desc: "Proponerle matrimonio a otro usuario (etiquetándolo)",
+  desc: "Proponerle matrimonio a otro usuario",
   category: "Perfil",
-  usage: ".marry @usuario",
+  usage: ".marry @usuario | responder",
   handler: async ({ sender, from, msg, reply }) => {
-    const mentioned = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid;
-    const destino = mentioned && mentioned[0];
+    const destino = jidObjetivo(msg);
 
-    if (!destino) return reply({ text: "⚙️ Uso: *.marry @usuario*\nTienes que etiquetar a la persona." });
+    if (!destino) return reply({ text: "⚙️ Uso: *.marry @usuario*\nEtiqueta a la persona o responde a uno de sus mensajes." });
     if (destino === sender) return reply({ text: `❌ No puedes casarte contigo mism${terminacionDe(sender)}.` });
 
     if (getProfile(sender).marriedTo) return reply({ text: `❌ Ya estás casad${terminacionDe(sender)}. Primero tienes que separarte con *.divorciar*.` });
