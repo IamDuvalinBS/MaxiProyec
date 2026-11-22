@@ -12,6 +12,7 @@ import { iniciarSubbots, usarPagina, fijarSocketPrincipal } from "./src/subbots/
 import { reclamarMensaje, reclamarConteo, fijarPrincipal, fijarGruposPrincipal } from "./src/subbots/dedupe.js";
 import { sesionPrincipal, limpiarSesionesLocales, vigilarDescifrado } from "./motores/sesiones-mongo.js";
 import { iniciarCobranzaPrestamos } from "./src/economia/prestamos.js";
+import { iniciarCobranzaFiados } from "./motores/fiados.js";
 import { procesarEspera, hayEsperaEn } from "./src/nucleo/espera.js";
 import { config, manejarCambioParticipantes, getAllAccounts, commandRegistry, startTime, CURRENCY } from "./core.js";
 import fs from "fs";
@@ -626,6 +627,7 @@ async function startBot() {
       console.log(chalk.greenBright.bold("✔ Bot conectado a WhatsApp"));
       iniciarAvisosRacha(sock);
       iniciarCobranzaPrestamos(sock);
+      iniciarCobranzaFiados(sock);
       if (!subbotsIniciados) {
         subbotsIniciados = true;
         iniciarSubbots((subSock) => enlazarEventos(subSock, true)).catch((e) => console.log("Subbots: " + e.message));
