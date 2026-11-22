@@ -62,7 +62,7 @@ export default {
           emoji: "💣",
           titulo: "BOMBARDEO EXITOSO",
           relato: elegir(VICTORIAS)(pais),
-          lineas: [...infoPais, `🪙 *Ganancia* ›› +${monto(ganancia)}`, `✨ *Experiencia* ›› +${xp}`, `💰 *En mano* ›› ${monto(getAccount(sender).wallet)}`],
+          lineas: [...infoPais, `🪙 *Ganancia* ›› +${monto(ganancia)}`, `✨ *Experiencia* ›› +${xp}`],
           tip: "Usa *.dep* para guardar tu dinero."
         })
       });
@@ -79,7 +79,7 @@ export default {
         emoji: "💥",
         titulo: "BOMBARDEO FALLIDO",
         relato: elegir(DERROTAS)(pais),
-        lineas: [...infoPais, `💸 *Pérdida* ›› -${monto(perdida)}`, `💰 *En mano* ›› ${monto(cuenta.wallet)}`],
+        lineas: [...infoPais, `💸 *Pérdida* ›› -${monto(perdida)}`],
         tip: "Los países con más estrellas pagan más, pero también son más difíciles."
       })
     });
