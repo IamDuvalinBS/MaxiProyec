@@ -3,6 +3,7 @@ import { tarjeta, monto, textoEspera } from "../../economia/formato-evento.js";
 import { textoDias, costoRecuperar, estadoRacha, registrarReclamo } from "../../economia/rachas.js";
 import { estilo } from "../../economia/temas.js";
 import { extraDaily } from "../../../motores/gacha-muertos.js";
+import { asegurarKarma, nivelDe } from "../../../motores/karma.js";
 
 const CLAVE = "daily";
 const PREMIO = 20000;
@@ -56,6 +57,7 @@ export default {
   desc: "Reclamar la recompensa diaria y mantener tu racha",
   category: "Economía",
   handler: async ({ sender, from, cleanText, reply }) => {
+    await asegurarKarma();
     const E = estilo(ESTILOS);
     const opcion = (cleanText.trim().split(/\s+/)[1] || "").toLowerCase();
     const cuenta = getAccount(sender);
@@ -92,12 +94,16 @@ export default {
     }
 
     checkCooldown(sender, CLAVE, ESPERA_MS);
-    const extra = extraDaily(sender, PREMIO);
-    addToWallet(sender, PREMIO + extra);
+    // El karma cambia el premio: LEYENDA x1.5, CONFIABLE x1.2, NORMAL x1, POCO CONFIABLE x0.6, TRAIDOR x0.25.
+    const nivelKarma = nivelDe(sender);
+    const premio = Math.round(PREMIO * nivelKarma.daily);
+    const extra = extraDaily(sender, premio);
+    addToWallet(sender, premio + extra);
     const { cantidad: racha, completoMaximo } = registrarReclamo(sender, CLAVE, reiniciar, from);
     if (completoMaximo) addToWallet(sender, PREMIO_RACHA_MAXIMA);
 
-    const lineas = [E.lineaGanado(PREMIO)];
+    const lineas = [E.lineaGanado(premio)];
+    if (nivelKarma.daily !== 1) lineas.push(`⭐ *KARMA ${nivelKarma.emoji} ${nivelKarma.nombre}::* x${nivelKarma.daily} en tu daily`);
     if (extra) lineas.push(`🌼 *BONO DE OFRENDA::* +${monto(extra)}`);
     if (completoMaximo) lineas.push(E.lineaAnual(PREMIO_RACHA_MAXIMA));
     if (pagado) lineas.push(E.lineaRecuperada(pagado));
