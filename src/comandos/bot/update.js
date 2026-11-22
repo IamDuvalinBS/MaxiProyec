@@ -5,6 +5,7 @@ import { promisify } from "util";
 import { fileURLToPath } from "url";
 import { ownerCommand } from "../../../motores/owner.js";
 import { guardarCuentasPendientes } from "../../../motores/db.js";
+import { guardarKarma } from "../../../motores/karma.js";
 import { tarjeta } from "../../economia/formato.js";
 import { enviarNativeFlow } from "../../../motores/botones-nativos.js";
 import { ajusteBot } from "../../../motores/ajustes-bot.js";
@@ -56,6 +57,11 @@ async function reiniciar() {
     await guardarCuentasPendientes();
   } catch (e) {
     console.log(`❌ No se pudieron guardar las cuentas antes de reiniciar: ${e.message}`);
+  }
+  try {
+    await guardarKarma();
+  } catch (e) {
+    console.log(`❌ No se pudo guardar el karma antes de reiniciar: ${e.message}`);
   }
 
   if (!supervisado()) {
