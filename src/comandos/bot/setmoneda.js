@@ -6,8 +6,8 @@ const LIMITE = 20;
 
 export default {
   names: [".setmoneda"],
-  usage: ".setmoneda <nombre> | .setmoneda reset",
-  desc: "Cambiar el nombre de la moneda que muestra tu bot, ej: .setmoneda 🍪 Galletas (owners y dueños de subbot)",
+  usage: ".setmoneda <nombre>",
+  desc: "Cambia el nombre de la moneda de tu bot",
   category: "Subbots",
   handler: comandoDeBot(async ({ cleanText, reply, objetivo }) => {
     const { botId } = objetivo;

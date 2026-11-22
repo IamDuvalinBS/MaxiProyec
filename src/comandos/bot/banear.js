@@ -28,8 +28,8 @@ function todosLosAliasDe(alias) {
 
 export default {
   names: [".banear", ".desbanear", ".baneos"],
-  usage: ".banear <comando o categoría> | .desbanear <comando o categoría> | .baneos",
-  desc: "Desactivar o reactivar un comando o una categoría entera. El owner lo aplica a todos los bots; el dueño de un subbot, solo a su subbot",
+  usage: ".banear <comando|categoría>",
+  desc: "Desactiva o reactiva un comando o categoría",
   category: "Subbots",
   handler: comandoDeBot(async ({ cleanText, reply, objetivo }) => {
     // Owner → baneo global (todos los bots). Dueño de subbot → baneo solo en su subbot.

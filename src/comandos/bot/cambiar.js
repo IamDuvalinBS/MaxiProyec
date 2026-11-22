@@ -58,7 +58,7 @@ export async function activarEvento(reply, clave) {
 export default {
   names: [".cambiar", ".evento"],
   usage: ".cambiar <evento>",
-  desc: "Cambiar el estilo de la economía y el gacha a un evento (ej: .cambiar halloween). Usa .normalizar para volver a la normalidad (solo owner)",
+  desc: "Cambia la economía y el gacha a un evento (solo owner)",
   category: "Owner",
   handler: ownerCommand(async ({ cleanText, reply }) => {
     const argumento = cleanText.trim().split(/\s+/).slice(1).join(" ");

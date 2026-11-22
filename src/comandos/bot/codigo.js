@@ -1,12 +1,12 @@
-import fs from "fs";
+
 import path from "path";
 import { isOwner } from "../../../motores/owner.js";
 import { RAIZ, buscarArchivos, leerArchivoTexto, enviarCodigo } from "../../../motores/codigo-rico.js";
 
 export default {
   names: [".codigo", ".vercodigo", ".verarchivo"],
-  usage: ".codigo <archivo> [parte] [texto]",
-  desc: "Ver el código de cualquier archivo del bot, esté en la carpeta que esté (ej: .codigo gacha-core)",
+  usage: ".codigo <archivo>",
+  desc: "Muestra el código de un archivo del bot",
   category: "Owner",
   handler: async ({ sock, from, msg, sender, cleanText, reply }) => {
     if (!isOwner(sender)) return reply({ text: "🚫 Este comando solo puede ser utilizado por owners." });

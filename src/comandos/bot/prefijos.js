@@ -13,8 +13,8 @@ function lista(prefijos) {
 
 export default {
   names: [".prefijos", ".setprefix", ".addprefix", ".delprefix"],
-  usage: ".prefijos | .setprefix <p> | .addprefix <p> | .delprefix <p>",
-  desc: "Ver o modificar los prefijos de los comandos (ej: . ! # /)",
+  usage: ".prefijos",
+  desc: "Ver o cambiar los prefijos del bot",
   category: "Owner",
   handler: ownerCommand(async ({ cleanText, reply }) => {
     const [comando, valor] = cleanText.split(/\s+/);

@@ -1,15 +1,16 @@
 import fs from "fs";
 import { downloadMediaMessage } from "@fer2809fl/baileys";
 import { FOTO_PATH } from "../../../motores/db.js";
-import { fijarFotoBot, quitarFotoBot, prepararFoto, PRINCIPAL } from "../../../motores/ajustes-bot.js";
+import { fijarFotoBot, quitarFotoBot, prepararFoto } from "../../../motores/ajustes-bot.js";
 import { comandoDeBot, nombreDelObjetivo } from "../../subbots/permisos.js";
+import { contextoDe } from "../../nucleo/objetivo.js";
 
 const AVISO_MONGO = "\n⚠️ MongoDB no respondió: quedó guardado en el bot y se subirá cuando vuelva la conexión.";
 
 export default {
   names: [".setfoto"],
-  usage: ".setfoto (con foto adjunta, o respondiendo a una) | .setfoto reset",
-  desc: "Cambiar la foto del menú de tu bot (owners y dueños de subbot). Se guarda en MongoDB",
+  usage: ".setfoto [reset]",
+  desc: "Cambia la foto del menú de tu bot",
   category: "Subbots",
   handler: comandoDeBot(async ({ sock, from, msg, cleanText, reply, objetivo }) => {
     const { botId, esPrincipal } = objetivo;
@@ -23,13 +24,13 @@ export default {
     }
 
     const imagen = msg.message?.imageMessage;
-    const citada = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage?.imageMessage;
+    const citada = contextoDe(msg)?.quotedMessage?.imageMessage;
 
     let origen = null;
     if (imagen) {
       origen = msg;
     } else if (citada) {
-      const ctx = msg.message.extendedTextMessage.contextInfo;
+      const ctx = contextoDe(msg);
       origen = {
         key: { remoteJid: from, id: ctx.stanzaId, participant: ctx.participant },
         message: ctx.quotedMessage

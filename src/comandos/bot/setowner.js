@@ -3,8 +3,8 @@ import { comandoDeBot } from "../../subbots/permisos.js";
 
 export default {
   names: [".setowner"],
-  usage: ".setowner <nombre> | .setowner reset",
-  desc: "Cambiar el nombre del dueño que muestra el menú de tu bot (owners y dueños de subbot)",
+  usage: ".setowner <nombre>",
+  desc: "Cambia el nombre del dueño en el menú de tu bot",
   category: "Subbots",
   handler: comandoDeBot(async ({ cleanText, reply, objetivo }) => {
     const nuevo = cleanText.split(/\s+/).slice(1).join(" ").trim();
