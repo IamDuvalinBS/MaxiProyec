@@ -73,8 +73,8 @@ inicial: "🏵️ Las cartas están listas, las veladoras encendidas y los espí
 
 export default {
   names: [".apuesta", ".casino", ".bet"],
-  usage: ".apuesta <cantidad|todo>",
-  desc: "Apuesta en el casino: si ganas recibes lo apostado más un porcentaje, si pierdes solo pierdes una parte",
+  usage: ".apuesta <cantidad | todo>",
+  desc: "Apuesta en el casino: ganas un extra o pierdes una parte",
   category: "Apuestas",
   handler: async ({ sock, from, sender, cleanText, reply }) => {
     await asegurarKarma();

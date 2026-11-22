@@ -62,7 +62,7 @@ const ESTILOS = {
 export default {
   names: [".dado", ".dice"],
   usage: ".dado [monto]",
-  desc: `Adivina en qué número caerá el dado (1 al ${CARAS}) y gana ${MULTIPLICADOR} veces lo apostado`,
+  desc: "Adivina el número del dado y gana lo apostado multiplicado",
   category: "Apuestas",
   handler: async ({ from, sender, cleanText, reply }) => {
     const E = estilo(ESTILOS);

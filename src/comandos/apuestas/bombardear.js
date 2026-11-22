@@ -1,7 +1,7 @@
 import { getAccount, addToWallet, saveAccount, checkCooldown } from "../../../motores/db.js";
 import { addXp } from "../../../motores/profile.js";
 import { tarjeta, monto, elegir, entre, textoEspera, avisoNivel } from "../../economia/formato-evento.js";
-import { buscarPais, paisAlAzar, PAISES } from "../../economia/paises.js";
+import { buscarPais, paisAlAzar } from "../../economia/paises.js";
 
 const ESPERA_MS = 30 * 60 * 1000;
 
@@ -28,8 +28,8 @@ const DERROTAS = [
 
 export default {
   names: [".bombardear", ".bomb"],
-  usage: ".bombardear <país> (sin país, ataca uno al azar)",
-  desc: `Bombardea un país (hay ${PAISES.length}): puedes ganar la batalla y dinero, o perder y pagar los daños (cada 30 minutos)`,
+  usage: ".bombardear [país]",
+  desc: "Bombardea un país: gana dinero o paga los daños",
   category: "Apuestas",
   handler: async ({ sender, cleanText, reply }) => {
     const argumento = cleanText.split(/\s+/).slice(1).join(" ").trim();

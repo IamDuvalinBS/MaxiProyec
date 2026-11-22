@@ -60,8 +60,8 @@ const ESTILOS = {
 
 export default {
   names: [".ruleta", ".roulette"],
-  usage: ".ruleta <número o color> <monto>",
-  desc: "Ruleta de colores con probabilidades reales (escribe .ruleta para ver la tabla)",
+  usage: ".ruleta <número | color> <monto>",
+  desc: "Ruleta de colores con probabilidades reales",
   category: "Apuestas",
   handler: async ({ sock, from, sender, cleanText, reply }) => {
     const E = estilo(ESTILOS);
