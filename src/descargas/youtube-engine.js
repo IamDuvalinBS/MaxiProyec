@@ -662,6 +662,7 @@ async function ejecutarYtdlp(link, formato, extra, tiempoMs = 180000) {
       "--fragment-retries", "5",
       "--http-chunk-size", "10M", // pedir el archivo en trozos evita los cortes y el estrangulamiento de YouTube
       "--throttled-rate", "100K", // si YouTube estrangula la velocidad, vuelve a pedir el enlace
+      "--concurrent-fragments", "4", // formatos por fragmentos (HLS/DASH): baja 4 a la vez; el archivo final es idéntico
       // Si YouTube pide "confirma que no eres un robot", exporta las cookies a un cookies.txt y define YTDLP_COOKIES con su ruta.
       ...(process.env.YTDLP_COOKIES && fs.existsSync(process.env.YTDLP_COOKIES) ? ["--cookies", process.env.YTDLP_COOKIES] : []),
       "-f", formato,
@@ -702,21 +703,22 @@ async function videoConYtdlp(link, largo = false, duracionSeg = 0) {
   return { ruta, nombre: `youtube-${extraerIdDeLink(link)}.mp4`, pesoMB };
 }
 
-async function audioConYtdlp(link) {
+async function audioConYtdlp(link, meta) {
   const ruta = await ejecutarYtdlp(link, "ba[ext=m4a]/ba", []);
-  return asegurarAudioCompatibleWhatsApp(ruta);
+  return asegurarAudioCompatibleWhatsApp(ruta, meta);
 }
 
-export async function descargarAudioConProveedores(link) {
+// meta (opcional): { titulo, artista } para las etiquetas del mp3.
+export async function descargarAudioConProveedores(link, meta = {}) {
   try {
-    return await audioConYtdlp(link);
+    return await audioConYtdlp(link, meta);
   } catch (e) {
     if (!/no instalado/.test(e.message)) console.log(`[youtube] ${String(e.message).split("\n")[0]}`);
   }
 
   // El motor local va después: es lo que hoy responde rápido. Los proveedores quedan de respaldo.
   try {
-    return await asegurarAudioCompatibleWhatsApp(await descargarAudioYoutube(link));
+    return await asegurarAudioCompatibleWhatsApp(await descargarAudioYoutube(link), meta);
   } catch (e) {
     console.log(`[youtube] Audio local no disponible, se usan los proveedores: ${String(e.message).split("\n")[0]}`);
   }
@@ -736,7 +738,7 @@ export async function descargarAudioConProveedores(link) {
       if (fs.statSync(rutaTmp).size < 10 * 1024) throw new Error("el archivo descargado está vacío o es inválido");
       console.log(`[youtube] Audio descargado con ${p.nombre}`);
       // Se pasa la ruta (no un Buffer): core.js trabaja sobre el archivo y lo borra al terminar.
-      return await asegurarAudioCompatibleWhatsApp(rutaTmp);
+      return await asegurarAudioCompatibleWhatsApp(rutaTmp, meta);
     } catch (e) {
       console.log(`[youtube] Proveedor ${p.nombre} falló: ${String(e.message).split("\n")[0]}`);
       if (rutaTmp && fs.existsSync(rutaTmp)) {
@@ -746,7 +748,7 @@ export async function descargarAudioConProveedores(link) {
   }
 
   const viaApi = await descargarPorApisExternas(link, "audio");
-  if (viaApi) return asegurarAudioCompatibleWhatsApp(viaApi);
+  if (viaApi) return asegurarAudioCompatibleWhatsApp(viaApi, meta);
 
   throw new Error(MENSAJE_SIN_SERVICIO);
 }

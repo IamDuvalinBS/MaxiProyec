@@ -130,7 +130,72 @@ export async function descargarBuffer(url, { headers = {} } = {}) {
   }
 }
 
+// Archivos grandes: se baja en varios trozos a la vez (cada uno con su propia conexión) y se arma el MISMO archivo, byte por byte.
+// Sirve cuando el servidor limita la velocidad por conexión. Si el servidor no admite rangos, o algo falla, se usa la descarga normal.
+const CONEXIONES = Math.max(1, Number(process.env.DESCARGA_CONEXIONES) || 4);
+const MINIMO_PARALELO = 6 * 1024 * 1024;
+
+async function descargarEnParalelo(url, ext, headers) {
+  if (CONEXIONES < 2) return null;
+  const peticion = (extra, control) =>
+    axios.get(url, {
+      ...AGENTES,
+      responseType: "stream",
+      headers: { ...HEADERS, ...headers, "Accept-Encoding": "identity", ...extra },
+      signal: control.signal,
+      timeout: 30000,
+      maxRedirects: 5,
+      validateStatus: (estado) => estado === 206 || estado === 200
+    });
+
+  const sondeo = new AbortController();
+  const prueba = await peticion({ Range: "bytes=0-0" }, sondeo);
+  prueba.data.destroy();
+  const total = Number(String(prueba.headers["content-range"] || "").match(/\/(\d+)$/)?.[1] || 0);
+  if (prueba.status !== 206 || total < MINIMO_PARALELO || prueba.headers["content-encoding"]) return null;
+
+  const ruta = path.join(os.tmpdir(), `dl_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`);
+  const control = new AbortController();
+  const tamano = Math.ceil(total / CONEXIONES);
+  fs.closeSync(fs.openSync(ruta, "w"));
+  fs.truncateSync(ruta, total);
+
+  const trozo = async (desde, hasta) => {
+    let inactividad;
+    const armar = () => { clearTimeout(inactividad); inactividad = setTimeout(() => control.abort(), INACTIVIDAD_MS); };
+    armar();
+    try {
+      const res = await peticion({ Range: `bytes=${desde}-${hasta}` }, control);
+      if (res.status !== 206) throw new Error("el servidor ignoró el rango pedido");
+      res.data.on("data", armar);
+      const salida = fs.createWriteStream(ruta, { flags: "r+", start: desde });
+      await pipeline(res.data, salida, { signal: control.signal });
+      if (salida.bytesWritten !== hasta - desde + 1) throw new Error("trozo incompleto");
+    } finally {
+      clearTimeout(inactividad);
+    }
+  };
+
+  try {
+    const tareas = [];
+    for (let desde = 0; desde < total; desde += tamano) tareas.push(trozo(desde, Math.min(total - 1, desde + tamano - 1)));
+    await Promise.all(tareas);
+    if (fs.statSync(ruta).size !== total) throw new Error("tamaño final distinto al esperado");
+    return ruta;
+  } catch (e) {
+    control.abort();
+    borrarSilencioso(ruta);
+    throw e;
+  }
+}
+
 async function descargarUnaVez(url, ext, headers) {
+  try {
+    const rapida = await descargarEnParalelo(url, ext, headers);
+    if (rapida) return rapida;
+  } catch (e) {
+    console.log(`[descargas-core] Descarga en paralelo no disponible (${resumenError(e)}); se usa una sola conexión`);
+  }
   const ruta = path.join(os.tmpdir(), `dl_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`);
   const control = new AbortController();
   let inactividad;
@@ -433,27 +498,55 @@ export function extraerEnlaceDescarga(json) {
   return enlace;
 }
 
-export async function asegurarAudioCompatibleWhatsApp(entradaOriginal) {
+async function duracionDeArchivo(ruta) {
+  try {
+    const { stdout } = await execFileAsync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", ruta], { timeout: 30000 });
+    const n = parseFloat(String(stdout).trim());
+    return Number.isFinite(n) && n > 0 ? Math.round(n) : 0;
+  } catch (e) {
+    return 0;
+  }
+}
+
+// Devuelve un Buffer mp3 listo para WhatsApp. Siempre se pasa por ffmpeg (un mp3 que ya lo era se copia SIN reencodear, así no pierde
+// calidad) para escribirle el encabezado de duración (Xing) y las etiquetas ID3: sin eso algunos teléfonos lo ven como un audio de
+// 0 segundos que nunca termina, y el sistema no lo indexa para guardarlo. La duración exacta queda en buffer.duracionSeg.
+export async function asegurarAudioCompatibleWhatsApp(entradaOriginal, meta = {}) {
   const tmp = os.tmpdir();
   const sufijo = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
   const entrada = comoRutaTemporal(entradaOriginal, "audio");
+  const salida = path.join(tmp, `da_out_${sufijo}.mp3`);
 
   try {
     const { audio } = await analizarPistas(entrada);
+    const etiquetas = [];
+    if (meta.titulo) etiquetas.push("-metadata", `title=${String(meta.titulo).slice(0, 200)}`);
+    if (meta.artista) etiquetas.push("-metadata", `artist=${String(meta.artista).slice(0, 200)}`);
+
+    const convertir = (codec) =>
+      execFileAsync("ffmpeg", [
+        ...FFMPEG_BASE, "-y", "-i", entrada, "-vn", "-map", "0:a:0", ...codec,
+        "-map_metadata", "-1", ...etiquetas, "-id3v2_version", "3", "-write_xing", "1", salida
+      ], OPCIONES_FFMPEG);
+    const REENCODEAR = ["-c:a", "libmp3lame", "-b:a", "192k"];
 
     if (audio?.codec_name === "mp3") {
-      console.log("[descargas-core] Audio ya era mp3, se devuelve sin reencodear");
-      return fs.readFileSync(entrada);
+      try {
+        await convertir(["-c:a", "copy"]);
+        console.log("[descargas-core] Audio ya era mp3: se copió sin reencodear, con encabezado de duración");
+      } catch (e) {
+        await convertir(REENCODEAR);
+      }
+    } else {
+      await convertir(REENCODEAR);
     }
 
-    const salida = path.join(tmp, `da_out_${sufijo}.mp3`);
-    try {
-      await execFileAsync("ffmpeg", [...FFMPEG_BASE, "-y", "-i", entrada, "-vn", "-c:a", "libmp3lame", "-b:a", "192k", salida], OPCIONES_FFMPEG);
-      return fs.readFileSync(salida);
-    } finally {
-      if (fs.existsSync(salida)) fs.unlinkSync(salida);
-    }
+    const buffer = fs.readFileSync(salida);
+    const segundos = await duracionDeArchivo(salida);
+    if (segundos) buffer.duracionSeg = segundos;
+    return buffer;
   } finally {
+    if (fs.existsSync(salida)) fs.unlinkSync(salida);
     if (fs.existsSync(entrada)) fs.unlinkSync(entrada);
   }
 }
