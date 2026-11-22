@@ -6,6 +6,7 @@ import { fileURLToPath } from "url";
 import { ownerCommand } from "../../../motores/owner.js";
 import { guardarCuentasPendientes } from "../../../motores/db.js";
 import { guardarKarma } from "../../../motores/karma.js";
+import { guardarFiados } from "../../../motores/fiados.js";
 import { tarjeta } from "../../economia/formato.js";
 import { enviarNativeFlow } from "../../../motores/botones-nativos.js";
 import { ajusteBot } from "../../../motores/ajustes-bot.js";
@@ -60,6 +61,7 @@ async function reiniciar() {
   }
   try {
     await guardarKarma();
+    await guardarFiados();
   } catch (e) {
     console.log(`❌ No se pudo guardar el karma antes de reiniciar: ${e.message}`);
   }
