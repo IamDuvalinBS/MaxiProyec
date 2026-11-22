@@ -1,5 +1,5 @@
 import fs from "fs";
-import { gachaListo, CAT, prepararImagen } from "../../../motores/gacha-core.js";
+import { gachaListo, CAT, prepararImagen, lineasPersonaje } from "../../../motores/gacha-core.js";
 import { personajesDeCategoria, propietarios } from "../../../motores/gacha-db.js";
 import { resolverVariante, listaVariantes, FIRMA_CLAIM } from "../../../motores/gacha-claim.js";
 import { enviarConBoton } from "../../../motores/botones.js";

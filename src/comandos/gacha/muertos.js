@@ -5,7 +5,7 @@ import { agregarPorLink } from "../../../motores/gacha-yandere.js";
 import { getProfile } from "../../../motores/profile.js";
 import { esOwnerGacha } from "../../../motores/gacha-owners.js";
 import { encabezado } from "../../economia/estilo.js";
-import { construirDatosMuertos, entregarPendientes, sumarComunidad, totalComunidad, ETIQUETA_WAIFU, META_COMUNIDAD, NOMBRE_EVENTO } from "../../../motores/gacha-muertos.js";
+import { construirDatosMuertos, entregarPendientes, sumarComunidad, totalComunidad, ETIQUETA_WAIFU, META_COMUNIDAD, NOMBRE_EVENTO, textoEstado } from "../../../motores/gacha-muertos.js";
 import { htmlMuertos } from "../../../motores/muertos-html.js";
 
 const muertos = {
