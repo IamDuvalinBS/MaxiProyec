@@ -8,7 +8,7 @@ import http from "http";
 import https from "https";
 import { Transform } from "stream";
 import { pipeline } from "stream/promises";
-import { descargarBuffer, asegurarVideoCompatibleWhatsApp, asegurarAudioCompatibleWhatsApp, combinarVideoAudioWhatsApp, unirVideoAudioSinReconvertir, descargarATemporal as descargarATemporalSimple, reintentar, errorAmigable, LIMITE_VIDEO_WHATSAPP_MB } from "./core.js";
+import { descargarBuffer, asegurarVideoCompatibleWhatsApp, asegurarAudioCompatibleWhatsApp, combinarVideoAudioWhatsApp, unirVideoAudioSinReconvertir, descargarATemporal as descargarATemporalSimple, reintentar, errorAmigable, AGENTES, LIMITE_VIDEO_WHATSAPP_MB } from "./core.js";
 
 // Hasta MIN_NORMAL minutos el video se maneja como siempre (video normal, o documento si pesa mucho).
 // Más largo: se baja directo a disco, sin cargarlo en RAM ni recomprimirlo, y siempre va como documento.

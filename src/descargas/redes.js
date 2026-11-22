@@ -5,7 +5,7 @@ import { promisify } from "util";
 import fs from "fs";
 import os from "os";
 import path from "path";
-import { descargarBuffer, asegurarVideoCompatibleWhatsApp, asegurarImagenCompatibleWhatsApp, LIMITE_VIDEO_WHATSAPP_MB } from "./core.js";
+import { descargarBuffer, asegurarVideoCompatibleWhatsApp, asegurarImagenCompatibleWhatsApp, LIMITE_VIDEO_WHATSAPP_MB, AGENTES, esErrorTransitorio, errorAmigable } from "./core.js";
 
 export { descargarBuffer, asegurarVideoCompatibleWhatsApp, asegurarImagenCompatibleWhatsApp, LIMITE_VIDEO_WHATSAPP_MB };
 
