@@ -123,14 +123,13 @@ export function crearTrabajo(def) {
 
       const E = estiloTarjetaTrabajo();
       const vista = vistaDe(trabajo);
-      const enMano = getAccount(sender).wallet;
       if (r.exito) {
         await reply({
           text: tarjeta({
             emoji: vista.emoji,
             titulo: vista.tituloExito,
             relato: r.relato,
-            lineas: [E.ganancia(r.monto), E.experiencia(r.xp), E.enMano(enMano), E.jornada(r.carrera), ...(r.carrera.subioOficio ? [E.oficio(r.carrera)] : []), ...lineasDeCarrera(r)],
+            lineas: [E.ganancia(r.monto), E.experiencia(r.xp), E.jornada(r.carrera), ...(r.carrera.subioOficio ? [E.oficio(r.carrera)] : []), ...lineasDeCarrera(r)],
             tip: E.tipExito
           })
         });
@@ -143,7 +142,7 @@ export function crearTrabajo(def) {
           emoji: vista.emojiFallo || "⚠️",
           titulo: vista.tituloFallo,
           relato: r.relato,
-          lineas: [E.perdida(r.monto), E.enMano(enMano), E.jornada(r.carrera), ...lineasDeCarrera(r)],
+          lineas: [E.perdida(r.monto), E.jornada(r.carrera), ...lineasDeCarrera(r)],
           tip: E.tipFallo
         })
       });
