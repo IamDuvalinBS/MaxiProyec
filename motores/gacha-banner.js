@@ -3,9 +3,7 @@ import {
   personajePorId, personajesDeCategoria, personajeAleatorioMinRareza
 } from "./gacha-db.js";
 import { pokemonPorId, IDS_DESTACADOS } from "./gacha-pokemon.js";
-import {
-  PITY_TIRADAS, PITY_RANGO_MINIMO, PROBABILIDAD_BANNER, rangoDeRareza, semilla, claveSemana
-} from "./gacha-config.js";
+import { PITY_RANGO_MINIMO, rangoDeRareza, semilla, claveSemana } from "./gacha-config.js";
 
 import { pityMaximoDe, probBannerDe } from "./gacha-reliquias.js";
 import { nivelDe } from "./karma.js";

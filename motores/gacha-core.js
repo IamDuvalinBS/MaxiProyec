@@ -24,7 +24,7 @@ import { TIENE_NIVELES, estrellasTexto, darFragmentos, FRAGMENTOS_POR_RAREZA, NI
 import { registrarActividad } from "./gacha-misiones.js";
 import { sumarEstadistica } from "./gacha-insignias.js";
 import { elegirConGarantia, registrarTirada, pityDespuesDe } from "./gacha-banner.js";
-import { PITY_TIRADAS, PITY_RANGO_MINIMO } from "./gacha-config.js";
+import { PITY_RANGO_MINIMO } from "./gacha-config.js";
 import { RAREZA_NOMBRES } from "./gacha-niveles.js";
 import { CAT } from "./gacha-categorias.js";
 import { ticketsDe, sorteoTicket } from "./gacha-tickets.js";
@@ -41,6 +41,7 @@ import { revisarMigracion } from "./gacha-migracion.js";
 import { leerMiniatura, guardarMiniatura } from "./gacha-miniaturas.js";
 import { enviarHtmlEmbebido, enviarBotonHtml } from "./botones-nativos.js";
 import { publicarHtml, crearServidorHtml, hayServidorHtml } from "./gacha-html-servidor.js";
+import { contextoDe } from "../src/nucleo/objetivo.js";
 export { tarjeta, fmt, personajePorId, CAT, lineasPersonaje, textoStats };
 
 // El dinero se ve como calabazas en Halloween (el valor guardado es el mismo).
@@ -426,11 +427,11 @@ export function cerrarPendiente(id) {
 }
 
 export function idMensajeCitado(msg) {
-  return msg.message?.extendedTextMessage?.contextInfo?.stanzaId || null;
+  return contextoDe(msg)?.stanzaId || null;
 }
 
 export function participanteCitado(msg) {
-  return msg.message?.extendedTextMessage?.contextInfo?.participant || null;
+  return contextoDe(msg)?.participant || null;
 }
 
 class ErrorDeImagen extends Error {}
@@ -694,7 +695,7 @@ function claseDe(c, categoria, series) {
   return c.rareza;
 }
 
-async function enviarColeccionHtml({ sock, from, msg, categoria, sender, pagina, todos, n, titulo, pista }) {
+async function enviarColeccionHtml({ sock, from, msg, categoria, sender, pagina, todos, n, titulo, pista, ajena = false }) {
   const cat = CAT[categoria];
   const partes = Math.max(1, Math.ceil(todos.length / POR_PARTE_HTML));
   const parte = Math.min(Math.max(1, Number(pagina) || 1), partes);
@@ -761,10 +762,10 @@ async function enviarColeccionHtml({ sock, from, msg, categoria, sender, pagina,
     const enviado = await enviarBotonHtml({
       sock, from, msg,
       texto: resumen,
-      footer: "Toca el botón para abrir tu colección",
+      footer: ajena ? "Toca el botón para abrir su colección" : "Toca el botón para abrir tu colección",
       titulo: encabezadoCol,
       url,
-      siguiente: parte < partes ? `${cat.coleccionCmd} ${parte + 1}` : null
+      siguiente: parte < partes && !ajena ? `${cat.coleccionCmd} ${parte + 1}` : null
     });
     if (enviado) return;
   }
@@ -779,18 +780,25 @@ async function enviarColeccionHtml({ sock, from, msg, categoria, sender, pagina,
   throw new Error("El cliente no soporta botones, HTML embebido ni sendHtml");
 }
 
-export async function mostrarColeccion({ sock, from, msg, categoria, sender, cleanText, reply, titulo = "", pista = "" }) {
-  await revisarMigracion({ sender, from, reply }).catch((e) => console.log("[gacha] migración: " + e.message));
+// `objetivo`: dueño de la colección que se quiere ver (otra persona). Si no se pasa, se muestra la de quien escribe.
+export async function mostrarColeccion({ sock, from, msg, categoria, sender, objetivo = null, cleanText, reply, titulo = "", pista = "" }) {
+  const dueno = objetivo || sender;
+  const ajena = dueno !== sender;
+  if (!ajena) await revisarMigracion({ sender, from, reply }).catch((e) => console.log("[gacha] migración: " + e.message));
+  if (ajena) {
+    titulo = `Colección de ${dueno.split("@")[0]}`;
+    pista = "";
+  }
   const cat = CAT[categoria];
   const pagina = Math.max(1, parseInt(cleanText.split(/\s+/)[1], 10) || 1);
   const POR_PAGINA = 15;
-  const { n, total } = contarColeccion(sender, categoria);
-  const tickets = ticketsDe(sender, categoria);
+  const { n, total } = contarColeccion(dueno, categoria);
+  const tickets = ticketsDe(dueno, categoria);
 
   if (n && sock && from && typeof sock.sendHtml === "function") {
     try {
-      const todos = coleccionDe(sender, categoria, 100000, 0);
-      await enviarColeccionHtml({ sock, from, msg, categoria, sender, pagina, todos, n, titulo, pista });
+      const todos = coleccionDe(dueno, categoria, 100000, 0);
+      await enviarColeccionHtml({ sock, from, msg, categoria, sender: dueno, ajena, pagina, todos, n, titulo, pista });
       return;
     } catch (e) {
       console.log(`[gacha] La colección en HTML falló (${categoria}), se envía en texto: ${e.stack || e.message}`);
@@ -810,7 +818,7 @@ export async function mostrarColeccion({ sock, from, msg, categoria, sender, cle
   const paginas = Math.ceil(n / POR_PAGINA);
   const p = Math.min(pagina, paginas);
   const conNivel = TIENE_NIVELES(categoria);
-  const filas = coleccionDe(sender, categoria, POR_PAGINA, (p - 1) * POR_PAGINA).flatMap((c) => {
+  const filas = coleccionDe(dueno, categoria, POR_PAGINA, (p - 1) * POR_PAGINA).flatMap((c) => {
     const detalle = [conNivel ? `Nivel ${c.nivel}${c.estrellas ? ` ${estrellasTexto(c.estrellas)}` : ""}` : null, c.rareza, `ID :: #${c.id}`];
     if (categoria === "waifu" && c.serie) detalle.push(c.serie);
     return [`✦ *${c.nombre}*`, `> · ${detalle.filter(Boolean).join(" · ")}`];

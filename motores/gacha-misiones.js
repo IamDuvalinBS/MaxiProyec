@@ -4,7 +4,7 @@ import { darFragmentos } from "./gacha-niveles.js";
 import { darTickets } from "./gacha-tickets.js";
 import { darSellos } from "./gacha-sellos.js";
 import { CAT } from "./gacha-categorias.js";
-import { sumarEstadistica, revisarInsignias } from "./gacha-insignias.js";
+import { sumarEstadistica } from "./gacha-insignias.js";
 import { encabezado } from "../src/economia/estilo.js";
 import { T } from "./gacha-tema.js";
 import { avanzarHalloween } from "./gacha-halloween-misiones.js";

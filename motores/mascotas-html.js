@@ -1,4 +1,4 @@
-import { ESPECIES, RAREZAS, HUEVOS, COMIDAS, CASAS, ACCESORIOS, ESPACIOS, JABON, FLAUTA, ARBOL, PERDIDA_HORAS, HABILIDADES, NIVEL_HABILIDAD } from "./mascotas-datos.js";
+import { ESPECIES, RAREZAS, HUEVOS, COMIDAS, CASAS, ACCESORIOS, ESPACIOS, JABON, FLAUTA, ARBOL, HABILIDADES, NIVEL_HABILIDAD } from "./mascotas-datos.js";
 import { svgEscena } from "./mascotas-arte.js";
 import { svgEscenaZona } from "./mascotas-zonas-arte.js";
 import { ZONAS, ITEMS, ORDEN_RAREZA } from "./mascotas-zonas.js";

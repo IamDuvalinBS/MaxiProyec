@@ -3,11 +3,12 @@ import { getAccount, addToWallet } from "./db.js";
 import { registrarEspera } from "../src/nucleo/espera.js";
 import { encabezado } from "../src/economia/estilo.js";
 import { TIENE_NIVELES, darFragmentos, estrellasTexto } from "./gacha-niveles.js";
-import { monto, arroba, CAT, participanteCitado, textoStats } from "./gacha-core.js";
+import { monto, arroba, CAT, textoStats } from "./gacha-core.js";
 import { simularBatalla, mensajesDeBatalla } from "./gacha-batalla.js";
 import { equipoDe } from "./gacha-equipos.js";
 import { registrarActividad } from "./gacha-misiones.js";
 import { T } from "./gacha-tema.js";
+import { jidObjetivo } from "../src/nucleo/objetivo.js";
 
 export { simularCombate } from "./gacha-batalla.js";
 
@@ -181,7 +182,7 @@ export function crearHandlerPvp({ categoria, comando, nombreLuchador }) {
       return resolverDesafio({ aceptar: sub === "aceptar", d, sender, charIdRival: charId, categoria, nombreLuchador, replyAcepta: reply });
     }
 
-    const rival = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0] || participanteCitado(msg);
+    const rival = jidObjetivo(msg);
     const { apuesta, charId, modoEquipo } = leerArgumentos(partes);
 
     if (!rival || !apuesta) return reply({ text: textoAyuda(comando, nombreLuchador) });

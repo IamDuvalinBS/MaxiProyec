@@ -1,4 +1,4 @@
-import { ETAPAS, CASAS } from "./mascotas-datos.js";
+import { ETAPAS } from "./mascotas-datos.js";
 
 const PALETAS = {
   perro: { pelaje: "#d99a5b", oscuro: "#8d5a2f", claro: "#f8e6c8", nariz: "#2b1d1a" },

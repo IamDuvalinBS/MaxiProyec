@@ -1,5 +1,6 @@
+import { jidObjetivo } from "../src/nucleo/objetivo.js";
 import { encabezado } from "../src/economia/estilo.js";
-import { gachaListo, arroba, fmt, CAT, bloquesDePersonajeParaTicket } from "./gacha-core.js";
+import { gachaListo, arroba, fmt, CAT } from "./gacha-core.js";
 import { topColeccionistas } from "./gacha-db.js";
 import { ticketsDe, usarTicket } from "./gacha-tickets.js";
 import { personajeAleatorio, contarPersonajes } from "./gacha-db.js";
@@ -80,7 +81,7 @@ function crearComandoTicketBase({ categoria, names }) {
   const cat = CAT[categoria];
   return {
     names,
-    desc: `Usa un ticket para obtener ${cat.indef} eligiendo su ID: ${cat.ticketCmd} <ID>`,
+    desc: `Usa un ticket para obtener ${cat.indef} por su ID`,
     category: categoriaDeMenu(categoria),
     usage: `${cat.ticketCmd} <ID>`,
     handler: async ({ sender, cleanText, reply }) => {
@@ -132,7 +133,7 @@ function crearComandoTiradaBase({ categoria, names, asegurar, sincronizar, texto
   const cat = CAT[categoria];
   return {
     names,
-    desc: descripcion || `Genera ${cat.indef} al azar para reclamar con ${cat.claimCmd} (cada ${COOLDOWN_TIRADA_MS / 60000} minutos)`,
+    desc: descripcion || `Genera ${cat.indef} al azar para reclamar con ${cat.claimCmd}`,
     category: categoriaDeMenu(categoria),
     usage: cat.rollCmd,
     handler: async ({ from, sender, cleanText, reply }) => {
@@ -180,10 +181,10 @@ function crearComandoColeccionBase({ categoria, names }) {
     names,
     desc: `Muestra tus ${cat.unidades} con su nivel`,
     category: categoriaDeMenu(categoria),
-    usage: `${cat.coleccionCmd} [página]`,
+    usage: `${cat.coleccionCmd} [@usuario]`,
     handler: async ({ sock, from, msg, sender, cleanText, reply }) => {
       await esperarListo();
-      await mostrarColeccion({ sock, from, msg, categoria, sender, cleanText, reply });
+      await mostrarColeccion({ sock, from, msg, categoria, sender, objetivo: jidObjetivo(msg), cleanText, reply });
     }
   };
 }

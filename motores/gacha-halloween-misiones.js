@@ -4,7 +4,7 @@ import { darFragmentos } from "./gacha-niveles.js";
 import { darTickets } from "./gacha-tickets.js";
 import { CAT } from "./gacha-categorias.js";
 import { esHalloween } from "../src/economia/temas.js";
-import { otorgar, tieneInsignia, definicion } from "./gacha-insignias.js";
+import { otorgar, tieneInsignia } from "./gacha-insignias.js";
 import { darReliquia, reliquiaPorId } from "./gacha-reliquias.js";
 import { claveDia } from "./gacha-config.js";
 

@@ -4,13 +4,14 @@ import { registrarEspera } from "../src/nucleo/espera.js";
 import { gachaListo, arroba, monto, fmt, CAT, personajePorId } from "./gacha-core.js";
 import { categoriaPorAlias } from "./gacha-categorias.js";
 import { contarColeccion, leTiene, transferirPersonaje, transferirColeccion } from "./gacha-db.js";
+import { contextoDe } from "../src/nucleo/objetivo.js";
 
 const CONFIRMACION_MS = 60 * 1000;
 const PALABRA_CONFIRMAR = "confirmarregalo";
 const pendientes = new Map();
 
 function destinatarioDe(msg) {
-  const contexto = msg.message?.extendedTextMessage?.contextInfo;
+  const contexto = contextoDe(msg);
   return contexto?.mentionedJid?.[0] || contexto?.participant || null;
 }
 
@@ -52,7 +53,7 @@ const listaDeCategorias = "*waifu*, *pokemon*, *brawl*, *snake*, *cod*, *dragon*
 export function crearComandoRegalar() {
   return {
     names: [".regalar", ".gift", ".regalarpersonaje"],
-    desc: "Regala un personaje de cualquier gacha a otro usuario: .regalar <categoría> <ID> <@usuario>",
+    desc: "Regala un personaje a otro usuario",
     category: "Gacha",
     usage: ".regalar <categoría> <ID> <@usuario>",
     handler: async ({ sender, cleanText, msg, reply }) => {
@@ -113,7 +114,7 @@ export function crearComandoRegalar() {
 export function crearComandoRegalarTodo() {
   return {
     names: [".regalartodo", ".regalarharem", ".regalarcoleccion"],
-    desc: "Regala toda tu colección de una categoría a un usuario: .regalartodo <categoría> <@usuario>",
+    desc: "Regala toda tu colección de una categoría",
     category: "Gacha",
     usage: ".regalartodo <categoría> <@usuario>",
     handler: async ({ from, sender, cleanText, msg, reply }) => {

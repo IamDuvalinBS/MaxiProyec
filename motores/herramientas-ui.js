@@ -1,3 +1,4 @@
+import { contextoDe } from "../src/nucleo/objetivo.js";
 export const esc = (t) =>
   String(t ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
@@ -17,7 +18,7 @@ export function normalizar(t) {
 }
 
 export function textoCitado(msg) {
-  const c = msg?.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+  const c = contextoDe(msg)?.quotedMessage;
   if (!c) return "";
   return String(
     c.conversation ||
