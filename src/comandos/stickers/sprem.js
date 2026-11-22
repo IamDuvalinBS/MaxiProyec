@@ -30,9 +30,9 @@ async function contenidoDesdeBuffer(sock, buffer) {
 
 export default {
   names: [".sprem", ".premium", ".stickerpremium"],
-  desc: "Convierte un sticker (o imagen/video) en un sticker premium",
+  desc: "Convierte un sticker, imagen o video en sticker premium",
   category: "Stickers",
-  usage: ".sprem (respondiendo a un sticker, imagen o video)",
+  usage: ".sprem",
   handler: async ({ msg, sender, from, sock, reply }) => {
     const base = desenvolverVistaUnica(msg.message) || {};
     const ctx = base.extendedTextMessage?.contextInfo || base.imageMessage?.contextInfo || base.videoMessage?.contextInfo;

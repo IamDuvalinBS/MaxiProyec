@@ -36,7 +36,7 @@ export default {
   names: [".smeme", ".meme"],
   desc: "Crea un sticker meme con texto arriba y abajo",
   category: "Stickers",
-  usage: ".smeme <arriba> • <abajo> (respondiendo a una imagen)",
+  usage: ".smeme <arriba> • <abajo>",
   handler: async ({ msg, sender, from, sock, cleanText, reply }) => {
     const resto = cleanText.split(/\s+/).slice(1).join(" ").trim();
     if (!resto) {

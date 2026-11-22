@@ -101,9 +101,9 @@ function aVideo(buffer) {
 
 export default {
   names: [".toimg", ".aimagen", ".tovideo"],
-  desc: "Convierte un sticker en imagen (o en video si es animado)",
+  desc: "Convierte un sticker en imagen o video",
   category: "Stickers",
-  usage: ".toimg (respondiendo a un sticker)",
+  usage: ".toimg",
   handler: async ({ msg, sender, from, sock, reply }) => {
     let media = null;
     try {

@@ -24,9 +24,9 @@ const aTitulo = (texto) =>
 
 export default {
   names: [".spack", ".stickers"],
-  desc: "Manda un paquete de stickers distinto en cada búsqueda (Sticker.ly y Tenor)",
+  desc: "Manda un paquete de stickers según tu búsqueda",
   category: "Stickers",
-  usage: ".spack <búsqueda> • <cantidad opcional, hasta 20>",
+  usage: ".spack <búsqueda>",
   handler: async ({ cleanText, from, sender, msg, sock, reply }) => {
     const [bruto, extra] = cleanText.split(/\s+/).slice(1).join(" ").split("•").map((p) => p.trim());
     const query = bruto || "";

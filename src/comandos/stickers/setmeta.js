@@ -16,9 +16,9 @@ const textoCrudo = (cleanText) => String(cleanText || "").replace(/^\S+[ \t]*\r?
 
 export default {
   names: [".setmeta", ".meta"],
-  desc: "Cambia el pack y el autor de tus stickers (.s)",
+  desc: "Cambia el pack y el autor de tus stickers",
   category: "Stickers",
-  usage: ".setmeta <pack> • <autor> | .setmeta reset  (respeta espacios y saltos de línea)",
+  usage: ".setmeta <pack> • <autor>",
   handler: async ({ sock, from, msg, cleanText, sender, reply }) => {
     const clave = claveMeta(sender);
     const crudo = textoCrudo(cleanText);

@@ -2,9 +2,9 @@ import { obtenerVistaUnica, desenvolver } from "../../nucleo/vistaunica.js";
 
 export default {
   names: [".revelar", ".reveal"],
-  desc: "Revela una foto, video o audio de ver una vez (citado)",
+  desc: "Revela una foto, video o audio de ver una vez",
   category: "Utilidad",
-  usage: ".revelar (respondiendo a un mensaje de ver una vez)",
+  usage: ".revelar",
   handler: async ({ msg, from, sock, reply }) => {
     const info = desenvolver(msg.message)?.extendedTextMessage?.contextInfo;
     if (!info?.stanzaId) {

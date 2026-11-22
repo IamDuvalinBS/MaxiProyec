@@ -4,6 +4,7 @@ import { envolver, rectRedondeado } from "../../nucleo/lienzo.js";
 import { getAllAccounts } from "../../../motores/db.js";
 import { getProfile } from "../../../motores/profile.js";
 import { textoCitado, limitarEspera } from "../../../motores/herramientas-ui.js";
+import { contextoDe } from "../../nucleo/objetivo.js";
 
 const ANCHO = 512;
 const AVATAR = 72;
@@ -79,11 +80,11 @@ async function dibujarCita({ nombre, texto, avatar, color }) {
 
 export default {
   names: [".qc", ".quote", ".cita"],
-  desc: "Crea un sticker de cita con el texto de un mensaje",
+  desc: "Crea un sticker de cita con un mensaje",
   category: "Stickers",
-  usage: ".qc <texto> | .qc (respondiendo a un mensaje de texto)",
+  usage: ".qc <texto>",
   handler: async ({ msg, sender, from, sock, cleanText, reply }) => {
-    const info = msg.message?.extendedTextMessage?.contextInfo;
+    const info = contextoDe(msg);
     const propio = cleanText.split(/\s+/).slice(1).join(" ").trim();
     const citado = textoCitado(msg);
     const texto = (propio || citado).slice(0, MAX_CARACTERES);

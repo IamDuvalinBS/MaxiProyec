@@ -11,9 +11,9 @@ import { ERROR_PREMIUM, MENSAJE_PREMIUM } from "../../nucleo/premium.js";
 
 export default {
   names: [".take", ".robar", ".wm"],
-  desc: "Cambia el pack y el autor de un sticker ajeno",
+  desc: "Cambia el pack y el autor de un sticker",
   category: "Stickers",
-  usage: ".take <pack> • <autor> (respondiendo a un sticker)",
+  usage: ".take <pack> • <autor>",
   handler: async ({ msg, sender, from, sock, cleanText, reply }) => {
     let media = null;
     try {
