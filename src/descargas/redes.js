@@ -185,6 +185,19 @@ async function motorDuckDuckGo(consulta) {
   return urls;
 }
 
+// Saca TODAS las direcciones de una página aunque no estén en un <a href>: dentro de atributos JSON (&quot;pgurl&quot;:...),
+// con las barras escapadas (\/) o en las "migas" que muestra Bing (www.tiktok.com › @usuario › video › 123).
+function urlsDeTexto(html) {
+  const limpio = decodificarEntidades(String(html)).replace(/\\u0026/g, "&").replace(/\\u002[fF]/g, "/").replace(/\\\//g, "/");
+  const urls = new Set();
+  for (const m of limpio.matchAll(/https?:\/\/[^\s"'<>\\]+/g)) urls.add(m[0].replace(/[),.;]+$/, ""));
+  const flecha = "(?:›|&rsaquo;|&#8250;)";
+  const migas = new RegExp(`tiktok\\.com\\s*${flecha}\\s*(@[\\w.\\-]+)\\s*${flecha}\\s*video\\s*${flecha}\\s*(\\d{8,})`, "gi");
+  for (const m of limpio.matchAll(migas)) urls.add(`https://www.tiktok.com/${m[1]}/video/${m[2]}`);
+  return [...urls];
+}
+const unirUrls = (...listas) => [...new Set(listas.flat())];
+
 async function motorBing(consulta) {
   const { data: html } = await axios.get("https://www.bing.com/search", {
     params: { q: consulta, count: 30, setlang: "es" },
@@ -201,7 +214,17 @@ async function motorBing(consulta) {
     }
     urls.push(url);
   }
-  return urls;
+  return unirUrls(urls, urlsDeTexto(html));
+}
+
+// Bing Videos: indexa videos de TikTok con su página original, algo que la búsqueda web de Bing casi nunca da.
+async function motorBingVideos(consulta) {
+  const { data: html } = await axios.get("https://www.bing.com/videos/search", {
+    params: { q: consulta, form: "QBVR", setlang: "es" },
+    headers: { ...HEADERS, "Accept-Language": "es-MX,es;q=0.9" },
+    timeout: 15000
+  });
+  return unirUrls(urlsDeHtml(html), urlsDeTexto(html));
 }
 
 // Yahoo, Brave y Mojeek: más buscadores para cuando DuckDuckGo y Bing piden captcha o bloquean esta conexión.
@@ -225,7 +248,7 @@ async function motorBrave(consulta) {
     headers: { ...HEADERS, "Accept-Language": "es-MX,es;q=0.9" },
     timeout: 15000
   });
-  return urlsDeHtml(html);
+  return unirUrls(urlsDeHtml(html), urlsDeTexto(html));
 }
 
 async function motorMojeek(consulta) {
@@ -234,7 +257,7 @@ async function motorMojeek(consulta) {
     headers: { ...HEADERS, "Accept-Language": "es-MX,es;q=0.9" },
     timeout: 15000
   });
-  return urlsDeHtml(html);
+  return unirUrls(urlsDeHtml(html), urlsDeTexto(html));
 }
 
 async function motorYahoo(consulta) {
@@ -243,10 +266,10 @@ async function motorYahoo(consulta) {
     headers: { ...HEADERS, "Accept-Language": "es-MX,es;q=0.9" },
     timeout: 15000
   });
-  return urlsDeHtml(html);
+  return unirUrls(urlsDeHtml(html), urlsDeTexto(html));
 }
 
-const MOTORES_WEB = [["DuckDuckGo", motorDuckDuckGo], ["Bing", motorBing], ["Brave", motorBrave], ["Mojeek", motorMojeek], ["Yahoo", motorYahoo]];
+const MOTORES_WEB = [["DuckDuckGo", motorDuckDuckGo], ["Bing", motorBing], ["Bing Videos", motorBingVideos], ["Brave", motorBrave], ["Mojeek", motorMojeek], ["Yahoo", motorYahoo]];
 const motorCaidoHasta = new Map(); // un motor que no trajo nada (captcha) o falló se salta 10 minutos
 const ESPERA_MOTOR_CAIDO_MS = 10 * 60 * 1000;
 
@@ -268,7 +291,8 @@ export async function buscarEnlacesWeb(consultas, normalizar, maximo) {
           const canonico = normalizar(url);
           if (canonico && !vistos.has(canonico)) { vistos.add(canonico); enlaces.push(canonico); nuevos++; }
         }
-        console.log(`[redes] ${nombre}: ${urls.length} enlaces en la página, ${nuevos} útiles para "${consulta}"`);
+        const pistas = nuevos || !urls.length ? "" : ` [dominios: ${dominiosFrecuentes(urls)}; de tiktok: ${urls.filter((u) => /tiktok\.com/i.test(u)).slice(0, 3).map((u) => u.replace(/^https?:\/\/(www\.)?tiktok\.com/i, "").slice(0, 40)).join(" ") || "ninguno"}]`;
+        console.log(`[redes] ${nombre}: ${urls.length} enlaces en la página, ${nuevos} útiles para "${consulta}"${pistas}`);
         if (urls.length) respondio = true;
         else motorCaidoHasta.set(nombre, Date.now() + ESPERA_MOTOR_CAIDO_MS);
       } catch (e) {
@@ -575,7 +599,7 @@ function enlacesTikTokDeJson(nodo, salida = new Set(), profundidad = 0) {
   return salida;
 }
 
-async function buscarEnlacesTikTokApis(consulta, maximo) {
+async function buscarEnlacesTikTokApis(consulta, maximo, motivos = []) {
   const intentos = [
     ["FAA", () => axios.get(`${API_FAA}/faa/tiktok-search`, { params: { q: consulta }, headers: HEADERS, timeout: 15000 })],
     ["Delirius", () => axios.get("https://api.delirius.online/search/tiktoksearch", { params: { query: consulta }, headers: HEADERS, timeout: 15000 })]
@@ -586,11 +610,16 @@ async function buscarEnlacesTikTokApis(consulta, maximo) {
   resultados.forEach((r, i) => {
     const nombre = intentos[i][0];
     if (r.status === "rejected") {
-      console.log(`[redes] ${nombre} (búsqueda TikTok) falló: ${String(r.reason?.message).replace("Request failed with status code ", "HTTP ")}`);
+      const motivo = String(r.reason?.message).replace("Request failed with status code ", "HTTP ");
+      motivos.push(`${nombre}: ${motivo}`);
+      console.log(`[redes] ${nombre} (búsqueda TikTok) falló: ${motivo}`);
       return;
     }
     const nuevos = [...enlacesTikTokDeJson(r.value?.data)];
-    if (!nuevos.length) console.log(`[redes] ${nombre} (búsqueda TikTok): sin resultados`);
+    if (!nuevos.length) {
+      motivos.push(`${nombre}: sin resultados`);
+      console.log(`[redes] ${nombre} (búsqueda TikTok): sin resultados`);
+    }
     nuevos.forEach((u) => enlaces.add(u));
   });
   return [...enlaces].slice(0, maximo);
@@ -598,6 +627,7 @@ async function buscarEnlacesTikTokApis(consulta, maximo) {
 
 export async function buscarTikTok(consulta, cantidad) {
   let errorApi = null;
+  const motivos = [];
   try {
     const data = await buscarEnTikwm(consulta, cantidad);
     const lista = (data.videos || [])
@@ -607,16 +637,18 @@ export async function buscarTikTok(consulta, cantidad) {
     if (lista.length) return lista;
   } catch (e) {
     errorApi = e;
+    motivos.push(String(e.message).replace("tikwm bloqueó la búsqueda ", "tikwm "));
     console.log(`[redes] La búsqueda de tikwm falló (${e.message}); se prueba con el buscador web`);
   }
 
   // Respaldo: buscar enlaces de TikTok (APIs de terceros, luego buscadores web) y bajar cada uno (tikwm, y yt-dlp si tikwm falla).
-  let enlaces = await buscarEnlacesTikTokApis(consulta, cantidad * 2);
-  if (!enlaces.length) enlaces = await buscarEnlacesWeb([`${consulta} site:tiktok.com/@ video`, `${consulta} tiktok site:tiktok.com`, `${consulta} tiktok video`], normalizarTikTok, cantidad * 2).catch(() => []);
+  let enlaces = await buscarEnlacesTikTokApis(consulta, cantidad * 2, motivos);
+  if (!enlaces.length) enlaces = await buscarEnlacesWeb([`${consulta} site:tiktok.com/@ video`, `${consulta} tiktok site:tiktok.com`, `${consulta} tiktok video`], normalizarTikTok, cantidad * 2).catch((e) => { motivos.push(String(e.message).replace(/^Los buscadores web no respondieron /, "buscadores ")); return []; });
   if (!enlaces.length) {
-    throw new Error(errorApi
+    const detalle = motivos.length ? `\nDetalle: ${motivos.join(" | ").replace(/https?:\/\//g, "").slice(0, 450)}` : "";
+    throw new Error((errorApi
       ? "TikTok bloqueó la búsqueda desde esta conexión (HTTP 403). Envía el enlace del video con .tt <enlace>."
-      : "No encontré videos de TikTok para esa búsqueda.");
+      : "No encontré videos de TikTok para esa búsqueda.") + detalle);
   }
   return enlaces.map((link) => ({
     type: "video",
