@@ -3,11 +3,26 @@ import { tarjetaUso, tarjetaAviso } from "../../descargas/tarjetas.js";
 import { obtenerCliente, buscarVideosYoutube } from "../../descargas/youtube-engine.js";
 import { descargarBuffer } from "../../descargas/core.js";
 import { enviarConBoton } from "../../../motores/botones.js";
+import { enviarHtmlEmbebido } from "../../../motores/botones-nativos.js";
 
 const ESPERA_MS = 8000;
-const PISTAS = 8;
+const COLA_MAX = 14;
+const EXPANDIR = 7;
+const RELACIONADAS_MAX = 14;
+const TIEMPO_EXPANDIR_MS = 4500;
 const DURACION_MIN_SEG = 60;
 const DURACION_MAX_SEG = 600;
+const FUENTES = [
+  "astabot.hidenplay.net",
+  "unpkg.com",
+  "cdn.jsdelivr",
+  "www.youtube.com",
+  "youtube.com",
+  "www.youtube-nocookie.com",
+  "s.ytimg.com",
+  "i.ytimg.com",
+  "www.google.com"
+];
 
 const esperas = new Map();
 
@@ -36,10 +51,6 @@ function segundosDe(valor) {
   return m ? Number(m[1] || 0) * 3600 + Number(m[2]) * 60 + Number(m[3]) : 0;
 }
 
-function textoDuracion(seg) {
-  return seg ? `${Math.floor(seg / 60)}:${String(Math.round(seg % 60)).padStart(2, "0")}` : "";
-}
-
 function conLimite(promesa, ms) {
   let t;
   return Promise.race([promesa, new Promise((_, rej) => { t = setTimeout(() => rej(new Error("tiempo agotado")), ms); })]).finally(() => clearTimeout(t));
@@ -64,38 +75,57 @@ async function relacionadas(id) {
   }
 }
 
-async function armarLista(consulta) {
+function depurar(lista, excluirId, tope) {
+  const vistos = new Set([excluirId]);
+  const nombres = new Set();
+  const salida = [];
+  for (const v of lista) {
+    if (!v.id || vistos.has(v.id)) continue;
+    if (v.segundos && (v.segundos < DURACION_MIN_SEG || v.segundos > DURACION_MAX_SEG)) continue;
+    const nombre = normalizar(v.titulo);
+    if (nombre && nombres.has(nombre)) continue;
+    vistos.add(v.id);
+    if (nombre) nombres.add(nombre);
+    salida.push(v);
+    if (salida.length >= tope) break;
+  }
+  return salida;
+}
+
+async function armarMix(consulta) {
   const busqueda = (await buscarVideosYoutube(consulta, 14))
     .map((v) => ({ id: idDe(v.url), titulo: v.titulo, segundos: segundosDe(v.duracion), canal: v.canal }))
     .filter((v) => v.id);
-  if (!busqueda.length) return [];
+  if (!busqueda.length) return null;
 
   const semilla = busqueda.find((v) => v.segundos >= DURACION_MIN_SEG && v.segundos <= DURACION_MAX_SEG) || busqueda[0];
   const parecidas = await relacionadas(semilla.id);
 
-  const vistos = new Set();
-  const nombres = new Set();
-  const lista = [];
-  const agregar = (v, estricto) => {
-    if (!v.id || vistos.has(v.id)) return;
-    if (estricto && v.segundos && (v.segundos < DURACION_MIN_SEG || v.segundos > DURACION_MAX_SEG)) return;
-    const nombre = normalizar(v.titulo);
-    if (nombre && nombres.has(nombre)) return;
-    vistos.add(v.id);
-    if (nombre) nombres.add(nombre);
-    lista.push(v);
-  };
+  const cola = [semilla, ...depurar([...parecidas, ...busqueda], semilla.id, COLA_MAX - 1)];
+  const dic = new Map();
+  const guardar = (v) => { if (v.id && !dic.has(v.id)) dic.set(v.id, v); };
+  cola.forEach(guardar);
 
-  agregar(semilla, false);
-  parecidas.forEach((v) => agregar(v, true));
-  busqueda.forEach((v) => agregar(v, true));
-  if (lista.length < PISTAS) busqueda.forEach((v) => agregar(v, false));
-  return lista.slice(0, PISTAS);
-}
+  const rel = {};
+  const propias = depurar(parecidas, semilla.id, RELACIONADAS_MAX);
+  rel[semilla.id] = propias.map((v) => v.id);
+  propias.forEach(guardar);
 
-async function conMiniaturas(pistas) {
+  const expandir = cola.filter((v) => v.id !== semilla.id).slice(0, EXPANDIR);
+  const trabajos = expandir.map(async (v) => {
+    const r = depurar(await relacionadas(v.id), v.id, RELACIONADAS_MAX);
+    rel[v.id] = r.map((x) => x.id);
+    r.forEach(guardar);
+  });
+  let temporizador;
+  await Promise.race([
+    Promise.allSettled(trabajos),
+    new Promise((resolver) => { temporizador = setTimeout(resolver, TIEMPO_EXPANDIR_MS); })
+  ]);
+  clearTimeout(temporizador);
+
   await Promise.all(
-    pistas.map(async (p) => {
+    cola.map(async (p) => {
       try {
         const buf = await conLimite(descargarBuffer(`https://i.ytimg.com/vi/${p.id}/mqdefault.jpg`), 6000);
         p.img = `data:image/jpeg;base64,${buf.toString("base64")}`;
@@ -104,7 +134,18 @@ async function conMiniaturas(pistas) {
       }
     })
   );
-  return pistas;
+
+  const usados = new Set(cola.map((v) => v.id));
+  for (const id of Object.keys(rel)) rel[id].forEach((x) => usados.add(x));
+  const pool = {};
+  for (const id of usados) {
+    const v = dic.get(id);
+    if (v) pool[id] = { t: v.titulo, c: v.canal, s: v.segundos || 0, i: v.img || "" };
+  }
+  const relLimpio = {};
+  for (const id of Object.keys(rel)) relLimpio[id] = rel[id].filter((x) => pool[x]);
+
+  return { inicio: semilla.id, cola: cola.map((v) => v.id), pool, rel: relLimpio };
 }
 
 const CSS = `
@@ -126,17 +167,19 @@ small{color:var(--mut);font-size:11px}
 .rc{font-size:11px;font-weight:900;padding:3px 9px;border-radius:20px;color:#fff;background:var(--c);border:2px solid var(--bd);text-shadow:0 1px 2px rgba(0,0,0,.5)}
 .det{background:var(--card);border:3px solid var(--bd);border-radius:20px;overflow:hidden;box-shadow:0 5px 0 var(--bd),0 0 22px var(--glow);margin-bottom:14px}
 .vd{position:relative;width:100%;aspect-ratio:16/9;background:#000;border-bottom:3px solid var(--bd)}
-.vd iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+.vd iframe,.vd #pl{position:absolute;inset:0;width:100%;height:100%;border:0}
 .cu{padding:12px 14px 14px}
 .nt{font-size:15px;font-weight:900;line-height:1.25;overflow-wrap:anywhere}
 .nc{font-size:12px;color:var(--mut);margin-top:2px}
-.cmd{margin-top:10px;padding:9px 11px;border-radius:12px;background:var(--soft);font-size:11.5px;line-height:1.55;color:var(--mut);border:2px dashed var(--bd)}
-.cmd b{color:var(--ink)}
+.fb{display:flex;justify-content:center;gap:12px;margin:12px 0 6px}
+.fb button{width:48px;height:48px;border-radius:50%;background:var(--card);border:3px solid var(--bd);font-size:21px;box-shadow:0 3px 0 var(--bd)}
+.fb button.g{background:var(--acc2);width:54px;height:54px;color:#fff}
+.fb button:active{transform:translateY(2px);box-shadow:0 1px 0 var(--bd)}
+.av{margin-top:6px;padding:8px 10px;border-radius:12px;background:var(--soft);font-size:11.5px;line-height:1.5;color:var(--mut);border:2px dashed var(--bd);text-align:center}
 .sh{color:var(--hdr);font-weight:900;font-size:14px;margin:0 2px 8px;display:flex;justify-content:space-between;align-items:center}
 .sh small{color:var(--hdr);opacity:.85}
 .ls{display:flex;flex-direction:column;gap:9px}
 .t{display:flex;align-items:center;gap:10px;min-width:0;background:var(--card);border:3px solid var(--bd);border-radius:16px;padding:6px;border-bottom:7px solid var(--acc2);box-shadow:0 3px 0 var(--bd);cursor:pointer}
-.t.on{outline:3px solid var(--acc);outline-offset:1px;background:var(--soft)}
 .t:active{transform:translateY(2px)}
 .th{position:relative;flex:none;width:98px;aspect-ratio:16/9;border-radius:10px;border:2px solid var(--bd);overflow:hidden;background:var(--acc);display:flex;align-items:center;justify-content:center;font-size:22px}
 .th img{width:100%;height:100%;object-fit:cover}
@@ -144,55 +187,76 @@ small{color:var(--mut);font-size:11px}
 .ti{min-width:0;flex:1}
 .ti b{display:block;font-size:12.5px;font-weight:900;line-height:1.2;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .ti small{display:block;margin-top:2px}
-.eq{flex:none;width:20px;height:18px;display:none;align-items:flex-end;gap:2px;margin-right:4px}
-.t.on .eq{display:flex}
-.eq i{flex:1;background:var(--acc2);border:1.5px solid var(--bd);border-radius:2px;height:100%;transform-origin:bottom;animation:eq .8s ease-in-out infinite}
-.eq i:nth-child(2){animation-delay:.2s}.eq i:nth-child(3){animation-delay:.4s}
-@keyframes eq{0%,100%{transform:scaleY(.25)}50%{transform:scaleY(1)}}
 .pie{margin-top:14px;text-align:center;color:var(--hdr);font-size:11.5px;line-height:1.6}
 .pie b{font-weight:900}
 `;
 
-const JS = `var I=__I__;
-function u(i,a){var r=[];for(var k=1;k<I.length;k++)r.push(I[(i+k)%I.length]);return "https://www.youtube-nocookie.com/embed/"+I[i]+"?playsinline=1&rel=0&playlist="+r.join(",")+(a?"&autoplay=1":"")}
-var fr=document.getElementById("fr"),rs=document.querySelectorAll(".t"),nt=document.getElementById("nt"),nc=document.getElementById("nc"),n=document.getElementById("n");
-function ir(i,a){fr.src=u(i,a);for(var k=0;k<rs.length;k++)rs[k].classList.toggle("on",k===i);nt.textContent=rs[i].getAttribute("data-t");nc.textContent=rs[i].getAttribute("data-c");n.textContent=(i+1)+" / "+I.length}
-for(var k=0;k<rs.length;k++){(function(i){rs[i].addEventListener("click",function(){ir(i,true)})})(k)}
-ir(0,false);`;
+const JS = `var P=__P__,R=__R__,Q=__Q__,S="__S__";
+var yt=null,ok=false,cur="",hist=[],played={},nx=[],fallos=0;
+function $(i){return document.getElementById(i)}
+function th(id){var p=P[id];return p&&p.i?p.i:"https://i.ytimg.com/vi/"+id+"/mqdefault.jpg"}
+function fmt(s){s=Math.floor(s||0);return Math.floor(s/60)+":"+("0"+(s%60)).slice(-2)}
+function sig(id,r){var a=[],seen={},l=(R[id]||[]).concat(Q);for(var k=0;k<l.length&&a.length<10;k++){var x=l[k];if(x!==id&&P[x]&&!played[x]&&!seen[x]){seen[x]=1;a.push(x)}}if(!a.length&&!r){played={};played[id]=1;return sig(id,1)}return a}
+function fila(id){var d=document.createElement("div");d.className="t";var h=document.createElement("div");h.className="th";var im=document.createElement("img");im.alt="";im.onerror=function(){if(im.parentNode)h.removeChild(im);h.insertBefore(document.createTextNode("🎵"),h.firstChild)};im.src=th(id);h.appendChild(im);if(P[id].s){var e=document.createElement("em");e.textContent=fmt(P[id].s);h.appendChild(e)}var t=document.createElement("div");t.className="ti";var b=document.createElement("b");b.textContent=P[id].t;var s=document.createElement("small");s.textContent=P[id].c;t.appendChild(b);t.appendChild(s);d.appendChild(h);d.appendChild(t);d.addEventListener("click",function(){ir(id,true)});return d}
+function pintar(){var ls=$("ls");ls.innerHTML="";for(var k=0;k<nx.length;k++)ls.appendChild(fila(nx[k]));$("nn").textContent=nx.length+" canciones"}
+function poner(id,push){if(cur&&push&&cur!==id)hist.push(cur);cur=id;played[id]=1;$("nt").textContent=P[id].t;$("nc").textContent=P[id].c;nx=sig(id,0);pintar();$("np").textContent=hist.length+1}
+function ir(id,go){poner(id,true);if(ok&&yt){try{if(go)yt.loadVideoById(id);else yt.cueVideoById(id)}catch(x){}}}
+function adelante(){if(nx.length)ir(nx[0],true)}
+function atras(){if(hist.length){var id=hist.pop();poner(id,false);if(ok){try{yt.loadVideoById(id)}catch(x){}}}}
+function azar(){if(nx.length)ir(nx[Math.floor(Math.random()*nx.length)],true)}
+function caer(){if(ok)return;$("av").textContent="WhatsApp no deja cargar YouTube en esta página. Usa el botón Abrir mix en YouTube que te mandé en el chat."}
+function cambio(e){
+if(e.data===1){fallos=0;$("av").textContent=""}
+if(e.data===0){adelante();return}
+if(e.data===1||e.data===3){try{var v=yt.getVideoData();if(v&&v.video_id&&v.video_id!==cur&&P[v.video_id])poner(v.video_id,true)}catch(x){}}
+}
+window.onYouTubeIframeAPIReady=function(){
+try{yt=new YT.Player("pl",{width:"100%",height:"100%",videoId:S,playerVars:{playsinline:1,rel:0,modestbranding:1},events:{
+onReady:function(){ok=true;$("av").textContent=""},
+onStateChange:cambio,
+onError:function(){fallos++;if(fallos>=3){$("av").textContent="YouTube no deja reproducir aquí. Usa el botón Abrir mix en YouTube del chat.";return}$("av").textContent="Esa canción no se pudo reproducir, pasando a la siguiente...";setTimeout(adelante,1200)}}})}catch(x){caer()}};
+$("pv").addEventListener("click",atras);
+$("nx").addEventListener("click",adelante);
+$("sh").addEventListener("click",azar);
+var sc=document.createElement("script");sc.src="https://www.youtube.com/iframe_api";sc.onerror=caer;document.head.appendChild(sc);
+setTimeout(caer,7000);
+poner(S,false);`;
 
-function htmlMusica({ consulta, firma, pistas }) {
-  const filas = pistas.map((p, i) => {
-    const miniatura = p.img ? `<img src="${p.img}" alt="">` : "🎵";
-    const dur = p.segundos ? `<em>${esc(textoDuracion(p.segundos))}</em>` : "";
-    return `<div class="t" data-i="${i}" data-t="${esc(p.titulo)}" data-c="${esc(p.canal)}"><div class="th">${miniatura}${dur}</div><div class="ti"><b>${esc(p.titulo)}</b><small>${esc(p.canal)}</small></div><div class="eq"><i></i><i></i><i></i></div></div>`;
-  }).join("");
-  const js = JS.replace("__I__", () => JSON.stringify(pistas.map((p) => p.id)));
+function htmlMusica({ consulta, firma, mix }) {
+  const json = (o) => JSON.stringify(o).replace(/</g, "\\u003c");
+  const js = JS
+    .replace("__P__", () => json(mix.pool))
+    .replace("__R__", () => json(mix.rel))
+    .replace("__Q__", () => json(mix.cola))
+    .replace("__S__", () => mix.inicio);
+  const portada = mix.pool[mix.inicio]?.i ? `<img src="${mix.pool[mix.inicio].i}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">` : "";
 
   return `<!DOCTYPE html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <style>${CSS}</style></head><body>
 <div class="cab"><div class="logo">🎧</div><div class="tit"><b>Mi reproductor</b><small>Mix de ${esc(consulta)}</small></div></div>
-<div class="res"><div><small>Canciones similares</small><b>${pistas.length} temas</b></div><div class="d"><small>Reproduciendo</small><b id="n"></b></div></div>
+<div class="res"><div><small>Lista que se actualiza</small><b id="nn"></b></div><div class="d"><small>Escuchadas</small><b id="np">1</b></div></div>
 <div class="rar"><span class="rc" style="--c:#ff0033">▶ YouTube</span><span class="rc" style="--c:#a855f7">🔀 Mix</span><span class="rc" style="--c:#10b981">♾ Autoplay</span></div>
-<div class="det"><div class="vd"><iframe id="fr" referrerpolicy="strict-origin-when-cross-origin" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe></div>
+<div class="det"><div class="vd">${portada}<div id="pl"></div></div>
 <div class="cu"><div class="nt" id="nt"></div><div class="nc" id="nc"></div>
-<div class="cmd">Toca una canción de la lista para reproducirla. Sigue sola con las parecidas.<br>¿Pantalla negra? Usa el botón <b>Abrir mix en YouTube</b> de abajo.</div></div></div>
-<div class="sh"><span>A continuación</span><small>${pistas.length} canciones</small></div>
-<div class="ls">${filas}</div>
+<div class="fb"><button id="sh">🔀</button><button id="pv">⏮</button><button class="g" id="nx">⏭</button></div>
+<div class="av" id="av">Conectando con YouTube...</div></div></div>
+<div class="sh"><span>A continuación</span><small id="nn2">cambia con cada canción</small></div>
+<div class="ls" id="ls"></div>
 <div class="pie">ⓘ Powered by <b>${esc(firma)}</b></div>
 <script>${js}</script>
 </body></html>`;
 }
 
-function textoRespaldo(consulta, pistas) {
+function textoRespaldo(consulta, mix) {
   const partes = ["🎧 *MI REPRODUCTOR*", `> ${consulta}`, ""];
-  pistas.slice(0, 6).forEach((v) => partes.push(`✿ *${v.titulo}*\n> https://www.youtube.com/watch?v=${v.id}`));
+  mix.cola.slice(0, 6).forEach((id) => partes.push(`✿ *${mix.pool[id]?.t || id}*\n> https://www.youtube.com/watch?v=${id}`));
   return partes.join("\n");
 }
 
 export default {
   names: [".musica", ".reproductor", ".mix"],
-  desc: "Reproductor tipo YouTube: busca una canción y arma una lista de canciones similares que sigue sola",
+  desc: "Reproductor tipo YouTube: busca una canción y arma una lista de canciones similares que se actualiza con cada tema",
   category: "Tools",
   usage: ".musica <canción o artista>",
   handler: async ({ sock, from, sender, msg, cleanText, reply }) => {
@@ -202,7 +266,7 @@ export default {
         text: tarjetaUso({
           comando: ".musica <canción o artista>",
           ejemplo: ".musica PesoPluma   |   .musica rock en español   |   .mix lofi para estudiar",
-          nota: "Armo una lista de canciones parecidas con reproductor de YouTube y botón para abrir todo el mix en YouTube."
+          nota: "Te mando un botón que abre el reproductor, con lista de canciones parecidas que cambia con cada tema."
         })
       });
     }
@@ -221,42 +285,44 @@ export default {
       await sock.sendMessage(from, { react: { text: "🎧", key: msg.key } });
     } catch {}
 
-    let pistas = [];
+    let mix = null;
     try {
-      pistas = await armarLista(consulta);
+      mix = await armarMix(consulta);
     } catch (e) {
-      console.log("[MUSICA] búsqueda falló: " + String(e.message).split("\n")[0]);
+      console.log("[MUSICA] mix falló: " + String(e.message).split("\n")[0]);
     }
-    if (!pistas.length) {
+    if (!mix) {
       return reply({ text: tarjetaAviso("REPRODUCTOR", "No encontré canciones con esa búsqueda. Prueba con otro nombre.") });
     }
 
-    await conMiniaturas(pistas);
-
-    const lista = [
-      { texto: "▶ Abrir mix en YouTube", url: `https://www.youtube.com/watch_videos?video_ids=${pistas.map((p) => p.id).join(",")}` },
-      ...pistas.slice(0, 3).map((p, i) => ({ texto: `${i + 1}. ${recortar(p.titulo, 24)}`, url: `https://www.youtube.com/watch?v=${p.id}` }))
-    ];
-
-    let htmlEnviado = false;
+    const html = htmlMusica({ consulta, firma, mix });
+    let enviadoHtml = false;
     try {
-      if (typeof sock.sendHtml !== "function") throw new Error("sin sendHtml");
-      await sock.sendHtml(from, htmlMusica({ consulta, firma, pistas }), [], msg, {});
-      htmlEnviado = true;
+      enviadoHtml = await enviarHtmlEmbebido({ sock, from, msg, titulo: "🎧 Mi reproductor", html, pestana: "REPRODUCTOR", fuentes: FUENTES });
+      if (!enviadoHtml && typeof sock.sendHtml === "function") {
+        await sock.sendHtml(from, html, [], msg, {});
+        enviadoHtml = true;
+      }
     } catch (e) {
       console.log("[MUSICA] HTML falló: " + e.message);
-      await sock.sendMessage(from, { text: textoRespaldo(consulta, pistas) }, { quoted: msg });
+    }
+    if (!enviadoHtml) {
+      await sock.sendMessage(from, { text: textoRespaldo(consulta, mix) }, { quoted: msg });
     }
 
+    const lista = [
+      { texto: "▶ Abrir mix en YouTube", url: `https://www.youtube.com/watch_videos?video_ids=${mix.cola.join(",")}` },
+      ...mix.cola.slice(0, 3).map((id, i) => ({ texto: `${i + 1}. ${recortar(mix.pool[id]?.t || id, 24)}`, url: `https://www.youtube.com/watch?v=${id}` }))
+    ];
     const enviado = await enviarConBoton({
       sock,
       from,
       msg,
-      texto: `> 🎧 Mix de *${recortar(consulta, 40)}* · ${pistas.length} canciones`,
+      texto: `> 🎧 Mix de *${recortar(consulta, 40)}* · ${mix.cola.length} canciones`,
       footer: "Powered by " + firma,
       lista
     });
-    if (!enviado && htmlEnviado) {
+    if (!enviado && enviadoHtml) {
       await sock.sendMessage(from, { text: lista.map((b) => `${b.texto}\n> ${b.url}`).join("\n\n") }, { quoted: msg });
     }
   }
