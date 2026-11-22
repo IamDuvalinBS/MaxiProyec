@@ -56,7 +56,6 @@ export default {
 
     const lineas = [E.contenido(base)];
     if (conBonus) lineas.push(E.bonus(extra));
-    lineas.push(E.cartera(getAccount(sender).wallet));
 
     await reply({
       text: tarjeta({

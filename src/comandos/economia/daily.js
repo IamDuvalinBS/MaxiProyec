@@ -101,7 +101,6 @@ export default {
     if (extra) lineas.push(`🌼 *BONO DE OFRENDA::* +${monto(extra)}`);
     if (completoMaximo) lineas.push(E.lineaAnual(PREMIO_RACHA_MAXIMA));
     if (pagado) lineas.push(E.lineaRecuperada(pagado));
-    lineas.push(E.lineaCartera(getAccount(sender).wallet));
 
     await reply({
       text: tarjeta({

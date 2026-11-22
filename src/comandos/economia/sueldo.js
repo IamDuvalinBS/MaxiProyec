@@ -73,7 +73,7 @@ function vistaCobro(sender, c) {
   const lineas = [`📄 *Sueldo bruto* ›› ${monto(c.bruto)}`];
   if (c.faltas) lineas.push(`🚫 *Faltas (${c.faltas})* ›› -${c.pct}% = -${monto(c.descuento)}`);
   else lineas.push("✅ *Faltas* ›› ninguna, ¡sin descuentos!");
-  lineas.push(`💵 *Cobraste* ›› +${monto(c.neto)}`, `⛁ *Cartera* ›› ${monto(getAccount(sender).wallet)}`);
+  lineas.push(`💵 *Cobraste* ›› +${monto(c.neto)}`);
 
   return tarjeta({
     emoji: "💼",

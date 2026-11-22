@@ -40,7 +40,7 @@ export default {
         emoji: E.emoji,
         titulo: E.titulo,
         relato: E.relato,
-        lineas: [E.ganado(PREMIO), E.cartera(getAccount(sender).wallet)],
+        lineas: [E.ganado(PREMIO)],
         tip: E.tip
       })
     });
