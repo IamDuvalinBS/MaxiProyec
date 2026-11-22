@@ -60,17 +60,9 @@ export function leerMonto(texto, disponible) {
   return valor && valor > 0 ? valor : null;
 }
 
-export function jidMencionado(msg) {
-  const lista = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid;
-  return lista && lista.length ? lista[0] : null;
-}
-
-export function jidObjetivo(msg) {
-  const ctx = msg.message?.extendedTextMessage?.contextInfo;
-  const etiquetado = ctx?.mentionedJid?.[0];
-  if (etiquetado) return etiquetado;
-  return ctx?.quotedMessage && ctx.participant ? ctx.participant : null;
-}
+// Detección de usuario objetivo (mención, respuesta a mensaje o @número): ver src/nucleo/objetivo.js
+export { jidMencionado, jidObjetivo } from "../nucleo/objetivo.js";
+import { jidObjetivo } from "../nucleo/objetivo.js";
 
 export function leerDestinoYArgumento(msg, cleanText) {
   const partes = cleanText.split(/\s+/).slice(1).filter((parte) => parte && !parte.startsWith("@"));

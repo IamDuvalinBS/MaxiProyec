@@ -1,4 +1,4 @@
-import { getAccount, getAllAccounts, saveAccount, addToWallet } from "../../motores/db.js";
+import { getAccount, saveAccount, addToWallet } from "../../motores/db.js";
 import { getProfile } from "../../motores/profile.js";
 import { registrarEspera } from "../nucleo/espera.js";
 import { tarjeta, monto, elegir } from "./formato-evento.js";

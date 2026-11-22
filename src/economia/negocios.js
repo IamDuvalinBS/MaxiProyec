@@ -6,9 +6,11 @@ export const HORAS_CICLO = 12;
 export const CICLO_MS = HORAS_CICLO * 60 * 60 * 1000;
 export const SEMANA_MS = 7 * 24 * 60 * 60 * 1000;
 export const VENTANA_PAGO_MS = 3 * 24 * 60 * 60 * 1000;
-export const TOPE_GENERACION = 600000;
-export const RENDIMIENTO = 0.1;
-export const PORCENTAJE_SEMANAL = 0.25;
+// Balance (nerfeado): antes rendían 10% del precio cada 12 h (se pagaban solos en ~6 días).
+// Ahora 5% por ciclo: el negocio se paga en ~2 semanas reclamando cada 12 h (o ~6 si solo cobras 1 vez al día).
+export const TOPE_GENERACION = 300000;   // máximo que puede acumular un negocio por ciclo
+export const RENDIMIENTO = 0.05;         // fracción del precio que produce por ciclo
+export const PORCENTAJE_SEMANAL = 0.2;   // mantenimiento semanal (fracción del precio)
 
 // Cada negocio conserva su clave y su precio. "emoji" y "nombre" cambian según el evento activo
 // (por eso son getters): la base de datos siempre guarda la misma clave.
