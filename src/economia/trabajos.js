@@ -3,6 +3,7 @@ import { addXp, getProfile } from "../../motores/profile.js";
 import { tarjeta, monto, elegir, entre, textoEspera, avisoNivel } from "./formato-evento.js";
 import { esHalloween, estilo } from "./temas.js";
 import { registrarTrabajo, bonosDeGanancia } from "./carrera.js";
+import { asegurarKarma, probFallo } from "../../motores/karma.js";
 
 export const trabajosRegistrados = new Map();
 
@@ -81,7 +82,8 @@ export function ejecutarTrabajo(sender, trabajo, { conRacha = true } = {}) {
   if (espera > 0) return { enEspera: true, espera };
 
   const cuenta = getAccount(sender);
-  const falla = trabajo.chanceFallo > 0 && Math.random() < trabajo.chanceFallo;
+  // La suerte del karma sube o baja el riesgo de fallar (.crimen, .espiar y demás trabajos con riesgo).
+  const falla = trabajo.chanceFallo > 0 && Math.random() < probFallo(trabajo.chanceFallo, sender);
   const vista = vistaDe(trabajo);
 
   if (!falla) {
@@ -118,6 +120,7 @@ export function crearTrabajo(def) {
     desc: trabajo.desc,
     category: "Trabajos",
     handler: async ({ sender, reply }) => {
+      await asegurarKarma();
       const r = ejecutarTrabajo(sender, trabajo);
       if (r.enEspera) return reply({ text: textoEspera(r.espera) });
 
