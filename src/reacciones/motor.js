@@ -7,6 +7,7 @@ import { pipeline } from "stream/promises";
 import { fileURLToPath } from "url";
 import { DATOS } from "./datos.js";
 import { FUENTES } from "./fuentes.js";
+import { jidObjetivo } from "../nucleo/objetivo.js";
 
 const elegir = (lista) => lista[Math.floor(Math.random() * lista.length)];
 
@@ -124,8 +125,7 @@ async function conseguirMp4(accion) {
 
 export function reactionCommand({ apiAction, fraseConOtro, fraseSolo }) {
   return async ({ sock, from, sender, msg, reply }) => {
-    const mentioned = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid;
-    const target = (mentioned && mentioned[0]) || sender;
+    const target = jidObjetivo(msg) || sender;
     const esASiMismo = target === sender;
 
     const { buffer, sinFuentes } = await conseguirMp4(apiAction);
