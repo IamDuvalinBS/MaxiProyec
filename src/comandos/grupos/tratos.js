@@ -1,7 +1,7 @@
 import { tarjeta, jidObjetivo } from "../../economia/formato.js";
 import { formatTime } from "../../../motores/ui.js";
 import {
-  asegurarKarma, karmaListo, PUNTOS, estadisticasDe, cambiarKarma, buenaAccion,
+  asegurarKarma, karmaListo, PUNTOS, estadisticasDe, cambiarKarma, apodoDe, buenaAccion,
   puedeGanarPorCumplir, anotarCumplido, crearTrato, getTrato, guardarTrato, tratosDe,
   esParte, esCreador, esDestino, mismaPersona, MAX_CUMPLIDOS_CON_KARMA_POR_DIA
 } from "../../../motores/karma.js";
@@ -274,7 +274,8 @@ const cmdReputacion = {
       `🎁 *EFECTOS::* ${n.extra}`,
       `🪙 *DAILY::* x${n.daily}`
     ];
-    if (n.apodo) lineas.splice(3, 0, `🏷️ *APODO::* ${n.apodo}`);
+    const apodo = apodoDe(objetivo);
+    if (apodo) lineas.splice(3, 0, `🏷️ *APODO::* ${apodo}`);
 
     await reply({
       text: tarjeta({

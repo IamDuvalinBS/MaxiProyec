@@ -1,6 +1,6 @@
 import { comandoGrupo, metadatos, buscarBot, buscarParticipante, limpiarJid, objetivoDe } from "../../grupos/nucleo.js";
 import { ajustesDe, definirAjuste } from "../../grupos/estado.js";
-import { socketPrincipal } from "../../subbots/gestor.js";
+import { socketPrincipal, socketsSubbots } from "../../subbots/gestor.js";
 import { tarjetaMarcada, mencion } from "../../economia/estilo.js";
 
 const OPCIONES_QUITAR = new Set(["off", "all", "todos", "reset", "quitar"]);
