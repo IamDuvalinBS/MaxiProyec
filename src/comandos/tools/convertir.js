@@ -255,7 +255,7 @@ tabs();opts();draw();`;
 
 export default {
   names: [".convertir", ".convierte", ".unidades", ".conv"],
-  desc: "Convierte unidades de longitud, masa, volumen, temperatura, tiempo, datos, velocidad y más (funciona sin internet)",
+  desc: "Convierte unidades de longitud, masa, temperatura y más",
   category: "Tools",
   usage: ".convertir <cantidad> <unidad> a <unidad>",
   handler: async ({ sock, from, sender, msg, cleanText, reply }) => {

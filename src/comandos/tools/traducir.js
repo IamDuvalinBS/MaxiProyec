@@ -163,7 +163,7 @@ if('speechSynthesis' in window){var s=document.getElementById('sp');s.hidden=fal
 
 export default {
   names: [".traducir", ".traduce", ".translate", ".tr"],
-  desc: "Traduce a más de 30 idiomas con pronunciación, audio y copia rápida. También traduce el mensaje al que respondas",
+  desc: "Traduce texto a más de 30 idiomas",
   category: "Tools",
   usage: ".traducir <idioma> <texto>",
   handler: async ({ sock, from, sender, msg, cleanText, reply }) => {

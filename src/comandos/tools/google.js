@@ -142,7 +142,7 @@ function sinImagenes(paquete) {
 
 export default {
   names: [".google", ".buscar"],
-  desc: "Busca información, noticias, fotos y videos con texto legible dentro del mensaje. Responde hora, fecha y cálculos. Modos: info, precio, youtube, noticias, fotos",
+  desc: "Busca información, noticias, fotos y videos",
   category: "Tools",
   usage: ".google <búsqueda>",
   handler: async ({ sock, from, sender, msg, cleanText, reply }) => {

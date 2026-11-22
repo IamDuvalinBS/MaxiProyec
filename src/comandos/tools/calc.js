@@ -802,7 +802,7 @@ if (INI) { expr = INI; equals(); } else render();
 
 export default {
   names: [".calc", ".calculadora", ".calcular"],
-  desc: "Calculadora digital como la de Google pero mejor: operaciones, porcentajes, funciones, factoriales gigantes y ecuaciones con x",
+  desc: "Calculadora con porcentajes, funciones y ecuaciones",
   category: "Tools",
   usage: ".calc <operación>",
   handler: async ({ sock, from, msg, cleanText, reply }) => {

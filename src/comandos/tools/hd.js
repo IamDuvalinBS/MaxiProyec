@@ -44,9 +44,9 @@ async function mejorar(buffer, factorPedido) {
 
 export default {
   names: [".hd", ".remini", ".nitidez"],
-  desc: "Aumenta la resolución y la claridad de una imagen",
+  desc: "Aumenta la resolución y nitidez de una imagen",
   category: "Tools",
-  usage: ".hd [2-4] [doc] (respondiendo a una imagen)",
+  usage: ".hd [2-4]",
   handler: async ({ msg, from, sender, cleanText, sock, reply }) => {
     const args = cleanText.toLowerCase().split(/\s+/).slice(1);
     const factorPedido = Math.min(4, Math.max(2, Number(args.find((a) => /^[2-4]$/.test(a))) || 2));

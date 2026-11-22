@@ -133,8 +133,8 @@ async function procesar(sock, from, msg, obtener) {
 
 export default {
   names: [".letra", ".letras", ".lyrics"],
-  usage: ".letra <canción o artista - canción>",
-  desc: "Busca la letra de una canción (lista con botones, como .spotify). También funciona respondiendo a un mensaje",
+  usage: ".letra <canción>",
+  desc: "Busca la letra de una canción",
   category: "Tools",
   handler: async ({ sock, from, sender, msg, cleanText }) => {
     const texto = cleanText.split(/\s+/).slice(1).join(" ").trim() || textoCitado(msg).trim();

@@ -228,7 +228,7 @@ draw();`;
 
 export default {
   names: [".divisa", ".divisas", ".moneda", ".cambio", ".usd"],
-  desc: "Convierte monedas con las tasas del día (más de 150) y un convertidor interactivo",
+  desc: "Convierte monedas con las tasas del día",
   category: "Tools",
   usage: ".divisa <cantidad> <moneda> a <moneda>",
   handler: async ({ sock, from, sender, msg, cleanText, reply }) => {

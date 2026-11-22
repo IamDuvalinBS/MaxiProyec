@@ -58,9 +58,9 @@ async function crear(usuario, compacto = false) {
 
 export default {
   names: [".html", ".pagina", ".web", ".crearhtml"],
-  desc: "Crea con IA cualquier página, juego o app en HTML y te manda un enlace para abrirla. Responde a un enlace para modificarla",
+  desc: "Crea con IA una página o app en HTML",
   category: "Tools",
-  usage: ".html <qué quieres crear>",
+  usage: ".html <qué crear>",
   handler: async ({ sock, from, sender, msg, cleanText, reply }) => {
     const args = cleanText.split(/\s+/).slice(1).join(" ").trim();
     const duenio = isOwner(sender);
