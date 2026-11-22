@@ -70,7 +70,8 @@ function normalizarKarma(doc) {
     incumplidos: doc.incumplidos || 0,
     buenaAccion: doc.buenaAccion || 0,
     cumplidosHoy: doc.cumplidosHoy || { dia: "", n: 0 },
-    pares: doc.pares || {}
+    pares: doc.pares || {},
+    apodo: doc.apodo || null
   };
 }
 
@@ -188,6 +189,19 @@ export function cambiarKarma(jid, delta, { cuenta = null } = {}) {
   const nivelAntes = nivelPorKarma(antes);
   const nivelAhora = nivelPorKarma(r.karma);
   return { antes, despues: r.karma, cambio: r.karma - antes, nivelAntes, nivelAhora, cambioNivel: nivelAntes.clave !== nivelAhora.clave };
+}
+
+// Apodo temporal (ej: "El Deudor" por 3 días). Si no hay uno vigente, se usa el del nivel (TRAIDOR: "El que no cumple").
+export function ponerApodo(jid, texto, ms) {
+  const { id, r } = registro(jid, true);
+  r.apodo = { texto, hasta: Date.now() + ms };
+  marcarKarma(id);
+}
+
+export function apodoDe(jid) {
+  const { r } = registro(jid);
+  if (r.apodo && r.apodo.hasta > Date.now()) return r.apodo.texto;
+  return nivelPorKarma(r.karma).apodo || null;
 }
 
 // +5 de karma, una vez cada 24 horas.

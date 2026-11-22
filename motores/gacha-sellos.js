@@ -1,4 +1,4 @@
-import { cantidadItem, sumarItem, fijarCantidadItem } from "./gacha-db.js";
+import { cantidadItem, sumarItem, fijarCantidadItem, usuariosConItem } from "./gacha-db.js";
 import { probSelloExtra } from "./gacha-reliquias.js";
 
 export const NOMBRE_SELLO = "Sello de Reclamo";

@@ -1,6 +1,6 @@
 import { jidObjetivo } from "../src/nucleo/objetivo.js";
 import { encabezado } from "../src/economia/estilo.js";
-import { gachaListo, arroba, fmt, CAT } from "./gacha-core.js";
+import { gachaListo, arroba, fmt, CAT, bloquesDePersonajeParaTicket } from "./gacha-core.js";
 import { topColeccionistas } from "./gacha-db.js";
 import { ticketsDe, usarTicket } from "./gacha-tickets.js";
 import { personajeAleatorio, contarPersonajes } from "./gacha-db.js";
