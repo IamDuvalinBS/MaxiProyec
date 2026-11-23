@@ -1,4 +1,3 @@
-import { getAccount } from "../../../motores/db.js";
 import { trabajosRegistrados, ejecutarTrabajo, vistaDe } from "../../economia/trabajos.js";
 import { tarjeta, monto, montoConSigno, avisoNivel, fmt } from "../../economia/formato-evento.js";
 import { estilo, esHalloween } from "../../economia/temas.js";
