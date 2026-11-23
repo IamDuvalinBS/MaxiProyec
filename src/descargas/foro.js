@@ -13,7 +13,6 @@ const http = axios.create({
   timeout: 20000, maxRedirects: 5,
   headers: { "User-Agent": "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36", "Accept-Language": "es-MX,es;q=0.9" }
 });
-const azar = (l) => l[Math.floor(Math.random() * l.length)];
 const mezclar = (l) => [...l].sort(() => Math.random() - 0.5);
 const limpiar = (s) => String(s).replace(/&amp;/g, "&").replace(/&#x2F;/g, "/").trim();
 const pagina = async (url) => String((await http.get(url, { responseType: "text", transformResponse: (d) => d })).data || "");

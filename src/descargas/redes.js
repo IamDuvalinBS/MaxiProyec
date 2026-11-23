@@ -316,9 +316,6 @@ export async function buscarEnlacesWeb(consultas, normalizar, maximo) {
   return enlaces.slice(0, maximo);
 }
 
-const SIN_BUSQUEDA_PUBLICA =
-  "No encontré videos para esa búsqueda. Instagram y Facebook no tienen búsqueda pública, así que funciona mucho mejor con un enlace directo.";
-
 // ───────────────────────── X (Twitter) ─────────────────────────
 function extraerTweetId(link) {
   const m = link.match(/(?:twitter|x)\.com\/[^/?#]+\/status(?:es)?\/(\d+)/i);
@@ -719,9 +716,6 @@ const normalizarTikTok = (url) => {
 
 // APIs de terceros (las mismas que usan los comandos del otro bot). Se prueban una tras otra y se usa la primera que responda con videos.
 const API_FAA = "https://api-faa.my.id";
-// Claves de Fer (con su permiso). Si quieres cambiarlas sin tocar el código: STELLARWA_KEY y APICAUSAS_KEY.
-const KEY_STELLAR = process.env.STELLARWA_KEY || "api-7dSKm";
-const KEY_CAUSAS = process.env.APICAUSAS_KEY || "oboe";
 
 // Saca los enlaces de videos de TikTok de cualquier respuesta JSON, sin importar cómo la arme cada API.
 function enlacesTikTokDeJson(nodo, salida = new Set(), profundidad = 0) {
@@ -828,19 +822,6 @@ const normalizarFacebook = (url) => {
   const m = url.match(/^https?:\/\/(?:[\w-]+\.)?(?:facebook\.com\/(?:reel\/\d+|watch\/?\?v=\d+|[\w.\-]+\/videos\/(?:[\w.\-]+\/)?\d+)|fb\.watch\/[\w-]+)/i);
   return m ? m[0] : null;
 };
-
-export async function buscarFacebook(consulta, cantidad) {
-  const enlaces = await buscarEnlacesWeb(
-    [`${consulta} site:facebook.com/reel`, `${consulta} site:facebook.com/watch`, `${consulta} site:facebook.com videos`],
-    normalizarFacebook,
-    cantidad * 2
-  );
-  if (!enlaces.length) throw new Error(SIN_BUSQUEDA_PUBLICA);
-  return enlaces.map((link) => ({
-    type: "video",
-    resolver: async () => (await obtenerMediaFacebook(link)).filter((m) => m.type === "video").slice(0, 1).map((m) => ({ ...m, campos: [["🔗", "Link del video", link]] }))
-  }));
-}
 
 // ───────────────────────── Instagram (reels, posts, carruseles) ─────────────────────────
 // Respaldo por API (ASTA). La clave es tuya; también se puede definir con la variable ASTA_API_KEY.
@@ -1364,19 +1345,6 @@ async function _obtenerMediaReddit(link) {
   }
   anotar("Reddit .json");
   return medias;
-}
-
-// Compatibilidad con el código anterior (devolvía un Buffer). Ya no se usa en los comandos.
-export async function obtenerVideoReddit(link) {
-  const [m] = await obtenerMediaReddit(link);
-  let buffer;
-  if (m.ruta) {
-    buffer = fs.readFileSync(m.ruta);
-    try { fs.unlinkSync(m.ruta); } catch (e) {}
-  } else {
-    buffer = await descargarBuffer(m.url);
-  }
-  return { type: m.type, buffer };
 }
 
 // ───────────────────────── Diagnóstico (.diagred) ─────────────────────────

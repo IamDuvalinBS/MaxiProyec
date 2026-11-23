@@ -661,15 +661,6 @@ async function descargarPorApisExternas(link, tipo) {
 // El motor local de respaldo suele fallar con errores técnicos ("No valid URL to decipher") que no le sirven a nadie;
 // si todo falló se muestra un motivo claro. Los motivos útiles (video muy largo) se dejan tal cual.
 const MENSAJE_SIN_SERVICIO = "Los servicios de descarga no respondieron en este momento. Intenta de nuevo en unos minutos.";
-async function respaldoLocal(descargar) {
-  try {
-    return await descargar();
-  } catch (e) {
-    console.log(`[youtube] El motor local de respaldo también falló: ${String(e.message).split("\n")[0]}`);
-    if (/dura mas de/i.test(e.message)) throw e;
-    throw new Error(MENSAJE_SIN_SERVICIO);
-  }
-}
 
 // Si un proveedor se cuelga, se pasa al siguiente en vez de quedarse esperando.
 const TIEMPO_MAX_PROVEEDOR_MS = 20000;

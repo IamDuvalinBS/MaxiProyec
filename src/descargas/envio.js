@@ -13,7 +13,6 @@ import {
   LIMITE_DOCUMENTO_MB
 } from "./core.js";
 import { prepararVideoEnDisco } from "./video.js";
-import { tarjetaAviso, tarjetaError } from "./tarjetas.js";
 import { delayAleatorio } from "../../motores/antiban.js";
 
 const execFileAsync = promisify(execFile);
@@ -191,34 +190,6 @@ async function enviarPreparados(aEnviar, reply, { sock, from, msg }, res) {
 }
 
 const liberar = (p) => { try { p?.limpiar?.(); } catch (e) {} };
-
-// ───────────────────────── API anterior (se mantiene) ─────────────────────────
-export async function enviarMedia(media, reply) {
-  const p = await prepararMedia(media, LIMITE_VIDEO_WHATSAPP_MB);
-  if (p.omitido) {
-    await reply({
-      text: tarjetaAviso("ARCHIVO MUY PESADO", `El video ${p.omitido}. Se omitió.`)
-    });
-    return false;
-  }
-  try {
-    return (await enviarUno(p, reply)) || true;
-  } finally {
-    liberar(p);
-  }
-}
-
-export async function enviarMedias(medias, reply) {
-  let enviados = 0;
-  for (const media of medias) {
-    try {
-      if (await enviarMedia(media, reply)) enviados++;
-    } catch (e) {
-      await reply({ text: tarjetaError("No se pudo enviar uno de los archivos.", e.message) });
-    }
-  }
-  return enviados;
-}
 
 // ───────────────────────── Envío por lotes (búsquedas y carruseles) ─────────────────────────
 // Si el socket tiene sendAlbumMessage, manda los archivos como álbum; si no, uno por uno con pausas cortas

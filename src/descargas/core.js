@@ -467,37 +467,6 @@ export async function combinarVideoAudioWhatsApp(bufferVideo, bufferAudio) {
   }
 }
 
-export async function consultarApiDescarga(apiUrl, link, paramNombre = "url") {
-  const { data } = await axios.get(apiUrl, {
-    params: { [paramNombre]: link },
-    headers: HEADERS,
-    timeout: 20000
-  });
-
-  if (!data || data.status === false) {
-    throw new Error(data?.message || `La API ${apiUrl} no devolvió un resultado válido.`);
-  }
-  return data;
-}
-
-export function extraerEnlaceDescarga(json) {
-  const candidatos = [
-    json?.result?.url,
-    json?.result?.download,
-    json?.result?.download_url,
-    json?.result?.dl,
-    json?.result?.link,
-    json?.data?.url,
-    json?.data?.download,
-    json?.url,
-    json?.download,
-    json?.link
-  ];
-  const enlace = candidatos.find(Boolean);
-  if (!enlace) throw new Error("No encontré el enlace de descarga en la respuesta de la API.");
-  return enlace;
-}
-
 async function duracionDeArchivo(ruta) {
   try {
     const { stdout } = await execFileAsync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", ruta], { timeout: 30000 });
