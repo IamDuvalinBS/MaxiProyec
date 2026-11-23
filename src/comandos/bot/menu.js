@@ -222,6 +222,8 @@ const FIRMA_MENU = "~ ⏤͟͟͞͞𝕭𝓎𝕯𝚞𝚟𝚊𝚕𝚒𝚗𝕭𝕮  �
 // Canal "de adorno": el JID es inventado, así que arriba sale "Reenviado de <nombre>" pero no hay enlace real.
 const NOMBRE_CANAL = "Mambo • Canal Oficial";
 const JID_CANAL_FALSO = "120363000000000000@newsletter";
+// "producto" (tarjeta como el kiss) o "imagen" (foto normal en la cabecera). Si con "producto" desaparecen los botones, cambia a "imagen".
+const CABECERA_MENU = "producto";
 let imagenMenu;
 
 function leerImagenMenu() {
@@ -308,16 +310,47 @@ async function enviarMenuConDesplegable({ sock, from, msg, texto, footer, foto, 
     const botones = botonesDelMenu();
     if (!lib.proto || !botones.length) return false;
 
-    // La imagen ya no va en la cabecera: se muestra como previa grande dentro del contextInfo.
+    // WhatsApp ignora externalAdReply dentro de mensajes con botones, así que la previa va en la cabecera:
+    // "producto" = tarjeta como la del kiss (imagen + título en mayúsculas + firma). "imagen" = foto normal.
+    let header = { title: "", subtitle: "", hasMediaAttachment: false };
+    if (foto) {
+      try {
+        const media = await lib.prepareWAMessageMedia({ image: foto }, { upload: sock.waUploadToServer });
+        if (CABECERA_MENU === "producto") {
+          const nombre = String(ajusteBot("botNameShort") || "").toUpperCase();
+          header = {
+            title: `${nombre}\n${FIRMA_MENU}`,
+            hasMediaAttachment: true,
+            productMessage: {
+              product: {
+                productImage: media.imageMessage,
+                productId: String(Date.now()),
+                title: `${nombre}\n${FIRMA_MENU}`,
+                description: FIRMA_MENU,
+                retailerId: nombre,
+                url: "",
+                productImageCount: 1
+              },
+              businessOwnerJid: "0@s.whatsapp.net"
+            }
+          };
+        } else {
+          header = { title: "", subtitle: "", hasMediaAttachment: true, ...media };
+        }
+      } catch (e) {
+        console.log(`[menu] No se pudo subir la foto: ${e.message}`);
+      }
+    }
+
     const interactiveMessage = {
       body: { text: texto },
       footer: { text: footer || "" },
-      header: { title: "", subtitle: "", hasMediaAttachment: false },
+      header,
       nativeFlowMessage: {
         buttons: botones,
         messageParamsJson: parametrosDelDesplegable(botones)
       },
-      contextInfo: contextoDelMenu(mentions, foto)
+      contextInfo: contextoDelMenu(mentions)
     };
 
     const armado = await lib.generateWAMessageFromContent(from, {
@@ -364,3 +397,4 @@ export default {
     if (!argumento) await enviarNotaDeVideo(sock, from);
   }
 };
+      
