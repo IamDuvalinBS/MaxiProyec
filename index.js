@@ -6,6 +6,7 @@ import {
 import pino from "pino";
 import http from "http";
 import { manejarApiJuegos } from "./motores/juegos-api.js";
+import { manejarPaginas } from "./motores/paginas-web.js";
 import { manejarComando } from "./src/nucleo/comandos.js";
 import { checkTriviaAnswer, hayTriviaEn } from "./src/economia/trivia.js";
 import { iniciarSubbots, usarPagina, fijarSocketPrincipal } from "./src/subbots/gestor.js";
@@ -87,6 +88,7 @@ const PORT = process.env.PORT || 3000;
 http
   .createServer((req, res) => {
     if (manejarApiJuegos(req, res)) return;
+    if (manejarPaginas(req, res)) return;
     res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
     const segundos = codeTime ? Math.floor((Date.now() - codeTime) / 1000) : null;
     res.end(`
@@ -136,7 +138,7 @@ async function iniciarPagina() {
       for (const u of PAG.vinc.keys()) sincronizarCuenta(u);
     }, logPag);
     console.log(chalk.greenBright("✔ Conectado a la página (Firebase)"));
-    usarPagina(PAG);   // el permiso de .code revisa las misiones de la página
+    usarPagina(PAG);   // publica en la página el cooldown de .code
     subirEstado();
     setInterval(subirEstado, 60000);
     setTimeout(subirComandos, 20000);
