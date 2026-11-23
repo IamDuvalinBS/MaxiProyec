@@ -19,7 +19,7 @@ import { PRECIO_CUBITO, cubitosDe, cubitosParaSubir, NIVEL_MAX } from "../../../
 
 export default {
   names: [".cubitos", ".cubitosdefuerza"],
-  desc: "Muestra la tienda de cubitos de fuerza para subir de nivel a tus Brawlers",
+  desc: "Tienda de cubitos de fuerza para subir de nivel a tus Brawlers",
   category: "Gacha",
   usage: ".cubitos",
   handler: async ({ sender, reply }) => {

@@ -6,7 +6,6 @@ import { fragmentosDe } from "../../../motores/gacha-niveles.js";
 import { pityDe } from "../../../motores/gacha-banner.js";
 import { misionesDe } from "../../../motores/gacha-misiones.js";
 import { estadistica, insigniasDe, revisarInsignias, AUTOMATICAS } from "../../../motores/gacha-insignias.js";
-import { PITY_TIRADAS } from "../../../motores/gacha-config.js";
 import { encabezado } from "../../../src/economia/estilo.js";
 import { T } from "../../../motores/gacha-tema.js";
 import { getProfile } from "../../../motores/profile.js";

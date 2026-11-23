@@ -79,7 +79,7 @@ const logros = {
   category: "Gacha",
   usage: ".logros [@usuario]",
   handler: async (ctx) => {
-    const { sock, from, sender, msg, reply } = ctx;
+    const { sock, from, sender, msg } = ctx;
     await gachaListo;
     const contexto = contextoDe(msg);
     const mencionado = contexto?.mentionedJid?.[0] || contexto?.participant || null;
