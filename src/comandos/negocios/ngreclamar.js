@@ -1,4 +1,3 @@
-import { getAccount } from "../../../motores/db.js";
 import { monto } from "../../economia/formato-evento.js";
 import { tarjetaMarcada } from "../../economia/estilo-evento.js";
 import { estilo } from "../../economia/temas.js";
