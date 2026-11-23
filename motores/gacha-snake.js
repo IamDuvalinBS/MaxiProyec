@@ -47,7 +47,6 @@ const COLORES = [
   ["coral", "Coral", "#ff8787", "#e03131"], ["marron", "Marrón", "#c69c6d", "#5c3d1e"],
   ["gris", "Gris", "#ced4da", "#495057"], ["negro", "Negro", "#495057", "#141517"]
 ];
-const PATRONES = { liso: "Sólido", rayas: "Rayado", puntos: "Moteado", bicolor: "Dúo", degradado: "Degradé" };
 const ACCESORIOS = { ninguno: "", antenas: "Antenas", gafas: "Gafas", cuernos: "Cuernos", halo: "Halo", corona: "Corona" };
 const PUNTOS_PATRON = { liso: 0, rayas: 1, puntos: 1, bicolor: 1, degradado: 2, arcoiris: 3 };
 const PUNTOS_ACC = { ninguno: 0, antenas: 1, gafas: 1, cuernos: 2, halo: 2, corona: 3 };

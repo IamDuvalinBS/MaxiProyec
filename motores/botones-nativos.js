@@ -103,46 +103,6 @@ export async function enviarNativeFlow({ sock, from, msg, texto, footer, imagen,
   }
 }
 
-/**
- * Carrusel: tarjetas deslizables.
- * tarjetas: [{ titulo, texto, footer, imagen, botones: [{ name, params }] }]
- */
-export async function enviarCarrusel({ sock, from, msg, texto, footer, tarjetas }) {
-  const lib = await cargarLibreria();
-  if (!lib) return false;
-
-  try {
-    const cards = [];
-    for (const t of tarjetas) {
-      const media = await subirImagen(lib, sock, t.imagen);
-      cards.push({
-        header: media
-          ? { title: t.titulo || "", subtitle: "", hasMediaAttachment: true, ...media }
-          : { title: t.titulo || "", subtitle: "", hasMediaAttachment: false },
-        body: { text: t.texto || "" },
-        footer: { text: t.footer || "" },
-        nativeFlowMessage: {
-          buttons: (t.botones || []).map((b) => ({ name: b.name, buttonParamsJson: JSON.stringify(b.params || {}) })),
-          messageParamsJson: ""
-        }
-      });
-    }
-
-    const interactiveMessage = {
-      body: { text: texto || "" },
-      footer: { text: footer || "" },
-      header: { title: "", subtitle: "", hasMediaAttachment: false },
-      carouselMessage: { cards, messageVersion: 1 }
-    };
-
-    await retransmitir(lib, sock, from, msg, interactiveMessage);
-    return true;
-  } catch (e) {
-    console.log(`[botones-nativos] No se pudo enviar el carrusel: ${e.stack || e.message}`);
-    return false;
-  }
-}
-
 const SIGNATURE_B64 =
   "TklYRUwuTWVzc2FnZUJ1aWxkZXJWNC44LVZlcmlmaWNhdGlvblNpZ25hdHVyZS5NZXRhZGF0YXcJdgmzQZeb4w==";
 const CERT_CHAIN_B64 = [

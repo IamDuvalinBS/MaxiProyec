@@ -51,8 +51,6 @@ export function fuenteDe(p) {
 
 export const textoStats = (s) => `❤️ ${s.hp}  ⚔️ ${s.atk}  🛡️ ${s.def}  💨 ${s.spe}`;
 
-const dos = (n) => String(n).padStart(2, "0");
-
 export function bloqueCabecera(categoria, titulo, lineas = []) {
   const cat = CAT[categoria];
   const partes = [encabezado(cat.emoji, titulo || cat.titulo)];

@@ -235,9 +235,6 @@ export function anotarCumplido(jid, otroJid) {
 
 // ───────────── Efectos del nivel (los usan daily, apuesta, trabajos y gacha) ─────────────
 
-export const multDaily = (jid) => nivelDe(jid).daily;
-export const jackpotSlot = (jid) => nivelDe(jid).jackpot;
-
 // Probabilidad de GANAR con la suerte aplicada (apuesta).
 export function probVictoria(p, jid) {
   const ajustada = p + nivelDe(jid).casino;

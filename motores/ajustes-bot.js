@@ -74,17 +74,6 @@ const coleccion = () => {
   return base ? base.collection(COLECCION) : null;
 };
 
-function aBuffer(binario) {
-  if (!binario) return null;
-  if (Buffer.isBuffer(binario)) return binario;
-  try {
-    const largo = typeof binario.length === "function" ? binario.length() : binario.buffer.length;
-    return Buffer.from(binario.buffer.subarray(0, largo));
-  } catch {
-    return null;
-  }
-}
-
 // Devuelve true si MongoDB confirmó el guardado.
 async function persistir(id) {
   guardarLocal();
@@ -102,35 +91,6 @@ async function persistir(id) {
   } catch (e) {
     console.log(`❌ No se pudieron guardar los ajustes del bot ${id} en MongoDB: ${e.message}`);
     return false;
-  }
-}
-
-// Carga los ajustes desde MongoDB. Mongo manda; lo que solo exista en el archivo local se sube.
-export async function cargarAjustesBot() {
-  for (let i = 0; i < 30 && !coleccion(); i++) await new Promise((r) => setTimeout(r, 1000));
-  const col = coleccion();
-  if (!col) return console.log("⚠️ MongoDB no disponible: los ajustes de los bots quedan solo en el archivo local.");
-  try {
-    const docs = await col.find({}).toArray();
-    const remotos = {};
-    const fotosRemotas = new Set();
-    for (const { _id, foto, ...resto } of docs) {
-      remotos[_id] = resto;
-      const buffer = aBuffer(foto);
-      if (buffer) {
-        fotos.set(_id, buffer);
-        fotosRemotas.add(_id);
-        guardarFotoLocal(_id, buffer);
-      }
-    }
-    const subir = new Set(Object.keys(ajustes).filter((id) => !(id in remotos)));
-    for (const id of fotos.keys()) if (!fotosRemotas.has(id)) subir.add(id);
-    ajustes = { ...ajustes, ...remotos };
-    guardarLocal();
-    for (const id of subir) await persistir(id);
-    console.log(`✅ Ajustes de los bots cargados desde MongoDB: ${docs.length} (subidos: ${subir.size})`);
-  } catch (e) {
-    console.log(`❌ No se pudieron cargar los ajustes de los bots desde MongoDB: ${e.message}`);
   }
 }
 

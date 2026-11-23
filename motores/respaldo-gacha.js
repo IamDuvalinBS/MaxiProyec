@@ -1,6 +1,5 @@
 import fs from "fs";
 import path from "path";
-import { initGachaDB, hayDatosGacha, importarTablasGacha } from "./gacha-db.js";
 
 const RUTA = process.env.GACHA_DB_PATH || path.resolve("./data/gacha.db");
 const TABLAS = ["personajes", "propiedad", "inventario", "yandere_posts", "yandere_tags"];
@@ -41,22 +40,3 @@ export function archivarSqliteLocal() {
   }
 }
 
-export async function restaurarGacha(c) {
-  if (!c) return 0;
-  await initGachaDB();
-  if (hayDatosGacha()) return 0;
-  let filas;
-  try {
-    filas = (await c.execute("SELECT tabla, id, datos FROM respaldo_gacha")).rows;
-  } catch {
-    return 0;
-  }
-  if (!filas.length) return 0;
-  const tablas = {};
-  for (const f of filas) {
-    if (f.id === "__esquema__") continue;
-    const { _rid, ...columnas } = JSON.parse(f.datos);
-    (tablas[f.tabla] ||= []).push(columnas);
-  }
-  return importarTablasGacha(tablas);
-}

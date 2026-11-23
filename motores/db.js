@@ -322,7 +322,6 @@ export async function recargarDatos() {
 }
 
 const cuentasPendientes = new Set();
-const cuentasDepuradas = new Set();
 const RETARDO_GUARDADO_MS = 2000;
 const VIGENCIA_MAXIMA_ESPERA_MS = 8 * 24 * 60 * 60 * 1000;
 let temporizadorGuardado = null;
@@ -594,10 +593,6 @@ export function getStickerMeta(idSticker) {
   return stickerMetas.get(idSticker) || null;
 }
 
-export function getAllStickerMetas() {
-  return stickerMetas;
-}
-
 // persiste en MongoDB, igual que saveAccount/saveConfig.
 export function setStickerMeta(idSticker, pack, author) {
   stickerMetas.set(idSticker, { pack, author });
@@ -690,10 +685,6 @@ export function fijarBesos(jidA, jidB, total) {
   return { clave, anterior };
 }
 
-export function getBesos(jidA, jidB) {
-  return besos.get(claveBesos(jidA, jidB)) || 0;
-}
-
 export function registrarBeso(jidA, jidB) {
   const clave = claveBesos(jidA, jidB);
   const nuevoTotal = (besos.get(clave) || 0) + 1;
@@ -774,10 +765,6 @@ export function comandoEstaBaneado(nombre, categoria) {
 export function listarBaneos() {
   return { comandos: [...comandosBaneados], categorias: [...categoriasBaneadas] };
                }
-
-export function listarCuentas() {
-  return [...accounts.entries()];
-}
 
 export async function sumarAdvertencia(grupo, usuario) {
   if (!warnsCollection) return null;

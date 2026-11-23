@@ -430,10 +430,6 @@ export function idMensajeCitado(msg) {
   return contextoDe(msg)?.stanzaId || null;
 }
 
-export function participanteCitado(msg) {
-  return contextoDe(msg)?.participant || null;
-}
-
 class ErrorDeImagen extends Error {}
 
 export async function enviarPersonaje({ reply, personaje, titulo, lineasExtra = [], mentions = [], permitirSinImagen = true }) {

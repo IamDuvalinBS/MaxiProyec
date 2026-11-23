@@ -42,8 +42,6 @@ export const TEMPORADA = [
   { id: "hwi_supremo", emoji: "💀", nombre: "Señor de Halloween", desc: "Consigue las otras 8 insignias de la temporada." }
 ].map((i) => ({ ...i, temporada: TEMPORADA_HALLOWEEN }));
 
-export const EVENTO_MUERTOS = "Día de Muertos 2026";
-
 export const INSIGNIAS_MUERTOS = [
   { id: "mu_ofrendador", emoji: "🕯️", nombre: "Ofrendador", desc: "Participa en la Ofrenda de Día de Muertos con 100 comandos de economía." },
   { id: "mu_guardian", emoji: "💀", nombre: "Guardián de la Ofrenda", desc: "Recibe el premio final de la Ofrenda comunitaria de Día de Muertos 2026." }

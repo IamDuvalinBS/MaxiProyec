@@ -538,15 +538,6 @@ export async function recargarGacha() {
   await cargarDesdeMongo(base);
 }
 
-export const hayDatosGacha = () => personajes.size > 0;
-
-export async function importarTablasGacha(tablas) {
-  await initGachaDB();
-  const n = aplicarTablas(tablas);
-  await vaciar(true);
-  return n;
-}
-
 function listaOrdenada(categoria) {
   let l = ordenados.get(categoria);
   if (!l) {
@@ -829,16 +820,6 @@ export function resumenGacha() {
   };
 }
 
-export function yandereDuplicado({ post_id, md5, parent_id }) {
-  const id = Number(post_id);
-  const padre = Number(parent_id) || 0;
-  if (posts.has(id)) return "post";
-  if (md5 && postsMd5.has(md5)) return "md5";
-  if (padre && (posts.has(padre) || postsPadre.has(padre))) return "parent";
-  if (postsPadre.has(id)) return "parent";
-  return null;
-}
-
 export function yandereRegistrar({ post_id, md5, parent_id, char_id = null, estado }) {
   const id = Number(post_id);
   const previo = posts.get(id);
@@ -852,16 +833,6 @@ export function yandereRegistrar({ post_id, md5, parent_id, char_id = null, esta
     reindexarPosts();
     marcar(COL.posts, id);
   });
-}
-
-export function yandereTagTipo(nombre) {
-  const t = tags.get(nombre);
-  return t === undefined ? null : t;
-}
-
-export function yandereTagGuardar(nombre, tipo) {
-  tags.set(nombre, tipo);
-  marcar(COL.tags, nombre);
 }
 
 export function yandereCrearPersonaje(datos, post) {

@@ -144,7 +144,6 @@ export const WIKIS_DRAGONES = (process.env.GACHA_DRAGONES_WIKIS ?? "https://drag
   .split(",")
   .map((x) => x.trim().replace(/\/+$/, ""))
   .filter(Boolean);
-export const WIKI_DRAGONES = WIKIS_DRAGONES[0];
 export const WIKI_COD = "https://callofduty.fandom.com";
 
 export const ARCHIVO_DRAGONES = new URL("../data/dragones.json", import.meta.url);

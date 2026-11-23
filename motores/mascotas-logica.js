@@ -92,8 +92,6 @@ export const xpParaNivel = (n) => Math.ceil(1.2 * (n - 1) ** 2);
 
 export const explorando = (m, ahora) => Boolean(m.expedicion && ahora < m.expedicion.fin);
 
-export const ausente = (m, ahora) => explorando(m, ahora) || Boolean(m.perdida);
-
 export const prepActiva = (m, ahora) => (m.prep && ahora < m.prep.hasta ? m.prep.puntos : 0);
 
 export const nivelArbol = (est, rama) => est.arbol?.[rama] || 0;
@@ -415,4 +413,3 @@ export function eclosionar(est, ahora, rnd = Math.random) {
   return { nuevas, pendientes: est.incubadora.huevos.length };
 }
 
-export const ESPECIE_DE = (m) => ESPECIES[m.especie];

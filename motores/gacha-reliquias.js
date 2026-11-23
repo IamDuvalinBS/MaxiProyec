@@ -20,7 +20,6 @@ export function darReliquia(usuario, id) {
 }
 
 export const probSelloExtra = (usuario) => (tieneReliquia(usuario, "cempasuchil") ? 0.1 : 0);
-export const reliquiasDe = (usuario) => RELIQUIAS.filter((r) => tieneReliquia(usuario, r.id));
 
 export const multFragmentos = (usuario) => (tieneReliquia(usuario, "linterna") ? 1.5 : 1);
 export const pityMaximoDe = (usuario) => (tieneReliquia(usuario, "telarana") ? 18 : PITY_TIRADAS);

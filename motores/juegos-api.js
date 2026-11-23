@@ -24,10 +24,6 @@ const limpiar = (u) => {
   return /^https?:\/\/[^\s]+$/i.test(u) ? u : "";
 };
 
-export function ponerUrlTunel(u) {
-  urlTunel = limpiar(u);
-}
-
 export async function cargarUrl() {
   if (Date.now() - cargada < 60000) return;
   cargada = Date.now();

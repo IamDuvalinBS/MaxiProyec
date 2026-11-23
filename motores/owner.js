@@ -83,13 +83,3 @@ export function ownerCommand(handler) {
   };
 }
 
-// Envuelve un handler para que SOLO los dueños puedan usarlo.
-export function duenoCommand(handler) {
-  return async (ctx) => {
-    if (!isDueno(ctx.sender)) {
-      await ctx.reply({ text: "🚫 Este comando solo puede ser utilizado por dueños." });
-      return;
-    }
-    return handler(ctx);
-  };
-}
