@@ -4,7 +4,7 @@ import { tarjetaMarcada, mencion } from "../../economia/estilo.js";
 
 export default {
   names: [".mambo"],
-  usage: ".mambo on | .mambo off",
+  usage: ".mambo <on|off>",
   desc: "Encender o apagar el bot solo en este grupo (admins y owners)",
   category: "Grupos",
   handler: comandoGrupo({ emoji: "🔌", titulo: "BOT" }, async ({ from, sender, cleanText, responder, avisar }) => {
