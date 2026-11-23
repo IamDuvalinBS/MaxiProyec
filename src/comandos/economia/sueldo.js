@@ -1,4 +1,3 @@
-import { getAccount } from "../../../motores/db.js";
 import { tarjeta, monto } from "../../economia/formato-evento.js";
 import {
   resumenCarrera, cobrarSueldo, bonoRacha, descuentoFaltas,
