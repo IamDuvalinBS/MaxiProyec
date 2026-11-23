@@ -3,7 +3,7 @@ import { comandoDeBot, nombreDelObjetivo } from "../../subbots/permisos.js";
 
 export default {
   names: [".setnombre"],
-  usage: ".setnombre <corto> | <largo>",
+  usage: ".setnombre <corto>|<largo>",
   desc: "Cambia el nombre de tu bot",
   category: "Subbots",
   handler: comandoDeBot(async ({ cleanText, reply, objetivo }) => {

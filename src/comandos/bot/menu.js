@@ -128,6 +128,7 @@ function agruparComandos() {
   for (const info of commandRegistry.values()) {
     if (vistos.has(info)) continue;
     vistos.add(info);
+    if (/uso interno/i.test(info.desc)) continue;
     if (!categorias[info.category]) categorias[info.category] = [];
     categorias[info.category].push(`✿ *${etiquetaDe(info)}*\n> ${resumirDesc(info.desc)}`);
   }
