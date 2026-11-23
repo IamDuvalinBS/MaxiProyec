@@ -11,7 +11,7 @@ const paginas = new Map(); // una página por jugador: al abrir de nuevo se borr
 export default {
   names: [".mania", ".petmania"],
   usage: ".mania",
-  desc: "Abre Pet Mania: isla, batallas por oleadas y entrenamiento de tus mascotas",
+  desc: "Abre Pet Mania: isla, batallas y entrenamiento de tus mascotas",
   category: "Pets",
   handler: async ({ sock, from, sender, msg, reply }) => {
     const { est } = await cargarMascotas(sender);

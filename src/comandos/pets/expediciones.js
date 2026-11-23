@@ -141,7 +141,7 @@ export default [
   {
     names: [".petreclamar", ".petclaim"],
     usage: ".petreclamar [mascota]",
-    desc: "Recibe los ítems que encontraron tus mascotas al terminar su expedición",
+    desc: "Recibe los ítems de tus mascotas al terminar su expedición",
     category: "Pets",
     handler: async ({ sender, cleanText, reply }) => {
       const { cuenta, est, ahora } = await cargarMascotas(sender);
@@ -183,7 +183,7 @@ export default [
   {
     names: [".petllamar", ".petflauta"],
     usage: ".petllamar [mascota]",
-    desc: "Llama con la flauta mágica a una mascota que se perdió en una expedición",
+    desc: "Llama con la flauta a una mascota perdida en una expedición",
     category: "Pets",
     handler: async ({ sender, cleanText, reply }) => {
       const { cuenta, est, ahora } = await cargarMascotas(sender);
