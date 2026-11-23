@@ -5,6 +5,7 @@ import { obtenerBase } from "../../../motores/db.js";
 import { limitarEspera } from "../../../motores/herramientas-ui.js";
 import { enviarRespuestaRica } from "../../../motores/respuesta-rica.js";
 import { aviso, textoTrasComando } from "../../grupos/nucleo.js";
+import { resolverUsuario, altDeClave } from "../../nucleo/identidad.js";
 
 // .report <texto>: cualquiera reporta un error del bot o de un comando. Owners: .report ver | .report arreglado <n> | .report limpiar confirmar
 // Todo el comando vive en este archivo. Los datos se guardan en MongoDB (colección "reportes");
@@ -86,6 +87,26 @@ function vaciar() {
     if (col) return void (await col.deleteMany({}));
     await escribirLocal([]);
   });
+}
+
+// ───────────────────────────── Quién lo envía ─────────────────────────────
+// Saca el número real de quien escribe. Si la persona usa nombre de usuario de WhatsApp (llega como @lid, sin número),
+// se resuelve con la función del Baileys de Fer (signalRepository.lidMapping / getCachedJid) y con los datos del grupo.
+// Solo si aun así no se puede, se guarda su ID interno para que los owners al menos puedan identificarla.
+const sinDispositivo = (jid) => String(jid || "").replace(/:\d+@/, "@"); // 5219611234567:3@s.whatsapp.net -> 5219611234567@s.whatsapp.net
+
+async function identificar(sock, sender, msg, from) {
+  let jid = sinDispositivo(sender);
+  if (jid.endsWith("@lid")) {
+    try {
+      jid = sinDispositivo(await resolverUsuario(sock, jid, { grupo: from, alt: altDeClave(msg?.key) }));
+    } catch (e) {
+      /* se queda con el ID interno */
+    }
+  }
+  const digitos = jid.split("@")[0];
+  const conNumero = jid.endsWith("@s.whatsapp.net");
+  return { jid, conNumero, numero: conNumero ? `+${digitos}` : `Sin número (ID ${digitos})` };
 }
 
 // ───────────────────────────── Vista de owners ─────────────────────────────
@@ -186,20 +207,18 @@ export default {
     if (texto.length < MIN_CARACTERES) return reply({ text: aviso(EMOJI, TITULO, "Explica un poco más el error (mínimo 8 caracteres) para poder revisarlo.") });
     if (texto.length > MAX_CARACTERES) return reply({ text: aviso(EMOJI, TITULO, `Es muy largo (${texto.length} caracteres). Máximo ${MAX_CARACTERES}.`) });
 
-    const limpio = String(sender).split(":")[0];
-    const digitos = limpio.split("@")[0];
-    const numero = limpio.endsWith("@lid") ? `${digitos} (ID)` : `+${digitos}`;
+    const { jid, conNumero, numero } = await identificar(sock, sender, msg, from);
 
     const falta = limitarEspera(esperas, sender, ESPERA_MS);
     if (falta) return reply({ text: aviso(EMOJI, TITULO, `Espera ${falta}s antes de enviar otro.`) });
 
     try {
       const lista = await listar();
-      if (lista.filter((r) => r.numero === numero).length >= MAX_PENDIENTES_POR_USUARIO) {
+      if (lista.filter((r) => r.usuario === jid || r.numero === numero).length >= MAX_PENDIENTES_POR_USUARIO) {
         esperas.delete(sender);
         return reply({ text: aviso(EMOJI, TITULO, `Ya tienes ${MAX_PENDIENTES_POR_USUARIO} los reportes pendientes. Espera a que los revisen para enviar más.`) });
       }
-      if (lista.some((r) => r.numero === numero && r.texto.toLowerCase() === texto.toLowerCase())) {
+      if (lista.some((r) => (r.usuario === jid || r.numero === numero) && r.texto.toLowerCase() === texto.toLowerCase())) {
         esperas.delete(sender);
         return reply({ text: aviso(EMOJI, TITULO, "Ya enviaste exactamente eso y sigue pendiente.") });
       }
@@ -208,11 +227,11 @@ export default {
         texto,
         nombre: recortar(String(msg?.pushName || "Sin nombre").replace(/\s+/g, " "), 40),
         numero,
-        usuario: sender,
+        usuario: jid,
         grupo: String(from).endsWith("@g.us") ? from : null,
         fecha: Date.now()
       });
-      return reply({ text: aviso(EMOJI, "REPORTE ENVIADO", `Gracias, tu reporte quedó registrado y un owner lo va a revisar.\n\n> ${recortar(texto, 200)}`) });
+      return reply({ text: aviso(EMOJI, "REPORTE ENVIADO", `Gracias, tu reporte quedó registrado y un owner lo va a revisar.\n\n> ${recortar(texto, 200)}\n\n> Se guardó junto con ${conNumero ? "tu número" : "tu ID de WhatsApp"} para que un owner sepa quién lo envió.`) });
     } catch (e) {
       esperas.delete(sender);
       console.log(`[${COMANDO}] No se pudo guardar: ${e.message}`);
