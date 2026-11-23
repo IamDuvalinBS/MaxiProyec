@@ -24,8 +24,6 @@ const HORA_MS = 60 * 60 * 1000;
 let gachaOk = false;
 initGachaDB().then(() => { gachaOk = true; }).catch(() => {});
 
-export const gachaDisponible = () => gachaOk;
-
 export const HITOS = [
   { id: "h1m", meta: 1_000_000, emoji: "🥉", nombre: "Primer Millón", dinero: 50_000, xp: 50_000 },
   { id: "h2m", meta: 2_000_000, emoji: "🥈", nombre: "Dos Millones", dinero: 120_000, xp: 75_000 },
@@ -203,10 +201,6 @@ const necesitaGacha = (p) => Boolean(p.tickets || p.fragmentos);
 
 export function patrimonio(jid) {
   return patrimonioDe(getAccount(jid));
-}
-
-export function estadisticaEco(jid, clave) {
-  return ecoDe(jid).stats[clave] || 0;
 }
 
 function viable(def, acc, ahora) {

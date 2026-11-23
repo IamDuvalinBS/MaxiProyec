@@ -39,10 +39,6 @@ export function textoMultiplicador(color) {
   return `x${color.mult} (${signo}${fmt(Math.abs(porcentaje))}%)`;
 }
 
-export function esGanador(color) {
-  return color.mult > 1;
-}
-
 export function buscarColor(token) {
   if (!token) return null;
   const limpio = normalizar(token);

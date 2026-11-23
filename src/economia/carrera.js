@@ -106,11 +106,6 @@ export const bonoOficioPct = (reps) => nivelOficio(reps) * BONO_OFICIO_POR_NIVEL
 
 export const bonoVictorias = (racha) => (racha >= VICTORIAS_PARA_RACHA ? Math.min(BONO_VICTORIA_MAX, racha * BONO_VICTORIA_POR_RACHA) : 0);
 
-export function rachaDeVictorias(jid, clave) {
-  const u = estadoDe(jid);
-  return (u && u.victorias[clave]) || 0;
-}
-
 export function rachasDeVictorias(jid) {
   const u = estadoDe(jid);
   return (u && u.victorias) || {};
