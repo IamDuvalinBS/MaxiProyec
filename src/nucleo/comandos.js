@@ -208,4 +208,4 @@ async function ejecutarComando(sock, from, sender, text, msg) {
     comandoTerminado(sender);
   }
   return true;
-}
+  }
