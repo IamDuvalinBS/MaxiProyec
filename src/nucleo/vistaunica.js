@@ -27,7 +27,6 @@ const FRESCO_AUTO_SEG = 600;
 const TIPOS = ["imageMessage", "videoMessage", "audioMessage"];
 const ENVOLTURAS = ["ephemeralMessage", "viewOnceMessage", "viewOnceMessageV2", "viewOnceMessageV2Extension", "deviceSentMessage", "documentWithCaptionMessage"];
 
-const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
 const nombreSeguro = (id) => String(id).replace(/[^A-Za-z0-9_-]/g, "_");
 
 // ids que .revelar está buscando ahora mismo -> { resolver, tipoEsperado }

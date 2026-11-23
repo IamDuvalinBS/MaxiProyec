@@ -73,13 +73,6 @@ export function aprenderParticipantes(participantes) {
   }
 }
 
-export async function aprenderTodosLosGrupos(sock) {
-  try {
-    const grupos = await sock.groupFetchAllParticipating();
-    for (const g of Object.values(grupos || {})) aprenderParticipantes(g.participants);
-  } catch {}
-}
-
 async function viaSocket(sock, lid) {
   try {
     const repo = sock.signalRepository?.lidMapping;

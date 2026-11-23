@@ -63,11 +63,6 @@ export async function extraerMediaDeMensaje(msg, sender) {
   return { buffer, segundos: Number(contenido.seconds) || 0 };
 }
 
-export async function extraerImagenDeMensaje(msg, sender) {
-  const media = await extraerMediaDeMensaje(msg, sender);
-  return media ? media.buffer : null;
-}
-
 const recortar = (texto, max) => {
   const limpio = String(texto || "").replace(/\s+/g, " ").trim();
   const letras = [...limpio];
@@ -314,24 +309,6 @@ export async function crearSticker(buffer, sender, contexto = {}) {
 
 export async function crearStickerConMetaFijo(buffer) {
   return crearStickerConMeta(buffer, META_PACK, META_AUTOR_FIJO);
-}
-
-export async function buscarStickersTenor(query, limite = 10) {
-  const slug = encodeURIComponent(String(query).trim().toLowerCase().replace(/\s+/g, "-"));
-  const res = await fetch(`https://tenor.com/search/${slug}-stickers`, {
-    headers: { "user-agent": UA, "accept-language": "es,en;q=0.8" }
-  });
-  if (!res.ok) throw new Error(`Tenor respondio HTTP ${res.status}`);
-  const html = (await res.text()).replace(/\\u002F/g, "/").replace(/\\\//g, "/");
-
-  const vistos = new Set();
-  for (const m of html.matchAll(/https:\/\/media\.tenor\.com\/[^"'\s\\<>)]+?\.(?:gif|webp)/g)) {
-    // saltamos miniaturas / previews chicos
-    if (/\/(?:tinygif|nanogif|mini|preview)/i.test(m[0])) continue;
-    vistos.add(m[0]);
-    if (vistos.size >= limite) break;
-  }
-  return [...vistos];
 }
 
 export function claveMeta(sender) {

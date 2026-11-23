@@ -10,7 +10,8 @@ function cortarEn(texto, max) {
   if (texto.length <= max) return texto;
   const hasta = texto.slice(0, max + 1);
   const espacio = hasta.lastIndexOf(" ");
-  return (espacio > 20 ? hasta.slice(0, espacio) : texto.slice(0, max)).replace(/[\s,;:.\-–—(]+$/, "");
+  const corte = (espacio > 20 ? hasta.slice(0, espacio) : texto.slice(0, max)).replace(/[\s,;:.\-–—(]+$/, "");
+  return corte.replace(/(?:\s+(?:a|al|de|del|el|la|los|las|en|con|y|o|e|un|una|para|por|que|se|tu|tus|su|sus|mi|mis))+$/i, "");
 }
 
 // Quita palabras del final hasta que los corchetes [ ] y < > queden cerrados.
