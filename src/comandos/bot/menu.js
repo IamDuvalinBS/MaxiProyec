@@ -216,6 +216,51 @@ async function enviarNotaDeVideo(sock, from) {
   }
 }
 
+// ── Imagen, firma y "canal" del menú ──
+const RUTA_IMAGEN_MENU = path.join(RAIZ, "photo/menu.jpg");
+const FIRMA_MENU = "~ ⏤͟͟͞͞𝕭𝓎𝕯𝚞𝚟𝚊𝚕𝚒𝚗𝕭𝕮  ˓ˋ🧸ˊ˒ |   🦔*ˑ𓈒𐔌Ⲃⲁⲅ𝖽ⲉⲅⲁ ͡꒱𓈒ˑ*";
+// Canal "de adorno": el JID es inventado, así que arriba sale "Reenviado de <nombre>" pero no hay enlace real.
+const NOMBRE_CANAL = "Mambo • Canal Oficial";
+const JID_CANAL_FALSO = "120363000000000000@newsletter";
+let imagenMenu;
+
+function leerImagenMenu() {
+  if (imagenMenu !== undefined) return imagenMenu;
+  try {
+    imagenMenu = fs.existsSync(RUTA_IMAGEN_MENU) ? fs.readFileSync(RUTA_IMAGEN_MENU) : null;
+  } catch {
+    imagenMenu = null;
+  }
+  return imagenMenu;
+}
+
+const imagenDelMenu = () => leerImagenMenu() || fotoBot() || undefined;
+
+// Reenviado muchas veces + cabecera de canal + previa grande (como el kiss) con nombre en mayúsculas y firma.
+function contextoDelMenu(mentions, imagen) {
+  const contexto = {
+    mentionedJid: mentions,
+    forwardingScore: 999,
+    isForwarded: true,
+    forwardedNewsletterMessageInfo: {
+      newsletterJid: JID_CANAL_FALSO,
+      newsletterName: NOMBRE_CANAL,
+      serverMessageId: 100
+    }
+  };
+  if (imagen) {
+    contexto.externalAdReply = {
+      title: String(ajusteBot("botNameShort") || "").toUpperCase(),
+      body: FIRMA_MENU,
+      mediaType: 1,
+      thumbnail: imagen,
+      renderLargerThumbnail: true,
+      showAdAttribution: false
+    };
+  }
+  return contexto;
+}
+
 const LINK_COMUNIDAD = "https://chat.whatsapp.com/DnWYpCBy9Eh1jTNiCSZ3LG";
 const BOTONES_FUERA_DEL_DESPLEGABLE = 1;
 const NODO_BIZ = {
@@ -263,25 +308,16 @@ async function enviarMenuConDesplegable({ sock, from, msg, texto, footer, foto, 
     const botones = botonesDelMenu();
     if (!lib.proto || !botones.length) return false;
 
-    let header = { title: "", subtitle: "", hasMediaAttachment: false };
-    if (foto) {
-      try {
-        const media = await lib.prepareWAMessageMedia({ image: foto }, { upload: sock.waUploadToServer });
-        header = { title: "", subtitle: "", hasMediaAttachment: true, ...media };
-      } catch (e) {
-        console.log(`[menu] No se pudo subir la foto: ${e.message}`);
-      }
-    }
-
+    // La imagen ya no va en la cabecera: se muestra como previa grande dentro del contextInfo.
     const interactiveMessage = {
       body: { text: texto },
       footer: { text: footer || "" },
-      header,
+      header: { title: "", subtitle: "", hasMediaAttachment: false },
       nativeFlowMessage: {
         buttons: botones,
         messageParamsJson: parametrosDelDesplegable(botones)
       },
-      contextInfo: { mentionedJid: mentions }
+      contextInfo: contextoDelMenu(mentions, foto)
     };
 
     const armado = await lib.generateWAMessageFromContent(from, {
@@ -309,18 +345,20 @@ export default {
     const categorias = agruparComandos();
     const texto = argumento ? textoGrupo(argumento, categorias) : textoMenuCompleto(categorias);
 
+    const foto = imagenDelMenu();
+
     const enviado = await enviarMenuConDesplegable({
       sock,
       from,
       msg,
       texto,
       footer: ajusteBot("botNameShort"),
-      foto: fotoBot() || undefined,
+      foto,
       mentions: [sender]
     });
 
     if (!enviado) {
-      await sock.sendMessage(from, { text: texto, mentions: [sender] }, { quoted: msg });
+      await sock.sendMessage(from, { text: texto, mentions: [sender], contextInfo: contextoDelMenu([sender], foto) }, { quoted: msg });
     }
 
     if (!argumento) await enviarNotaDeVideo(sock, from);

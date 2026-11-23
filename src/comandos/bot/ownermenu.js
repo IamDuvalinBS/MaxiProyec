@@ -27,6 +27,7 @@ export const COMANDOS_DUENOS = [
 
 export const COMANDOS_OWNERS = [
   // "src/comandos/bot/banear",
+  "src/comandos/bot/stickerreact",
 ];
 
 export const COMANDOS_NADIE = [
