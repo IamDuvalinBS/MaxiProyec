@@ -15,6 +15,7 @@ import { numeroSubbot } from "../subbots/gestor.js";
 import { stickerPremiumBloqueado } from "./sticker-premium.js";
 import { isOwner, isDueno } from "../../motores/owner.js";
 import { permisoDeArchivo } from "../comandos/bot/ownermenu.js";
+import { reaccionarConSticker } from "../../motores/sticker-reacciones.js";
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const CARPETAS_EXCLUIDAS = new Set([
@@ -188,6 +189,8 @@ async function ejecutarComando(sock, from, sender, text, msg) {
   const principal = principalDeComando.get(comando) || comando;
   const cuentaLogros = CATEGORIAS_LOGROS.has(categoriaActual) && !COMANDOS_LOGROS.has(comando) && !COMANDOS_LOGROS.has(principal);
   const antesLogros = cuentaLogros ? antesDeComando(sender) : null;
+
+  await reaccionarConSticker(sock, from, msg, principal);
 
   comandoIniciado(sender);
   try {
