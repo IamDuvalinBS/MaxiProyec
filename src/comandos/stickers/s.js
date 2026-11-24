@@ -7,15 +7,22 @@ import {
 } from "../../nucleo/sticker.js";
 import { ERROR_PREMIUM, MENSAJE_PREMIUM } from "../../nucleo/premium.js";
 import { subcomandoS } from "../../nucleo/sticker-acciones.js";
+import { esSubcomandoAudio, stickerConAudio } from "../../nucleo/sticker-audio.js";
 
 export default {
   names: [".s", ".sticker"],
-  desc: "Convierte una imagen, GIF o video en sticker",
+  desc: "Convierte una imagen, GIF o video en sticker (.s audio = sticker con sonido)",
   category: "Stickers",
   usage: ".s",
   handler: async ({ msg, sender, from, sock, reply, cleanText }) => {
     // .s cerrar / abrir / lista / eliminar / ayuda → stickers de acción (si no es ninguno, sigue el .s normal)
     if (await subcomandoS({ sock, from, sender, cleanText, msg, reply })) return;
+
+    // .s audio → sticker con audio (función beta de WhatsApp)
+    if (esSubcomandoAudio(cleanText)) {
+      await stickerConAudio({ sock, from, sender, msg, reply });
+      return;
+    }
 
     let media = null;
     try {
