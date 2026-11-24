@@ -5,7 +5,8 @@
 // campo 26 (audioMessage). Baileys todavía no conoce esos campos, así que se escriben a mano
 // en el protobuf (ver instalarParche) y se manda con relayMessage.
 //
-// Límites de la beta de WhatsApp: 10 s de audio en stickers estáticos y 5 s en animados.
+// La beta oficial de WhatsApp habla de 10 s (estático) y 5 s (animado), pero en la práctica otros bots
+// mandan stickers más largos. Para cambiar el máximo, edita MAX_SEG_AUDIO.
 import fs from "fs";
 import os from "os";
 import path from "path";
@@ -21,8 +22,8 @@ import {
 } from "./sticker.js";
 import { ERROR_PREMIUM, MENSAJE_PREMIUM } from "./premium.js";
 
-const MAX_SEG_ANIMADO = 5;
-const MAX_SEG_ESTATICO = 10;
+const MAX_SEG_AUDIO = 30; // segundos máximos de audio (y de animación) del sticker
+const MAX_BYTES_STICKER = 1000 * 1000; // WhatsApp rechaza stickers animados de más de ~1 MB
 const ESPERA_MS = 3 * 60 * 1000;
 const MAX_PENDIENTES = 20;
 const ALIAS = new Set(["audio", "sonido", "sound"]);
@@ -30,8 +31,8 @@ const ALIAS = new Set(["audio", "sonido", "sound"]);
 const USO = [
   "🎧 *STICKER CON AUDIO* (función beta de WhatsApp)",
   "",
-  "• Responde a un *video* con *.s audio* → sticker animado con el audio del video (máx. 5 s).",
-  "• Responde a una *imagen o sticker* con *.s audio* y después responde a un *audio o nota de voz* con *.s audio* (máx. 10 s).",
+  `• Responde a un *video* con *.s audio* → sticker animado con el audio del video (máx. ${MAX_SEG_AUDIO} s).`,
+  `• Responde a una *imagen o sticker* con *.s audio* y después responde a un *audio o nota de voz* con *.s audio* (máx. ${MAX_SEG_AUDIO} s).`,
   "• O envía la imagen/video con el texto *.s audio* respondiendo a un audio.",
   "",
   "> Solo se escucha en los celulares que ya tienen la función beta de WhatsApp."
@@ -61,7 +62,7 @@ function esVideo(buffer) {
 // ───────────── ffmpeg ─────────────
 function correrFfmpeg(args) {
   return new Promise((resolve, reject) => {
-    execFile("ffmpeg", args, { timeout: 90000 }, (error, _salida, errores) => {
+    execFile("ffmpeg", args, { timeout: 240000 }, (error, _salida, errores) => {
       if (!error) return resolve();
       if (error.code === "ENOENT") return reject(new Error("ffmpeg no está instalado"));
       reject(new Error(String(errores || error.message).trim().split("\n").slice(-2).join(" ")));
@@ -125,24 +126,62 @@ async function prepararAudio(buffer, maxSeg) {
   });
 }
 
-// Recorta el video a `segundos` y le quita el audio (el sonido va aparte, dentro del sticker).
-async function recortarVideo(buffer, segundos) {
+// Convierte el video a WebP animado de `segundos` y va bajando fps/calidad hasta que quepa en ~1 MB
+// (los stickers largos pesan más). El sonido va aparte, dentro del sticker.
+const AJUSTES_LARGO = [
+  { fps: 15, calidad: 50 },
+  { fps: 12, calidad: 40 },
+  { fps: 10, calidad: 32 },
+  { fps: 8, calidad: 25 },
+  { fps: 6, calidad: 18 },
+  { fps: 5, calidad: 12 },
+  { fps: 4, calidad: 8 }
+];
+const ENCODERS_WEBP = ["libwebp_anim", "libwebp"];
+let encoderWebp = null;
+
+async function videoAWebpLargo(buffer, segundos) {
   return conTemporal(async (dir) => {
     const entrada = path.join(dir, "entrada");
-    const salida = path.join(dir, "salida.mp4");
+    const salida = path.join(dir, "salida.webp");
     await fs.promises.writeFile(entrada, buffer);
-    await correrFfmpeg([
-      "-nostdin", "-y", "-v", "error",
-      "-i", entrada,
-      "-t", String(segundos),
-      "-an",
-      "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2",
-      "-c:v", "mpeg4",
-      "-q:v", "3",
-      "-pix_fmt", "yuv420p",
-      salida
-    ]);
-    return fs.promises.readFile(salida);
+    let resultado = null;
+    for (const ajuste of AJUSTES_LARGO) {
+      const filtro = [
+        `fps=${ajuste.fps}`,
+        "scale=512:512:force_original_aspect_ratio=decrease:flags=lanczos",
+        "format=rgba",
+        "pad=512:512:(ow-iw)/2:(oh-ih)/2:color=black@0"
+      ].join(",");
+      let ok = false;
+      let ultimoError = null;
+      for (const encoder of encoderWebp ? [encoderWebp] : ENCODERS_WEBP) {
+        try {
+          await correrFfmpeg([
+            "-nostdin", "-y", "-v", "error",
+            "-t", String(segundos),
+            "-i", entrada,
+            "-vf", filtro,
+            "-an",
+            "-c:v", encoder,
+            "-lossless", "0",
+            "-q:v", String(ajuste.calidad),
+            "-compression_level", "4",
+            "-loop", "0",
+            salida
+          ]);
+          encoderWebp = encoder;
+          ok = true;
+          break;
+        } catch (e) {
+          ultimoError = e;
+        }
+      }
+      if (!ok) throw ultimoError;
+      resultado = await fs.promises.readFile(salida);
+      if (resultado.length <= MAX_BYTES_STICKER) return resultado;
+    }
+    throw new Error("El video es demasiado pesado para un sticker, prueba con uno más corto");
   });
 }
 
@@ -282,7 +321,7 @@ export async function stickerConAudio({ sock, from, sender, msg, reply }) {
     const visual = media.buffer;
     const esVid = esVideo(visual);
     const animado = esVid || esStickerAnimado(visual);
-    const maxSeg = animado ? MAX_SEG_ANIMADO : MAX_SEG_ESTATICO;
+    const maxSeg = MAX_SEG_AUDIO;
 
     let audio = null;
     if (audioCrudo) {
@@ -300,13 +339,14 @@ export async function stickerConAudio({ sock, from, sender, msg, reply }) {
       pendientes.set(clave, { buffer: visual, ts: Date.now() });
       await reply({
         text: esVid
-          ? `🔇 Ese video no tiene audio. Guardé el video: ahora responde a un *audio o nota de voz* con *.s audio* (máx. ${MAX_SEG_ANIMADO} s). Tienes 3 minutos.`
+          ? `🔇 Ese video no tiene audio. Guardé el video: ahora responde a un *audio o nota de voz* con *.s audio* (máx. ${MAX_SEG_AUDIO} s). Tienes 3 minutos.`
           : `🎧 Guardé tu ${animado ? "sticker animado" : "imagen o sticker"}. Ahora responde a un *audio o nota de voz* con *.s audio* (máx. ${maxSeg} s). Tienes 3 minutos.`
       });
       return;
     }
 
-    const visualFinal = esVid ? await recortarVideo(visual, MAX_SEG_ANIMADO) : visual;
+    // La animación dura lo mismo que el audio (si es más corta, se repite).
+    const visualFinal = esVid ? await videoAWebpLargo(visual, audio.seconds) : visual;
     const contexto = await contextoMeta({ sock, from, sender, msg });
     const sticker = await crearSticker(visualFinal, sender, contexto);
 
