@@ -6,7 +6,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { pipeline } from "stream/promises";
-import { descargarBuffer, asegurarVideoCompatibleWhatsApp, asegurarImagenCompatibleWhatsApp, LIMITE_VIDEO_WHATSAPP_MB, AGENTES, esErrorTransitorio, errorAmigable } from "./core.js";
+import { descargarBuffer, descargarATemporal, asegurarVideoCompatibleWhatsApp, asegurarImagenCompatibleWhatsApp, LIMITE_VIDEO_WHATSAPP_MB, AGENTES, esErrorTransitorio, errorAmigable } from "./core.js";
 
 export { descargarBuffer, asegurarVideoCompatibleWhatsApp, asegurarImagenCompatibleWhatsApp, LIMITE_VIDEO_WHATSAPP_MB };
 
@@ -585,22 +585,42 @@ async function tiktokDesdeEmbed(link) {
   throw ultimo || new Error("No se pudo bajar el video del reproductor de TikTok");
 }
 
+// Baja ya el video de un servicio de terceros (tikwm / btch). Si el enlace que dieron está muerto (403/404/408), falla AQUÍ
+// y la cadena sigue con el siguiente método; antes el error salía recién al enviar y ya no había más intentos.
+async function bajarMediasTikTok(medias) {
+  const salida = [];
+  for (const m of medias) {
+    if (m.type !== "video" || m.ruta) { salida.push(m); continue; }
+    const urls = (m.urls?.length ? m.urls : [m.url]).filter(Boolean);
+    const ruta = await descargarATemporal(urls, "mp4", { headers: { Referer: "https://www.tiktok.com/" } });
+    const { url, urls: _urls, ...resto } = m;
+    salida.push({ ...resto, ruta });
+  }
+  return salida;
+}
+
 async function _obtenerMediaTikTok(link) {
   let errorApi = null;
+  const fallos = []; // un renglón por método: se muestra al final para saber cuál se rompió
+  const resumen = (e) => String(e?.message || e).replace("Request failed with status code ", "HTTP ").split("\n")[0].slice(0, 90);
+  const anotarFallo = (nombre, e) => { fallos.push(`${nombre}: ${resumen(e)}`); console.log(`[redes] ${nombre} falló para ${link}: ${resumen(e)}`); };
 
   // 1) tikwm (dos dominios). Es rápido y devuelve video, fotos e historias.
   for (const base of [TIKWM, "https://tikwm.com"]) {
+    const nombre = `tikwm${base === TIKWM ? "" : " (alterno)"}`;
     try {
       const info = await pedirTikwm("/api/", { url: link, hd: 1 }, "GET", base);
-      anotar(`tikwm${base === TIKWM ? "" : " (dominio alterno)"}`);
       if (info.images?.length) {
+        anotar(nombre);
         return info.images.slice(0, 10).map((u, i) => ({ type: "image", url: absoluta(u), campos: i === 0 ? camposTikTok(info, link) : undefined }));
       }
       if (!enlacesVideoTikTok(info).length) throw new Error("No se encontro el video de ese TikTok.");
-      return [videoTikTok(info, link)];
+      const r = await bajarMediasTikTok([videoTikTok(info, link)]);
+      anotar(nombre);
+      return r;
     } catch (e) {
       errorApi = errorApi || e;
-      console.log(`[redes] tikwm (${base.replace("https://", "")}) falló para ${link}: ${String(e.message).split("\n")[0]}`);
+      anotarFallo(nombre, e);
       if (/private|privado|not exist|removed|deleted|unavailable/i.test(String(e.message))) break; // no es culpa del servicio
     }
   }
@@ -609,30 +629,34 @@ async function _obtenerMediaTikTok(link) {
   try {
     return await tiktokDesdePagina(link);
   } catch (e) {
-    console.log(`[redes] Página de TikTok falló para ${link}: ${String(e.message).replace("Request failed with status code ", "HTTP ").split("\n")[0]}`);
+    anotarFallo("página de TikTok", e);
   }
 
   // 3) El reproductor incrustado de TikTok
   try {
     return await tiktokDesdeEmbed(link);
   } catch (e) {
-    console.log(`[redes] Reproductor incrustado falló para ${link}: ${String(e.message).replace("Request failed with status code ", "HTTP ").split("\n")[0]}`);
+    anotarFallo("reproductor incrustado", e);
   }
 
   // 4) btch-downloader
   try {
-    const r = await tiktokConBtch(link);
+    const r = await bajarMediasTikTok(await tiktokConBtch(link));
     anotar("btch-downloader");
     return r;
   } catch (e) {
-    console.log(`[redes] btch-downloader falló: ${String(e.message).split("\n")[0]}`);
+    anotarFallo("btch-downloader", e);
   }
 
   // 5) yt-dlp
   if (await hayYtdlp()) {
-    try { return await ytdlpMedias(link); } catch (e) { /* se informa el error de la API */ }
+    try { return await ytdlpMedias(link); } catch (e) { anotarFallo("yt-dlp", e); }
+  } else {
+    fallos.push("yt-dlp: no instalado");
   }
-  throw errorApi || new Error("No se pudo obtener ese TikTok.");
+  const error = new Error(`No se pudo obtener ese TikTok.\n${fallos.map((f) => `• ${f}`).join("\n")}`);
+  error.causa = errorApi;
+  throw error;
 }
 
 // La búsqueda de tikwm a veces responde 403 según el método o el dominio: se prueban las 4 variantes y se recuerda la que sirve.
