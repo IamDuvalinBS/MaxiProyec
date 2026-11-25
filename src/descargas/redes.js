@@ -507,8 +507,18 @@ async function tiktokDesdePagina(link) {
     throw new Error("La página de TikTok llegó dañada");
   }
   const item = detalle?.itemInfo?.itemStruct;
+  const fotos = (item?.imagePost?.images || []).map((im) => im?.imageURL?.urlList?.[0]).filter(Boolean).slice(0, 10);
+  if (fotos.length) {
+    const campos = camposTikTok({ title: item.desc, author: { unique_id: item.author?.uniqueId, nickname: item.author?.nickname }, play_count: item.stats?.playCount, digg_count: item.stats?.diggCount, create_time: item.createTime }, link);
+    const medias = [];
+    for (const [i, u] of fotos.entries()) {
+      try { medias.push({ type: "image", ruta: await bajarVideoTikTok(u, cookiesDe(pagina)), campos: i === 0 ? campos : undefined }); } catch (e) { /* una foto que falla no tumba el resto */ }
+    }
+    if (!medias.length) throw new Error("No pude bajar las fotos de esa publicación");
+    anotar("página de TikTok (fotos)");
+    return medias;
+  }
   if (!item?.video) throw new Error(detalle?.statusMsg ? `TikTok dice: ${detalle.statusMsg}` : "TikTok no incluyó el video en la página");
-  if (item.imagePost?.images?.length) throw new Error("Es una publicación de fotos"); // las fotos las resuelven los otros métodos
 
   const v = item.video;
   const urlVideo = v.playAddr || v.downloadAddr || v.bitrateInfo?.find((b) => b?.PlayAddr?.UrlList?.length)?.PlayAddr?.UrlList?.[0];
@@ -543,11 +553,11 @@ function buscarClaveJson(nodo, clave, profundidad = 0) {
 
 // El reproductor incrustado de TikTok (/embed/v2/<id>) suele dejar pasar donde la página normal pide captcha.
 async function tiktokDesdeEmbed(link) {
-  let id = String(link).match(/\/video\/(\d+)/)?.[1];
+  let id = String(link).match(/\/(?:video|photo)\/(\d+)/)?.[1];
   if (!id) {
     // enlace corto (vm./vt.tiktok.com): se sigue la redirección para saber el id
     const r = await axios.get(link, { ...AGENTES, headers: CABECERAS_PAGINA_TIKTOK, maxRedirects: 5, timeout: 20000 });
-    id = String(r.request?.res?.responseUrl || r.request?.path || "").match(/\/video\/(\d+)/)?.[1];
+    id = String(r.request?.res?.responseUrl || r.request?.path || "").match(/\/(?:video|photo|v)\/(\d+)/)?.[1];
   }
   if (!id) throw new Error("No pude sacar el número del video de ese enlace");
 
@@ -599,17 +609,34 @@ async function bajarMediasTikTok(medias) {
   return salida;
 }
 
-async function _obtenerMediaTikTok(link) {
+// Enlaces cortos (vm./vt.tiktok.com, tiktok.com/t/...) -> enlace largo con el id, para que todos los métodos lo entiendan.
+async function resolverEnlaceTikTok(link) {
+  if (/\/(?:video|photo)\/\d+/.test(link)) return link;
+  try {
+    const r = await axios.get(link, { ...AGENTES, headers: CABECERAS_PAGINA_TIKTOK, maxRedirects: 5, timeout: 15000, validateStatus: () => true });
+    const final = String(r.request?.res?.responseUrl || "");
+    const largo = final.match(/https?:\/\/[^?#]*\/(?:video|photo)\/\d+/)?.[0];
+    if (largo) return largo;
+    const corto = final.match(/\/v\/(\d+)/)?.[1];
+    if (corto) return `https://www.tiktok.com/@_/video/${corto}`;
+    const enHtml = String(r.data || "").match(/https?:\/\/www\.tiktok\.com\/@[\w.\-]+\/(?:video|photo)\/\d+/)?.[0];
+    if (enHtml) return enHtml;
+  } catch (e) { /* se usa el enlace original */ }
+  return link;
+}
+
+async function _obtenerMediaTikTok(linkOriginal) {
+  const link = await resolverEnlaceTikTok(linkOriginal);
   let errorApi = null;
   const fallos = []; // un renglón por método: se muestra al final para saber cuál se rompió
   const resumen = (e) => String(e?.message || e).replace("Request failed with status code ", "HTTP ").split("\n")[0].slice(0, 90);
   const anotarFallo = (nombre, e) => { fallos.push(`${nombre}: ${resumen(e)}`); console.log(`[redes] ${nombre} falló para ${link}: ${resumen(e)}`); };
 
   // 1) tikwm (dos dominios). Es rápido y devuelve video, fotos e historias.
-  for (const base of [TIKWM, "https://tikwm.com"]) {
-    const nombre = `tikwm${base === TIKWM ? "" : " (alterno)"}`;
+  for (const [metodo, base] of [["GET", TIKWM], ["POST", TIKWM], ["GET", "https://tikwm.com"], ["POST", "https://tikwm.com"]]) {
+    const nombre = `tikwm ${metodo}${base === TIKWM ? "" : " (alterno)"}`;
     try {
-      const info = await pedirTikwm("/api/", { url: link, hd: 1 }, "GET", base);
+      const info = await pedirTikwm("/api/", { url: link, hd: 1 }, metodo, base);
       if (info.images?.length) {
         anotar(nombre);
         return info.images.slice(0, 10).map((u, i) => ({ type: "image", url: absoluta(u), campos: i === 0 ? camposTikTok(info, link) : undefined }));
@@ -654,7 +681,7 @@ async function _obtenerMediaTikTok(link) {
   } else {
     fallos.push("yt-dlp: no instalado");
   }
-  const error = new Error(`No se pudo obtener ese TikTok.\n${fallos.map((f) => `• ${f}`).join("\n")}`);
+  const error = new Error(`No se pudo obtener ese TikTok (${link}).\n${fallos.map((f) => `• ${f}`).join("\n")}`);
   error.causa = errorApi;
   throw error;
 }
