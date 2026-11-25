@@ -430,7 +430,33 @@ async function cargarBaileys() {
   return bailleysCache;
 }
 
-export async function enviarPaqueteStickers({ sock, from, msg, nombre, publisher, descripcion = "", stickers }) {
+// Sticker de relleno ("Tu sticker aquí") para que un pack casi vacío pueda mandarse como pack de WhatsApp,
+// que exige mínimo 3 stickers. Lleva el meta del pack.
+export async function crearMarcadorPack(numero, pack, autor) {
+  const lienzo = createCanvas(512, 512);
+  const ctx = lienzo.getContext("2d");
+  ctx.fillStyle = "#f4f1fb";
+  ctx.beginPath();
+  ctx.roundRect(16, 16, 480, 480, 48);
+  ctx.fill();
+  ctx.setLineDash([22, 16]);
+  ctx.lineWidth = 8;
+  ctx.strokeStyle = "#9b8bd6";
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = "#6f5fb3";
+  ctx.textAlign = "center";
+  ctx.font = "bold 150px sans-serif";
+  ctx.fillText("+", 256, 235);
+  ctx.font = "bold 44px sans-serif";
+  ctx.fillText("Tu sticker aquí", 256, 320);
+  ctx.font = "34px sans-serif";
+  ctx.fillText(`#${numero}`, 256, 380);
+  const webp = Buffer.from(await lienzo.encode("webp", 85));
+  return conExif(webp, pack, autor);
+}
+
+export async function enviarPaqueteStickers({ sock, from, msg, nombre, publisher, descripcion = "", stickers, idPaquete: idFijo = null }) {
   const lib = await cargarBaileys();
   const faltan = ["encryptedStream", "generateWAMessageFromContent", "generateMessageIDV2"].filter(
     (n) => typeof lib?.[n] !== "function"
@@ -442,7 +468,7 @@ export async function enviarPaqueteStickers({ sock, from, msg, nombre, publisher
     throw new Error("El socket no puede subir archivos");
   }
 
-  const idPaquete = lib.generateMessageIDV2();
+  const idPaquete = idFijo || lib.generateMessageIDV2();
   const entradas = [];
   const nombresUsados = new Set();
   const lista = stickers.map((datos, i) => {
