@@ -64,10 +64,19 @@ export function crearPack(usuario, nombre, pack, autor) {
   const mapa = packsDe(usuario);
   if (mapa.has(clave)) return { error: "Ya tienes un pack con ese nombre." };
   if (mapa.size >= MAX_PACKS) return { error: `Llegaste al máximo de ${MAX_PACKS} packs.` };
-  const nuevo = { nombre: nombre.replace(/\s+/g, " ").trim(), pack, autor, stickers: [] };
+  const nuevo = { id: crypto.randomBytes(8).toString("hex").toUpperCase(), nombre: nombre.replace(/\s+/g, " ").trim(), pack, autor, stickers: [] };
   mapa.set(clave, nuevo);
   guardar();
   return { pack: nuevo };
+}
+
+// Id fijo del pack para que, al volver a mandarlo, WhatsApp lo reconozca como el mismo pack.
+export function idDePack(p) {
+  if (!p.id) {
+    p.id = crypto.randomBytes(8).toString("hex").toUpperCase();
+    guardar();
+  }
+  return p.id;
 }
 
 export function borrarPack(usuario, nombre) {
