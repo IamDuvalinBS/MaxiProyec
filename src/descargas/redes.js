@@ -510,13 +510,9 @@ async function tiktokDesdePagina(link) {
   const fotos = (item?.imagePost?.images || []).map((im) => im?.imageURL?.urlList?.[0]).filter(Boolean).slice(0, 10);
   if (fotos.length) {
     const campos = camposTikTok({ title: item.desc, author: { unique_id: item.author?.uniqueId, nickname: item.author?.nickname }, play_count: item.stats?.playCount, digg_count: item.stats?.diggCount, create_time: item.createTime }, link);
-    const medias = [];
-    for (const [i, u] of fotos.entries()) {
-      try { medias.push({ type: "image", ruta: await bajarVideoTikTok(u, cookiesDe(pagina)), campos: i === 0 ? campos : undefined }); } catch (e) { /* una foto que falla no tumba el resto */ }
-    }
-    if (!medias.length) throw new Error("No pude bajar las fotos de esa publicación");
+    const r = await fotosAVideoTikTok({ fotos, audioUrl: item.music?.playUrl, campos, titulo: recortar(item.desc, 50) });
     anotar("página de TikTok (fotos)");
-    return medias;
+    return r;
   }
   if (!item?.video) throw new Error(detalle?.statusMsg ? `TikTok dice: ${detalle.statusMsg}` : "TikTok no incluyó el video en la página");
 
@@ -597,12 +593,109 @@ async function tiktokDesdeEmbed(link) {
 
 // Baja ya el video de un servicio de terceros (tikwm / btch). Si el enlace que dieron está muerto (403/404/408), falla AQUÍ
 // y la cadena sigue con el siguiente método; antes el error salía recién al enviar y ya no había más intentos.
+// Mira los primeros bytes del archivo para saber qué es de verdad (las APIs a veces dan audio o una imagen en vez del video).
+function tipoDeArchivo(ruta) {
+  try {
+    const fd = fs.openSync(ruta, "r");
+    const b = Buffer.alloc(16);
+    fs.readSync(fd, b, 0, 16, 0);
+    fs.closeSync(fd);
+    if (b.toString("latin1", 4, 8) === "ftyp") return "video";
+    if (b[0] === 0x1a && b[1] === 0x45 && b[2] === 0xdf && b[3] === 0xa3) return "video"; // webm/mkv
+    if (b[0] === 0xff && b[1] === 0xd8) return "imagen";
+    if (b.toString("latin1", 1, 4) === "PNG") return "imagen";
+    if (b.toString("latin1", 0, 4) === "RIFF" && b.toString("latin1", 8, 12) === "WEBP") return "imagen";
+    if (b.toString("latin1", 4, 12) === "ftypheic" || b.toString("latin1", 4, 12) === "ftypmif1") return "imagen";
+    if (b.toString("latin1", 0, 3) === "ID3" || (b[0] === 0xff && (b[1] & 0xe0) === 0xe0)) return "audio";
+    return "desconocido";
+  } catch (e) { return "desconocido"; }
+}
+
+// Publicación de fotos -> un video con las fotos en secuencia y la música de fondo (como se ve en TikTok).
+// Si no hay ffmpeg o algo falla, se devuelven las fotos sueltas para no perder la descarga.
+const SEGUNDOS_POR_FOTO = Number(process.env.TIKTOK_SEG_FOTO) || 3;
+async function fotosAVideoTikTok({ fotos, audioUrl, campos, titulo }) {
+  const rutasFotos = [];
+  for (const u of fotos.slice(0, 20)) {
+    let ruta = null;
+    try {
+      ruta = await descargarATemporal([u], "img", { headers: { Referer: "https://www.tiktok.com/" } });
+      if (tipoDeArchivo(ruta) !== "imagen") throw new Error("no es imagen");
+      rutasFotos.push(ruta);
+    } catch (e) { try { if (ruta) fs.unlinkSync(ruta); } catch (err) {} }
+  }
+  if (!rutasFotos.length) throw new Error("no pude bajar las fotos de esa publicación");
+
+  const fotosSueltas = () => rutasFotos.map((ruta, i) => ({ type: "image", ruta, campos: i === 0 ? campos : undefined }));
+  const borrarTodo = (...rutas) => rutas.flat().forEach((r) => { try { if (r) fs.unlinkSync(r); } catch (e) {} });
+
+  let rutaAudio = null;
+  const normalizadasGlobal = [];
+  const salida = path.join(os.tmpdir(), `ttf-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.mp4`);
+  const lista = salida.replace(/\.mp4$/, ".txt");
+  try {
+    if (audioUrl) {
+      try {
+        rutaAudio = await descargarATemporal([audioUrl], "mp3", { headers: { Referer: "https://www.tiktok.com/" } });
+        if (!["audio", "video"].includes(tipoDeArchivo(rutaAudio))) { borrarTodo(rutaAudio); rutaAudio = null; }
+      } catch (e) { rutaAudio = null; }
+    }
+    // Cada foto se normaliza a un jpg de 720x1280 (así no importa si vienen en jpg/png/webp mezclados).
+    const normalizadas = [];
+    for (const [i, r] of rutasFotos.entries()) {
+      const jpg = salida.replace(/\.mp4$/, `-${i}.jpg`);
+      await execFileAsync("ffmpeg", ["-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-i", r, "-vf", "scale=720:1280:force_original_aspect_ratio=decrease,pad=720:1280:(ow-iw)/2:(oh-ih)/2:black,setsar=1", "-frames:v", "1", "-q:v", "3", jpg], { timeout: 60000 });
+      normalizadas.push(jpg);
+    }
+    normalizadasGlobal.push(...normalizadas);
+    // lista para el "concat" de ffmpeg (la última foto se repite para que cuente su duración)
+    const lineas = normalizadas.flatMap((r) => [`file '${r}'`, `duration ${SEGUNDOS_POR_FOTO}`]);
+    lineas.push(`file '${normalizadas[normalizadas.length - 1]}'`);
+    fs.writeFileSync(lista, lineas.join("\n"));
+
+    const total = rutasFotos.length * SEGUNDOS_POR_FOTO;
+    await execFileAsync("ffmpeg", [
+      "-hide_banner", "-loglevel", "error", "-nostdin", "-y",
+      "-f", "concat", "-safe", "0", "-i", lista,
+      ...(rutaAudio ? ["-stream_loop", "-1", "-i", rutaAudio] : ["-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo"]),
+      "-vf", "fps=30,format=yuv420p",
+      "-map", "0:v:0", "-map", "1:a:0",
+      "-c:v", "libx264", "-preset", "veryfast", "-crf", "26", "-profile:v", "main",
+      "-c:a", "aac", "-b:a", "128k",
+      "-t", String(total),
+      "-movflags", "+faststart",
+      salida
+    ], { timeout: 180000, killSignal: "SIGKILL", maxBuffer: 5 * 1024 * 1024 });
+    if (!fs.existsSync(salida) || fs.statSync(salida).size < 2048) throw new Error("ffmpeg generó un archivo vacío");
+    borrarTodo(rutasFotos, normalizadasGlobal, rutaAudio, lista);
+    return [{ type: "video", ruta: salida, titulo: titulo || "tiktok", campos }];
+  } catch (e) {
+    console.log(`[redes] No pude armar el video de fotos (${String(e.message).split("\n")[0]}); se mandan las fotos sueltas`);
+    borrarTodo(salida, normalizadasGlobal, rutaAudio, lista);
+    return fotosSueltas();
+  }
+}
+
 async function bajarMediasTikTok(medias) {
   const salida = [];
   for (const m of medias) {
     if (m.type !== "video" || m.ruta) { salida.push(m); continue; }
     const urls = (m.urls?.length ? m.urls : [m.url]).filter(Boolean);
-    const ruta = await descargarATemporal(urls, "mp4", { headers: { Referer: "https://www.tiktok.com/" } });
+    let ruta = null;
+    let ultimo = null;
+    for (const u of urls) {
+      let temporal = null;
+      try {
+        temporal = await descargarATemporal([u], "mp4", { headers: { Referer: "https://www.tiktok.com/" } });
+        const tipo = tipoDeArchivo(temporal);
+        if (tipo === "video") { ruta = temporal; break; }
+        throw new Error(`lo descargado no es un video (es ${tipo})`);
+      } catch (e) {
+        ultimo = e;
+        try { if (temporal) fs.unlinkSync(temporal); } catch (err) {}
+      }
+    }
+    if (!ruta) throw ultimo || new Error("no se pudo bajar el video");
     const { url, urls: _urls, ...resto } = m;
     salida.push({ ...resto, ruta });
   }
@@ -626,14 +719,18 @@ async function tiktokConApis(link) {
         const lista = buscarClaveJson(info, k);
         if (Array.isArray(lista) && lista.length) { fotos = lista.map((x) => (typeof x === "string" ? x : enlacesDe(x)[0])).filter((u) => /^https?:\/\//.test(u || "")); if (fotos.length) break; }
       }
+      if (!fotos.length) fotos = [...new Set(enlacesDe(info).filter((u) => /photomode|image-?post|\/tos-[^/]*\/[^?]*\.(jpe?g|webp|heic)/i.test(u)))];
       const titulo = recortar(info?.title || info?.desc || info?.description, 120);
+      console.log(`[redes] ${host} respondió; claves: ${Object.keys(info && typeof info === "object" ? info : {}).slice(0, 15).join(",")} · fotos halladas: ${fotos.length}`);
       if (fotos.length) {
-        const medias = [];
-        for (const [i, u] of fotos.slice(0, 10).entries()) {
-          try { medias.push({ type: "image", ruta: await descargarATemporal([u], "img", { headers: { Referer: "https://www.tiktok.com/" } }), campos: i === 0 ? [["💭", "Título", titulo], ["🔗", "Link", link]] : undefined }); } catch (e) { /* una foto que falla no tumba el resto */ }
+        let audio = null;
+        for (const k of ["music", "music_info", "audio", "sound", "music_url", "song"]) {
+          audio = enlacesDe(buscarClaveJson(info, k)).find((u) => !EXT_FOTO.test(u));
+          if (audio) break;
         }
-        if (medias.length) { anotar(host); return medias; }
-        throw new Error("no se pudieron bajar las fotos");
+        const r = await fotosAVideoTikTok({ fotos, audioUrl: audio, campos: [["💭", "Título", titulo], ["🔗", "Link", link]], titulo });
+        anotar(host);
+        return r;
       }
       // video: claves habituales y, si no, cualquier .mp4 / enlace de video
       let urls = [];
@@ -680,8 +777,9 @@ async function _obtenerMediaTikTok(linkOriginal) {
     try {
       const info = await pedirTikwm("/api/", { url: link, hd: 1 }, metodo, base);
       if (info.images?.length) {
+        const r = await fotosAVideoTikTok({ fotos: info.images.map(absoluta), audioUrl: absoluta(info.music || info.music_info?.play), campos: camposTikTok(info, link), titulo: tituloTikTok(info, info.id) });
         anotar(nombre);
-        return info.images.slice(0, 10).map((u, i) => ({ type: "image", url: absoluta(u), campos: i === 0 ? camposTikTok(info, link) : undefined }));
+        return r;
       }
       if (!enlacesVideoTikTok(info).length) throw new Error("No se encontro el video de ese TikTok.");
       const r = await bajarMediasTikTok([videoTikTok(info, link)]);
