@@ -458,8 +458,16 @@ async function accionObjetivo({ sock, from, sender, sticker, permisos, datos, ac
 }
 
 // ───────────── Subcomandos de ".s" ─────────────
-const AYUDA = [
-  "⧼🧷⧽ *STICKERS DE ACCIÓN*",
+export const AYUDA = [
+  "⧼🧷⧽ *AYUDA DE STICKERS*",
+  "",
+  "*Comandos*",
+  "• *.s* → imagen, GIF o video a sticker",
+  "• *.saudio* (o *.s2*) → sticker con audio",
+  "• *.slist* → stickers de acción registrados (admins)",
+  "• *.shelp* → esta ayuda",
+  "",
+  "⧼🧷⧽ *STICKERS DE ACCIÓN* (variantes de *.s*, solo grupos)",
   "",
   "Convierte una imagen en sticker y úsalo como botón. Cuando un admin lo envía, el bot hace la acción sin escribir nada.",
   "",
@@ -479,7 +487,7 @@ const AYUDA = [
   "• *.s delmsg* → borra el mensaje al que respondes",
   "",
   "*Administrar*",
-  "• *.s lista* → ver los stickers registrados",
+  "• *.slist* → ver los stickers registrados",
   "• *.s eliminar* respondiendo al sticker, o *.s eliminar 2* (número de la lista)",
   "",
   "> Solo los admins pueden activarlos. Tip: mantén presionado el sticker y elige *Agregar a favoritos*."
@@ -581,7 +589,7 @@ function confirmarRegistro(reply, accion, config, resultado) {
 function mostrarLista(grupo) {
   const lista = listarRegistros(grupo);
   if (!lista.length) {
-    return "⧼🧷⧽ *STICKERS REGISTRADOS*\n\n> Este grupo todavía no tiene stickers registrados.\n\nUsa *.s ayuda* para ver cómo registrarlos.";
+    return "⧼🧷⧽ *STICKERS REGISTRADOS*\n\n> Este grupo todavía no tiene stickers registrados.\n\nUsa *.shelp* para ver cómo registrarlos.";
   }
   const lineas = lista.map((r, i) => {
     const emoji = ACCIONES[r.accion]?.emoji || "▫️";
@@ -602,10 +610,10 @@ async function eliminarDesdeMensaje({ from, msg, cleanText, reply }) {
   } else {
     const numero = parseInt((cleanText.trim().split(/\s+/)[2] || "").replace(/\D/g, ""), 10);
     if (!numero) {
-      return reply({ text: aviso("🗑️", "STICKER", "Responde al sticker con *.s eliminar* o usa *.s eliminar N* (el número sale en *.s lista*).") });
+      return reply({ text: aviso("🗑️", "STICKER", "Responde al sticker con *.s eliminar* o usa *.s eliminar N* (el número sale en *.slist*).") });
     }
     const elegido = listarRegistros(from)[numero - 1];
-    if (!elegido) return reply({ text: aviso("❌", "STICKER", `No existe el sticker número ${numero}. Mira *.s lista*.`) });
+    if (!elegido) return reply({ text: aviso("❌", "STICKER", `No existe el sticker número ${numero}. Mira *.slist*.`) });
     huella = elegido.huella;
   }
 

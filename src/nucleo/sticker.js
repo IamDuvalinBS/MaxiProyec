@@ -210,11 +210,14 @@ async function aWebp512(buffer) {
   return Buffer.from(await lienzo.encode("webp", 80));
 }
 
+// Nunca se acorta el video para que quepa: se baja fps y calidad, la duración siempre es la completa.
 const AJUSTES_ANIMADO = [
-  { fps: 15, calidad: 60, segundos: 8 },
-  { fps: 12, calidad: 45, segundos: 8 },
-  { fps: 10, calidad: 35, segundos: 6 },
-  { fps: 8, calidad: 25, segundos: 5 }
+  { fps: 15, calidad: 60 },
+  { fps: 12, calidad: 45 },
+  { fps: 10, calidad: 35 },
+  { fps: 8, calidad: 25 },
+  { fps: 6, calidad: 18 },
+  { fps: 5, calidad: 12 }
 ];
 const ENCODERS_WEBP = ["libwebp_anim", "libwebp"];
 let encoderWebp = null;
@@ -239,7 +242,7 @@ function convertirAnimado(entrada, salida, ajuste, encoder) {
   ].join(",");
   return correrFfmpeg([
     "-nostdin", "-y", "-v", "error",
-    "-t", String(ajuste.segundos),
+    "-t", String(MAX_SEGUNDOS_STICKER),
     "-i", entrada,
     "-vf", filtro,
     "-an",
@@ -260,7 +263,8 @@ async function aWebpAnimado(buffer) {
     await fs.promises.writeFile(entrada, buffer);
 
     let resultado = null;
-    for (const ajuste of AJUSTES_ANIMADO) {
+    for (let i = 0; i < AJUSTES_ANIMADO.length; i++) {
+      const ajuste = AJUSTES_ANIMADO[i];
       let convertido = false;
       let ultimoError = null;
       for (const encoder of encoderWebp ? [encoderWebp] : ENCODERS_WEBP) {
@@ -277,6 +281,8 @@ async function aWebpAnimado(buffer) {
 
       resultado = await fs.promises.readFile(salida);
       if (resultado.length <= LIMITE_ANIMADO) break;
+      // Si quedó muy pesado, salta un escalón para no gastar tiempo en intentos que no van a alcanzar.
+      if (resultado.length > LIMITE_ANIMADO * 2.2 && i + 2 < AJUSTES_ANIMADO.length) i++;
     }
 
     if (resultado.length > LIMITE_MAXIMO) {

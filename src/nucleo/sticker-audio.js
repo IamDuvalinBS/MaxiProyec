@@ -1,4 +1,4 @@
-// Stickers con audio (función BETA de WhatsApp) para el comando ".s audio".
+// Stickers con audio (función BETA de WhatsApp) para el comando ".saudio" (también ".s2" y ".s audio").
 //
 // WhatsApp los manda como Message.audioStickerMessage (campo 134 del protobuf), que es un
 // FutureProofMessage con un stickerMessage dentro, y ese stickerMessage lleva el audio en el
@@ -31,9 +31,9 @@ const ALIAS = new Set(["audio", "sonido", "sound"]);
 const USO = [
   "🎧 *STICKER CON AUDIO* (función beta de WhatsApp)",
   "",
-  `• Responde a un *video* con *.s audio* → sticker animado con el audio del video (máx. ${MAX_SEG_AUDIO} s).`,
-  `• Responde a una *imagen o sticker* con *.s audio* y después responde a un *audio o nota de voz* con *.s audio* (máx. ${MAX_SEG_AUDIO} s).`,
-  "• O envía la imagen/video con el texto *.s audio* respondiendo a un audio.",
+  `• Responde a un *video* con *.saudio* → sticker animado con el audio del video (máx. ${MAX_SEG_AUDIO} s).`,
+  `• Responde a una *imagen o sticker* con *.saudio* y después responde a un *audio o nota de voz* con *.saudio* (máx. ${MAX_SEG_AUDIO} s).`,
+  "• O envía la imagen/video con el texto *.saudio* respondiendo a un audio.",
   "",
   "> Solo se escucha en los celulares que ya tienen la función beta de WhatsApp."
 ].join("\n");
@@ -115,7 +115,7 @@ async function prepararAudio(buffer, maxSeg) {
         const datos = await fs.promises.readFile(salida);
         if (!datos.length) throw new Error("audio vacío");
         const real = await duracionDe(salida);
-        const seconds = Math.max(1, Math.round(Math.min(maxSeg, real || maxSeg)));
+        const seconds = Math.max(1, Math.ceil(Math.min(maxSeg, real || maxSeg)));
         return { buffer: datos, mimetype: formato.mimetype, seconds };
       } catch (e) {
         if (/ffmpeg no está instalado/.test(e.message)) throw e;
@@ -137,6 +137,7 @@ const AJUSTES_LARGO = [
   { fps: 5, calidad: 12 },
   { fps: 4, calidad: 8 }
 ];
+const SALTO_PESO = 2 * 1000 * 1000; // si pesa más del doble del límite, salta un escalón
 const ENCODERS_WEBP = ["libwebp_anim", "libwebp"];
 let encoderWebp = null;
 
@@ -146,7 +147,8 @@ async function videoAWebpLargo(buffer, segundos) {
     const salida = path.join(dir, "salida.webp");
     await fs.promises.writeFile(entrada, buffer);
     let resultado = null;
-    for (const ajuste of AJUSTES_LARGO) {
+    for (let i = 0; i < AJUSTES_LARGO.length; i++) {
+      const ajuste = AJUSTES_LARGO[i];
       const filtro = [
         `fps=${ajuste.fps}`,
         "scale=512:512:force_original_aspect_ratio=decrease:flags=lanczos",
@@ -180,6 +182,7 @@ async function videoAWebpLargo(buffer, segundos) {
       if (!ok) throw ultimoError;
       resultado = await fs.promises.readFile(salida);
       if (resultado.length <= MAX_BYTES_STICKER) return resultado;
+      if (resultado.length > SALTO_PESO && i + 2 < AJUSTES_LARGO.length) i++;
     }
     throw new Error("El video es demasiado pesado para un sticker, prueba con uno más corto");
   });
@@ -314,7 +317,7 @@ export async function stickerConAudio({ sock, from, sender, msg, reply }) {
       if (espera) media = { buffer: espera.buffer };
     }
     if (!media) {
-      await reply({ text: audioCrudo ? "🖼️ Primero responde a una imagen, sticker o video con *.s audio* y luego responde al audio.\n\n" + USO : USO });
+      await reply({ text: audioCrudo ? "🖼️ Primero responde a una imagen, sticker o video con *.saudio* y luego responde al audio.\n\n" + USO : USO });
       return;
     }
 
@@ -339,8 +342,8 @@ export async function stickerConAudio({ sock, from, sender, msg, reply }) {
       pendientes.set(clave, { buffer: visual, ts: Date.now() });
       await reply({
         text: esVid
-          ? `🔇 Ese video no tiene audio. Guardé el video: ahora responde a un *audio o nota de voz* con *.s audio* (máx. ${MAX_SEG_AUDIO} s). Tienes 3 minutos.`
-          : `🎧 Guardé tu ${animado ? "sticker animado" : "imagen o sticker"}. Ahora responde a un *audio o nota de voz* con *.s audio* (máx. ${maxSeg} s). Tienes 3 minutos.`
+          ? `🔇 Ese video no tiene audio. Guardé el video: ahora responde a un *audio o nota de voz* con *.saudio* (máx. ${MAX_SEG_AUDIO} s). Tienes 3 minutos.`
+          : `🎧 Guardé tu ${animado ? "sticker animado" : "imagen o sticker"}. Ahora responde a un *audio o nota de voz* con *.saudio* (máx. ${maxSeg} s). Tienes 3 minutos.`
       });
       return;
     }
