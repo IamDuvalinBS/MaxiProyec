@@ -609,6 +609,48 @@ async function bajarMediasTikTok(medias) {
   return salida;
 }
 
+// APIs de terceros que sirven para fotos y videos (las mismas familias que ya usa el bot para Spotify/YouTube).
+// Se pueden cambiar con la variable TIKTOK_APIS (plantillas separadas por coma, con {url}).
+const APIS_TIKTOK = (process.env.TIKTOK_APIS || "https://api.delirius.store/download/tiktok?url={url},https://api-faa.my.id/faa/tiktok?url={url}").split(",").map((x) => x.trim()).filter(Boolean);
+const EXT_FOTO = /\.(jpe?g|png|webp|heic)(\?|$)/i;
+async function tiktokConApis(link) {
+  const errores = [];
+  for (const plantilla of APIS_TIKTOK) {
+    const host = plantilla.replace(/^https?:\/\//, "").split("/")[0];
+    try {
+      const { data } = await axios.get(plantilla.replace("{url}", encodeURIComponent(link)), { ...AGENTES, headers: HEADERS, timeout: 25000 });
+      const info = data?.data || data?.result || data;
+      // fotos: lista bajo images / photos / slides
+      let fotos = [];
+      for (const k of ["images", "photos", "slides", "image"]) {
+        const lista = buscarClaveJson(info, k);
+        if (Array.isArray(lista) && lista.length) { fotos = lista.map((x) => (typeof x === "string" ? x : enlacesDe(x)[0])).filter((u) => /^https?:\/\//.test(u || "")); if (fotos.length) break; }
+      }
+      const titulo = recortar(info?.title || info?.desc || info?.description, 120);
+      if (fotos.length) {
+        const medias = [];
+        for (const [i, u] of fotos.slice(0, 10).entries()) {
+          try { medias.push({ type: "image", ruta: await descargarATemporal([u], "img", { headers: { Referer: "https://www.tiktok.com/" } }), campos: i === 0 ? [["💭", "Título", titulo], ["🔗", "Link", link]] : undefined }); } catch (e) { /* una foto que falla no tumba el resto */ }
+        }
+        if (medias.length) { anotar(host); return medias; }
+        throw new Error("no se pudieron bajar las fotos");
+      }
+      // video: claves habituales y, si no, cualquier .mp4 / enlace de video
+      let urls = [];
+      for (const k of ["nowm", "no_watermark", "play", "hdplay", "video", "url", "download"]) urls.push(...enlacesDe(buscarClaveJson(info, k)));
+      if (!urls.length) urls = enlacesDe(info);
+      urls = [...new Set(urls)].filter((u) => !EXT_FOTO.test(u) && !/\.(mp3|m4a)(\?|$)/i.test(u) && /mp4|video|play|download/i.test(u)).slice(0, 3);
+      if (!urls.length) throw new Error("sin video ni fotos en la respuesta");
+      const r = await bajarMediasTikTok([{ type: "video", urls, url: urls[0], titulo: titulo || "tiktok", campos: [["💭", "Título", titulo], ["🔗", "Link del video", link]] }]);
+      anotar(host);
+      return r;
+    } catch (e) {
+      errores.push(`${host}: ${String(e?.response?.status ? `HTTP ${e.response.status}` : e?.message || e).split("\n")[0].slice(0, 70)}`);
+    }
+  }
+  throw new Error(errores.join(" · ") || "sin APIs configuradas");
+}
+
 // Enlaces cortos (vm./vt.tiktok.com, tiktok.com/t/...) -> enlace largo con el id, para que todos los métodos lo entiendan.
 async function resolverEnlaceTikTok(link) {
   if (/\/(?:video|photo)\/\d+/.test(link)) return link;
@@ -675,7 +717,14 @@ async function _obtenerMediaTikTok(linkOriginal) {
     anotarFallo("btch-downloader", e);
   }
 
-  // 5) yt-dlp
+  // 5) APIs de terceros (fotos y videos)
+  try {
+    return await tiktokConApis(link);
+  } catch (e) {
+    anotarFallo("APIs de respaldo", e);
+  }
+
+  // 6) yt-dlp
   if (await hayYtdlp()) {
     try { return await ytdlpMedias(link); } catch (e) { anotarFallo("yt-dlp", e); }
   } else {
