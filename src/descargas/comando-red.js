@@ -94,7 +94,7 @@ export function crearComandoRed({
       // ───────────── Por enlace ─────────────
       if (esDeEstaRed) {
         const link = URL_GENERICA.test(primero) ? primero : `https://${primero}`;
-        const claveCache = `red:${titulo}:${link}`;
+        const claveCache = `red2:${titulo}:${link}`;
 
         if (await reenviarCacheado(sock, from, claveCache, msg)) return;
 
