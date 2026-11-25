@@ -11,7 +11,7 @@ import { esSubcomandoAudio, stickerConAudio } from "../../nucleo/sticker-audio.j
 
 export default {
   names: [".s", ".sticker"],
-  desc: "Convierte una imagen, GIF o video en sticker (.s audio = sticker con sonido)",
+  desc: "Convierte una imagen, GIF o video en sticker (.saudio = con sonido, .shelp = ayuda)",
   category: "Stickers",
   usage: ".s",
   handler: async ({ msg, sender, from, sock, reply, cleanText }) => {
