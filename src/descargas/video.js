@@ -1,5 +1,6 @@
 import { execFile } from "child_process";
 import { promisify } from "util";
+import { execLimitado } from "../nucleo/limitador.js";
 import fs from "fs";
 import os from "os";
 import path from "path";
@@ -102,7 +103,7 @@ export async function prepararVideoEnDisco(entrada) {
 
     for (const args of planes) {
       try {
-        await execFileAsync("ffmpeg", [...FFMPEG_BASE, "-y", "-i", entrada, ...args, "-movflags", "+faststart", salida], OPCIONES_FFMPEG);
+        await execLimitado("pesado", "ffmpeg", [...FFMPEG_BASE, "-y", "-i", entrada, ...args, "-movflags", "+faststart", salida], OPCIONES_FFMPEG);
         ok();
         borrar(entrada);
         return { ruta: salida, limpiar };
@@ -117,7 +118,7 @@ export async function prepararVideoEnDisco(entrada) {
       console.log(`[video] ${pesoMB.toFixed(0)} MB con códec no compatible: demasiado grande para re-codificar, se manda sin convertir`);
       return { ruta: entrada, limpiar: () => borrar(entrada), sinConvertir: true };
     }
-    await execFileAsync("ffmpeg", [
+    await execLimitado("pesado", "ffmpeg", [
       ...FFMPEG_BASE, "-y",
       "-i", entrada,
       "-map", "0:v:0", ...(audio ? ["-map", "0:a:0"] : []),

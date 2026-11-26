@@ -4,6 +4,7 @@ import path from "path";
 import zlib from "zlib";
 import { execFile } from "child_process";
 import { promisify } from "util";
+import { execLimitado } from "../nucleo/limitador.js";
 import { descargarAudioConProveedores } from "./youtube-engine.js";
 
 const execFileAsync = promisify(execFile);
@@ -148,7 +149,7 @@ async function etiquetarMp3(buffer, meta) {
     ];
     if (meta.anio) args.push("-metadata", `date=${meta.anio}`);
     args.push(salida);
-    await execFileAsync("ffmpeg", args, { timeout: 60000 });
+    await execLimitado("ligero", "ffmpeg", args, { timeout: 60000 });
     return fs.readFileSync(salida);
   } catch (e) {
     console.log(`[album] No pude etiquetar "${meta.titulo}": ${String(e.message).split("\n")[0]}`);

@@ -4,6 +4,7 @@ import os from "os";
 import path from "path";
 import { execFile } from "child_process";
 import { promisify } from "util";
+import { execLimitado } from "../nucleo/limitador.js";
 import http from "http";
 import https from "https";
 import { Transform } from "stream";
@@ -455,7 +456,7 @@ export async function descargarVideoH264Directo(link, comoArchivo = false) {
 async function unirAArchivo(rutaVideo, rutaAudio) {
   const salida = path.join(os.tmpdir(), `yt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.mp4`);
   try {
-    await execFileAsync("ffmpeg", [
+    await execLimitado("ligero", "ffmpeg", [
       "-y", "-loglevel", "error",
       "-i", rutaVideo, "-i", rutaAudio,
       "-map", "0:v:0", "-map", "1:a:0", "-c", "copy",

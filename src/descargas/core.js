@@ -1,6 +1,7 @@
 import axios from "axios";
 import { execFile } from "child_process";
 import { promisify } from "util";
+import { execLimitado } from "../nucleo/limitador.js";
 import fs from "fs";
 import os from "os";
 import path from "path";
@@ -366,7 +367,7 @@ const CODEC_VIDEO_RAPIDO = [
   "-profile:v", "main",
   "-level", "4.0",
   "-pix_fmt", "yuv420p",
-  "-threads", "0"
+  "-threads", "2"
 ];
 const CODEC_AUDIO_AAC = ["-c:a", "aac", "-b:a", "192k"];
 
@@ -394,9 +395,9 @@ export async function asegurarVideoCompatibleWhatsApp(entradaOriginal) {
 
     for (const plan of planes) {
       try {
-        await execFileAsync("ffmpeg", [...FFMPEG_BASE, "-y", "-i", entrada, ...plan.args, "-movflags", "+faststart", salida], OPCIONES_FFMPEG);
+        await execLimitado("pesado", "ffmpeg", [...FFMPEG_BASE, "-y", "-i", entrada, ...plan.args, "-movflags", "+faststart", salida], OPCIONES_FFMPEG);
         console.log(`[descargas-core] Video listo (${plan.nombre}) en ${((Date.now() - inicio) / 1000).toFixed(1)}s`);
-        return fs.readFileSync(salida);
+        return await fs.promises.readFile(salida);
       } catch (e) {
         console.log(`[descargas-core] Falló "${plan.nombre}": ${String(e.message).split("\n")[0]}`);
         if (fs.existsSync(salida)) fs.unlinkSync(salida);
@@ -414,7 +415,7 @@ export async function unirVideoAudioSinReconvertir(rutaVideo, rutaAudio) {
   const salida = path.join(os.tmpdir(), `uc_out_${Date.now()}_${Math.random().toString(36).slice(2)}.mp4`);
   const inicio = Date.now();
   try {
-    await execFileAsync("ffmpeg", [
+    await execLimitado("ligero", "ffmpeg", [
       ...FFMPEG_BASE,
       "-y",
       "-i", rutaVideo,
@@ -427,7 +428,7 @@ export async function unirVideoAudioSinReconvertir(rutaVideo, rutaAudio) {
       salida
     ], OPCIONES_FFMPEG);
     console.log(`[descargas-core] Video y audio unidos sin reconvertir en ${((Date.now() - inicio) / 1000).toFixed(1)}s`);
-    return fs.readFileSync(salida);
+    return await fs.promises.readFile(salida);
   } finally {
     for (const ruta of [rutaVideo, rutaAudio, salida]) {
       try { if (fs.existsSync(ruta)) fs.unlinkSync(ruta); } catch (e) {}
@@ -442,11 +443,11 @@ export async function combinarVideoAudioWhatsApp(bufferVideo, bufferAudio) {
   const entradaAudio = path.join(tmp, `da_in_${sufijo}.m4a`);
   const salida = path.join(tmp, `dv_out_${sufijo}.mp4`);
 
-  fs.writeFileSync(entradaVideo, bufferVideo);
-  fs.writeFileSync(entradaAudio, bufferAudio);
+  await fs.promises.writeFile(entradaVideo, bufferVideo);
+  await fs.promises.writeFile(entradaAudio, bufferAudio);
 
   try {
-    await execFileAsync("ffmpeg", [
+    await execLimitado("pesado", "ffmpeg", [
       ...FFMPEG_BASE,
       "-y",
       "-i", entradaVideo,
@@ -459,7 +460,7 @@ export async function combinarVideoAudioWhatsApp(bufferVideo, bufferAudio) {
       "-shortest",
       salida
     ], OPCIONES_FFMPEG);
-    return fs.readFileSync(salida);
+    return await fs.promises.readFile(salida);
   } finally {
     if (fs.existsSync(entradaVideo)) fs.unlinkSync(entradaVideo);
     if (fs.existsSync(entradaAudio)) fs.unlinkSync(entradaAudio);
@@ -493,7 +494,7 @@ export async function asegurarAudioCompatibleWhatsApp(entradaOriginal, meta = {}
     if (meta.artista) etiquetas.push("-metadata", `artist=${String(meta.artista).slice(0, 200)}`);
 
     const convertir = (codec) =>
-      execFileAsync("ffmpeg", [
+      execLimitado("ligero", "ffmpeg", [
         ...FFMPEG_BASE, "-y", "-i", entrada, "-vn", "-map", "0:a:0", ...codec,
         "-map_metadata", "-1", ...etiquetas, "-id3v2_version", "3", "-write_xing", "1", salida
       ], OPCIONES_FFMPEG);
@@ -510,7 +511,7 @@ export async function asegurarAudioCompatibleWhatsApp(entradaOriginal, meta = {}
       await convertir(REENCODEAR);
     }
 
-    const buffer = fs.readFileSync(salida);
+    const buffer = await fs.promises.readFile(salida);
     const segundos = await duracionDeArchivo(salida);
     if (segundos) buffer.duracionSeg = segundos;
     return buffer;
@@ -541,7 +542,7 @@ export async function asegurarImagenCompatibleWhatsApp(entradaOriginal) {
   if (esJpegDirecto(entradaOriginal)) {
     if (Buffer.isBuffer(entradaOriginal)) return entradaOriginal;
     try {
-      return fs.readFileSync(entradaOriginal);
+      return await fs.promises.readFile(entradaOriginal);
     } finally {
       try { fs.unlinkSync(entradaOriginal); } catch (e) {}
     }
@@ -552,7 +553,7 @@ export async function asegurarImagenCompatibleWhatsApp(entradaOriginal) {
   const salida = path.join(tmp, `di_out_${sufijo}.jpg`);
 
   try {
-    await execFileAsync("ffmpeg", [
+    await execLimitado("ligero", "ffmpeg", [
       ...FFMPEG_BASE,
       "-y",
       "-i", entrada,
@@ -560,7 +561,7 @@ export async function asegurarImagenCompatibleWhatsApp(entradaOriginal) {
       "-pix_fmt", "yuvj420p",
       salida
     ], OPCIONES_FFMPEG);
-    return fs.readFileSync(salida);
+    return await fs.promises.readFile(salida);
   } finally {
     if (fs.existsSync(entrada)) fs.unlinkSync(entrada);
     if (fs.existsSync(salida)) fs.unlinkSync(salida);
