@@ -7,6 +7,7 @@ import { createRequire } from "module";
 import { join } from "path";
 import { pipeline } from "stream/promises";
 import { promisify } from "util";
+import { execLimitado } from "../../nucleo/limitador.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -520,7 +521,7 @@ async function prepareForWhatsapp(src, onProgress) {
   onProgress?.(`📦 Comprimiendo a ~${MAX_VIDEO_MB}MB (${vK}k)...`);
 
   try {
-    await execFileAsync(ffmpegBin(), [
+    await execLimitado("pesado", ffmpegBin(), [
       "-y", "-i", src,
       "-vf", `scale=${scale}`,
       "-r", fps,
