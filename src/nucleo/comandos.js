@@ -16,6 +16,7 @@ import { stickerPremiumBloqueado } from "./sticker-premium.js";
 import { isOwner, isDueno } from "../../motores/owner.js";
 import { permisoDeArchivo } from "../comandos/bot/ownermenu.js";
 import { reaccionarConSticker } from "../../motores/sticker-reacciones.js";
+import { contextoComando } from "./limitador.js";
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const CARPETAS_EXCLUIDAS = new Set([
@@ -46,44 +47,56 @@ async function cargarComandos() {
   let total = 0;
   const carpetas = descubrirCarpetas();
 
+  // Los archivos se importan EN PARALELO (arranque más rápido), pero se registran en el mismo orden de siempre,
+  // así que si un comando está repetido gana el mismo que antes.
+  const pendientes = [];
   for (const carpeta of carpetas) {
-    const archivos = fs.readdirSync(carpeta).filter((f) => f.endsWith(".js"));
-    for (const archivo of archivos) {
+    for (const archivo of fs.readdirSync(carpeta).filter((f) => f.endsWith(".js"))) {
       const ruta = path.join(carpeta, archivo);
-      const relativa = path.relative(RAIZ, ruta);
-      try {
-        const modulo = await import(pathToFileURL(ruta).href);
-        const exportado = modulo.default;
-        const lista = Array.isArray(exportado) ? exportado : [exportado];
-        if (!lista.length) {
+      pendientes.push({
+        relativa: path.relative(RAIZ, ruta),
+        modulo: import(pathToFileURL(ruta).href).then((m) => ({ m }), (error) => ({ error }))
+      });
+    }
+  }
+
+  for (const { relativa, modulo: promesa } of pendientes) {
+    const { m: modulo, error } = await promesa;
+    if (error) {
+      console.log(`❌ ERROR cargando ${relativa}: ${error.message}`);
+      continue;
+    }
+    try {
+      const exportado = modulo.default;
+      const lista = Array.isArray(exportado) ? exportado : [exportado];
+      if (!lista.length) {
+        console.log(`⚠️ Comando inválido en ${relativa}, se omitió.`);
+        continue;
+      }
+      for (const cmd of lista) {
+        if (!cmd || !cmd.names || !cmd.handler) {
           console.log(`⚠️ Comando inválido en ${relativa}, se omitió.`);
           continue;
         }
-        for (const cmd of lista) {
-          if (!cmd || !cmd.names || !cmd.handler) {
-            console.log(`⚠️ Comando inválido en ${relativa}, se omitió.`);
-            continue;
-          }
-          const categoria = cmd.category || "General";
-          for (const nombre of cmd.names) {
-            if (comandos.has(nombre)) console.log(`⚠️ El comando ${nombre} está repetido (${relativa}).`);
-            comandos.set(nombre, cmd.handler);
-            categoriaDeComando.set(nombre, categoria);
-            principalDeComando.set(nombre, cmd.names[0]);
-            archivoDeComando.set(nombre, relativa);
-          }
-          commandRegistry.set(cmd.names[0], {
-            names: cmd.names,
-            desc: cmd.desc || "",
-            category: cmd.category || "General",
-            usage: cmd.usage || cmd.names[0],
-            archivo: relativa
-          });
+        const categoria = cmd.category || "General";
+        for (const nombre of cmd.names) {
+          if (comandos.has(nombre)) console.log(`⚠️ El comando ${nombre} está repetido (${relativa}).`);
+          comandos.set(nombre, cmd.handler);
+          categoriaDeComando.set(nombre, categoria);
+          principalDeComando.set(nombre, cmd.names[0]);
+          archivoDeComando.set(nombre, relativa);
         }
-        total++;
-      } catch (e) {
-        console.log(`❌ ERROR cargando ${relativa}: ${e.message}`);
+        commandRegistry.set(cmd.names[0], {
+          names: cmd.names,
+          desc: cmd.desc || "",
+          category: cmd.category || "General",
+          usage: cmd.usage || cmd.names[0],
+          archivo: relativa
+        });
       }
+      total++;
+    } catch (e) {
+      console.log(`❌ ERROR cargando ${relativa}: ${e.message}`);
     }
   }
 
@@ -134,8 +147,21 @@ async function ejecutarComando(sock, from, sender, text, msg) {
 
   let capturados = null;
 
+  // El sticker de reacción se manda en paralelo con el comando (antes frenaba el inicio); reply lo espera
+  // antes de enviar, así el sticker sigue llegando primero.
+  let reaccion = Promise.resolve();
+
+  // Si el comando tiene que esperar turno para un trabajo pesado (ffmpeg), se avisa UNA sola vez.
+  let avisoCola = false;
+  const avisarCola = () => {
+    if (avisoCola) return;
+    avisoCola = true;
+    reply({ text: "⏳ Hay varios procesos en curso. Tu pedido quedó en cola y empieza en cuanto se libere." }).catch(() => {});
+  };
+
   let primeraRespuesta = true;
   const reply = async (contenido) => {
+    await reaccion;
     if (!msg.paginaChat && primeraRespuesta && HUMANIZAR_MS > 0) {
       primeraRespuesta = false;
       await delayAleatorio(Math.floor(HUMANIZAR_MS / 3), HUMANIZAR_MS);
@@ -190,11 +216,11 @@ async function ejecutarComando(sock, from, sender, text, msg) {
   const cuentaLogros = CATEGORIAS_LOGROS.has(categoriaActual) && !COMANDOS_LOGROS.has(comando) && !COMANDOS_LOGROS.has(principal);
   const antesLogros = cuentaLogros ? antesDeComando(sender) : null;
 
-  await reaccionarConSticker(sock, from, msg, principal);
+  reaccion = reaccionarConSticker(sock, from, msg, principal).catch(() => {});
 
   comandoIniciado(sender);
   try {
-    await handler({ sock, from, sender, cleanText, msg, reply });
+    await contextoComando.run({ avisar: avisarCola }, () => handler({ sock, from, sender, cleanText, msg, reply }));
     sumarComandoUsuario(sender);
     contarComando(principalDeComando.get(comando));
     if (!msg.paginaChat) contarComandoGrupo(from, principalDeComando.get(comando), sender);

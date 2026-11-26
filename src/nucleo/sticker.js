@@ -4,6 +4,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { execFile } from "child_process";
+import { conLimite } from "./limitador.js";
 import { downloadMediaMessage } from "@fer2809fl/baileys";
 import { getStickerMeta, config } from "../../motores/db.js";
 import { getProfile } from "../../motores/profile.js";
@@ -223,14 +224,14 @@ const ENCODERS_WEBP = ["libwebp_anim", "libwebp"];
 let encoderWebp = null;
 
 function correrFfmpeg(args) {
-  return new Promise((resolve, reject) => {
+  return conLimite("ligero", () => new Promise((resolve, reject) => {
     execFile("ffmpeg", args, { timeout: 90000 }, (error, _salida, errores) => {
       if (!error) return resolve();
       if (error.code === "ENOENT") return reject(new Error("ffmpeg no está instalado"));
       const detalle = String(errores || error.message).trim().split("\n").slice(-2).join(" ");
       reject(new Error(detalle));
     });
-  });
+  }));
 }
 
 function convertirAnimado(entrada, salida, ajuste, encoder) {

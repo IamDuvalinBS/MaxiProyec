@@ -11,6 +11,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { execFile } from "child_process";
+import { conLimite } from "./limitador.js";
 import { downloadMediaMessage } from "@fer2809fl/baileys";
 import {
   extraerMediaDeMensaje,
@@ -61,13 +62,13 @@ function esVideo(buffer) {
 
 // ───────────── ffmpeg ─────────────
 function correrFfmpeg(args) {
-  return new Promise((resolve, reject) => {
+  return conLimite("ligero", () => new Promise((resolve, reject) => {
     execFile("ffmpeg", args, { timeout: 240000 }, (error, _salida, errores) => {
       if (!error) return resolve();
       if (error.code === "ENOENT") return reject(new Error("ffmpeg no está instalado"));
       reject(new Error(String(errores || error.message).trim().split("\n").slice(-2).join(" ")));
     });
-  });
+  }));
 }
 
 function duracionDe(archivo) {
@@ -239,15 +240,15 @@ async function enviarStickerConAudio({ sock, from, msg, sticker, audio }) {
 
   const subida = { upload: sock.waUploadToServer };
 
-  const subidoSticker = await lib.prepareWAMessageMedia({ sticker }, subida);
+  // El sticker y el audio se suben a la vez (antes uno esperaba al otro).
+  const [subidoSticker, subidoAudio] = await Promise.all([
+    lib.prepareWAMessageMedia({ sticker }, subida),
+    lib.prepareWAMessageMedia({ audio: audio.buffer, mimetype: audio.mimetype, seconds: audio.seconds, ptt: false }, subida)
+  ]);
   const stickerMsg = subidoSticker.stickerMessage;
   if (!stickerMsg) throw new Error("No se pudo subir el sticker");
   stickerMsg.isAnimated = esStickerAnimado(sticker);
 
-  const subidoAudio = await lib.prepareWAMessageMedia(
-    { audio: audio.buffer, mimetype: audio.mimetype, seconds: audio.seconds, ptt: false },
-    subida
-  );
   const audioMsg = subidoAudio.audioMessage;
   if (!audioMsg) throw new Error("No se pudo subir el audio");
 
@@ -289,27 +290,29 @@ export async function stickerConAudio({ sock, from, sender, msg, reply }) {
   const clave = `${from}|${claveMeta(sender)}`;
 
   try {
-    let audioCrudo = null;
-    try {
-      audioCrudo = await descargarAudioCitado(msg);
-    } catch (e) {
-      console.log("❌ [s audio] No se pudo descargar el audio: " + e.message);
+    // El audio y la imagen/video se descargan a la vez; los errores se revisan en el mismo orden de siempre.
+    const [resAudio, resMedia] = await Promise.all([
+      descargarAudioCitado(msg).then((v) => ({ v }), (e) => ({ e })),
+      extraerMediaDeMensaje(msg, sender).then((v) => ({ v }), (e) => ({ e }))
+    ]);
+
+    if (resAudio.e) {
+      console.log("❌ [s audio] No se pudo descargar el audio: " + resAudio.e.message);
       await reply({ text: "❌ No se pudo descargar ese audio. Intenta enviarlo nuevamente." });
       return;
     }
+    const audioCrudo = resAudio.v;
 
-    let media = null;
-    try {
-      media = await extraerMediaDeMensaje(msg, sender);
-    } catch (e) {
-      if (e.message === ERROR_PREMIUM) {
+    if (resMedia.e) {
+      if (resMedia.e.message === ERROR_PREMIUM) {
         await reply({ text: MENSAJE_PREMIUM });
         return;
       }
-      console.log("❌ [s audio] No se pudo descargar la imagen/video: " + e.message);
+      console.log("❌ [s audio] No se pudo descargar la imagen/video: " + resMedia.e.message);
       await reply({ text: "❌ No se pudo descargar el archivo. Intenta enviarlo nuevamente." });
       return;
     }
+    let media = resMedia.v;
 
     // Respondió a un audio sin mandar imagen: usamos la que dejó esperando.
     if (!media && audioCrudo) {
@@ -349,8 +352,11 @@ export async function stickerConAudio({ sock, from, sender, msg, reply }) {
     }
 
     // La animación dura lo mismo que el audio (si es más corta, se repite).
+    // El contexto del sticker (nombre, grupo) se prepara mientras se convierte el video.
+    const contextoPromesa = contextoMeta({ sock, from, sender, msg });
+    contextoPromesa.catch(() => {});
     const visualFinal = esVid ? await videoAWebpLargo(visual, audio.seconds) : visual;
-    const contexto = await contextoMeta({ sock, from, sender, msg });
+    const contexto = await contextoPromesa;
     const sticker = await crearSticker(visualFinal, sender, contexto);
 
     try {

@@ -2,9 +2,10 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { execFile } from "child_process";
+import { conLimite } from "./limitador.js";
 
 export function correrFfmpeg(args, timeout = 120000) {
-  return new Promise((resolve, reject) => {
+  return conLimite("ligero", () => new Promise((resolve, reject) => {
     execFile(
       "ffmpeg",
       ["-nostdin", "-y", "-v", "error", ...args],
@@ -16,7 +17,7 @@ export function correrFfmpeg(args, timeout = 120000) {
         reject(new Error(detalle));
       }
     );
-  });
+  }));
 }
 
 export async function conTemporal(prefijo, trabajo) {
