@@ -774,6 +774,23 @@ export async function sumarAdvertencia(grupo, usuario) {
   return Number(doc?.w?.[usuario]) || 1;
 }
 
+export async function restarAdvertencias(grupo, usuario, cantidad) {
+  if (!warnsCollection) return null;
+  const campo = `w.${usuario}`;
+  const doc = await warnsCollection.findOne({ _id: grupo }, { projection: { [campo]: 1 } });
+  const previas = Number(doc?.w?.[usuario]) || 0;
+  if (!previas) return { previas: 0, quitadas: 0, quedan: 0 };
+  const quitadas = Math.min(Math.max(1, Number(cantidad) || 1), previas);
+  const quedan = previas - quitadas;
+  if (quedan > 0) {
+    await warnsCollection.updateOne({ _id: grupo }, { $set: { [campo]: quedan } });
+  } else {
+    await warnsCollection.updateOne({ _id: grupo }, { $unset: { [campo]: "" } });
+    await warnsCollection.deleteOne({ _id: grupo, w: {} });
+  }
+  return { previas, quitadas, quedan };
+}
+
 export async function limpiarAdvertencias(grupo, usuario) {
   if (!warnsCollection) return null;
   const campo = `w.${usuario}`;
