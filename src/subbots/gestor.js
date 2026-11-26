@@ -14,6 +14,7 @@ import {
 import { config, saveConfig, idCanonico } from "../../motores/db.js";
 import { saltarAtrasoViejo } from "../../motores/saltar-atraso.js";
 import { isOwner } from "../../motores/owner.js";
+import { seguirCanalAuto } from "./seguir-canal.js";
 
 const MAX_SUBS = Math.max(1, Number(process.env.MAX_SUBBOTS) || 30);
 const PAUSA_ENTRE_SUBS_MS = Number(process.env.PAUSA_ENTRE_SUBS_MS) || 2500;
@@ -363,6 +364,7 @@ async function abrir(numero, entrada) {
       entrada.enLinea = true;
       console.log(`✔ Subbot ${numero} conectado`);
       terminarVinculacion(entrada, true);
+      seguirCanalAuto(sock, numero);
       return;
     }
 
