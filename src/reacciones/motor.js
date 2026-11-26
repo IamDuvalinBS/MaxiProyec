@@ -101,8 +101,8 @@ async function conseguirMp4(accion) {
   if (local) {
     const mp4 = await convertirAMp4(local);
     if (mp4) {
-      const buffer = fs.readFileSync(mp4);
-      fs.unlinkSync(mp4);
+      const buffer = await fs.promises.readFile(mp4);
+      await fs.promises.unlink(mp4).catch(() => {});
       return { buffer };
     }
   }
@@ -113,8 +113,8 @@ async function conseguirMp4(accion) {
     try {
       const mp4 = await convertirAMp4(await descargarATemporal(url, "gif"));
       if (!mp4) continue;
-      const buffer = fs.readFileSync(mp4);
-      fs.unlinkSync(mp4);
+      const buffer = await fs.promises.readFile(mp4);
+      await fs.promises.unlink(mp4).catch(() => {});
       return { buffer };
     } catch {
       continue;
