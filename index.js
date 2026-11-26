@@ -36,6 +36,7 @@ import { normalizarMensaje, aprenderParticipantes, resolverUsuario, altDeClave }
 import { iniciarChatPagina } from "./src/nucleo/chatpagina.js";
 import { pasesParaPagina, pasesReclamados, alReclamarPase } from "./motores/gacha-pases.js";
 import { ejecutarStickerAccion } from "./src/nucleo/sticker-acciones.js";
+import { estaFunado } from "./motores/funados.js";
 import { vistaUnicaAlLlegar, vistaUnicaDesdeHistorial, segundosDe } from "./src/nucleo/vistaunica.js";
 
 // Calla el spam de libsignal (imprime sesiones completas con console.error/info/warn/log directo;
@@ -449,6 +450,8 @@ function enlazarEventos(sock, esSub) {
     if (!msg.key.fromMe && m.type === "notify" && msg.pushName) recordarNombre(sender, msg.pushName);
     if (esMensajeDePersona(msg, m.type)) contarMensajeGrupo(msg.key.remoteJid, sender);
 
+    const funado = !msg.key.fromMe && estaFunado(sender);   // número funado (.funar): se ignoran sus comandos
+
     const idBotonPulsado =
       msg.message.buttonsResponseMessage?.selectedButtonId ||
       msg.message.templateButtonReplyMessage?.selectedId ||
@@ -456,6 +459,7 @@ function enlazarEventos(sock, esSub) {
       null;
 
     if (idBotonPulsado) {
+      if (funado) return;
       if (from.endsWith("@g.us") && !msg.key.fromMe && botApagado(from)) return;
       await manejarComando(sock, from, sender, idBotonPulsado.trim(), msg);
       return;
@@ -472,6 +476,8 @@ function enlazarEventos(sock, esSub) {
     ).trim();
 
     if (from.endsWith("@g.us") && !msg.key.fromMe && antilinkActivo(from) && (await eliminarEnlace(sock, msg, from, sender, text))) return;
+
+    if (funado) return;
 
     const apagadoAqui = from.endsWith("@g.us") && !msg.key.fromMe && botApagado(from);
 
