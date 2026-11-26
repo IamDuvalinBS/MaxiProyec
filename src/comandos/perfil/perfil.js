@@ -16,12 +16,13 @@ const cursiva = (letras) => [...letras].map((l) => ({ o: "𝑜", a: "𝑎", x: "
 async function obtenerMedia(sock, target) {
   const ruta = pfpPath(target);
 
-  if (fs.existsSync(ruta)) {
+  const guardada = await fs.promises.readFile(ruta).catch(() => null);
+  if (guardada) {
     let tipo = "image";
     try {
-      tipo = fs.readFileSync(ruta + ".tipo", "utf8").trim();
+      tipo = (await fs.promises.readFile(ruta + ".tipo", "utf8")).trim();
     } catch (e) {}
-    return { buffer: fs.readFileSync(ruta), tipo };
+    return { buffer: guardada, tipo };
   }
 
   for (const calidad of ["image", "preview"]) {
@@ -35,7 +36,8 @@ async function obtenerMedia(sock, target) {
   }
 
   try {
-    if (fs.existsSync(FOTO_PATH)) return { buffer: fs.readFileSync(FOTO_PATH), tipo: "image" };
+    const porDefecto = await fs.promises.readFile(FOTO_PATH).catch(() => null);
+    if (porDefecto) return { buffer: porDefecto, tipo: "image" };
   } catch (e) {}
 
   return { buffer: null, tipo: "image" };
