@@ -6,11 +6,13 @@ import { fileURLToPath } from "url";
 
 const RAIZ = path.dirname(fileURLToPath(import.meta.url));
 const CODIGO_REINICIO = 42;
+// Tope de RAM de Node (MB). Con tope, el recolector de basura limpia antes y Android no mata el proceso. Cámbialo con MAXI_RAM_MB.
+const RAM_MB = Number(process.env.MAXI_RAM_MB) || 512;
 let hijo = null;
 let saliendo = false;
 
 const lanzar = () => {
-  hijo = spawn(process.execPath, ["index.js"], {
+  hijo = spawn(process.execPath, [`--max-old-space-size=${RAM_MB}`, "index.js"], {
     cwd: RAIZ,
     stdio: "inherit",
     env: { ...process.env, MAXI_SUPERVISADO: "1" }

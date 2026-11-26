@@ -140,13 +140,13 @@ async function iniciarPagina() {
     console.log(chalk.greenBright("✔ Conectado a la página (Firebase)"));
     usarPagina(PAG);   // publica en la página el cooldown de .code
     subirEstado();
-    setInterval(subirEstado, 60000);
+    setInterval(subirEstado, 2 * 60000);
     setTimeout(subirComandos, 20000);
     setTimeout(subirPases, 20000);
     setInterval(subirPases, 10 * 60000);
     alReclamarPase((jid) => { for (const [u, v] of PAG.vinc) if (v.jid === jid) sincronizarCuenta(u); });   // la página ve el pase reclamado al instante
     setInterval(subirComandos, 10 * 60000);
-    setInterval(() => { for (const u of PAG.vinc.keys()) sincronizarCuenta(u); }, 2 * 60000);
+    setInterval(() => { for (const u of PAG.vinc.keys()) sincronizarCuenta(u); }, 5 * 60000);
     setInterval(contarGrupos, 30 * 60000);
     try {   // chat con el bot desde la sección Chats de la página
       const { Timestamp } = await import("firebase-admin/firestore");
