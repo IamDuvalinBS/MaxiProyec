@@ -308,25 +308,32 @@ const ultimaReparacion = new Map();
 
 export function vigilarDescifrado(sock, etiqueta, reparar) {
   const CIFRADO = baileys.proto?.WebMessageInfo?.StubType?.CIPHERTEXT ?? 2;
-  let fallas = [];
+  // Se cuenta POR CHAT: antes un solo mensaje bien descifrado en cualquier chat borraba la cuenta, y un bot con
+  // solo algunos grupos dañados (lo normal) nunca se reparaba. También cuentan los mensajes propios (fromMe),
+  // que son justo los comandos del dueño. Un chat se considera dañado con varias fallas seguidas sin ningún acierto.
+  const fallas = new Map();   // chat -> instantes de las fallas
   sock.ev.on("messages.upsert", (m) => {
-    const ahora = Date.now();
     // Solo cuentan los mensajes en vivo ("notify"). Los que WhatsApp reenvía al reconectar ("append", atrasados)
     // fallan al descifrar y disparaban la limpieza en cada reinicio, lo que rompía los comandos nuevos.
     if (m.type !== "notify") return;
+    const ahora = Date.now();
+    let danado = false;
     for (const msg of m.messages || []) {
-      if (msg.key?.fromMe) continue;
+      const chat = msg.key?.remoteJid;
+      if (!chat) continue;
       if (msg.messageStubType === CIFRADO && !msg.message) {
-        fallas = fallas.filter((t) => ahora - t < VENTANA_FALLAS_MS);
-        fallas.push(ahora);
+        const lista = (fallas.get(chat) || []).filter((t) => ahora - t < VENTANA_FALLAS_MS);
+        lista.push(ahora);
+        fallas.set(chat, lista);
+        if (lista.length >= FALLAS_PARA_REPARAR) danado = true;
       } else if (msg.message) {
-        fallas = [];
+        fallas.delete(chat);
       }
     }
-    if (fallas.length < FALLAS_PARA_REPARAR) return;
+    if (!danado) return;
     if (ahora - (ultimaReparacion.get(etiqueta) || 0) < ESPERA_ENTRE_REPARACIONES_MS) return;
     ultimaReparacion.set(etiqueta, ahora);
-    fallas = [];
+    fallas.clear();
     Promise.resolve(reparar()).catch((e) => console.log(`[${etiqueta}] no se pudo reparar la sesión: ${e.message}`));
   });
-          }
+}
