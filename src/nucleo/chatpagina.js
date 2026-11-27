@@ -620,7 +620,7 @@ export function iniciarChatPagina({ PAG, Timestamp, config, commandRegistry, get
     };
 
     let terminado = false;
-    const aviso = setTimeout(() => { if (!terminado) resp("Este comando sigue en proceso… si tarda demasiado, revisa la consola de Termux.").catch(log); }, AVISO_MS);
+    const aviso = setTimeout(() => { if (!terminado) resp("Este comando sigue en proceso… si tarda demasiado, revisa la consola del bot.").catch(log); }, AVISO_MS);
     if (aviso.unref) aviso.unref();
     await als.run(ctx, async () => {
       try {
