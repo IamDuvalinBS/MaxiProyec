@@ -38,6 +38,7 @@ import { iniciarChatPagina } from "./src/nucleo/chatpagina.js";
 import { pasesParaPagina, pasesReclamados, alReclamarPase } from "./motores/gacha-pases.js";
 import { ejecutarStickerAccion } from "./src/nucleo/sticker-acciones.js";
 import { estaFunado } from "./motores/funados.js";
+import { normalizarNumero } from "./motores/owner.js";
 import { vistaUnicaAlLlegar, vistaUnicaDesdeHistorial, segundosDe } from "./src/nucleo/vistaunica.js";
 
 // Calla el spam de libsignal (imprime sesiones completas con console.error/info/warn/log directo;
@@ -345,10 +346,18 @@ function esActivo(msg, from) {
   return false;
 }
 
+const gruposSilenciadosAvisados = new Set();
 function puedeResponderEnGrupo(sock, grupo) {
   const principal = ajustesDe(grupo).principal;
   if (!principal || !sock.user || !sock.user.id) return true;
-  return sock.user.id.split(":")[0].split("@")[0] === String(principal);
+  // Se compara sin el "1" de los celulares de México (521… = 52…), si no un mismo bot quedaba "silenciado" por error.
+  const mio = normalizarNumero(sock.user.id.split(":")[0].split("@")[0]);
+  if (mio === normalizarNumero(principal)) return true;
+  if (!gruposSilenciadosAvisados.has(`${mio}|${grupo}`)) {
+    gruposSilenciadosAvisados.add(`${mio}|${grupo}`);
+    console.log(`[silenciado] ${grupo}: el bot principal es ${principal} y este bot es ${mio}. Usa .setprimary reset en el grupo para liberar.`);
+  }
+  return false;
 }
 
 function enlazarEventos(sock, esSub) {
@@ -431,7 +440,7 @@ function enlazarEventos(sock, esSub) {
       const crudo = msg.message.conversation || (msg.message.extendedTextMessage && msg.message.extendedTextMessage.text) || "";
       // Un bot silenciado (principal o subbot) deja pasar solo .setprimary/.botprincipal, así se puede cambiar o quitar el
       // bot principal desde cualquier bot del grupo. reclamarMensaje evita que más de un bot lo procese.
-      if (!/^\s*\S{0,3}(setprimary|botprincipal)\b/i.test(crudo)) return;
+      if (!/^\s*\S{0,3}\s*(setprimary|botprincipal)\b/i.test(crudo)) return;
     }
     if (!mensajeRelevante(msg, msg.key.remoteJid)) {
       if (!esSub && m.type === "notify" && !msg.key.fromMe) PAG.msgsHoy++;
