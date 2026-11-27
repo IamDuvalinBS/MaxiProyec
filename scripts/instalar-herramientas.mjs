@@ -26,8 +26,15 @@ function asegurar() {
   }
   if (!tieneYtdlp) {
     const py = existe("python3", ["--version"]) ? "python3" : "python";
-    const args = ["-m", "pip", "install", "-U", "--break-system-packages"];
-    if (!corre(py, [...args, "yt-dlp[default,curl-cffi]"])) corre(py, [...args, "yt-dlp[default]"]);
+    const variantes = [["--break-system-packages"], ["--user", "--break-system-packages"], ["--user"], []];
+    const paquetes = ["yt-dlp[default,curl-cffi]", "yt-dlp[default]", "yt-dlp"];
+    let listo = false;
+    for (const extra of variantes) {
+      for (const paquete of paquetes) {
+        if (corre(py, ["-m", "pip", "install", "-U", ...extra, paquete])) { listo = true; break; }
+      }
+      if (listo) break;
+    }
   }
   console.log(`[setup] yt-dlp: ${existe("yt-dlp") ? "OK" : "FALTA"} · ffmpeg: ${existe("ffmpeg", ["-version"]) ? "OK" : "FALTA"}`);
 }
