@@ -79,7 +79,11 @@ export default {
     lineas.push(`🔢 *Número* ›› ${num}`, `🏅 *Rango* ›› ${rango}`, `👑 *Owner del gacha* ›› ${owner ? "Sí ✅" : "No ❌"}`);
 
     if (esPropio && !owner) {
-      lineas.push("", "Si eres owner, en Termux (dentro de la carpeta del bot) ejecuta:", `echo "${num}" >> data/owners-gacha.txt`, "y ya funciona, sin reiniciar.");
+      lineas.push(
+        "",
+        "Si eres owner, agrega este número en la variable de entorno *GACHA_OWNERS* (varios separados por coma) o en una línea del archivo *data/owners-gacha.txt*:",
+        num
+      );
     }
     return reply({ text: tarjeta({ emoji: "🪪", titulo: esPropio ? "MI ID" : "ID DE USUARIO", lineas }) });
   }
