@@ -60,7 +60,7 @@ const FUENTES_LARGO = (process.env.HENTAI_FUENTES || "https://www.pornhub.com/vi
   .split(",").map((s) => s.trim()).filter(Boolean);
 
 async function videoLargo() {
-  if (!(await hayYtdlp())) throw new Error('Falta yt-dlp: pkg install python ffmpeg && pip install -U "yt-dlp[default]"');
+  if (!(await hayYtdlp())) throw new Error('Falta yt-dlp: instala python y ffmpeg y corre pip install -U "yt-dlp[default]" (en Termux: pkg install python ffmpeg)');
   const fuente = azar(FUENTES_LARGO);
   const pagina = 1 + Math.floor(Math.random() * 5);
   const listado = fuente + (fuente.includes("?") ? "&" : "?") + `page=${pagina}`;

@@ -106,7 +106,7 @@ function ffmpegBin() {
     if (bin && existsSync(bin)) return (_ffmpeg = bin);
   } catch { /* noop */ }
 
-  throw new Error("ffmpeg no disponible. En Termux: pkg install ffmpeg");
+  throw new Error("ffmpeg no disponible. Instálalo (Termux: pkg install ffmpeg; servidor: apt install ffmpeg) o define FFMPEG_PATH");
 }
 
 const DUR_RE = /Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/;

@@ -74,7 +74,7 @@ export default {
     return reply({
       text: tarjetaError(
         sinYtdlp ? "Para descargar de cualquier página necesito yt-dlp." : "No pude sacar contenido descargable de ese enlace.",
-        sinYtdlp ? 'En Termux: pkg install python ffmpeg && pip install -U "yt-dlp[default]"' : errorYtdlp?.message
+        sinYtdlp ? 'Instala yt-dlp y ffmpeg (Termux: pkg install python ffmpeg && pip install -U "yt-dlp[default]"; servidor: apt install ffmpeg python3-pip && pip install -U yt-dlp)' : errorYtdlp?.message
       )
     });
   }
