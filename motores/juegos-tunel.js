@@ -3,6 +3,7 @@ import { ponerUrlTunel } from "./juegos-api.js";
 
 // Si tienes "cloudflared" instalado (en Termux: pkg install cloudflared), abre solo un túnel
 // público gratis y los juegos lo usan para guardar los récords sin que hagas nada.
+// En un hosting con dominio público (Railway, Render, Koyeb, Fly, etc.) no hace falta: se usa ese dominio.
 // Desactívalo con JUEGOS_TUNEL=0. Si ya tienes JUEGOS_URL / PUBLIC_URL, no se abre.
 let proc = null;
 let fallos = 0;
@@ -10,7 +11,8 @@ let avisado = false;
 
 export function iniciarTunel(puerto) {
   if (process.env.JUEGOS_TUNEL === "0" || proc) return;
-  if (process.env.JUEGOS_URL || process.env.PUBLIC_URL || process.env.RENDER_EXTERNAL_URL) return;
+  const e = process.env;
+  if (e.JUEGOS_URL || e.PUBLIC_URL || e.RENDER_EXTERNAL_URL || e.RAILWAY_PUBLIC_DOMAIN || e.KOYEB_PUBLIC_DOMAIN || e.FLY_APP_NAME || e.HEROKU_APP_NAME || e.SPACE_HOST || e.REPLIT_DEV_DOMAIN) return;
   lanzar(puerto);
 }
 
