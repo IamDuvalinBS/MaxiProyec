@@ -14,6 +14,8 @@ import { idCanonico } from "./db.js";
 //  o las variables de entorno DUENOS_EXTRA y OWNERS_EXTRA (números separados por coma).
 // ════════════════════════════════════════════════════════════════════════════
 export const DUENOS = [
+  "5219613627169@s.whatsapp.net", // Yo
+  "155345393565872@lid",          // Yo (ID interno)
   "573019409307@s.whatsapp.net", // Dueño (tú)
   "188639879372966@lid",         // Dueño (tu ID interno)
   "528719632704@s.whatsapp.net", // Dueño (Amorchito)
