@@ -1,3 +1,4 @@
+import { nombreEntorno, numeroDeVinculacion } from "./motores/entorno.js";
 import {
   makeWASocket,
   DisconnectReason,
@@ -53,7 +54,7 @@ for (const metodo of ["error", "warn", "info", "log"]) {
 }
 
 function imprimirBanner() {
-  console.clear();
+  if (process.stdout.isTTY) console.clear();
   cfonts.say("MAXI-BOT", {
     font: "block",
     align: "center",
@@ -62,6 +63,7 @@ function imprimirBanner() {
   const firma = "powered by • It's Duva";
   const espacios = " ".repeat(Math.max(0, Math.floor((process.stdout.columns || 60) / 2) - Math.floor(firma.length / 2)));
   console.log(espacios + chalk.gray("powered by ") + chalk.cyanBright("• ") + chalk.magentaBright("It's Duva") + "\n");
+  console.log(chalk.gray("Entorno: ") + chalk.white(nombreEntorno()) + chalk.gray(" · Node " + process.version) + "\n");
 }
 
 let ultimaSalida = Date.now();
@@ -90,6 +92,10 @@ http
   .createServer((req, res) => {
     if (manejarApiJuegos(req, res)) return;
     if (manejarPaginas(req, res)) return;
+    if (req.url === "/health" || req.url === "/salud") {
+      res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8" });
+      return res.end("ok");
+    }
     res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
     const segundos = codeTime ? Math.floor((Date.now() - codeTime) / 1000) : null;
     res.end(`
@@ -108,7 +114,7 @@ http
     console.log("❌ Ya hay otra copia del bot encendida (puerto ocupado). Ciérrala con: pkill -f node");
     process.exit(1);
   })
-  .listen(PORT, () => console.log("Servidor web escuchando en el puerto " + PORT));
+  .listen(PORT, "0.0.0.0", () => console.log("Servidor web escuchando en el puerto " + PORT));
 
 process.on("uncaughtException", (err) => {
   console.log("Error no manejado (el bot sigue corriendo): " + err.message);
@@ -596,7 +602,14 @@ async function startBot() {
       pairingRequested = true;
       try {
         await esperarSilencio();
-        const numero = (await question("\n📱 Ingresá el número a vincular (con código de país, sin +, sin espacios): ")).trim();
+        let numero = numeroDeVinculacion();
+        if (numero) {
+          console.log("\n📱 Vinculando el número " + numero + " (variable NUMERO_BOT)...");
+        } else {
+          console.log(chalk.gray("\nSi tu hosting no tiene consola para escribir, define la variable de entorno NUMERO_BOT con el número (código de país, sin +) y reinicia."));
+          numero = (await question("\n📱 Ingresa el número a vincular (con código de país, sin +, sin espacios): ")).replace(/\D/g, "");
+        }
+        if (!numero) throw new Error("No se indicó ningún número");
         const CODIGO_PERSONALIZADO = "MAXIBOTS";
         const code = await sock.requestPairingCode(numero, CODIGO_PERSONALIZADO);
         currentCode = code;
