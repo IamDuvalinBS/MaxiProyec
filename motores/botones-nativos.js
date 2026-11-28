@@ -114,7 +114,7 @@ const FIRMA_BOT = Buffer.from(SIGNATURE_B64, "base64");
 const CADENA_BOT = CERT_CHAIN_B64.map((item) => Buffer.from(item, "base64"));
 const JID_BOT = "867051314767696@bot";
 const URL_HTML = "https://astabot.hidenplay.net";
-const FUENTES_HTML = ["astabot.hidenplay.net", "unpkg.com", "cdn.jsdelivr"];
+export const FUENTES_HTML = ["astabot.hidenplay.net", "unpkg.com", "cdn.jsdelivr"];
 
 /**
  * Envía un HTML interactivo embebido (mini-app), igual que los comandos de juego.

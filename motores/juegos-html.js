@@ -3,13 +3,15 @@ import { esHalloween } from "../src/economia/temas.js";
 import { getProfile } from "./profile.js";
 import { firmar, recordDe, topDe, rankingDe, limpiarNombre, JUEGOS } from "./juegos-records.js";
 import { urlPublica, cargarUrl } from "./juegos-api.js";
+import { enviarHtmlEmbebido, FUENTES_HTML } from "./botones-nativos.js";
 
 // Envía un juego HTML:
 //  - responde (cita) al mensaje de quien pidió el comando
 //  - inyecta el tema (Halloween o normal), el récord guardado en Mongo, el top 5 y el ranking
 //  - "variantes": juegos con varios récords (modos) → un pase, récord y top por cada uno
-export async function enviarJuego({ sock, from, msg, sender, juego, html, variantes }) {
-  if (typeof sock.sendHtml !== "function") throw new Error("este Baileys no tiene sendHtml");
+// "embebido" ({ titulo, pestana }) → se manda como el harem: un mensaje con botón que abre el juego en una hoja.
+// Si eso falla, o no se pide, se manda el juego dentro del propio mensaje (sendHtml).
+export async function enviarJuego({ sock, from, msg, sender, juego, html, variantes, embebido }) {
   await cargarUrl();
   const ids = Array.isArray(variantes) && variantes.length ? variantes : [juego];
   const uid = idCanonico(sender);
@@ -46,6 +48,14 @@ export async function enviarJuego({ sock, from, msg, sender, juego, html, varian
   const salida = html
     .replaceAll("__FIRMA__", () => config.botNameShort || "MaxiProyec")
     .replace("__DATA__", () => json);
+  if (embebido) {
+    // La hoja solo puede hablar con los dominios de la lista: se añade el de la API de récords.
+    const fuentes = [...FUENTES_HTML];
+    try { const h = new URL(datos.api).host; if (h && !fuentes.includes(h)) fuentes.push(h); } catch {}
+    const ok = await enviarHtmlEmbebido({ sock, from, msg, titulo: embebido.titulo, html: salida, pestana: embebido.pestana || "JUGAR", fuentes });
+    if (ok) return;
+  }
+  if (typeof sock.sendHtml !== "function") throw new Error("este Baileys no tiene sendHtml");
   // 4.º parámetro = mensaje citado → el juego llega como respuesta al comando
   await sock.sendHtml(from, salida, [], msg, {});
 }
