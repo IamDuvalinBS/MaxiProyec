@@ -11,7 +11,7 @@ import { esSubcomandoAudio, stickerConAudio } from "../../nucleo/sticker-audio.j
 
 export default {
   names: [".s", ".sticker"],
-  desc: "Convierte una imagen, GIF o video en sticker (.saudio = con sonido, .shelp = ayuda)",
+  desc: "Convierte una imagen, GIF, video, nota de video o previa de link en sticker (.saudio = con sonido, .shelp = ayuda)",
   category: "Stickers",
   usage: ".s",
   handler: async ({ msg, sender, from, sock, reply, cleanText }) => {
@@ -38,7 +38,7 @@ export default {
     }
 
     if (!media) {
-      await reply({ text: "🖼️ Responde a una imagen, GIF o video con *.s* para convertirlo en sticker." });
+      await reply({ text: "🖼️ Responde a una imagen, GIF, video, nota de video o previa de link con *.s* para convertirlo en sticker." });
       return;
     }
 
