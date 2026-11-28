@@ -36,6 +36,7 @@ import { esMensajeDePersona, contarMensajeGrupo } from "./motores/estadisticas.j
 import { normalizarMensaje, aprenderParticipantes, resolverUsuario, altDeClave } from "./src/nucleo/identidad.js";
 import { iniciarChatPagina } from "./src/nucleo/chatpagina.js";
 import { pasesParaPagina, pasesReclamados, alReclamarPase } from "./motores/gacha-pases.js";
+import "./src/nucleo/sticker-audio-recibir.js";
 import { ejecutarStickerAccion } from "./src/nucleo/sticker-acciones.js";
 import { estaFunado } from "./motores/funados.js";
 import { normalizarNumero } from "./motores/owner.js";
