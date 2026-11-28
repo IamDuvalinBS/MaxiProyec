@@ -5,7 +5,7 @@ import os from "os";
 import path from "path";
 import { execFile } from "child_process";
 import { conLimite } from "./limitador.js";
-import { downloadMediaMessage } from "@fer2809fl/baileys";
+import { downloadMediaMessage, downloadContentFromMessage } from "@fer2809fl/baileys";
 import { getStickerMeta, config } from "../../motores/db.js";
 import { getProfile } from "../../motores/profile.js";
 import { esGrupo, metadatos } from "../grupos/nucleo.js";
@@ -39,29 +39,104 @@ export function desenvolverVistaUnica(message) {
   return m || null;
 }
 
+// Media "descargable" de un mensaje: imagen, video, nota de video (ptv) o sticker.
+// La nota de video se reenvuelve como videoMessage para que cualquier versión de Baileys la descargue.
+function mediaDirecta(m) {
+  if (!m) return null;
+  if (m.imageMessage) return { message: { imageMessage: m.imageMessage }, contenido: m.imageMessage };
+  if (m.videoMessage) return { message: { videoMessage: m.videoMessage }, contenido: m.videoMessage };
+  if (m.ptvMessage) return { message: { videoMessage: m.ptvMessage }, contenido: m.ptvMessage };
+  if (m.stickerMessage) return { message: { stickerMessage: m.stickerMessage }, contenido: m.stickerMessage };
+  return null;
+}
+
+const aBuffer = (v) => (v && v.length ? Buffer.from(v) : null);
+
+async function descargarFlujo(flujo) {
+  const partes = [];
+  for await (const trozo of flujo) partes.push(trozo);
+  return Buffer.concat(partes);
+}
+
+// Previa de un mensaje que no trae foto/video: previa de link, tarjeta del menú/kiss (externalAdReply) o cabecera de producto.
+// Devuelve la mejor imagen que encuentre (alta resolución primero, miniatura después) o null.
+async function imagenDePrevia(m, key) {
+  if (!m) return null;
+
+  // 1) Cabecera tipo "producto" (la del menú con botones)
+  const producto =
+    m.interactiveMessage?.header?.productMessage?.product?.productImage ||
+    m.productMessage?.product?.productImage;
+  if (producto) {
+    try {
+      return await downloadMediaMessage({ key, message: { imageMessage: producto } }, "buffer", {});
+    } catch (e) {
+      const mini = aBuffer(producto.jpegThumbnail);
+      if (mini) return mini;
+    }
+  }
+
+  // 2) Previa de link (texto con enlace)
+  const ext = m.extendedTextMessage;
+  if (ext && (ext.thumbnailDirectPath || ext.jpegThumbnail)) {
+    if (ext.thumbnailDirectPath && ext.mediaKey) {
+      try {
+        const flujo = await downloadContentFromMessage(
+          { mediaKey: ext.mediaKey, directPath: ext.thumbnailDirectPath },
+          "thumbnail-link"
+        );
+        const completa = await descargarFlujo(flujo);
+        if (completa.length) return completa;
+      } catch (e) {}
+    }
+    const mini = aBuffer(ext.jpegThumbnail);
+    if (mini) return mini;
+  }
+
+  // 3) externalAdReply (previa grande del menú y del kiss), en el contextInfo de cualquier tipo de mensaje
+  const ctx = Object.values(m).find((v) => v && typeof v === "object" && v.contextInfo?.externalAdReply)?.contextInfo;
+  const ad = ctx?.externalAdReply;
+  if (ad) {
+    const directa = aBuffer(ad.thumbnail);
+    if (directa) return directa;
+    if (ad.thumbnailUrl) {
+      try {
+        return await descargarBuffer(ad.thumbnailUrl);
+      } catch (e) {}
+    }
+  }
+  return null;
+}
+
 export async function extraerMediaDeMensaje(msg, sender) {
   const m = desenvolverVistaUnica(msg.message) || {};
-  const ctx = m.extendedTextMessage?.contextInfo || m.imageMessage?.contextInfo || m.videoMessage?.contextInfo;
+  const ctx =
+    m.extendedTextMessage?.contextInfo ||
+    m.imageMessage?.contextInfo ||
+    m.videoMessage?.contextInfo ||
+    m.ptvMessage?.contextInfo;
   const citado = desenvolverVistaUnica(ctx?.quotedMessage);
+  const claveCitado = ctx
+    ? { remoteJid: msg.key.remoteJid, id: ctx.stanzaId, participant: ctx.participant }
+    : null;
 
-  let objetivo = null;
-  let contenido = null;
-  if (m.imageMessage || m.videoMessage) {
-    objetivo = { key: msg.key, message: m };
-    contenido = m.imageMessage || m.videoMessage;
-  } else if (citado?.imageMessage || citado?.videoMessage || citado?.stickerMessage) {
-    objetivo = {
-      key: { remoteJid: msg.key.remoteJid, id: ctx.stanzaId, participant: ctx.participant },
-      message: citado
-    };
-    contenido = citado.imageMessage || citado.videoMessage || citado.stickerMessage;
+  // Archivo en el propio mensaje, o en el mensaje citado
+  const propia = mediaDirecta(m);
+  const citada = mediaDirecta(citado);
+  const origen = propia || citada;
+  if (origen) {
+    const objetivo = { key: propia ? msg.key : claveCitado, message: origen.message };
+    if (!propia) exigirAccesoPremium(citado?.stickerMessage, msg, sender);
+    const buffer = await downloadMediaMessage(objetivo, "buffer", {});
+    return { buffer, segundos: Number(origen.contenido.seconds) || 0 };
   }
-  if (!objetivo) return null;
 
-  exigirAccesoPremium(citado?.stickerMessage, msg, sender);
-
-  const buffer = await downloadMediaMessage(objetivo, "buffer", {});
-  return { buffer, segundos: Number(contenido.seconds) || 0 };
+  // Sin archivo: previa de link / tarjeta del menú del mensaje citado
+  if (citado) {
+    const buffer = await imagenDePrevia(citado, claveCitado);
+    if (buffer) return { buffer, segundos: 0 };
+  }
+  return null;
 }
 
 const recortar = (texto, max) => {
