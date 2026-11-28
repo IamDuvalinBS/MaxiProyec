@@ -1,8 +1,19 @@
 import daily from "./daily.js";
 import { jidObjetivo } from "../../economia/formato.js";
 import { isDueno } from "../../../motores/owner.js";
+import { getAllAccounts, idCanonico } from "../../../motores/db.js";
 
 const OPCIONES = ["pagar", "reiniciar"];
+
+function resolverNumero(numero) {
+  const variantes = /^521\d{10}$/.test(numero) ? [numero, `52${numero.slice(3)}`]
+    : /^52\d{10}$/.test(numero) ? [`521${numero.slice(2)}`, numero]
+    : [numero];
+  const cuentas = getAllAccounts();
+  const jids = variantes.map((n) => `${n}@s.whatsapp.net`);
+  const existente = jids.find((jid) => cuentas.has(idCanonico(jid)));
+  return existente || jids[0];
+}
 
 export default {
   names: [".dailypara", ".dailyde", ".claimdaily"],
@@ -16,7 +27,7 @@ export default {
     let objetivo = jidObjetivo(msg);
     if (!objetivo) {
       const numero = partes.map((p) => p.replace(/\D/g, "")).find((n) => n.length >= 8 && n.length <= 15);
-      if (numero) objetivo = `${numero}@s.whatsapp.net`;
+      if (numero) objetivo = resolverNumero(numero);
     }
     if (!objetivo) {
       return reply({ text: "❌ Indica a quién reclamar el daily: etiqueta al usuario, responde a su mensaje o escribe su número.\nEjemplo: .dailypara @usuario o .dailypara 5219611234567" });
