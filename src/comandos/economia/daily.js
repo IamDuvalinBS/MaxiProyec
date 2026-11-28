@@ -1,6 +1,6 @@
 import { addToWallet, getAccount, checkCooldown } from "../../../motores/db.js";
 import { tarjeta, monto, textoEspera } from "../../economia/formato-evento.js";
-import { textoDias, costoRecuperar, estadoRacha, registrarReclamo } from "../../economia/rachas.js";
+import { textoDias, costoRecuperar, estadoRacha, registrarReclamo, RACHA_MAXIMA } from "../../economia/rachas.js";
 import { estilo } from "../../economia/temas.js";
 import { extraDaily } from "../../../motores/gacha-muertos.js";
 import { asegurarKarma, nivelDe } from "../../../motores/karma.js";
@@ -8,6 +8,7 @@ import { asegurarKarma, nivelDe } from "../../../motores/karma.js";
 const CLAVE = "daily";
 const PREMIO = 20000;
 const PREMIO_RACHA_MAXIMA = 2000000;
+const PREMIO_MAXIMO_DIARIO = 100000;
 const ESPERA_MS = 24 * 60 * 60 * 1000;
 const VENTANA_MS = 48 * 60 * 60 * 1000;
 
@@ -96,13 +97,16 @@ export default {
     checkCooldown(sender, CLAVE, ESPERA_MS);
     // El karma cambia el premio: LEYENDA x1.5, CONFIABLE x1.2, NORMAL x1, POCO CONFIABLE x0.6, TRAIDOR x0.25.
     const nivelKarma = nivelDe(sender);
-    const premio = Math.round(PREMIO * nivelKarma.daily);
+    const rachaNueva = Math.min(RACHA_MAXIMA, (reiniciar ? 0 : cantidad) + 1);
+    const bonoRacha = Math.round(((PREMIO_MAXIMO_DIARIO - PREMIO) * (rachaNueva - 1)) / (RACHA_MAXIMA - 1) / 10) * 10;
+    const premio = Math.round((PREMIO + bonoRacha) * nivelKarma.daily);
     const extra = extraDaily(sender, premio);
     addToWallet(sender, premio + extra);
     const { cantidad: racha, completoMaximo } = registrarReclamo(sender, CLAVE, reiniciar, from);
     if (completoMaximo) addToWallet(sender, PREMIO_RACHA_MAXIMA);
 
     const lineas = [E.lineaGanado(premio)];
+    if (bonoRacha) lineas.push(`🔥 *BONO DE RACHA (${textoDias(rachaNueva)})::* +${monto(bonoRacha)} base`);
     if (nivelKarma.daily !== 1) lineas.push(`⭐ *KARMA ${nivelKarma.emoji} ${nivelKarma.nombre}::* x${nivelKarma.daily} en tu daily`);
     if (extra) lineas.push(`🌼 *BONO DE OFRENDA::* +${monto(extra)}`);
     if (completoMaximo) lineas.push(E.lineaAnual(PREMIO_RACHA_MAXIMA));
