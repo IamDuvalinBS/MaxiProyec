@@ -70,7 +70,7 @@ canvas#c{width:100%;display:block;border:2px solid var(--ac);border-radius:18px;
 .again{display:flex;align-items:center;justify-content:center;gap:8px}
 .again svg{width:14px;height:14px;flex:none}
 .again.alt{background:var(--cd);color:#fff;border:2px solid var(--ac);margin-top:4px}
-#lb{position:absolute;left:0;top:0;right:0;bottom:0;z-index:45;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:12px 10px;background:rgba(6,2,14,.9);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);border-radius:16px;overflow-y:auto;box-sizing:border-box}
+#lb{position:absolute;left:0;top:0;right:0;bottom:0;z-index:45;display:flex;flex-direction:column;align-items:center;gap:8px;padding:12px 10px;background:rgba(6,2,14,.9);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);border-radius:16px;overflow-y:auto;box-sizing:border-box}
 .lbpv{width:92px;height:80px;display:block;flex:none}
 .lbt{font-size:11px;letter-spacing:3px;color:var(--ac);font-weight:900;text-align:center}
 .lbi{font-size:11px;color:var(--mu);font-weight:700;text-align:center;min-height:14px}.lbi b{color:#fff}
@@ -79,6 +79,8 @@ canvas#c{width:100%;display:block;border:2px solid var(--ac);border-radius:18px;
 .lbb:active{background:var(--ac);color:#111}
 #lb>.lbb{flex:none}
 #lb>*{flex-shrink:0}
+#lb>:first-child{margin-top:auto}#lb>:last-child{margin-bottom:auto}
+#lb .mptabs{margin:2px 0 4px}#lb .mpl li{padding:5px 10px}
 .lbb svg{width:14px;height:14px;flex:none}
 .sks{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;width:100%}
 .sk{border:2px solid var(--cd);border-radius:12px;background:var(--cd);color:#fff;padding:6px 2px 5px;display:flex;flex-direction:column;align-items:center;gap:3px;font:900 9px Roboto,Arial,sans-serif;letter-spacing:.5px;min-width:0}
@@ -101,7 +103,6 @@ canvas#c{width:100%;display:block;border:2px solid var(--ac);border-radius:18px;
 <div class="b"><button id="j"></button><button id="d"></button></div>
 <div id="ov"><b id="ot">GAME OVER</b><span id="ox"></span><div id="rk"></div><button class="again" id="ag"></button><button class="again alt" id="am"></button></div><div id="lb"></div>
 </div>
-<div id="mpr"></div>
 <div class="foot"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.7"/><path d="M8 7v4.2M8 4.7v.1" stroke-linecap="round"/></svg>Powered by __FIRMA__</div>
 </div>
 <script>
@@ -116,7 +117,7 @@ up:'<path d="M12 5l8 12H4z"/>',down:'<path d="M12 19L4 7h16z"/>',skin:'<path d="
 back:'<path d="M15 5l-8 7 8 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>',
 lock:'<path d="M7 11V8a5 5 0 0110 0v3h1.5v10h-13V11zm2.4 0h5.2V8a2.6 2.6 0 00-5.2 0z"/>',
 chk:'<path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>',
-redo:'<path d="M19 12a7 7 0 11-2.1-5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><path d="M19 3v5h-5z"/>'};
+top:'<path d="M4 20V11h4.5v9zM9.8 20V4h4.4v16zM15.5 20v-6H20v6z"/>',redo:'<path d="M19 12a7 7 0 11-2.1-5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><path d="M19 3v5h-5z"/>'};
 function ico(n,z){return '<svg viewBox="0 0 24 24" width="'+z+'" height="'+z+'" fill="currentColor" aria-hidden="true">'+ICOS[n]+'</svg>'}
 var MP=(function(){
 var G={};
@@ -166,7 +167,6 @@ return{init:function(g){G=g;setTimeout(flush,1500)},V:V,top:top,save:save,panel:
 })();
 MP.init(GD);
 function hDeco(list){var f=document.getElementById("hwfx"),h="",i,a;if(!f)return;for(i=0;i<list.length;i++){a=list[i];h+='<i class="'+a[1]+'" style="left:'+a[2]+'%;'+a[3]+';font-size:'+a[6]+'px;animation-duration:'+a[4]+'s;animation-delay:-'+a[5]+'s">'+a[0]+'</i>'}f.insertAdjacentHTML("beforeend",h)}
-MP.panel({ids:["dino"],lab:{},title:"TOP DEL BOT · MEJOR PUNTAJE"});document.getElementById("tp").innerHTML=MP.top("dino");
 var snd=2,AC=null,MG=null,MB=null,NB=null,TL={},vc=0,mid=0,mpat=null,mNext=0,mStep=0,MSP=.25,MCUR=null,ACUR=null,ANS=null;
 try{var sv0=localStorage.getItem("mp_snd2");if(sv0!==null)snd=Math.max(0,Math.min(2,parseInt(sv0)||0))}catch(e){}
 function au(){if(!AC){try{var C=window.AudioContext||window.webkitAudioContext;AC=new C();MG=AC.createGain();MG.gain.value=1;var cp=AC.createDynamicsCompressor();cp.threshold.value=-16;cp.ratio.value=8;cp.attack.value=.003;cp.release.value=.15;MG.connect(cp);cp.connect(AC.destination);MB=AC.createGain();MB.gain.value=.55;MB.connect(MG);
@@ -397,12 +397,15 @@ function renderLb(v){lbv=v||lbv;var h="",i,e=MP.esc;
   h='<div class=lbt>MODO DE JUEGO</div><div class=mds>';
   for(i=0;i<MODES.length;i++)h+='<button type=button class="md'+(MODES[i]===MD?" on":"")+'" data-a=mode data-i='+i+'><div><b>'+MODES[i].n+'</b><span>'+MODES[i].d+'</span></div><u>'+(MODES[i].rank?"RANKING":"LIBRE")+'</u></button>';
   h+='</div><button type=button class=lbb data-a=back>'+ico("back",14)+'VOLVER</button>';
+ }else if(lbv==="t"){
+  h='<div class=lbt>RANKING</div><div id=mpr style="width:100%"></div><button type=button class=lbb data-a=back>'+ico("back",14)+'VOLVER</button>';
  }else{
   h='<canvas id=pv class=lbpv width=128 height=112></canvas><div class=lbi>MEJOR <b>'+f5(best)+'</b> &nbsp;·&nbsp; MODO <b>'+MD.n+'</b></div>'+
    '<button type=button class=again data-a=play>'+ico("play",14)+'JUGAR</button>'+
-   '<div class=lbr><button type=button class=lbb data-a=skins>'+ico("skin",14)+'ESTILOS</button><button type=button class=lbb data-a=modes>'+ico("bolt",14)+'MODO</button></div>';
+   '<div class=lbr><button type=button class=lbb data-a=skins>'+ico("skin",14)+'ESTILOS</button><button type=button class=lbb data-a=modes>'+ico("bolt",14)+'MODO</button><button type=button class=lbb data-a=top>'+ico("top",14)+'TOP</button></div>';
  }
  lb.innerHTML=h;PV=$("pv");pvx=PV?PV.getContext("2d"):null;
+ if(lbv==="t"){MP.panel({ids:["dino"],lab:{},title:"TOP DEL BOT · MEJOR PUNTAJE"});$("tp").innerHTML=MP.top("dino")}
  if(lbv==="s"){var cs=lb.getElementsByClassName("skc");for(i=0;i<cs.length;i++)cs[i].appendChild(prev(i))}
 }
 function toMenu(){st=0;mend();ane();duck=false;$("ov").style.display="none";vEl.textContent="";lbHint="";renderLb("m");lb.style.display="flex"}
@@ -411,6 +414,7 @@ lb.addEventListener("click",function(e){var t=e.target;while(t&&t!==lb&&!(t.getA
  if(a==="play"){lb.style.display="none";pvx=null;reset()}
  else if(a==="skins"){lbHint="";renderLb("s")}
  else if(a==="modes")renderLb("d");
+ else if(a==="top")renderLb("t");
  else if(a==="back")renderLb("m");
  else if(a==="skin"){lbHint=setSkin(i)?"":"Supera "+SK[i].u+" puntos en modo NORMAL para desbloquearlo";renderLb("s")}
  else if(a==="mode"){setMode(i);renderLb("d")}});
@@ -431,7 +435,7 @@ export default {
   usage: ".dino",
   handler: async ({ sock, from, msg, sender }) => {
     try {
-      await enviarJuego({ sock, from, msg, sender, juego: "dino", html: GAME_HTML });
+      await enviarJuego({ sock, from, msg, sender, juego: "dino", html: GAME_HTML, embebido: { titulo: "Dino Runner", pestana: "JUGAR" } });
     } catch (e) {
       console.log("[DINO] ERROR: " + e.stack);
       await sock.sendMessage(from, { text: "❌ No se pudo enviar el juego: " + e.message }, { quoted: msg });
