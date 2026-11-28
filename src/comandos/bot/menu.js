@@ -28,7 +28,14 @@ const GRUPOS = [
     icono: "🎴",
     descripcion: "Colecciona waifus, pokémon, brawlers y más.",
     categorias: ["Gacha"],
-    alias: ["gacha", "waifus", "rw", "pokemon", "brawl"]
+    alias: ["gacha", "rw", "pokemon", "brawl"]
+  },
+  {
+    titulo: "WAIFUS",
+    icono: "💖",
+    descripcion: "Tira, reclama, colecciona y vota por tus waifus.",
+    categorias: ["Waifu"],
+    alias: ["waifus", "waifu"]
   },
   {
     titulo: "PETS",
@@ -70,7 +77,7 @@ const GRUPOS = [
     icono: "🤖",
     descripcion: "Opción para tener tu socket activo.",
     categorias: ["Subbots"],
-    alias: ["Subbots"]
+    alias: ["subbots", "subbot", "sockets"]
   },
   {
     titulo: "JUEGOS",
@@ -78,6 +85,13 @@ const GRUPOS = [
     descripcion: "Juegos para divertirte con tus amigos.",
     categorias: ["Juegos"],
     alias: ["juegos", "juego", "games", "game"]
+  },
+  {
+    titulo: "BROMAS",
+    icono: "🤡",
+    descripcion: "Medidores y shippeos al azar para vacilar con tus amigos.",
+    categorias: ["Bromas"],
+    alias: ["bromas", "broma", "jokes", "joke"]
   },
   {
     titulo: "REACCIONES",
@@ -94,11 +108,11 @@ const GRUPOS = [
     alias: ["stickers", "sticker"]
   },
   {
-    titulo: "ANIME",
-    icono: "🌸",
-    descripcion: "Fotos y videos de anime, cortos o largos.",
+    titulo: "NSFW",
+    icono: "🔞",
+    descripcion: "Fotos y videos de anime +18, cortos o largos.",
     categorias: ["Anime"],
-    alias: ["anime", "animes"]
+    alias: ["nsfw", "anime", "animes", "hentai", "+18"]
   }
 ];
 
@@ -183,8 +197,8 @@ function textoMenuCompleto(categorias) {
 function textoGrupo(argumento, categorias) {
   const grupo = buscarGrupo(argumento);
   if (!grupo) {
-    const nombres = GRUPOS.map((g) => g.titulo).join(", ");
-    return `✿ No encontré la categoría *${argumento}*.\nCategorías disponibles: ${nombres}.`;
+    const lista = GRUPOS.map((g) => `- *${g.titulo}*\n> ${g.descripcion}`).join("\n");
+    return `✿ No encontré la categoría *${argumento.toUpperCase()}*.\n\n\n⧼🐋⧽ \`\`\`##\`\`\` *CATEGORIAS DISPONIBLES:*\n\n${lista}`;
   }
 
   const comandos = comandosDe(grupo, categorias);
