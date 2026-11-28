@@ -148,11 +148,13 @@ async function videoAWebpLargo(buffer, segundos) {
     const salida = path.join(dir, "salida.webp");
     await fs.promises.writeFile(entrada, buffer);
     let resultado = null;
-    for (let i = 0; i < AJUSTES_LARGO.length; i++) {
+    // Los videos largos casi nunca caben con la calidad alta: se empieza más abajo para no re-codificar de más.
+    const inicio = segundos <= 8 ? 0 : segundos <= 15 ? 1 : segundos <= 22 ? 2 : 3;
+    for (let i = inicio; i < AJUSTES_LARGO.length; i++) {
       const ajuste = AJUSTES_LARGO[i];
       const filtro = [
         `fps=${ajuste.fps}`,
-        "scale=512:512:force_original_aspect_ratio=decrease:flags=lanczos",
+        "scale=512:512:force_original_aspect_ratio=decrease:flags=bicubic",
         "format=rgba",
         "pad=512:512:(ow-iw)/2:(oh-ih)/2:color=black@0"
       ].join(",");
@@ -169,7 +171,7 @@ async function videoAWebpLargo(buffer, segundos) {
             "-c:v", encoder,
             "-lossless", "0",
             "-q:v", String(ajuste.calidad),
-            "-compression_level", "4",
+            "-compression_level", "2",
             "-loop", "0",
             salida
           ]);

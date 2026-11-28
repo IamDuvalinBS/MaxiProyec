@@ -19,7 +19,7 @@ const LIMITE_ANIMADO = 500 * 1024;
 const LIMITE_MAXIMO = 1024 * 1024;
 const EMOJIS_PAQUETE = ["😀", "😂", "😍", "🔥", "👍", "🎉", "😎", "🤩", "💯", "🥳"];
 
-export const MAX_SEGUNDOS_STICKER = 10;
+export const MAX_SEGUNDOS_STICKER = 30;
 
 export async function descargarBuffer(url) {
   const res = await fetch(url, { headers: { "user-agent": UA } });
@@ -300,7 +300,7 @@ let encoderWebp = null;
 
 function correrFfmpeg(args) {
   return conLimite("ligero", () => new Promise((resolve, reject) => {
-    execFile("ffmpeg", args, { timeout: 90000 }, (error, _salida, errores) => {
+    execFile("ffmpeg", args, { timeout: 180000 }, (error, _salida, errores) => {
       if (!error) return resolve();
       if (error.code === "ENOENT") return reject(new Error("ffmpeg no está instalado"));
       const detalle = String(errores || error.message).trim().split("\n").slice(-2).join(" ");
@@ -312,7 +312,7 @@ function correrFfmpeg(args) {
 function convertirAnimado(entrada, salida, ajuste, encoder) {
   const filtro = [
     `fps=${ajuste.fps}`,
-    "scale=512:512:force_original_aspect_ratio=decrease:flags=lanczos",
+    "scale=512:512:force_original_aspect_ratio=decrease:flags=bicubic",
     "format=rgba",
     "pad=512:512:(ow-iw)/2:(oh-ih)/2:color=black@0"
   ].join(",");
@@ -325,10 +325,21 @@ function convertirAnimado(entrada, salida, ajuste, encoder) {
     "-c:v", encoder,
     "-lossless", "0",
     "-q:v", String(ajuste.calidad),
-    "-compression_level", "4",
+    "-compression_level", "2",
     "-loop", "0",
     salida
   ]);
+}
+
+function duracionVideo(archivo) {
+  return new Promise((resolve) => {
+    execFile(
+      "ffprobe",
+      ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", archivo],
+      { timeout: 20000 },
+      (error, salida) => resolve(error ? 0 : Number.parseFloat(String(salida)) || 0)
+    );
+  });
 }
 
 async function aWebpAnimado(buffer) {
@@ -339,7 +350,10 @@ async function aWebpAnimado(buffer) {
     await fs.promises.writeFile(entrada, buffer);
 
     let resultado = null;
-    for (let i = 0; i < AJUSTES_ANIMADO.length; i++) {
+    // Videos largos: se empieza con menos calidad para no codificar varias veces algo que no va a caber.
+    const duracion = Math.min(await duracionVideo(entrada), MAX_SEGUNDOS_STICKER);
+    const inicio = duracion <= 8 ? 0 : duracion <= 15 ? 1 : duracion <= 22 ? 2 : 3;
+    for (let i = inicio; i < AJUSTES_ANIMADO.length; i++) {
       const ajuste = AJUSTES_ANIMADO[i];
       let convertido = false;
       let ultimoError = null;
